@@ -1,15 +1,6 @@
-<!doctype html><html><head><meta charset="utf-8"><style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}
-.frame{position:absolute;left:25%;top:10%;width:50%;height:80%;border:3px solid rgba(92,235,255,.8);border-radius:18px;box-shadow:0 0 20px rgba(92,235,255,.6),inset 0 0 20px rgba(92,235,255,.15);opacity:.55}
-.reveal{animation:reveal 1.2s ease-out}
-@keyframes reveal{0%{opacity:.3;transform:scale(.97)}30%{opacity:1;transform:scale(1.02);box-shadow:0 0 60px rgba(92,235,255,1),inset 0 0 40px rgba(92,235,255,.35)}100%{opacity:.55;transform:scale(1)}}
-</style></head><body>
-<div class="frame" id="frame"></div>
-<script src="/static/common.js"></script><script>
-const frame=document.getElementById("frame");
-connectRareIQ(m=>{
-  if(m.type==="card_reveal"){
-    frame.classList.remove("reveal");void frame.offsetWidth;frame.classList.add("reveal");
-  }
-});
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}canvas{width:100%;height:100%;display:block}</style></head><body><canvas id="c"></canvas><script src="/static/common.js"></script><script>
+const c=document.getElementById("c"),x=c.getContext("2d");let p=[],v=false,s=false,reveal=null,until=0;function resize(){const d=devicePixelRatio||1;c.width=innerWidth*d;c.height=innerHeight*d;x.setTransform(d,0,0,d,0,0)}addEventListener("resize",resize);resize();
+connectRareIQ(m=>{if(m.type==="snapshot"){const q=m.payload.vision||{};p=q.polygon||[];v=q.visible;s=q.stable}if(m.type==="card_tracking"){p=m.payload.polygon||[];v=m.payload.visible;s=m.payload.stable}if(m.type==="card_reveal"){reveal=m.payload;until=performance.now()+m.payload.experience.duration_ms}});
+function color(){const r=reveal?.card?.rarity||"";if(r==="GRAIL")return"#5df2ff";if(r.includes("ILLUSTRATION"))return"#ffb558";if(r.includes("DOUBLE"))return"#a88aff";if(r==="RARE")return"#75aaff";return s?"#5dffaf":"rgba(255,255,255,.72)"}
+function draw(){requestAnimationFrame(draw);x.clearRect(0,0,innerWidth,innerHeight);if(!v||p.length!==4)return;const q=p.map(([a,b])=>[a*innerWidth,b*innerHeight]),a=performance.now()<until,z=.5+.5*Math.sin(performance.now()/90);x.save();x.beginPath();x.moveTo(...q[0]);q.slice(1).forEach(t=>x.lineTo(...t));x.closePath();x.strokeStyle=color();x.lineWidth=a?4+z*6:s?4:2.5;x.shadowColor=color();x.shadowBlur=a?25+z*35:s?18:7;x.stroke();q.forEach(([i,j])=>{x.beginPath();x.arc(i,j,a?5+z*4:4,0,Math.PI*2);x.fillStyle=color();x.fill()});x.restore()}draw();
 </script></body></html>
