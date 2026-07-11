@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"></head><body style="background:transparent">
+<script src="/static/common.js"></script><script>
+let ac;
+function ctx(){return ac||(ac=new (window.AudioContext||window.webkitAudioContext)())}
+function tone(f,s,d,g,t="sine"){
+  const c=ctx(),o=c.createOscillator(),a=c.createGain();
+  o.type=t;o.frequency.setValueAtTime(f,c.currentTime+s);
+  a.gain.setValueAtTime(.0001,c.currentTime+s);
+  a.gain.exponentialRampToValueAtTime(g,c.currentTime+s+.01);
+  a.gain.exponentialRampToValueAtTime(.0001,c.currentTime+s+d);
+  o.connect(a);a.connect(c.destination);o.start(c.currentTime+s);o.stop(c.currentTime+s+d+.03);
+}
+function play(name){
+  if(name==="pack"){tone(520,0,.08,.08);tone(780,.07,.12,.06)}
+  if(name==="common"){tone(520,0,.10,.07)}
+  if(name==="rare"){tone(420,0,.13,.10,"triangle");tone(660,.08,.18,.08)}
+  if(name==="double"){tone(180,0,.3,.14,"sawtooth");tone(720,.12,.3,.09)}
+  if(name==="illustration"){tone(220,0,.5,.14,"sawtooth");tone(880,.15,.45,.08)}
+  if(name==="grail"){tone(80,0,.85,.2,"sawtooth");tone(420,.12,.6,.12);tone(1100,.3,.8,.08)}
+}
+connectRareIQ(m=>{
+  ctx().resume();
+  if(m.type==="pack_started")play("pack");
+  if(m.type==="card_reveal")play(m.payload.experience.sound);
+});
+</script></body></html>

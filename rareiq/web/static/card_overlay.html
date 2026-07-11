@@ -1,0 +1,15 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}
+.frame{position:absolute;left:25%;top:10%;width:50%;height:80%;border:3px solid rgba(92,235,255,.8);border-radius:18px;box-shadow:0 0 20px rgba(92,235,255,.6),inset 0 0 20px rgba(92,235,255,.15);opacity:.55}
+.reveal{animation:reveal 1.2s ease-out}
+@keyframes reveal{0%{opacity:.3;transform:scale(.97)}30%{opacity:1;transform:scale(1.02);box-shadow:0 0 60px rgba(92,235,255,1),inset 0 0 40px rgba(92,235,255,.35)}100%{opacity:.55;transform:scale(1)}}
+</style></head><body>
+<div class="frame" id="frame"></div>
+<script src="/static/common.js"></script><script>
+const frame=document.getElementById("frame");
+connectRareIQ(m=>{
+  if(m.type==="card_reveal"){
+    frame.classList.remove("reveal");void frame.offsetWidth;frame.classList.add("reveal");
+  }
+});
+</script></body></html>

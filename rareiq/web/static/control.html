@@ -1,0 +1,132 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>RareIQ Operator Dashboard</title>
+<style>
+:root { color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font-family:Arial,sans-serif; background:#070b12; color:#fff; }
+main { max-width:1280px; margin:auto; padding:24px; }
+h1 { margin:0 0 4px; }
+.sub { opacity:.6; margin-bottom:20px; }
+.grid { display:grid; grid-template-columns:1.2fr .8fr; gap:18px; }
+.panel { background:#101725; border:1px solid #273853; border-radius:16px; padding:18px; }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+label { display:block; font-size:12px; opacity:.65; margin-bottom:5px; }
+input { width:100%; border:1px solid #33445f; background:#080d16; color:#fff; border-radius:9px; padding:11px; }
+button { border:0; border-radius:10px; padding:12px 14px; font-weight:800; cursor:pointer; margin:4px; }
+.primary { background:#73edff; color:#061017; }
+.good { background:#79e5a4; color:#07130c; }
+.warn { background:#ffc56e; color:#171006; }
+.danger { background:#ff727a; }
+.rare { background:#78adff; }
+.double { background:#a78bff; }
+.illustration { background:#ffb35e; }
+.grail { background:#74efff; box-shadow:0 0 18px #5ce9ff66; }
+.progress { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:16px; }
+.stat { background:#080d16; border-radius:12px; padding:14px; text-align:center; }
+.stat strong { display:block; font-size:28px; }
+.stat span { opacity:.55; font-size:11px; }
+.pack-controls { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
+.big { padding:18px; font-size:17px; }
+pre { background:#070b12; padding:12px; border-radius:10px; max-height:420px; overflow:auto; }
+iframe { width:100%; aspect-ratio:9/16; border:1px solid #273853; border-radius:12px; background:#05080f; }
+@media(max-width:900px){ .grid{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<main>
+  <h1>RareIQ Operator Dashboard</h1>
+  <div class="sub">TikTok-first break flow • Project Digital Jazz</div>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>Start customer batch</h2>
+      <div class="form-grid">
+        <div><label>Customer</label><input id="customer" value="Demo Customer"></div>
+        <div><label>Order number</label><input id="order" value="RIQ-0001"></div>
+        <div><label>Product</label><input id="product" value="Greninja Jumbo Box"></div>
+        <div><label>Boxes</label><input id="boxes" type="number" value="1" min="1"></div>
+        <div><label>Packs per box</label><input id="packs" type="number" value="5" min="1"></div>
+      </div>
+      <button class="primary" onclick="startSession()">Start Batch</button>
+
+      <div class="progress">
+        <div class="stat"><strong id="boxStat">1/1</strong><span>BOX</span></div>
+        <div class="stat"><strong id="packStat">1/5</strong><span>PACK</span></div>
+        <div class="stat"><strong id="cardStat">0</strong><span>CARDS</span></div>
+        <div class="stat"><strong id="valueStat">$0</strong><span>VALUE</span></div>
+      </div>
+
+      <h2>Pack and box controls</h2>
+      <div class="pack-controls">
+        <button class="warn big" onclick="post('/api/session/previous-pack')">◀ Previous Pack</button>
+        <button class="good big" onclick="post('/api/session/next-pack')">Next Pack ▶</button>
+        <button class="warn big" onclick="post('/api/session/previous-box')">◀ Previous Box</button>
+        <button class="good big" onclick="post('/api/session/next-box')">Next Box ▶</button>
+      </div>
+
+      <h2>Demo card triggers</h2>
+      <button onclick="demo('common')">Common</button>
+      <button class="rare" onclick="demo('rare')">Rare</button>
+      <button class="double" onclick="demo('double_rare')">Double Rare</button>
+      <button class="illustration" onclick="demo('illustration_rare')">Illustration Rare</button>
+      <button class="grail" onclick="demo('grail')">Grail</button>
+
+      <h2>Session controls</h2>
+      <button class="warn" onclick="post('/api/session/undo')">Undo Last Card</button>
+      <button class="danger" onclick="post('/api/session/close')">Close Customer</button>
+
+      <h2>Live event feed</h2>
+      <pre id="feed">Connecting…</pre>
+    </section>
+
+    <section class="panel">
+      <h2>Portrait data preview</h2>
+      <iframe src="/overlay/data"></iframe>
+    </section>
+  </div>
+</main>
+
+<script src="/static/common.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+
+async function post(url, body) {
+  await fetch(url, {
+    method:"POST",
+    headers: body ? {"Content-Type":"application/json"} : undefined,
+    body: body ? JSON.stringify(body) : undefined
+  });
+}
+
+async function startSession() {
+  await post("/api/session/start", {
+    customer:$("customer").value,
+    order_number:$("order").value,
+    product_name:$("product").value,
+    boxes_total:Number($("boxes").value),
+    packs_per_box:Number($("packs").value)
+  });
+}
+
+async function demo(tier) {
+  await post(`/api/demo/${tier}`);
+}
+
+function render(session) {
+  $("boxStat").textContent = `${session.active_box_number}/${session.boxes_total}`;
+  $("packStat").textContent = `${session.active_pack_number}/${session.packs_per_box}`;
+  $("cardStat").textContent = session.card_count;
+  $("valueStat").textContent = money(session.total_value);
+}
+
+connectRareIQ(message => {
+  $("feed").textContent = JSON.stringify(message, null, 2);
+  const session = message.payload?.session;
+  if (session) render(session);
+});
+</script>
+</body>
+</html>
