@@ -1,0 +1,910 @@
+from __future__ import annotations
+
+import json
+import re
+import threading
+import time
+from difflib import SequenceMatcher
+from pathlib import Path
+from typing import Any, Callable
+
+import cv2
+import numpy as np
+from rapidocr import RapidOCR
+
+from rareiq.services.artwork_index_service import ArtworkIndexService
+from rareiq.services.set_catalog_service import SetCatalogService
+from rareiq.services.live_catalog_service import LiveCatalogService
+
+
+COLLECTOR_NUMBER_RE = re.compile(
+    r"\b(?:[A-Z]{1,4}\s*)?(\d{1,4})\s*[/／]\s*(\d{1,4})\b",
+    re.IGNORECASE,
+)
+
+
+class RecognitionService:
+    def __init__(
+        self,
+        emit: Callable[[dict[str, Any]], None],
+        database_path: Path | None = None,
+    ) -> None:
+        self.emit = emit
+        self._lock = threading.Lock()
+        self._engine: RapidOCR | None = None
+        self._busy = False
+        self._last_started_at = 0.0
+        self._last_full_pass_at = 0.0
+        self._fast_interval = 0.18
+        self._full_interval = 4.0
+
+        if database_path is None:
+            database_path = (
+                Path(__file__).resolve().parents[1]
+                / "data"
+                / "cards_poc.json"
+            )
+
+        self._cards = self._load_cards(database_path)
+        self.artwork_index = ArtworkIndexService()
+        self.set_catalog = SetCatalogService()
+        self.live_catalog = LiveCatalogService(self.artwork_index)
+        active = self.set_catalog.active_set()
+        if active:
+            self.artwork_index.set_active_filter(
+                active.get("name"),
+                active.get("language"),
+            )
+
+        self._status: dict[str, Any] = {
+            "enabled": True,
+            "busy": False,
+            "mode": "ARTEMIS_INDEX",
+            "last_latency_ms": None,
+            "stage_timings": {},
+            "raw_text": [],
+            "name_candidate": None,
+            "hp_candidate": None,
+            "ocr_collector_number": None,
+            "collector_number": None,
+            "language": None,
+            "confidence": 0.0,
+            "text_detected": False,
+            "database_match": None,
+            "database_confidence": 0.0,
+            "correction_applied": False,
+            "overall_confidence": 0.0,
+            "recognition_locked": False,
+                "verification_state": "ERROR",
+                "pipeline_stages": [],
+            "lock_reason": None,
+            "candidates": [],
+            "candidate_count": 0,
+            "artwork_fingerprint": None,
+            "active_set": self.set_catalog.status(),
+            "live_catalog": self.live_catalog.status(),
+            "artwork_index": {
+                "status": self.artwork_index.status(),
+                "search_ms": 0.0,
+                "top_score": 0.0,
+                "matches": [],
+            },
+            "regions": {
+                "top": False,
+                "bottom": False,
+                "artwork": False,
+                "full": False,
+            },
+            "error": None,
+            "pipeline_stages": [],
+            "verification_state": "SEARCHING",
+            "updated_at": None,
+        }
+
+    @staticmethod
+    def _load_cards(path: Path) -> list[dict[str, Any]]:
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return []
+
+    def status(self) -> dict[str, Any]:
+        with self._lock:
+            return dict(self._status)
+
+    def set_enabled(self, enabled: bool) -> dict[str, Any]:
+        with self._lock:
+            self._status["enabled"] = bool(enabled)
+        return self.status()
+
+    def submit_frame(self, frame: np.ndarray | None) -> None:
+        if frame is None:
+            return
+
+        with self._lock:
+            now = time.time()
+            if (
+                not bool(self._status["enabled"])
+                or self._busy
+                or now - self._last_started_at < self._fast_interval
+            ):
+                return
+
+            self._busy = True
+            self._status["busy"] = True
+            self._last_started_at = now
+
+        threading.Thread(
+            target=self._recognize_worker,
+            args=(frame.copy(),),
+            daemon=True,
+        ).start()
+
+    def _engine_instance(self) -> RapidOCR:
+        if self._engine is None:
+            self._engine = RapidOCR()
+        return self._engine
+
+    @staticmethod
+    def _card_roi(frame: np.ndarray) -> np.ndarray:
+        height, width = frame.shape[:2]
+        roi_width = int(width * 0.48)
+        roi_height = int(height * 0.82)
+        x1 = max(0, (width - roi_width) // 2)
+        y1 = max(0, (height - roi_height) // 2)
+        return frame[y1:y1 + roi_height, x1:x1 + roi_width]
+
+    @staticmethod
+    def _regions(card: np.ndarray) -> dict[str, np.ndarray]:
+        height, width = card.shape[:2]
+        return {
+            "top": card[0:int(height * 0.17), 0:width],
+            "artwork": card[
+                int(height * 0.12):int(height * 0.52),
+                int(width * 0.05):int(width * 0.95),
+            ],
+            "bottom": card[int(height * 0.70):height, 0:width],
+            "full": card,
+        }
+
+    @staticmethod
+    def _resize(image: np.ndarray, target_width: int) -> np.ndarray:
+        height, width = image.shape[:2]
+        if width >= target_width:
+            return image
+        scale = target_width / width
+        return cv2.resize(
+            image,
+            (int(width * scale), int(height * scale)),
+            interpolation=cv2.INTER_CUBIC,
+        )
+
+    @staticmethod
+    def _fast_variant(image: np.ndarray) -> np.ndarray:
+        enlarged = RecognitionService._resize(image, 1200)
+        gray = cv2.cvtColor(enlarged, cv2.COLOR_BGR2GRAY)
+        enhanced = cv2.createCLAHE(
+            clipLimit=2.2,
+            tileGridSize=(8, 8),
+        ).apply(gray)
+        blurred = cv2.GaussianBlur(enhanced, (0, 0), 1.4)
+        return cv2.addWeighted(enhanced, 1.55, blurred, -0.55, 0)
+
+    @staticmethod
+    def _language_from_text(text: str) -> str:
+        if re.search(r"[\u3040-\u30ff]", text):
+            return "Japanese"
+        if re.search(r"[\u4e00-\u9fff]", text):
+            return "Chinese"
+        if re.search(r"[A-Za-z]", text):
+            return "English"
+        return "Unknown"
+
+    @staticmethod
+    def _extract_result(result: Any) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        texts = getattr(result, "txts", None)
+        scores = getattr(result, "scores", None)
+        boxes = getattr(result, "boxes", None)
+
+        if texts is not None:
+            texts_list = list(texts)
+            scores_list = (
+                list(scores)
+                if scores is not None
+                else [0.0] * len(texts_list)
+            )
+            boxes_list = (
+                list(boxes)
+                if boxes is not None
+                else [None] * len(texts_list)
+            )
+
+            for text, score, box in zip(
+                texts_list,
+                scores_list,
+                boxes_list,
+            ):
+                items.append({
+                    "text": str(text).strip(),
+                    "score": float(score or 0.0),
+                    "box": (
+                        box.tolist()
+                        if hasattr(box, "tolist")
+                        else box
+                    ),
+                })
+            return items
+
+        if isinstance(result, tuple) and result:
+            result = result[0]
+
+        if isinstance(result, list):
+            for entry in result:
+                if (
+                    not isinstance(entry, (list, tuple))
+                    or len(entry) < 2
+                ):
+                    continue
+
+                box = entry[0]
+                text_score = entry[1]
+                if (
+                    isinstance(text_score, (list, tuple))
+                    and text_score
+                ):
+                    items.append({
+                        "text": str(text_score[0]).strip(),
+                        "score": (
+                            float(text_score[1])
+                            if len(text_score) > 1
+                            else 0.0
+                        ),
+                        "box": (
+                            box.tolist()
+                            if hasattr(box, "tolist")
+                            else box
+                        ),
+                    })
+        return items
+
+    def _run_ocr(
+        self,
+        image: np.ndarray,
+        source: str,
+        full_pass: bool = False,
+    ) -> list[dict[str, Any]]:
+        prepared = (
+            self._resize(image, 1300)
+            if full_pass
+            else self._fast_variant(image)
+        )
+
+        items: list[dict[str, Any]] = []
+        for item in self._extract_result(
+            self._engine_instance()(prepared)
+        ):
+            if item["text"] and item["score"] >= 0.25:
+                item["source"] = source
+                item["variant"] = (
+                    "color"
+                    if full_pass
+                    else "sharp"
+                )
+                items.append(item)
+        return items
+
+    @staticmethod
+    def _best_collector_number(
+        items: list[dict[str, Any]],
+    ) -> str | None:
+        votes: dict[str, float] = {}
+
+        for item in items:
+            for match in COLLECTOR_NUMBER_RE.finditer(item["text"]):
+                number = f"{match.group(1)}/{match.group(2)}"
+                weight = max(0.01, float(item["score"]))
+                if item.get("source") == "bottom":
+                    weight *= 2.2
+                votes[number] = votes.get(number, 0.0) + weight
+
+        return max(votes, key=votes.get) if votes else None
+
+    @staticmethod
+    def _best_name(items: list[dict[str, Any]]) -> str | None:
+        candidates: dict[str, float] = {}
+
+        for item in items:
+            if item.get("source") not in {"top", "full"}:
+                continue
+
+            text = item["text"].strip()
+            if (
+                COLLECTOR_NUMBER_RE.search(text)
+                or len(text) < 2
+                or re.fullmatch(r"[\d\W_]+", text)
+            ):
+                continue
+
+            weight = float(item["score"])
+            if item.get("source") == "top":
+                weight *= 1.8
+
+            candidates[text] = candidates.get(text, 0.0) + weight
+
+        return max(candidates, key=candidates.get) if candidates else None
+
+    @staticmethod
+    def _best_hp(items: list[dict[str, Any]]) -> str | None:
+        patterns = [
+            re.compile(r"\bHP\s*(\d{1,3})\b", re.IGNORECASE),
+            re.compile(r"\b(\d{2,3})\s*HP\b", re.IGNORECASE),
+        ]
+
+        for item in items:
+            if item.get("source") != "top":
+                continue
+            for pattern in patterns:
+                match = pattern.search(item["text"])
+                if match:
+                    return match.group(1)
+        return None
+
+    @staticmethod
+    def _split_number(
+        number: str | None,
+    ) -> tuple[str | None, str | None]:
+        if not number or "/" not in number:
+            return None, None
+        left, right = number.split("/", 1)
+        return left, right
+
+    def _database_validate(
+        self,
+        name: str | None,
+        number: str | None,
+        language: str,
+    ) -> tuple[dict[str, Any] | None, float]:
+        if not self._cards:
+            return None, 0.0
+
+        left, right = self._split_number(number)
+        scored: list[tuple[float, dict[str, Any]]] = []
+
+        for card in self._cards:
+            score = 0.0
+
+            if (
+                language != "Unknown"
+                and card.get("language") == language
+            ):
+                score += 0.20
+
+            printed_name = str(card.get("printed_name", ""))
+            if name and printed_name:
+                score += (
+                    SequenceMatcher(
+                        None,
+                        name,
+                        printed_name,
+                    ).ratio()
+                    * 0.50
+                )
+
+            db_left, db_right = self._split_number(
+                card.get("collector_number")
+            )
+
+            if left and db_left:
+                score += (
+                    0.25
+                    if left == db_left
+                    else SequenceMatcher(
+                        None,
+                        left,
+                        db_left,
+                    ).ratio()
+                    * 0.10
+                )
+
+            if right and db_right:
+                score += (
+                    0.20
+                    if right == db_right
+                    else SequenceMatcher(
+                        None,
+                        right,
+                        db_right,
+                    ).ratio()
+                    * 0.12
+                )
+
+            scored.append((score, card))
+
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+        best_score, best_card = scored[0]
+
+        if best_score < 0.55:
+            return None, best_score
+
+        return best_card, min(1.0, best_score)
+
+    @staticmethod
+    def _fuse_confidence(
+        ocr_confidence: float,
+        collector_number: str | None,
+        language: str,
+        evidence_confidence: float,
+        artwork_fingerprint: str | None,
+    ) -> tuple[float, list[str]]:
+        components = [
+            (
+                max(0.0, min(1.0, ocr_confidence)),
+                0.25,
+                "OCR",
+            ),
+            (
+                1.0 if collector_number else 0.0,
+                0.30,
+                "Collector number",
+            ),
+            (
+                1.0
+                if language and language != "Unknown"
+                else 0.0,
+                0.10,
+                "Language",
+            ),
+            (
+                max(0.0, min(1.0, evidence_confidence)),
+                0.25,
+                "Database or artwork",
+            ),
+            (
+                1.0 if artwork_fingerprint else 0.0,
+                0.10,
+                "Artwork fingerprint",
+            ),
+        ]
+
+        score = sum(
+            value * weight
+            for value, weight, _ in components
+        )
+        reasons = [
+            name
+            for value, _, name in components
+            if value >= 0.75
+        ]
+        return round(score, 3), reasons
+
+    @staticmethod
+    def _score_candidate(
+        candidate: dict[str, Any],
+        observed_name: str | None,
+        observed_number: str | None,
+        observed_language: str,
+    ) -> float:
+        base = float(candidate.get("score", 0.0))
+        score = base * 0.65
+
+        candidate_number = candidate.get("collector_number")
+        candidate_language = candidate.get("language")
+        candidate_name = (
+            candidate.get("printed_name")
+            or candidate.get("name")
+            or ""
+        )
+
+        if observed_number and candidate_number:
+            if observed_number == candidate_number:
+                score += 0.25
+            else:
+                score -= 0.10
+
+        if (
+            observed_language
+            and observed_language != "Unknown"
+            and candidate_language
+        ):
+            score += 0.07 if observed_language == candidate_language else -0.05
+
+        if observed_name and candidate_name:
+            name_ratio = SequenceMatcher(
+                None,
+                observed_name,
+                str(candidate_name),
+            ).ratio()
+            score += name_ratio * 0.08
+
+        return round(max(0.0, min(1.0, score)), 4)
+
+    def _recognize_worker(self, frame: np.ndarray) -> None:
+        started = time.perf_counter()
+
+        try:
+            pipeline_stages: list[dict[str, Any]] = []
+
+            card = self._card_roi(frame)
+            pipeline_stages.append({
+                "key": "detect",
+                "label": "Card detected",
+                "state": "done",
+            })
+            regions = self._regions(card)
+            pipeline_stages.append({
+                "key": "perspective",
+                "label": "Card crop prepared",
+                "state": "done",
+            })
+
+            artwork_started = time.perf_counter()
+            artwork_result = self.artwork_index.search(
+                regions["artwork"],
+                limit=10,
+            )
+            artwork_ms = round(
+                (time.perf_counter() - artwork_started) * 1000,
+                1,
+            )
+            artwork_candidates = artwork_result.get("matches", [])
+            artwork_top_score = (
+                float(artwork_candidates[0].get("score", 0.0))
+                if artwork_candidates
+                else 0.0
+            )
+            fingerprint = artwork_result.get(
+                "query_fingerprint"
+            )
+            pipeline_stages.append({
+                "key": "fingerprint",
+                "label": "Artwork fingerprint",
+                "state": "done" if fingerprint else "waiting",
+            })
+            pipeline_stages.append({
+                "key": "index",
+                "label": "Artwork index searched",
+                "state": "done" if artwork_candidates else "waiting",
+            })
+
+            ocr_started = time.perf_counter()
+            top_items = self._run_ocr(
+                regions["top"],
+                "top",
+            )
+            bottom_items = self._run_ocr(
+                regions["bottom"],
+                "bottom",
+            )
+
+            now = time.time()
+            prior = self.status()
+            need_fallback = (
+                not prior.get("collector_number")
+                or not prior.get("name_candidate")
+            )
+            run_full = (
+                need_fallback
+                and now - self._last_full_pass_at
+                >= self._full_interval
+            )
+
+            full_items: list[dict[str, Any]] = []
+            if run_full:
+                full_items = self._run_ocr(
+                    regions["full"],
+                    "full",
+                    True,
+                )
+                self._last_full_pass_at = now
+
+            ocr_ms = round(
+                (time.perf_counter() - ocr_started) * 1000,
+                1,
+            )
+
+            items = top_items + bottom_items + full_items
+            name = self._best_name(items)
+            hp = self._best_hp(items)
+            ocr_number = self._best_collector_number(items)
+            combined = " ".join(
+                item["text"]
+                for item in items
+            )
+            language = self._language_from_text(combined)
+            pipeline_stages.append({
+                "key": "ocr",
+                "label": "OCR complete",
+                "state": "done" if items else "waiting",
+            })
+            pipeline_stages.append({
+                "key": "collector",
+                "label": "Collector number",
+                "state": "done" if ocr_number else "waiting",
+            })
+            pipeline_stages.append({
+                "key": "language",
+                "label": "Language identified",
+                "state": "done" if language != "Unknown" else "waiting",
+            })
+
+            db_match, db_confidence = self._database_validate(
+                name,
+                ocr_number,
+                language,
+            )
+
+            validated_number = ocr_number
+            correction_applied = False
+
+            if db_match:
+                validated_number = db_match.get(
+                    "collector_number"
+                )
+                correction_applied = (
+                    validated_number != ocr_number
+                )
+
+            if (
+                not validated_number
+                and artwork_candidates
+                and artwork_top_score >= 0.90
+            ):
+                validated_number = str(
+                    artwork_candidates[0].get(
+                        "collector_number"
+                    )
+                )
+
+            ocr_confidence = (
+                sum(
+                    float(item["score"])
+                    for item in items
+                )
+                / len(items)
+                if items
+                else 0.0
+            )
+
+            evidence_confidence = max(
+                float(db_confidence),
+                artwork_top_score,
+            )
+
+            overall_confidence, lock_reasons = (
+                self._fuse_confidence(
+                    float(ocr_confidence),
+                    validated_number,
+                    language,
+                    evidence_confidence,
+                    fingerprint,
+                )
+            )
+
+            visual_candidates = [
+                {
+                    "name": (
+                        item.get("name")
+                        or item.get("printed_name")
+                        or "Artwork match"
+                    ),
+                    "printed_name": item.get("printed_name"),
+                    "collector_number": item.get(
+                        "collector_number"
+                    ),
+                    "language": item.get("language"),
+                    "score": float(item.get("score", 0.0)),
+                    "source": "artwork_index",
+                    "distance": item.get("distance"),
+                    "set_name": item.get("set_name"),
+                    "reference_image_url": (
+                        f"/api/artwork-index/image/{item.get('id')}"
+                        if item.get("image_path") and item.get("id")
+                        else None
+                    ),
+                }
+                for item in artwork_candidates
+            ]
+
+            ocr_candidates: list[dict[str, Any]] = []
+            if db_match:
+                ocr_candidates.append({
+                    "name": (
+                        db_match.get("english_name")
+                        or db_match.get("name")
+                        or db_match.get("printed_name")
+                        or "Database match"
+                    ),
+                    "printed_name": db_match.get(
+                        "printed_name"
+                    ),
+                    "collector_number": db_match.get(
+                        "collector_number"
+                    ) or validated_number,
+                    "language": db_match.get(
+                        "language"
+                    ) or language,
+                    "score": round(
+                        float(db_confidence),
+                        3,
+                    ),
+                    "source": "database",
+                })
+
+            if name or validated_number:
+                ocr_candidates.append({
+                    "name": name or "Unknown card",
+                    "collector_number": validated_number,
+                    "language": language,
+                    "score": (
+                        0.55
+                        if validated_number
+                        else 0.35
+                    ),
+                    "source": "ocr",
+                })
+
+            combined_candidates = visual_candidates + ocr_candidates
+            for candidate in combined_candidates:
+                candidate["fused_score"] = self._score_candidate(
+                    candidate,
+                    name,
+                    validated_number,
+                    language,
+                )
+
+            candidates = sorted(
+                combined_candidates,
+                key=lambda candidate: float(
+                    candidate.get("fused_score", candidate.get("score", 0.0))
+                ),
+                reverse=True,
+            )[:10]
+
+            pipeline_stages.append({
+                "key": "candidates",
+                "label": "Candidates ranked",
+                "state": "done" if candidates else "waiting",
+            })
+
+            recognition_locked = (
+                overall_confidence >= 0.72
+                and bool(validated_number)
+                and language != "Unknown"
+            )
+
+            verification_state = (
+                "VERIFIED"
+                if recognition_locked and candidates
+                else "LOCKED"
+                if recognition_locked
+                else "SEARCHING"
+            )
+
+            pipeline_stages.append({
+                "key": "verify",
+                "label": "Final verification",
+                "state": "done" if verification_state == "VERIFIED" else "waiting",
+            })
+
+            payload = {
+                "enabled": True,
+                "busy": False,
+                "mode": "ARTEMIS_INDEX",
+                "last_latency_ms": round(
+                    (time.perf_counter() - started) * 1000,
+                    1,
+                ),
+                "stage_timings": {
+                    "artwork_search_ms": artwork_ms,
+                    "ocr_ms": ocr_ms,
+                    "total_ms": round(
+                        (
+                            time.perf_counter()
+                            - started
+                        )
+                        * 1000,
+                        1,
+                    ),
+                },
+                "raw_text": items,
+                "name_candidate": name,
+                "hp_candidate": hp,
+                "ocr_collector_number": ocr_number,
+                "collector_number": validated_number,
+                "language": language,
+                "confidence": round(
+                    float(ocr_confidence),
+                    3,
+                ),
+                "text_detected": bool(items),
+                "database_match": db_match,
+                "database_confidence": round(
+                    float(db_confidence),
+                    3,
+                ),
+                "correction_applied": correction_applied,
+                "overall_confidence": overall_confidence,
+                "recognition_locked": recognition_locked,
+                "verification_state": verification_state,
+                "pipeline_stages": pipeline_stages,
+                "lock_reason": (
+                    ", ".join(lock_reasons)
+                    if recognition_locked
+                    else None
+                ),
+                "candidates": candidates,
+                "candidate_count": len(candidates),
+                "artwork_fingerprint": fingerprint,
+                "active_set": self.set_catalog.status(),
+                "live_catalog": self.live_catalog.status(),
+                "artwork_index": {
+                    "status": self.artwork_index.status(),
+                    "search_ms": artwork_ms,
+                    "top_score": round(
+                        artwork_top_score,
+                        4,
+                    ),
+                    "matches": artwork_candidates,
+                },
+                "regions": {
+                    "top": bool(top_items),
+                    "bottom": bool(bottom_items),
+                    "artwork": True,
+                    "full": bool(full_items),
+                },
+                "error": None,
+                "updated_at": time.time(),
+            }
+
+        except Exception as exc:
+            payload = {
+                "enabled": True,
+                "busy": False,
+                "mode": "ARTEMIS_INDEX",
+                "last_latency_ms": round(
+                    (time.perf_counter() - started) * 1000,
+                    1,
+                ),
+                "stage_timings": {},
+                "raw_text": [],
+                "name_candidate": None,
+                "hp_candidate": None,
+                "ocr_collector_number": None,
+                "collector_number": None,
+                "language": None,
+                "confidence": 0.0,
+                "text_detected": False,
+                "database_match": None,
+                "database_confidence": 0.0,
+                "correction_applied": False,
+                "overall_confidence": 0.0,
+                "recognition_locked": False,
+                "lock_reason": None,
+                "candidates": [],
+                "candidate_count": 0,
+                "artwork_fingerprint": None,
+                "artwork_index": {
+                    "status": self.artwork_index.status(),
+                    "search_ms": 0.0,
+                    "top_score": 0.0,
+                    "matches": [],
+                },
+                "regions": {
+                    "top": False,
+                    "bottom": False,
+                    "artwork": False,
+                    "full": False,
+                },
+                "error": str(exc),
+                "updated_at": time.time(),
+            }
+
+        with self._lock:
+            self._busy = False
+            self._status.update(payload)
+
+        self.emit({
+            "type": "recognition_update",
+            "payload": payload,
+        })

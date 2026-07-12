@@ -11,12 +11,13 @@ from pydantic import BaseModel, Field
 
 from rareiq.core.events import EventBus
 from rareiq.core.orchestrator import RareIQOrchestrator
+from rareiq.version import BUILD_DATE, CODENAME, VERSION, version_payload
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 CAPTURE_DIR = BASE_DIR.parent.parent / "captures"
 
-app = FastAPI(title="RareIQ v0.3")
+app = FastAPI(title=f"RareIQ v{VERSION}")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 event_bus = EventBus()
 orchestrator = RareIQOrchestrator(event_bus, CAPTURE_DIR)
@@ -31,7 +32,33 @@ class SessionStartRequest(BaseModel):
 
 
 class CameraStartRequest(BaseModel):
-    camera_index: int = Field(default=0, ge=0, le=20)
+    camera_index: int
+    camera_backend: int
+
+class AutoCaptureRequest(BaseModel):
+    enabled: bool
+
+class RecognitionToggleRequest(BaseModel):
+    enabled: bool
+
+class ActiveSetRequest(BaseModel):
+    set_id: str
+
+class LiveSetImportRequest(BaseModel):
+    set_id: str
+    language: str = "English"
+    max_cards: int | None = None
+
+class CardGraderRegisterRequest(BaseModel):
+    name: str = "RareIQ"
+    contact_email: str | None = None
+
+class CardGraderKeyRequest(BaseModel):
+    api_key: str
+
+class CardGraderSubmitRequest(BaseModel):
+    module: str = "grade"
+    include_back: bool = False
 
 
 class ConnectionManager:
@@ -42,7 +69,9 @@ class ConnectionManager:
         self.connections.append(ws)
         await ws.send_json({"type": "snapshot", "payload": {
             "session": orchestrator.sessions.snapshot(),
-            "vision": orchestrator.vision.status()
+            "vision": orchestrator.vision.status(),
+            "recognition": orchestrator.recognition.status(),
+            "catalog": orchestrator.catalog.status()
         }})
 
     def disconnect(self, ws):
@@ -74,10 +103,40 @@ async def startup(): orchestrator.set_loop(asyncio.get_running_loop())
 async def shutdown(): orchestrator.vision.stop()
 
 @app.get("/")
-async def root(): return HTMLResponse('<a href="/control">Open RareIQ Control Center</a>')
+async def root():
+    return HTMLResponse(
+        f'<h1>RareIQ v{VERSION} — {CODENAME}</h1>'
+        '<p><a href="/control">Open RareIQ Control Center</a></p>'
+        '<p><a href="/about">Build diagnostics</a></p>',
+        headers={"Cache-Control": "no-store"},
+    )
 
 @app.get("/control")
-async def control(): return FileResponse(STATIC_DIR/"control.html")
+async def control():
+    return FileResponse(
+        STATIC_DIR / "control.html",
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
+
+@app.get("/about")
+async def about():
+    return FileResponse(
+        STATIC_DIR / "about.html",
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
+
+@app.get("/api/version")
+async def api_version():
+    payload = version_payload()
+    payload.update(
+        {
+            "python_runtime": "3.13 target",
+            "ocr_engine": "RapidOCR",
+            "catalog": "TCGdex",
+            "camera": orchestrator.vision.status().get("camera_name"),
+        }
+    )
+    return {"ok": True, "version": payload}
 
 @app.get("/overlay/data")
 async def data(): return FileResponse(STATIC_DIR/"data_overlay.html")
@@ -102,9 +161,13 @@ async def websocket_endpoint(ws: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(ws)
 
+@app.get("/api/cameras")
+async def list_cameras():
+    return {"ok": True, "cameras": orchestrator.vision.list_cameras()}
+
 @app.post("/api/camera/start")
 async def camera_start(req: CameraStartRequest):
-    status = orchestrator.vision.start(req.camera_index)
+    status = orchestrator.vision.start(req.camera_index, req.camera_backend)
     await orchestrator.publish("vision_status", status)
     return {"ok": True, "vision": status}
 
@@ -114,9 +177,226 @@ async def camera_stop():
     await orchestrator.publish("vision_status", status)
     return {"ok": True, "vision": status}
 
+@app.get("/api/catalog/status")
+async def catalog_status():
+    return {"ok": True, "catalog": orchestrator.catalog.status()}
+
+@app.get("/api/recognition/status")
+async def recognition_status():
+    return {"ok": True, "recognition": orchestrator.recognition.status()}
+
+@app.get("/api/artwork-index/status")
+async def artwork_index_status():
+    return {
+        "ok": True,
+        "index": orchestrator.recognition.artwork_index.status(),
+    }
+
+@app.get("/api/sets")
+async def list_sets():
+    return {
+        "ok": True,
+        "sets": orchestrator.recognition.set_catalog.list_sets(),
+        "status": orchestrator.recognition.set_catalog.status(),
+    }
+
+
+@app.get("/api/cardgrader/status")
+async def cardgrader_status():
+    return {"ok": True, "cardgrader": orchestrator.cardgrader.status()}
+
+@app.post("/api/cardgrader/register")
+async def cardgrader_register(req: CardGraderRegisterRequest):
+    try:
+        return await asyncio.to_thread(
+            orchestrator.cardgrader.register_agent,
+            req.name,
+            req.contact_email,
+        )
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+@app.post("/api/cardgrader/key")
+async def cardgrader_set_key(req: CardGraderKeyRequest):
+    try:
+        return await asyncio.to_thread(
+            orchestrator.cardgrader.configure_key,
+            req.api_key,
+        )
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+@app.post("/api/cardgrader/capture-front")
+async def cardgrader_capture_front():
+    frame = orchestrator.vision.latest_frame()
+    if frame is None:
+        return {"ok": False, "error": "No live camera frame is available."}
+    try:
+        path = await asyncio.to_thread(
+            orchestrator.cardgrader.save_frame,
+            frame,
+            "front",
+        )
+        return {"ok": True, "path": str(path)}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+@app.post("/api/cardgrader/capture-back")
+async def cardgrader_capture_back():
+    frame = orchestrator.vision.latest_frame()
+    if frame is None:
+        return {"ok": False, "error": "No live camera frame is available."}
+    try:
+        path = await asyncio.to_thread(
+            orchestrator.cardgrader.save_frame,
+            frame,
+            "back",
+        )
+        return {"ok": True, "path": str(path)}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+@app.post("/api/cardgrader/submit")
+async def cardgrader_submit(req: CardGraderSubmitRequest):
+    fronts = sorted(
+        orchestrator.cardgrader.capture_dir.glob("front_*.jpg"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    if not fronts:
+        return {"ok": False, "error": "Capture the front of the card first."}
+
+    back_path = None
+    if req.include_back:
+        backs = sorted(
+            orchestrator.cardgrader.capture_dir.glob("back_*.jpg"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if backs:
+            back_path = backs[0]
+
+    try:
+        return await asyncio.to_thread(
+            orchestrator.cardgrader.submit_scan,
+            fronts[0],
+            back_path,
+            req.module,
+        )
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+@app.get("/api/cardgrader/scan/{scan_id}")
+async def cardgrader_poll(scan_id: int):
+    try:
+        return await asyncio.to_thread(
+            orchestrator.cardgrader.poll_scan,
+            scan_id,
+        )
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+@app.get("/api/live-catalog/status")
+async def live_catalog_status():
+    return {
+        "ok": True,
+        "catalog": orchestrator.recognition.live_catalog.status(),
+    }
+
+@app.post("/api/live-catalog/import-set")
+async def import_live_set(req: LiveSetImportRequest):
+    result = await asyncio.to_thread(
+        orchestrator.recognition.live_catalog.import_set,
+        req.set_id,
+        req.language,
+        req.max_cards,
+    )
+    await orchestrator.publish("live_catalog_update", result)
+    return result
+
+@app.post("/api/sets/active")
+async def set_active_set(req: ActiveSetRequest):
+    try:
+        active = orchestrator.recognition.set_catalog.set_active(req.set_id)
+        orchestrator.recognition.artwork_index.set_active_filter(
+            active.get("name"),
+            active.get("language"),
+        )
+        payload = {
+            "active_set": active,
+            "set_status": orchestrator.recognition.set_catalog.status(),
+            "index_status": orchestrator.recognition.artwork_index.status(),
+        }
+        await orchestrator.publish("active_set_update", payload)
+        return {"ok": True, **payload}
+    except ValueError as exc:
+        return JSONResponse(
+            {"ok": False, "error": str(exc)},
+            status_code=400,
+        )
+
+@app.post("/api/artwork-index/rebuild")
+async def artwork_index_rebuild():
+    result = orchestrator.recognition.artwork_index.rebuild()
+    await orchestrator.publish(
+        "artwork_index_update",
+        result.get("status", {}),
+    )
+    return result
+
+@app.get("/api/artwork-index/image/{card_id}")
+async def artwork_index_image(card_id: str):
+    record = orchestrator.recognition.artwork_index.get_record(card_id)
+    if not record:
+        return JSONResponse(
+            {"ok": False, "error": "Reference card not found."},
+            status_code=404,
+        )
+
+    image_path = record.get("image_path")
+    if not image_path:
+        return JSONResponse(
+            {"ok": False, "error": "Reference image is unavailable."},
+            status_code=404,
+        )
+
+    path = Path(str(image_path)).resolve()
+    reference_root = (
+        orchestrator.recognition.artwork_index.reference_dir.resolve()
+    )
+
+    if reference_root not in path.parents:
+        return JSONResponse(
+            {"ok": False, "error": "Invalid reference image path."},
+            status_code=403,
+        )
+
+    if not path.exists() or not path.is_file():
+        return JSONResponse(
+            {"ok": False, "error": "Reference image file is missing."},
+            status_code=404,
+        )
+
+    return FileResponse(
+        path,
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
+
+@app.post("/api/recognition/toggle")
+async def recognition_toggle(req: RecognitionToggleRequest):
+    status = orchestrator.recognition.set_enabled(req.enabled)
+    await orchestrator.publish("recognition_update", status)
+    return {"ok": True, "recognition": status}
+
+@app.post("/api/camera/auto-capture")
+async def camera_auto_capture(req: AutoCaptureRequest):
+    status = orchestrator.vision.set_auto_capture(req.enabled)
+    await orchestrator.publish("vision_status", status)
+    return {"ok": True, "vision": status}
+
 @app.post("/api/camera/capture")
 async def camera_capture():
-    path = orchestrator.vision.save_latest_crop()
+    path = orchestrator.vision.save_latest_crop(source="manual")
     return {"ok": bool(path), "path": path, "error": None if path else "No corrected card image available yet."}
 
 @app.get("/api/camera/stream")
@@ -150,4 +430,19 @@ async def demo(tier: str):
     return {"ok":True,"session":await orchestrator.add_demo_card(DEMO_CARDS[tier])}
 
 def run():
-    uvicorn.run("rareiq.web.server:app", host="127.0.0.1", port=8765, reload=False)
+    print()
+    print("=" * 58)
+    print("RareIQ Vision")
+    print(f"Version {VERSION} — {CODENAME}")
+    print(f"Build {BUILD_DATE}")
+    print("Project Digital Jazz")
+    print("=" * 58)
+    print("Control: http://127.0.0.1:8765/control")
+    print("About:  http://127.0.0.1:8765/about")
+    print()
+    uvicorn.run(
+        "rareiq.web.server:app",
+        host="127.0.0.1",
+        port=8765,
+        reload=False,
+    )

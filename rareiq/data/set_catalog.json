@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "sets": [
+    {
+      "id": "proof-japanese-set",
+      "game": "Pokemon",
+      "language": "Japanese",
+      "name": "POC Japanese Set",
+      "expected_cards": 204,
+      "status": "ready"
+    },
+    {
+      "id": "proof-chinese-set",
+      "game": "Pokemon",
+      "language": "Chinese",
+      "name": "POC Chinese Set",
+      "expected_cards": 204,
+      "status": "ready"
+    },
+    {
+      "id": "all-loaded",
+      "game": "Any",
+      "language": "Any",
+      "name": "All Loaded References",
+      "expected_cards": null,
+      "status": "ready"
+    }
+  ],
+  "active_set_id": "all-loaded"
+}
