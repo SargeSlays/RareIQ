@@ -26,7 +26,7 @@ html,body{width:100%;height:100%;margin:0;overflow:hidden;background:transparent
 </head>
 <body>
 <div class="panel" id="panel">
-  <div class="top"><div class="brand">RAREIQ</div><div class="live">● LIVE</div></div><div id="visionStatus" style="margin-top:3%;padding:3%;border-radius:10px;background:rgba(255,255,255,.04);font-weight:900;color:#ffd36b">CAMERA OFFLINE</div>
+  <div class="top"><div class="brand">RAREIQ <span id="overlayVersion" style="font-size:.55em;opacity:.62">v—</span></div><div class="live">● LIVE</div></div><div id="visionStatus" style="margin-top:3%;padding:3%;border-radius:10px;background:rgba(255,255,255,.04);font-weight:900;color:#ffd36b">CAMERA OFFLINE</div>
   <div class="customer" id="customer">Demo Customer</div>
   <div class="small" id="order">RIQ-0001 • Greninja Jumbo Box</div>
 
@@ -53,7 +53,14 @@ html,body{width:100%;height:100%;margin:0;overflow:hidden;background:transparent
     Batch total: <span id="total">$0.00</span>
   </div>
 </div>
-<script src="/static/common.js"></script>
+<script src="/static/common.js">fetch("/api/version",{cache:"no-store"})
+  .then(r=>r.json())
+  .then(data=>{
+    const el=document.getElementById("overlayVersion");
+    if(el&&data?.version?.version)el.textContent=`v${data.version.version}`;
+  })
+  .catch(()=>{});
+</script>
 <script>
 const $=id=>document.getElementById(id);
 function session(s){
@@ -74,7 +81,27 @@ function card(c){
   $("range").textContent=`${money(c.market_low)} – ${money(c.market_high)}`;
   $("cardValue").textContent=money(c.raw_value);
 }
+function renderVision(v){
+  const el=document.getElementById("visionStatus");
+  if(!el)return;
+  if(!v.running){
+    el.textContent="CAMERA OFFLINE";
+    el.style.color="#ff747c";
+  }else if(v.stable){
+    el.textContent="CARD LOCKED";
+    el.style.color="#69ffad";
+  }else if(v.visible){
+    el.textContent="CARD DETECTED";
+    el.style.color="#ffd36b";
+  }else{
+    el.textContent="SEARCHING";
+    el.style.color="#ffd36b";
+  }
+}
 connectRareIQ(message=>{
+  if(message.type==="snapshot"&&message.payload?.vision)renderVision(message.payload.vision);
+  if(["card_tracking","vision_status"].includes(message.type))renderVision(message.payload);
+
   if(message.payload?.session) session(message.payload.session);
   if(message.type==="card_reveal"){
     card(message.payload.card);
@@ -85,6 +112,19 @@ connectRareIQ(message=>{
     $("panel").classList.add("glow");
   }
 });
+</script>
+<script>
+async function syncOverlayVersion(){
+  const el=document.getElementById("overlayVersion");
+  try{
+    const response=await fetch("/api/version?ts="+Date.now(),{cache:"no-store"});
+    const data=await response.json();
+    if(el)el.textContent=`v${data?.version?.version||"1.2.0"}`;
+  }catch(error){
+    if(el)el.textContent="v1.2.0";
+  }
+}
+syncOverlayVersion();
 </script>
 </body>
 </html>

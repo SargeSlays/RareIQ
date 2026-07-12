@@ -9,6 +9,9 @@ from rareiq.core.events import EventBus
 from rareiq.services.session_service import SessionService
 from rareiq.services.experience_service import ExperienceService
 from rareiq.services.vision_service import VisionService
+from rareiq.services.recognition_service import RecognitionService
+from rareiq.services.catalog_service import CatalogService
+from rareiq.services.cardgrader_service import CardGraderService
 
 
 class RareIQOrchestrator:
@@ -18,11 +21,18 @@ class RareIQOrchestrator:
         self.experiences = ExperienceService()
         self.loop: asyncio.AbstractEventLoop | None = None
         self.vision = VisionService(self._emit_from_thread, capture_dir)
+        self.recognition = RecognitionService(self._emit_from_thread)
+        self.catalog = CatalogService(self._emit_from_thread, capture_dir.parent / "catalog_cache")
+        self.cardgrader = CardGraderService(capture_dir.parent)
 
     def set_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         self.loop = loop
 
     def _emit_from_thread(self, event: dict[str, Any]) -> None:
+        if event.get("type") == "card_tracking":
+            self.recognition.submit_frame(self.vision.latest_frame())
+        if event.get("type") == "recognition_update":
+            self.catalog.submit(event.get("payload", {}))
         if self.loop:
             asyncio.run_coroutine_threadsafe(self.event_bus.publish(event), self.loop)
 

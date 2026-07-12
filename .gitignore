@@ -1,13 +1,26 @@
+# Python
 .venv/
 venv/
-__pycache__/
 *.py[cod]
+*.pyc
+*.pyo
+*.pyd
+**/__pycache__/
+
+# Runtime data
 captures/
+grading_captures/
+catalog_cache/
 logs/
 temp/
+
+# Environment
 .env
 .env.*
+
+# IDE
 .vscode/
 .idea/
+
 Thumbs.db
-.DS_Store
+rareiq_secrets.json

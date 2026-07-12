@@ -1,23 +1,22 @@
-# RareIQ v0.3 — Vision Foundation
+# RareIQ v1.2.0 — Command Center
 
-New in this build:
+Build date: 2026.07.11
 
-- Live camera preview in the Operator Dashboard
-- Selectable camera index
-- Start and stop camera controls
-- Trading-card rectangle detection
-- Stable-card indicator
-- Four-corner tracking coordinates
-- Transparent overlay that hugs the detected card
-- Perspective-corrected card capture
-- Existing customer, box, pack, rarity, value, and batch systems retained
+## Premium desktop dashboard
 
-## Run
+This release rebuilds the operator interface around the supplied command-center concept.
 
-1. Keep Python 3.13 installed.
-2. Extract this folder.
-3. Double-click `start.bat`.
-4. Open `http://127.0.0.1:8765/control`.
-5. Start with camera index `0`; try `1`, `2`, or `3` if needed.
+### Added
 
-This version detects and tracks a card, but does not identify the exact card yet.
+- Persistent left navigation
+- Premium top status bar
+- Seven live KPI cards
+- Large live-camera workspace
+- Permanent verified-reference panel
+- Animated confidence ring
+- Visible verification checklist
+- Compact catalog, set, recognition, and grading modules
+- AI grading moved into a slide-out drawer
+- Advanced OCR and recognition diagnostics collapsed by default
+- Batch workflow and live activity panels
+- 1080p desktop-first layout
