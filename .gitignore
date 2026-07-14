@@ -1,3 +1,5 @@
 rareiq_secrets.json
 grading_captures/
 updates/
+__pycache__/
+*.pyc
