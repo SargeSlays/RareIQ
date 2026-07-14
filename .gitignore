@@ -3,3 +3,4 @@ grading_captures/
 updates/
 __pycache__/
 *.pyc
+*.zip
