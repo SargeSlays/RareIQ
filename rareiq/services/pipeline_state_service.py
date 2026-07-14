@@ -227,6 +227,177 @@ class PipelineStateService:
             self._touch()
             return self.snapshot()
 
+
+    @staticmethod
+    def _first_path(payload: dict[str, Any], *paths: str, default: Any = None) -> Any:
+        for path in paths:
+            value: Any = payload
+            valid = True
+            for part in path.split("."):
+                if not isinstance(value, dict) or part not in value:
+                    valid = False
+                    break
+                value = value[part]
+            if valid and value not in (None, "", [], {}):
+                return value
+        return default
+
+    @classmethod
+    def _truthy_path(cls, payload: dict[str, Any], *paths: str) -> bool:
+        return cls._first_path(payload, *paths, default=None) not in (
+            None, False, 0, "", [], {}
+        )
+
+    def sync_from_snapshot(self, snapshot: dict[str, Any] | None) -> dict[str, Any]:
+        snapshot = snapshot or {}
+        camera = snapshot.get("camera") or snapshot.get("vision") or {}
+        recognition = snapshot.get("recognition") or {}
+        recognition_state = snapshot.get("recognition_state") or {}
+        current_card = snapshot.get("current_card")
+        session = snapshot.get("session") or {}
+
+        data = {
+            "camera": camera,
+            "recognition": recognition,
+            "recognition_state": recognition_state,
+        }
+
+        camera_state = str(self._first_path(
+            data, "camera.state", "camera.manager.state", default=""
+        )).lower()
+
+        camera_live = self._truthy_path(
+            data,
+            "camera.visible",
+            "camera.running",
+            "camera.connected",
+            "camera.live",
+            "camera.frame_available",
+            "camera.latest_frame_available",
+            "camera.manager.running",
+        ) or camera_state in {"running","live","ready","connected"}
+
+        detected = self._truthy_path(
+            data,
+            "recognition.card_detected",
+            "recognition.detection.card_detected",
+            "recognition_state.card_detected",
+            "recognition_state.detected",
+            "recognition.latest_crop_available",
+            "camera.latest_crop_available",
+        )
+
+        crop_ready = self._truthy_path(
+            data,
+            "recognition.crop_ready",
+            "recognition.corrected_crop",
+            "recognition.latest_crop_available",
+            "recognition_state.crop_ready",
+            "recognition_state.corrected_crop_available",
+            "camera.latest_crop_available",
+        )
+
+        busy = self._truthy_path(
+            data,
+            "recognition.busy",
+            "recognition.processing",
+            "recognition_state.busy",
+            "recognition_state.processing",
+        )
+
+        ocr_value = self._first_path(
+            data,
+            "recognition.collector_number",
+            "recognition.ocr_collector_number",
+            "recognition.name_candidate",
+            "recognition.ocr.number",
+            "recognition.ocr.name",
+            "recognition_state.collector_number",
+            "recognition_state.name_candidate",
+        )
+
+        candidates = self._first_path(
+            data,
+            "recognition.candidates",
+            "recognition.matches",
+            "recognition_state.candidates",
+            default=[],
+        )
+        if not isinstance(candidates, list):
+            candidates=[]
+
+        verification_state = str(self._first_path(
+            data,
+            "recognition.verification_state",
+            "recognition_state.verification_state",
+            default="",
+        )).upper()
+
+        verified = self._truthy_path(
+            data,
+            "recognition.recognition_locked",
+            "recognition.verified",
+            "recognition_state.recognition_locked",
+            "recognition_state.verified",
+        ) or verification_state in {
+            "VERIFIED","COMPLETE","MATCHED","CONFIRMED"
+        }
+
+        with self._lock:
+            self._set_simple(
+                "camera",
+                "done" if camera_live else "waiting",
+                "Live frame available" if camera_live else "Waiting for camera frame",
+            )
+            self._set_simple(
+                "detect",
+                "done" if detected else ("running" if camera_live else "waiting"),
+                "Card detected" if detected else (
+                    "Watching for card" if camera_live else "Waiting for camera"
+                ),
+            )
+            self._set_simple(
+                "crop",
+                "done" if crop_ready else ("running" if detected else "waiting"),
+                "Corrected crop ready" if crop_ready else (
+                    "Preparing detected card" if detected else "Waiting for detection"
+                ),
+            )
+            self._set_simple(
+                "ocr",
+                "done" if ocr_value else ("running" if busy or crop_ready else "waiting"),
+                f"OCR result: {ocr_value}" if ocr_value else (
+                    "Reading card details" if busy or crop_ready else "Waiting for corrected crop"
+                ),
+            )
+            self._set_simple(
+                "artwork",
+                "done" if candidates else ("running" if busy and bool(ocr_value) else "waiting"),
+                f"{len(candidates)} candidate(s) found" if candidates else (
+                    "Searching artwork database" if busy and bool(ocr_value) else "Waiting for OCR result"
+                ),
+            )
+            self._set_simple(
+                "verify",
+                "done" if verified else ("running" if candidates else "waiting"),
+                "Match verified" if verified else (
+                    "Ranking candidates" if candidates else "Waiting for candidates"
+                ),
+            )
+            self._set_simple(
+                "current_card",
+                "done" if current_card else ("running" if verified else "waiting"),
+                "Current Card populated" if current_card else (
+                    "Building Current Card" if verified else "Waiting for verified card"
+                ),
+            )
+            self._set_simple(
+                "session",
+                "done" if session else "waiting",
+                "Session available" if session else "Waiting for session",
+            )
+            self._touch()
+            return self.snapshot()
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             stages = [
@@ -274,3 +445,4 @@ class PipelineStateService:
     def _touch(self) -> None:
         self._revision += 1
         self._updated_at = time.time()
+

@@ -760,16 +760,56 @@ async def pipeline_state():
     snapshot = await asyncio.to_thread(
         orchestrator.backend_test.runtime_snapshot
     )
-    state = orchestrator.pipeline_state.sync_from_runtime(
-        camera=snapshot.get("camera"),
-        recognition=snapshot.get("recognition"),
-        current_card=snapshot.get("current_card"),
+    return {
+        "ok": True,
+        "pipeline": orchestrator.pipeline_state.sync_from_snapshot(snapshot),
+        "runtime_summary": {
+            "camera": snapshot.get("camera"),
+            "current_card": snapshot.get("current_card"),
+            "recognition_state": snapshot.get("recognition_state"),
+        },
+    }
+
+@app.post("/api/pipeline/test-latest-crop")
+async def pipeline_test_latest_crop():
+    orchestrator.pipeline_state.reset()
+
+    snapshot = await asyncio.to_thread(
+        orchestrator.backend_test.runtime_snapshot
+    )
+    orchestrator.pipeline_state.sync_from_snapshot(snapshot)
+
+    result = await asyncio.to_thread(
+        orchestrator.backend_test.submit_latest_crop_for_recognition
+    )
+
+    if not result.get("ok"):
+        orchestrator.pipeline_state.fail(
+            "crop",
+            str(result.get("error") or "No corrected crop available"),
+            "Recognition test could not start",
+        )
+        return {
+            "ok": False,
+            "result": result,
+            "pipeline": orchestrator.pipeline_state.snapshot(),
+        }
+
+    orchestrator.pipeline_state.start(
+        "ocr",
+        "Latest corrected crop submitted to recognition",
+    )
+
+    await asyncio.sleep(0.35)
+
+    updated = await asyncio.to_thread(
+        orchestrator.backend_test.runtime_snapshot
     )
     return {
         "ok": True,
-        "pipeline": state,
+        "result": result,
+        "pipeline": orchestrator.pipeline_state.sync_from_snapshot(updated),
     }
-
 @app.post("/api/pipeline/reset")
 async def pipeline_reset():
     return {
@@ -1249,5 +1289,6 @@ def run():
         port=8765,
         reload=False,
     )
+
 
 
