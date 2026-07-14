@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 import asyncio
 import time
 import cv2
@@ -60,6 +60,13 @@ class RareIQOrchestrator:
         self._last_auto_crop_hash: int | None = None
         self._last_auto_card_signature: str | None = None
         self._last_auto_added_at: float = 0.0
+
+        # Automatic recognition-trigger telemetry.
+        self._last_submitted_crop_hash: int | None = None
+        self._last_recognition_submit_at: float = 0.0
+        self._recognition_submit_count: int = 0
+        self._recognition_duplicate_count: int = 0
+        self._last_trigger_result: str = "waiting"
 
         self.experiences = ExperienceService()
         self.loop: asyncio.AbstractEventLoop | None = None
@@ -211,6 +218,9 @@ class RareIQOrchestrator:
         if self._shutting_down:
             return
 
+        # Internal processing must not depend on the websocket event loop.
+        self._handle_internal_event(event)
+
         loop = self.loop
         if loop is None or loop.is_closed() or not loop.is_running():
             return
@@ -223,6 +233,190 @@ class RareIQOrchestrator:
             future.add_done_callback(self._consume_publish_result)
         except RuntimeError:
             return
+
+
+    def _handle_internal_event(self, event: dict[str, Any]) -> None:
+        """Connect Vision card captures to Recognition automatically."""
+        event_type = str(event.get("type") or "")
+        payload = event.get("payload") or {}
+
+        if event_type == "card_captured":
+            self._submit_captured_card(payload)
+            return
+
+        if event_type == "recognition_update":
+            self._apply_recognition_pipeline_update(payload)
+
+    def _submit_captured_card(self, payload: dict[str, Any]) -> None:
+        crop = self.vision.latest_crop()
+        frame_id = (
+            self.vision.status().get("frame_id")
+            or payload.get("frame_id")
+        )
+
+        if crop is None or getattr(crop, "size", 0) == 0:
+            self._last_trigger_result = "no_crop"
+            self.pipeline_state.fail(
+                "crop",
+                "Card capture event did not contain a corrected crop.",
+                "Corrected crop unavailable",
+                frame_id=frame_id,
+            )
+            return
+
+        current_hash = self._crop_dhash(crop)
+        distance = self._hash_distance(
+            current_hash,
+            self._last_submitted_crop_hash,
+        )
+
+        if (
+            self._last_submitted_crop_hash is not None
+            and distance is not None
+            and distance <= 10
+        ):
+            self._recognition_duplicate_count += 1
+            self._last_trigger_result = "duplicate_suppressed"
+            return
+
+        self.pipeline_state.complete(
+            "camera",
+            "Live frame received",
+            frame_id=frame_id,
+        )
+        self.pipeline_state.complete(
+            "detect",
+            "Stable card captured",
+            frame_id=frame_id,
+        )
+        self.pipeline_state.complete(
+            "crop",
+            "Corrected crop submitted",
+            frame_id=frame_id,
+        )
+        self.pipeline_state.start(
+            "ocr",
+            "Recognition engine reading card details",
+            frame_id=frame_id,
+        )
+        self.pipeline_state.waiting(
+            "artwork",
+            "Waiting for OCR evidence",
+        )
+        self.pipeline_state.waiting(
+            "verify",
+            "Waiting for candidates",
+        )
+        self.pipeline_state.waiting(
+            "current_card",
+            "Waiting for verified result",
+        )
+
+        self.recognition.submit_frame(crop)
+        self._last_submitted_crop_hash = current_hash
+        self._last_recognition_submit_at = time.time()
+        self._recognition_submit_count += 1
+        self._last_trigger_result = "submitted"
+
+    def _apply_recognition_pipeline_update(
+        self,
+        payload: dict[str, Any],
+    ) -> None:
+        error = payload.get("error")
+        candidates = payload.get("candidates") or []
+        name = payload.get("name_candidate")
+        number = (
+            payload.get("collector_number")
+            or payload.get("ocr_collector_number")
+        )
+        verification_state = str(
+            payload.get("verification_state") or ""
+        ).upper()
+
+        if error:
+            self.pipeline_state.fail(
+                "ocr",
+                str(error),
+                "Recognition failed",
+            )
+            self._last_trigger_result = "recognition_failed"
+            return
+
+        if name or number:
+            evidence = " / ".join(
+                str(value)
+                for value in (name, number)
+                if value
+            )
+            self.pipeline_state.complete(
+                "ocr",
+                f"OCR evidence: {evidence}",
+            )
+        else:
+            self.pipeline_state.complete(
+                "ocr",
+                "OCR pass completed",
+            )
+
+        if candidates:
+            self.pipeline_state.complete(
+                "artwork",
+                f"{len(candidates)} candidate(s) ranked",
+            )
+        else:
+            self.pipeline_state.waiting(
+                "artwork",
+                "No artwork candidates returned",
+            )
+
+        if verification_state == "VERIFIED":
+            self.pipeline_state.complete(
+                "verify",
+                "Recognition verified",
+            )
+        elif candidates:
+            self.pipeline_state.start(
+                "verify",
+                "Evaluating candidate confidence",
+            )
+        else:
+            self.pipeline_state.waiting(
+                "verify",
+                "Waiting for candidates",
+            )
+
+        card = self._current_recognition_card()
+        if card:
+            self.pipeline_state.complete(
+                "current_card",
+                f"Current Card: {card.get('card_name')}",
+            )
+            self._last_trigger_result = "card_ready"
+        else:
+            self.pipeline_state.waiting(
+                "current_card",
+                "Recognition completed without a usable card",
+            )
+            self._last_trigger_result = "no_card"
+
+    def recognition_trigger_status(self) -> dict[str, Any]:
+        recognition = self.recognition.status()
+        return {
+            "enabled": bool(recognition.get("enabled")),
+            "busy": bool(recognition.get("busy")),
+            "submit_count": self._recognition_submit_count,
+            "duplicates_suppressed": self._recognition_duplicate_count,
+            "last_submit_at": self._last_recognition_submit_at or None,
+            "last_result": self._last_trigger_result,
+            "last_crop_hash": self._last_submitted_crop_hash,
+            "candidate_count": int(
+                recognition.get("candidate_count")
+                or len(recognition.get("candidates") or [])
+            ),
+            "verification_state": recognition.get(
+                "verification_state"
+            ),
+        }
 
     @staticmethod
     def _consume_publish_result(future: Any) -> None:

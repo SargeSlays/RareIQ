@@ -791,6 +791,37 @@ def _live_frame_heartbeat():
             "manager_state": "error",
         }
 
+
+@app.get("/api/mission-control")
+async def mission_control():
+    camera = orchestrator.camera_manager.status()
+    recognition = orchestrator.recognition.status()
+    return {
+        "ok": True,
+        "timestamp": time.time(),
+        "camera": {
+            "manager": camera.get("manager"),
+            "vision": camera.get("vision"),
+        },
+        "trigger": orchestrator.recognition_trigger_status(),
+        "pipeline": orchestrator.pipeline_state.snapshot(),
+        "recognition": {
+            "enabled": recognition.get("enabled"),
+            "busy": recognition.get("busy"),
+            "verification_state": recognition.get(
+                "verification_state"
+            ),
+            "candidate_count": recognition.get(
+                "candidate_count"
+            ),
+            "pipeline_stages": recognition.get(
+                "pipeline_stages"
+            ),
+            "error": recognition.get("error"),
+            "updated_at": recognition.get("updated_at"),
+        },
+    }
+
 @app.get("/api/pipeline/frame-heartbeat")
 async def pipeline_frame_heartbeat():
     heartbeat = await asyncio.to_thread(_live_frame_heartbeat)
