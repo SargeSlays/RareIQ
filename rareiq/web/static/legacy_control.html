@@ -1,0 +1,1792 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RareIQ X.7 — Intelligence Core</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg:#050b13;
+  --shell:#07111d;
+  --panel:#0b1725;
+  --panel-2:#0f1e30;
+  --panel-3:#13253a;
+  --line:#213a55;
+  --line-soft:#182c42;
+  --text:#eef5ff;
+  --muted:#7e93ab;
+  --cyan:#56d8ff;
+  --blue:#6f7bff;
+  --green:#41e695;
+  --gold:#ffc95c;
+  --red:#ff6b79;
+  --shadow:0 14px 36px rgba(0,0,0,.26);
+}
+*{box-sizing:border-box}
+html,body{width:100%;height:100%;margin:0;overflow:hidden}
+body{
+  min-width:1280px;
+  background:
+    radial-gradient(circle at 50% -18%,rgba(52,103,158,.19),transparent 35%),
+    linear-gradient(180deg,#07111d 0%,#040910 100%);
+  color:var(--text);
+  font-family:Inter,Segoe UI,Arial,sans-serif;
+}
+button,input,select{font:inherit}
+button{
+  border:1px solid #2a4665;
+  background:#11233a;
+  color:#dceaff;
+  border-radius:9px;
+  padding:8px 11px;
+  cursor:pointer;
+}
+button:hover{background:#172d48}
+button.primary{background:linear-gradient(135deg,#6468f5,#4948c4);border-color:#756fff}
+button.good{background:#123d30;border-color:#23654d;color:#77f4b1}
+button.danger{background:#411c27;border-color:#733244;color:#ff9cac}
+input,select{
+  min-height:36px;
+  background:#050d16;
+  border:1px solid #27425f;
+  color:#e8f1ff;
+  border-radius:9px;
+  padding:8px 10px;
+}
+.shell{height:100vh;display:grid;grid-template-columns:168px minmax(0,1fr)}
+.sidebar{
+  background:linear-gradient(180deg,rgba(7,21,36,.98),rgba(5,14,25,.98));
+  border-right:1px solid rgba(72,105,139,.25);
+  padding:17px 12px 13px;
+  display:flex;
+  flex-direction:column;
+}
+.brand{display:flex;align-items:center;gap:9px;font-size:21px;font-weight:900;padding:4px 8px 22px}
+.logo{
+  width:31px;height:31px;border-radius:10px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--cyan),var(--blue));
+  box-shadow:0 0 24px rgba(76,111,255,.34);
+}
+.nav{display:grid;gap:5px}
+.nav button{background:transparent;border-color:transparent;text-align:left;color:#8398b0;padding:11px 12px}
+.nav button.active,.nav button:hover{color:white;background:linear-gradient(90deg,rgba(89,91,232,.28),rgba(53,93,156,.12));border-color:#293e63}
+.sidebar-foot{margin-top:auto;color:#71859d;font-size:11px;padding:10px}
+.workspace{
+  min-width:0;
+  height:100vh;
+  display:grid;
+  grid-template-rows:49px 72px minmax(0,1fr) 34px;
+  gap:10px;
+  padding:10px 13px 8px;
+}
+.topbar{display:flex;justify-content:space-between;align-items:center}
+.title{font-size:20px;font-weight:900}
+.version{font-size:10px;padding:4px 7px;border-radius:6px;border:1px solid #2c4360;background:#101f32;color:#9eb0c7;margin-left:7px}
+.top-right{display:flex;align-items:center;gap:13px;font-size:11px;color:#9aacc1}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);margin-right:5px}
+.avatar{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#243850;font-weight:900}
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px}
+.kpi{
+  border:1px solid rgba(59,90,124,.43);
+  border-radius:11px;
+  background:linear-gradient(145deg,#0e1d2e,#0a1726);
+  padding:10px 12px;
+  display:flex;gap:9px;align-items:center;
+  min-width:0;
+}
+.kpi-icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:rgba(65,230,149,.1);color:var(--green)}
+.kpi-label{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:#7f94ab}
+.kpi-value{font-size:15px;font-weight:900;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi-sub{font-size:9px;color:#71849a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.main-grid{
+  min-height:0;
+  display:grid;
+  grid-template-columns:minmax(0,1.62fr) minmax(360px,.82fr);
+  grid-template-rows:minmax(420px,.67fr) minmax(300px,.53fr);
+  gap:8px;
+}
+.panel{
+  min-width:0;min-height:0;
+  border:1px solid rgba(60,91,126,.47);
+  border-radius:12px;
+  background:linear-gradient(180deg,#091522,#06101a);
+  box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.panel-head{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--line-soft)}
+.panel-head h2{font-size:13px;margin:0}
+.badge{font-size:9px;font-weight:900;padding:5px 8px;border-radius:999px;background:rgba(65,230,149,.12);color:var(--green)}
+.camera-panel{display:grid;grid-template-rows:auto 40px minmax(0,1fr) 48px}
+.camera-stage{position:relative;min-height:0;background:#02060b}
+.camera-stage img{width:100%;height:100%;object-fit:contain;display:block}
+.camera-empty{position:absolute;inset:0;display:grid;place-items:center;color:#52667d;font-size:13px}
+.scan-zone{
+  position:absolute;left:31%;top:7%;width:38%;height:86%;
+  border:2px solid rgba(90,216,255,.65);
+  border-radius:14px;
+  box-shadow:0 0 22px rgba(90,216,255,.14);
+  pointer-events:none;
+}
+.scan-zone span{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:900;letter-spacing:.08em;background:rgba(3,8,14,.8);padding:4px 7px;border-radius:5px;color:var(--cyan)}
+.camera-controls{display:flex;align-items:center;gap:7px;padding:7px 10px;background:#081522;border-top:1px solid #1c3048}
+.camera-controls select{width:210px}
+.camera-controls label{margin-left:auto;font-size:10px;color:#9eb0c4;display:flex;align-items:center;gap:6px}
+.match-panel{display:grid;grid-template-rows:40px minmax(0,1fr)}
+.match-body{padding:11px;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:10px;min-height:0}
+.match-top{display:grid;grid-template-columns:178px minmax(0,1fr);gap:11px;min-height:0}
+.reference-frame{min-height:0;border:1px solid #29425f;background:#06101b;border-radius:10px;display:grid;place-items:center;overflow:hidden}
+.reference-frame img{width:100%;height:100%;object-fit:contain;display:none}
+.reference-empty{text-align:center;color:#697f98;padding:16px;font-size:11px}
+.card-title{font-size:18px;font-weight:900;line-height:1.1}
+.card-sub{font-size:11px;color:#8da2b8;margin-top:5px}
+.meta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:10px}
+.meta{background:#0b1a2b;border:1px solid #243d59;border-radius:8px;padding:8px}
+.meta b{display:block;font-size:8px;letter-spacing:.08em;color:#748aa2}
+.meta span{display:block;margin-top:4px;font-size:12px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.match-bottom{display:grid;grid-template-columns:116px minmax(0,1fr) 118px;gap:10px;align-items:center}
+.ring{--p:0;width:104px;height:104px;border-radius:50%;display:grid;place-items:center;margin:auto;background:conic-gradient(var(--green) calc(var(--p)*1%),#16273a 0);position:relative}
+.ring:after{content:"";position:absolute;width:75px;height:75px;border-radius:50%;background:#091624}
+.ring strong{position:relative;z-index:1;font-size:22px}
+.checks{display:grid;gap:6px;font-size:10px;color:#91a5bb}
+.check{display:flex;justify-content:space-between;border-bottom:1px solid #172a40;padding-bottom:4px}
+.check em{font-style:normal;color:var(--green)}
+.price-box{border:1px solid #2c4561;background:#0a1929;border-radius:10px;padding:10px}
+.price-box .price{font-size:22px;font-weight:900;margin:5px 0}
+.lower-left{
+  display:grid;
+  grid-template-columns:minmax(0,1.05fr) minmax(0,1fr) minmax(280px,.82fr);
+  gap:8px;
+  min-height:0;
+}
+.module{padding:10px;overflow:auto}
+.module h3{font-size:12px;margin:0 0 8px}
+.timeline{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.stage{border:1px solid #27415d;background:#0a1828;border-radius:8px;padding:8px;text-align:center;font-size:9px;color:#758ba3}
+.stage.done{border-color:#2d805c;color:#77f0ad;background:#0c2a21}
+.candidates{display:grid;gap:6px}
+.candidate{display:grid;grid-template-columns:25px minmax(0,1fr) 45px;gap:7px;align-items:center;padding:7px;border:1px solid #203952;border-radius:8px;background:#0a1828}
+.rank{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#142840;font-size:9px;font-weight:900}
+.candidate-name{font-size:10px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.candidate-sub{font-size:8px;color:#71869d;margin-top:2px}
+.score{font-size:11px;font-weight:900;text-align:right}
+.tools-panel{display:grid;grid-template-rows:40px minmax(0,1fr)}
+.tabs{display:flex;gap:5px}
+.tabs button{padding:6px 8px;font-size:9px}
+.tabs button.active{background:#24355f;border-color:#5365be}
+.tool-content{padding:10px;overflow:auto;min-height:0}
+.tool-view{display:none}
+.tool-view.active{display:block}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.form-grid .full{grid-column:1/-1}
+.action-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.status-box{margin-top:8px;border:1px solid #253d58;background:#081522;border-radius:8px;padding:8px;font-size:10px;color:#9bb0c5;white-space:pre-wrap}
+.batch-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:8px}
+.batch-stat{border:1px solid #24405d;background:#0a1828;border-radius:8px;padding:8px}
+.batch-stat b{display:block;font-size:8px;color:#71879e}
+.batch-stat span{display:block;font-size:14px;font-weight:900;margin-top:3px}
+.dev-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.dev-card{border:1px solid #243c57;border-radius:8px;padding:7px;background:#091624}
+.dev-card b{font-size:8px;color:#70869d;display:block}
+.dev-card span{font-size:11px;font-weight:900;display:block;margin-top:3px}
+.footer{display:flex;justify-content:space-between;align-items:center;color:#667b92;font-size:9px;padding:0 4px}
+.drawer{position:fixed;right:-540px;top:0;width:520px;height:100vh;background:#081522;border-left:1px solid #2a4664;z-index:30;padding:15px;overflow:auto;transition:right .22s ease;box-shadow:-20px 0 55px rgba(0,0,0,.4)}
+.drawer.open{right:0}
+.drawer-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.drawer h2{margin:0;font-size:17px}
+@media(max-width:1500px){
+  .shell{grid-template-columns:148px minmax(0,1fr)}
+  .main-grid{grid-template-columns:minmax(0,1.35fr) minmax(360px,.8fr)}
+  .kpis{grid-template-columns:repeat(6,minmax(135px,1fr))}
+}
+
+.compare-stack{display:grid;grid-template-rows:auto minmax(0,1fr) auto minmax(0,1fr);gap:5px;min-height:0}
+.compare-label{font-size:8px;font-weight:900;letter-spacing:.11em;color:#71879e}
+.reference-frame.compact-live,.reference-frame.compact-ref{min-height:0}
+.reference-frame.compact-live img,.reference-frame.compact-ref img{width:100%;height:100%;object-fit:contain}
+.match-top{grid-template-columns:190px minmax(0,1fr)}
+.meta-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.match-panel.flash{animation:matchFlash .72s ease}
+@keyframes matchFlash{
+  0%{box-shadow:0 0 0 rgba(86,216,255,0)}
+  35%{box-shadow:0 0 32px rgba(86,216,255,.52)}
+  100%{box-shadow:var(--shadow)}
+}
+.ring{transition:background .35s ease}
+.timeline-flow{position:relative;display:grid;grid-template-columns:repeat(5,1fr);gap:0}
+.timeline-flow:before{content:"";position:absolute;left:8%;right:8%;top:10px;height:2px;background:#1a2d43;z-index:0}
+.timeline-flow .stage{position:relative;z-index:1;background:transparent;border:0;padding:0;color:#6f849b;display:grid;justify-items:center;gap:5px}
+.timeline-flow .stage i{width:18px;height:18px;border-radius:50%;display:block;background:#13263a;border:2px solid #2a4663;box-shadow:0 0 0 4px #081522}
+.timeline-flow .stage.done{background:transparent;color:#7bf0b0}
+.timeline-flow .stage.done i{background:var(--green);border-color:#78f2b0;box-shadow:0 0 12px rgba(65,230,149,.55),0 0 0 4px #081522}
+.timeline-flow .stage span{font-size:9px;font-weight:800}
+.camera-panel{box-shadow:0 18px 46px rgba(0,0,0,.34)}
+.camera-stage{background:#010408}
+.panel-head{background:rgba(4,11,19,.36)}
+.match-body{padding:9px}
+.match-bottom{grid-template-columns:104px minmax(0,1fr) 108px}
+.card-title{font-size:19px}
+.reference-frame{background:#030912}
+
+
+.ocr-overlay{
+  position:absolute;
+  left:14px;
+  bottom:14px;
+  width:220px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+  padding:10px;
+  border:1px solid rgba(86,216,255,.48);
+  border-radius:10px;
+  background:rgba(3,10,17,.82);
+  backdrop-filter:blur(8px);
+  box-shadow:0 10px 25px rgba(0,0,0,.28);
+  pointer-events:none;
+}
+.ocr-overlay div{min-width:0}
+.ocr-overlay b{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ocr-overlay span{display:block;margin-top:3px;font-size:9px;color:#86a0b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.candidate{grid-template-columns:25px 38px minmax(0,1fr) 45px}
+.candidate-thumb{
+  width:34px;height:44px;border-radius:5px;border:1px solid #2a4563;
+  background:#06101a;object-fit:cover;
+}
+.candidate-thumb.placeholder{display:grid;place-items:center;color:#5f7388;font-size:9px}
+.batch-progress{
+  margin-top:10px;height:8px;border-radius:999px;background:#12243a;overflow:hidden;border:1px solid #213b57;
+}
+.batch-progress > div{
+  height:100%;width:0%;background:linear-gradient(90deg,#46e997,#52baff);
+  transition:width .35s ease;
+}
+
+
+.status-banner{display:flex;align-items:center;gap:6px;min-width:84px;justify-content:center}
+.status-banner i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 9px currentColor}
+.status-banner[data-state="active"]{color:var(--cyan);background:rgba(86,216,255,.11)}
+.status-banner[data-state="verified"]{color:var(--green);background:rgba(65,230,149,.14)}
+.status-banner[data-state="offline"]{color:var(--red);background:rgba(255,107,121,.11)}
+.confidence-breakdown{display:grid;gap:5px;margin-top:9px}
+.break-row{display:grid;grid-template-columns:56px minmax(0,1fr) 32px;gap:7px;align-items:center;font-size:9px;color:#7f94ab}
+.break-row>div{height:5px;background:#14263a;border-radius:999px;overflow:hidden}
+.break-row i{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--cyan),var(--green));transition:width .35s ease}
+.break-row b{text-align:right;color:#cfe1f4;font-size:9px}
+.break-row.hidden{display:none}
+.explanation{margin-top:8px;border:1px solid #213a55;border-radius:8px;background:#081522}
+.explanation summary{padding:7px 9px;font-size:9px;font-weight:900;color:#94a9bf;cursor:pointer}
+.explanation div{padding:0 9px 9px;font-size:9px;line-height:1.55;color:#7f94ab}
+.dev-toggle{display:flex;align-items:center;gap:6px;font-size:9px;color:#70849a;padding:8px 11px}
+body:not(.developer-mode) #tool-developer{display:none!important}
+body:not(.developer-mode) #tab-developer{display:none!important}
+body:not(.developer-mode) .dev-kpi{display:none!important}
+.match-lock-overlay{
+  position:fixed;inset:0;z-index:100;display:none;place-items:center;
+  background:rgba(1,6,11,.82);backdrop-filter:blur(8px);
+}
+.match-lock-overlay.show{display:grid;animation:lockFade .95s ease both}
+.lock-content{
+  width:min(820px,70vw);height:min(490px,66vh);position:relative;
+  border:1px solid rgba(86,216,255,.65);border-radius:18px;overflow:hidden;
+  background:#02070d;box-shadow:0 0 70px rgba(86,216,255,.24);
+}
+.lock-content canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:.45}
+.lock-copy{position:absolute;inset:0;display:grid;place-content:center;text-align:center;text-shadow:0 3px 14px #000}
+.lock-check{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;margin:0 auto 12px;background:var(--green);color:#04120b;font-size:33px;font-weight:900;box-shadow:0 0 28px rgba(65,230,149,.55)}
+.lock-kicker{font-size:13px;letter-spacing:.22em;color:var(--green);font-weight:900}
+.lock-name{font-size:35px;font-weight:900;margin-top:8px}
+.lock-meta{font-size:14px;color:#a9bdd1;margin-top:7px}
+.lock-confidence{font-size:52px;font-weight:900;color:#fff;margin-top:8px}
+to{top:88%}}
+@keyframes lockFade{0%{opacity:0}18%{opacity:1}78%{opacity:1}100%{opacity:0}}
+.stage.current i{background:var(--cyan);border-color:#9ae7ff;box-shadow:0 0 16px rgba(86,216,255,.75),0 0 0 4px #081522;animation:stagePulse 1s infinite}
+.stage.current{color:#9ae7ff}
+@keyframes stagePulse{50%{transform:scale(1.18)}}
+.kpi-value.latency-good{color:var(--green)}
+.kpi-value.latency-warn{color:var(--gold)}
+.kpi-value.latency-bad{color:var(--red)}
+.ring.high-confidence{box-shadow:0 0 22px rgba(65,230,149,.42)}
+.candidate.best{border-color:#34795d;background:linear-gradient(90deg,rgba(65,230,149,.09),#0a1828)}
+.best-label{font-size:8px;color:var(--green);font-weight:900;letter-spacing:.07em;margin-top:2px}
+
+
+.lock-content{
+  position:relative;
+  overflow:hidden;
+}
+.lock-content::after{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  top:8%;
+  height:2px;
+  background:var(--cyan);
+  box-shadow:0 0 18px var(--cyan);
+  opacity:0;
+  pointer-events:none;
+}
+.match-lock-overlay.show .lock-content::after{
+  opacity:1;
+  animation:scanLineBox .72s ease;
+}
+@keyframes scanLineBox{
+  from{top:8%}
+  to{top:92%}
+}
+.match-lock-overlay[aria-hidden="true"]{
+  display:none;
+}
+.match-lock-overlay.show{
+  display:grid;
+}
+.lock-content canvas{
+  z-index:0;
+}
+.lock-copy{
+  z-index:1;
+}
+
+
+.completion-strip{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:6px;
+  margin-top:8px;
+}
+.completion-item{
+  border:1px solid #213a55;
+  border-radius:8px;
+  padding:7px;
+  background:#07131f;
+}
+.completion-item b{
+  display:block;
+  font-size:8px;
+  color:#6f849b;
+}
+.completion-item span{
+  display:block;
+  margin-top:3px;
+  font-size:10px;
+  font-weight:900;
+}
+
+
+.reference-layout{
+  display:grid;
+  grid-template-columns:1fr;
+  grid-template-rows:auto minmax(170px,1fr);
+  gap:10px;
+  min-height:0;
+}
+.match-data{
+  min-width:0;
+}
+.official-reference-section{
+  min-height:0;
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr);
+  gap:5px;
+}
+.official-reference-frame{
+  width:100%;
+  aspect-ratio:16 / 9;
+  min-height:0;
+  max-height:100%;
+  border-radius:10px;
+  background:
+    radial-gradient(circle at center,rgba(33,61,86,.16),transparent 55%),
+    #030912;
+}
+.official-reference-frame img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
+.match-top{
+  grid-template-columns:1fr;
+}
+.completion-strip{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+}
+
+
+.full-action{width:100%;margin-top:6px}
+.auto-add-label{display:flex;align-items:center;gap:6px;margin-top:7px;color:#8297ad;font-size:9px}
+.recent-head{display:flex;align-items:center;justify-content:space-between;margin-top:9px}
+.recent-head h3{margin:0}
+.recent-head button{padding:5px 8px;font-size:8px}
+.recent-scans{display:grid;gap:5px;margin-top:6px;max-height:82px;overflow:auto}
+.recent-card{display:grid;grid-template-columns:26px minmax(0,1fr) 48px;gap:7px;align-items:center;border:1px solid #203850;background:#081522;border-radius:7px;padding:5px}
+.recent-card img,.recent-placeholder{width:24px;height:31px;border-radius:4px;object-fit:cover;background:#13243a;display:grid;place-items:center;font-size:7px;color:#5f7389}
+.recent-name{font-size:9px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recent-meta{font-size:7px;color:#71869d;margin-top:2px}
+.recent-value{text-align:right;font-size:9px;font-weight:900}
+.recent-empty{font-size:9px;color:#6f849a;padding:8px;border:1px dashed #263d56;border-radius:7px}
+.workflow-toast{min-height:18px;margin-top:5px;font-size:9px;color:#7eeeb2}
+.workflow-toast.error{color:#ff8995}
+.workflow-toast.warn{color:#ffd271}
+.price-box{align-self:stretch}
+
+
+.auto-add-status{
+  margin-top:4px;
+  padding:5px 7px;
+  border-radius:6px;
+  background:#07131f;
+  border:1px solid #213a55;
+  color:#7f94ab;
+  font-size:8px;
+  text-align:center;
+}
+
+
+.match-panel{
+  min-height:0;
+}
+.match-body{
+  min-height:0;
+  display:grid;
+  grid-template-rows:minmax(0,1fr) auto;
+  gap:8px;
+  overflow:hidden;
+}
+.reference-layout{
+  min-height:0;
+  overflow:auto;
+  padding-right:3px;
+}
+.compact-match-bottom{
+  display:grid;
+  grid-template-columns:108px minmax(0,1fr);
+  gap:9px;
+  align-items:center;
+  border-top:1px solid #1b3048;
+  padding-top:8px;
+  background:#07131f;
+}
+.confidence-compact{
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.confidence-compact .ring{
+  width:72px;
+  height:72px;
+}
+.confidence-compact .ring:after{
+  width:52px;
+  height:52px;
+}
+.confidence-compact .ring strong{
+  font-size:16px;
+}
+.confidence-compact strong{
+  font-size:10px;
+  color:var(--green);
+}
+.match-actions{
+  min-width:0;
+}
+.market-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.compact-price{
+  font-size:19px;
+  font-weight:900;
+  margin-top:2px;
+}
+.action-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr .72fr;
+  gap:5px;
+  margin-top:6px;
+}
+.action-grid button{
+  min-width:0;
+  padding:7px 5px;
+  font-size:9px;
+}
+.auto-add-label{
+  margin:0;
+  white-space:nowrap;
+}
+.auto-add-status{
+  margin-top:5px;
+  padding:4px 6px;
+  font-size:8px;
+}
+.official-reference-frame{
+  min-height:145px;
+}
+.meta-grid{
+  gap:5px;
+}
+.meta{
+  padding:6px;
+}
+.meta span{
+  font-size:10px;
+}
+.confidence-breakdown{
+  margin-top:6px;
+}
+.explanation{
+  margin-top:6px;
+}
+.completion-strip{
+  margin-top:6px;
+}
+
+
+.match-heading-row{display:grid;grid-template-columns:64px minmax(0,1fr);gap:9px;align-items:start}
+.candidate-thumb-large{width:64px;aspect-ratio:2.5/3.5;border:1px solid #27425f;border-radius:8px;overflow:hidden;background:#06101a}
+.candidate-thumb-large img,.candidate-thumb-large div{width:100%;height:100%}
+.candidate-thumb-large img{display:none;object-fit:contain}
+.candidate-thumb-large div{display:grid;place-items:center;color:#61768c;font-size:9px;font-weight:900}
+.name-stack{min-width:0}
+.english-name{margin-top:3px;color:#78dfff;font-size:10px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scan-overlay-banner{position:absolute;top:14px;right:14px;display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid rgba(86,216,255,.48);border-radius:999px;background:rgba(3,10,17,.84);backdrop-filter:blur(8px);color:#8fe9ff;font-size:9px;font-weight:900;letter-spacing:.06em;pointer-events:none;z-index:4}
+.scan-overlay-banner b{color:#fff;font-size:10px}
+
+
+.candidates{max-height:180px;overflow:auto}
+.candidate{grid-template-columns:25px 44px minmax(0,1fr) 42px;align-items:center}
+.candidate-thumb{width:42px;height:58px}
+.candidate-copy{min-width:0}
+.candidate-printed{font-size:8px;color:#8ea3b9;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.candidate-bar{height:4px;background:#12253a;border-radius:999px;overflow:hidden;margin-top:5px}
+.candidate-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--green));transition:width .3s ease}
+.thinking-head{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+.thinking-head h3{margin:0}
+.thinking-head span{font-size:7px;font-weight:900;color:var(--cyan);letter-spacing:.12em}
+.thinking-feed{display:grid;gap:4px;margin-top:5px;max-height:88px;overflow:auto}
+.thinking-line{display:grid;grid-template-columns:9px minmax(0,1fr);gap:6px;align-items:start;font-size:8px;color:#8196ab;padding:3px 0}
+.thinking-line i{width:7px;height:7px;border-radius:50%;margin-top:2px;background:#314760}
+.thinking-line.done i{background:var(--green);box-shadow:0 0 8px rgba(65,230,149,.55)}
+.thinking-line.active i{background:var(--cyan);box-shadow:0 0 8px rgba(86,216,255,.65);animation:stagePulse 1s infinite}
+.thinking-line.warn i{background:var(--gold)}
+.session-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin-top:7px}
+.session-summary div{background:#081522;border:1px solid #203850;border-radius:7px;padding:6px;text-align:center}
+.session-summary b{display:block;font-size:11px}
+.session-summary span{display:block;font-size:7px;color:#70859b;margin-top:2px}
+.live-fallback{object-fit:cover}
+
+
+.shutdown-button{
+  border:1px solid #31475f;
+  background:#0a1725;
+  color:#ff8e98;
+  border-radius:8px;
+  padding:7px 9px;
+  font-size:13px;
+}
+.shutdown-button:hover{background:#3a1720}
+.coverage-guard{
+  margin-top:7px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:7px;
+  border-radius:8px;
+  border:1px solid #4c3f22;
+  background:#1c170b;
+}
+.coverage-guard.ready{
+  border-color:#20533e;
+  background:#0a2018;
+}
+.coverage-guard b{display:block;font-size:9px}
+.coverage-guard span{display:block;font-size:8px;color:#9caabd;margin-top:2px}
+.coverage-guard button{padding:5px 8px;font-size:8px;white-space:nowrap}
+.evidence-item span{color:#ffd271}
+.completion-strip{grid-template-columns:repeat(4,minmax(0,1fr))}
+.system-stopping::after{
+  content:"RareIQ is shutting down…";
+  position:fixed;
+  inset:0;
+  z-index:99999;
+  display:grid;
+  place-items:center;
+  background:rgba(2,7,12,.94);
+  color:#8fe9ff;
+  font-size:22px;
+  font-weight:900;
+}
+
+
+.auto-mode-controls{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.test-mode-label{
+  color:#ffd271;
+}
+.test-mode-label input{
+  accent-color:#e7b64b;
+}
+
+
+.auto-add-diagnostic{
+  margin-top:5px;
+  padding:5px 7px;
+  border-radius:6px;
+  border:1px dashed #29445f;
+  background:#06111d;
+  color:#7890a8;
+  font-size:7px;
+  line-height:1.35;
+}
+.candidate.best{
+  border-color:#315b77;
+  box-shadow:inset 3px 0 0 var(--cyan);
+}
+
+
+.unified-badge{
+  display:inline-block;
+  margin-left:6px;
+  padding:3px 6px;
+  border:1px solid rgba(65,230,149,.45);
+  border-radius:999px;
+  background:rgba(65,230,149,.10);
+  color:var(--green);
+  font-size:7px;
+  font-weight:900;
+  letter-spacing:.10em;
+  vertical-align:middle;
+}
+
+.sync-badge{
+  display:inline-block;
+  margin-left:5px;
+  padding:3px 6px;
+  border-radius:999px;
+  border:1px solid rgba(86,216,255,.35);
+  color:var(--cyan);
+  background:rgba(86,216,255,.08);
+  font-size:7px;
+  font-weight:900;
+  letter-spacing:.08em;
+  vertical-align:middle;
+}
+
+.immutable-strip{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 9px;
+  margin-bottom:6px;
+  border:1px solid rgba(65,230,149,.30);
+  border-radius:8px;
+  background:linear-gradient(90deg,rgba(65,230,149,.08),rgba(86,216,255,.04));
+}
+.immutable-strip span{
+  color:var(--green);
+  font-size:7px;
+  font-weight:900;
+  letter-spacing:.12em;
+}
+.immutable-strip b{
+  font-size:9px;
+}
+.immutable-strip small{
+  color:#7890a8;
+  font-size:7px;
+  margin-left:auto;
+}
+
+#cameraFeed{
+  opacity:1;
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  background:#02070c;
+}
+
+.camera-panel > .immutable-strip{grid-row:1}
+.camera-panel > .panel-head{grid-row:2}
+.camera-panel > .camera-stage{grid-row:3;min-height:0;overflow:hidden}
+.camera-panel > .camera-controls{grid-row:4}
+.camera-stage #cameraFeed{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  max-width:none;
+  max-height:none;
+  object-fit:contain;
+}
+
+
+.catalog-engine-title{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:7px;
+  color:#dceaff;
+}
+.catalog-engine-title span{
+  color:var(--green);
+  font-size:8px;
+  font-weight:800;
+}
+.dropbox-config{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto auto;
+  gap:6px;
+  align-items:center;
+  margin-top:7px;
+}
+.dropbox-config label{
+  color:#91a7bd;
+  font-size:8px;
+  white-space:nowrap;
+}
+.master-set-list{
+  display:grid;
+  gap:4px;
+  margin-top:6px;
+  max-height:92px;
+  overflow:auto;
+}
+.master-set-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto auto;
+  gap:6px;
+  padding:5px 7px;
+  border:1px solid #183149;
+  border-radius:6px;
+  background:#071421;
+  font-size:8px;
+}
+.master-set-row span{color:#8da4bb}
+
+.pokemon-master-panel{
+  border:1px solid rgba(86,216,255,.28);
+  border-radius:9px;
+  padding:8px;
+  margin-bottom:8px;
+  background:linear-gradient(135deg,rgba(86,216,255,.06),rgba(65,230,149,.04));
+}
+.pokemon-master-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+}
+.pokemon-master-head b{display:block;font-size:10px}
+.pokemon-master-head span{display:block;color:#8299b0;font-size:7px;margin-top:2px}
+.pokemon-master-head strong{font-size:8px;color:var(--cyan)}
+.world-actions{
+  display:grid;
+  grid-template-columns:1fr 1.35fr .55fr;
+  gap:5px;
+  margin-top:7px;
+}
+.world-progress{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:5px;
+  margin-top:7px;
+}
+.world-progress div{
+  border:1px solid #183149;
+  background:#06121e;
+  border-radius:6px;
+  padding:5px;
+  text-align:center;
+}
+.world-progress b{display:block;font-size:10px}
+.world-progress span{display:block;font-size:7px;color:#758ca3}
+
+.vision-engine-panel{
+  border:1px solid rgba(65,230,149,.35);
+  border-radius:9px;
+  padding:8px;
+  margin-bottom:8px;
+  background:linear-gradient(135deg,rgba(65,230,149,.08),rgba(86,216,255,.05));
+}
+.vision-engine-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.vision-engine-head b{display:block;font-size:10px}
+.vision-engine-head span{display:block;color:#8299b0;font-size:7px;margin-top:2px}
+.vision-engine-head strong{font-size:8px;color:var(--green)}
+.vision-engine-actions{
+  display:grid;
+  grid-template-columns:1.4fr 1fr .55fr;
+  gap:5px;
+  margin-top:7px;
+}
+
+.telemetry-module{display:grid;grid-template-rows:34px auto auto 28px minmax(0,1fr);min-height:0}
+.telemetry-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;padding:7px}
+.telemetry-grid div{border:1px solid #193149;border-radius:6px;padding:6px;background:#07131f}
+.telemetry-grid span{display:block;color:#7f96ad;font-size:7px}
+.telemetry-grid b{display:block;margin-top:2px;font-size:10px}
+.pipeline-list{display:grid;gap:4px;padding:0 7px 7px}
+.pipeline-list>div{display:grid;grid-template-columns:48px minmax(0,1fr) 38px;gap:5px;align-items:center;font-size:7px}
+.pipeline-list i{display:block;height:4px;border-radius:99px;background:#173047;overflow:hidden;position:relative}
+.pipeline-list i::after{content:"";position:absolute;inset:0;width:0;background:linear-gradient(90deg,#56d8ff,#41e695);transition:width .25s ease}
+.pipeline-list>div.done i::after{width:100%}
+.pipeline-list>div.active i::after{width:65%}
+.pipeline-list>div.done b{color:#41e695}
+.pipeline-list>div.active b{color:#56d8ff}
+.activity-head{display:flex;justify-content:space-between;align-items:center;padding:5px 7px;border-top:1px solid #14283b;border-bottom:1px solid #14283b;font-size:8px}
+.activity-head span{color:#56d8ff}
+.ai-activity-log{padding:6px 7px;overflow:auto;font-size:7px;line-height:1.55;color:#8ea6bc}
+.global-build-banner{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:7px;align-items:center;margin-top:7px;padding:7px;border:1px solid #1e3c56;border-radius:7px;background:#06121d}
+.global-build-banner>span{width:8px;height:8px;border-radius:50%;background:#486075}
+.global-build-banner>span.active{background:#41e695;box-shadow:0 0 8px rgba(65,230,149,.8)}
+.global-build-banner b{display:block;font-size:9px}
+.global-build-banner small{display:block;color:#7890a8;font-size:7px;margin-top:2px}
+.global-build-banner>strong{font-size:10px;color:#56d8ff}
+.global-build-progress{height:5px;margin:5px 0 7px;background:#13283b;border-radius:99px;overflow:hidden}
+.global-build-progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,#56d8ff,#41e695);transition:width .3s ease}
+.task-queue-card{margin-top:7px;border:1px solid #193149;border-radius:7px;background:#06121d;overflow:hidden}
+.task-queue-head{display:flex;justify-content:space-between;padding:6px 7px;border-bottom:1px solid #14283b;font-size:8px}
+.task-queue-head span{color:#56d8ff}
+.task-queue{display:grid;gap:4px;padding:6px;max-height:95px;overflow:auto}
+.task-item{display:grid;grid-template-columns:8px minmax(0,1fr) auto;gap:6px;align-items:center;padding:5px;border:1px solid #173047;border-radius:5px;font-size:7px}
+.task-item i{width:7px;height:7px;border-radius:50%;background:#56d8ff;box-shadow:0 0 7px rgba(86,216,255,.6)}
+.task-item span{color:#8fa8be}
+.task-empty{text-align:center;color:#6f879d;padding:7px;font-size:7px}
+.tool-content{padding:8px}
+.camera-stage img{object-fit:contain}
+@media(max-width:1400px){
+  .main-grid{grid-template-columns:minmax(0,1.48fr) minmax(340px,.82fr)}
+  .lower-left{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .telemetry-module{grid-column:1/-1}
+}
+
+
+.storage-foundation-panel{border:1px solid rgba(255,194,74,.32);border-radius:9px;padding:8px;margin-bottom:8px;background:linear-gradient(135deg,rgba(255,194,74,.08),rgba(86,216,255,.04))}
+.storage-foundation-head{display:flex;justify-content:space-between;align-items:center}
+.storage-foundation-head b{display:block;font-size:10px}
+.storage-foundation-head span{display:block;color:#8299b0;font-size:7px;margin-top:2px}
+.storage-foundation-head strong{font-size:8px;color:#ffc24a}
+.storage-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:7px}
+.storage-metrics div{border:1px solid #193149;border-radius:6px;background:#07131f;padding:6px}
+.storage-metrics span{display:block;color:#7f96ad;font-size:7px}
+.storage-metrics b{display:block;margin-top:2px;font-size:10px}
+.storage-progress{height:5px;margin-top:7px;background:#13283b;border-radius:99px;overflow:hidden}
+.storage-progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,#ffc24a,#41e695)}
+
+
+.master-performance-grid{
+  grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+}
+.builder-activity-line{
+  font-family:ui-monospace,Consolas,monospace;
+  font-size:7px;
+  color:#8da5bc;
+  padding:2px 0;
+  border-bottom:1px dashed rgba(255,255,255,.05);
+}
+
+.provider-health-panel{
+  border:1px solid rgba(86,216,255,.28);
+  border-radius:9px;
+  padding:8px;
+  margin-bottom:8px;
+  background:linear-gradient(135deg,rgba(86,216,255,.07),rgba(65,230,149,.03));
+}
+.provider-health-head{display:flex;justify-content:space-between;align-items:center}
+.provider-health-head b{display:block;font-size:10px}
+.provider-health-head span{display:block;color:#8299b0;font-size:7px;margin-top:2px}
+.provider-health-head button{height:26px;padding:0 10px}
+.provider-health-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:7px}
+.provider-health-grid>div{display:grid;grid-template-columns:8px minmax(0,1fr);column-gap:5px;padding:6px;border:1px solid #193149;border-radius:6px;background:#07131f}
+.provider-health-grid span{grid-row:1/3;width:7px;height:7px;border-radius:50%;margin-top:2px;background:#486075}
+.provider-health-grid span.online{background:#41e695;box-shadow:0 0 7px rgba(65,230,149,.7)}
+.provider-health-grid span.error{background:#ef5a67;box-shadow:0 0 7px rgba(239,90,103,.6)}
+.provider-health-grid b{font-size:8px}
+.provider-health-grid small{color:#7f96ad;font-size:7px;margin-top:2px}
+.current-set-progress{display:flex;justify-content:space-between;align-items:center;margin-top:7px}
+.current-set-progress b{display:block;font-size:8px}
+.current-set-progress span{display:block;color:#7f96ad;font-size:7px;margin-top:2px}
+.current-set-progress strong{font-size:9px;color:#56d8ff}
+.current-set-progress-bar{height:5px;margin:5px 0 7px;background:#13283b;border-radius:99px;overflow:hidden}
+.current-set-progress-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#56d8ff,#41e695);transition:width .2s ease}
+
+
+.fast-pipeline-options{
+  margin-top:7px;
+  border:1px solid rgba(65,230,149,.24);
+  border-radius:8px;
+  padding:7px;
+  background:rgba(65,230,149,.035);
+}
+.pipeline-language-picker{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  font-size:7px;
+  color:#b6c5d3;
+}
+.pipeline-language-picker label{display:flex;align-items:center;gap:4px}
+.pipeline-secondary-actions{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);
+  gap:6px;
+  margin-top:7px;
+}
+.pipeline-secondary-actions label{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:5px;
+  font-size:7px;
+  color:#8299b0;
+}
+.pipeline-secondary-actions input{
+  width:45px;
+  height:24px;
+  padding:0 5px;
+}
+.pipeline-stage-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:5px;
+  margin-top:7px;
+}
+.pipeline-stage-grid>div{
+  border:1px solid #193149;
+  border-radius:6px;
+  padding:6px;
+  background:#07131f;
+}
+.pipeline-stage-grid span,
+.pipeline-stage-grid small{
+  display:block;
+  font-size:7px;
+  color:#7f96ad;
+}
+.pipeline-stage-grid b{
+  display:block;
+  font-size:9px;
+  margin:2px 0;
+}
+
+
+.war-room-panel{
+  border:1px solid rgba(239,90,103,.34);
+  border-radius:9px;
+  padding:8px;
+  margin-bottom:8px;
+  background:linear-gradient(135deg,rgba(239,90,103,.08),rgba(86,216,255,.04));
+}
+.war-room-head{display:flex;justify-content:space-between;align-items:center}
+.war-room-head b{display:block;font-size:11px;letter-spacing:.08em}
+.war-room-head span{display:block;color:#8299b0;font-size:7px;margin-top:2px}
+.war-room-head strong{font-size:8px;color:#41e695}
+.war-room-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:5px;
+  margin-top:7px;
+}
+.war-room-grid>div{
+  border:1px solid #193149;
+  border-radius:6px;
+  background:#07131f;
+  padding:6px;
+}
+.war-room-grid span{display:block;color:#7f96ad;font-size:7px}
+.war-room-grid b{display:block;margin-top:2px;font-size:9px}
+.war-room-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:5px;
+  margin-top:7px;
+}
+
+
+.war-room-actions-three{
+  grid-template-columns:1.4fr 1fr 1fr;
+}
+.primary-action{
+  background:linear-gradient(90deg,#1f8f62,#2fbf83) !important;
+  border-color:#41e695 !important;
+}
+.index-activation-progress{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-top:7px;
+}
+.index-activation-progress b{display:block;font-size:8px}
+.index-activation-progress span{
+  display:block;
+  color:#7f96ad;
+  font-size:7px;
+  margin-top:2px;
+}
+.index-activation-progress strong{
+  font-size:9px;
+  color:#56d8ff;
+}
+.index-activation-bar{
+  height:5px;
+  margin-top:5px;
+  background:#13283b;
+  border-radius:99px;
+  overflow:hidden;
+}
+.index-activation-bar i{
+  display:block;
+  height:100%;
+  width:0;
+  background:linear-gradient(90deg,#56d8ff,#41e695);
+  transition:width .2s ease;
+}
+
+
+.system-health-panel{
+  border:1px solid rgba(86,216,255,.32);
+  border-radius:9px;
+  padding:8px;
+  margin-bottom:8px;
+  background:linear-gradient(135deg,rgba(86,216,255,.07),rgba(65,230,149,.035));
+}
+.system-health-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.system-health-head b{display:block;font-size:10px;letter-spacing:.06em}
+.system-health-head span{display:block;color:#8299b0;font-size:7px;margin-top:2px}
+.system-health-head strong{font-size:8px;color:#56d8ff}
+.system-health-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:5px;
+  margin-top:7px;
+}
+.system-health-grid>div{
+  display:grid;
+  grid-template-columns:8px minmax(0,1fr);
+  gap:3px 5px;
+  border:1px solid #193149;
+  border-radius:6px;
+  padding:6px;
+  background:#07131f;
+}
+.system-health-grid i{
+  grid-row:1/3;
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:#486075;
+  margin-top:2px;
+}
+.system-health-grid i.online{
+  background:#41e695;
+  box-shadow:0 0 7px rgba(65,230,149,.65);
+}
+.system-health-grid i.warning{
+  background:#f1bd52;
+  box-shadow:0 0 7px rgba(241,189,82,.55);
+}
+.system-health-grid span{font-size:7px;color:#7f96ad}
+.system-health-grid b{font-size:8px}
+.system-health-metrics{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:5px;
+  margin-top:6px;
+}
+.system-health-metrics>div{
+  border:1px solid #193149;
+  border-radius:6px;
+  padding:5px;
+  text-align:center;
+}
+.system-health-metrics span{display:block;font-size:7px;color:#7f96ad}
+.system-health-metrics b{display:block;font-size:10px;margin-top:2px}
+.system-health-actions{
+  display:grid;
+  grid-template-columns:1.2fr 1fr .7fr;
+  gap:5px;
+  align-items:center;
+  margin-top:7px;
+}
+.system-health-actions label{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+  font-size:7px;
+  color:#b6c5d3;
+}
+
+
+.intelligence-core-panel{
+  border:1px solid rgba(153,104,255,.36);
+  border-radius:9px;
+  padding:8px;
+  margin-bottom:8px;
+  background:linear-gradient(135deg,rgba(153,104,255,.09),rgba(86,216,255,.04));
+}
+.intelligence-core-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.intelligence-core-head b{display:block;font-size:10px;letter-spacing:.06em}
+.intelligence-core-head span{display:block;color:#8299b0;font-size:7px;margin-top:2px}
+.intelligence-core-head strong{font-size:8px;color:#b78cff}
+.intelligence-core-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:5px;
+  margin-top:7px;
+}
+.intelligence-core-grid>div{
+  border:1px solid #21314c;
+  border-radius:6px;
+  padding:6px;
+  background:#091320;
+}
+.intelligence-core-grid span{display:block;font-size:7px;color:#7f96ad}
+.intelligence-core-grid b{display:block;font-size:9px;margin-top:2px}
+.intelligence-core-actions{
+  display:grid;
+  grid-template-columns:1fr;
+  margin-top:7px;
+}
+
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">◇</div><span>RareIQ</span></div>
+    <nav class="nav">
+      <button class="active">◈ &nbsp; Dashboard</button>
+      <button onclick="focusPanel('cameraPanel')">◉ &nbsp; Live Scan</button>
+      <button onclick="showTool('catalog')">▣ &nbsp; Catalogs</button>
+      <button onclick="showTool('sets')">▤ &nbsp; Active Sets</button>
+      <button onclick="showTool('batch')">▦ &nbsp; Batches</button>
+      <button onclick="openDrawer()">✣ &nbsp; AI Grading</button>
+      <button onclick="showTool('developer')">⌁ &nbsp; Developer</button>
+      <label class="dev-toggle"><input id="developerModeToggle" type="checkbox" onchange="toggleDeveloperMode()"> Developer Mode</label>
+      <button onclick="location.href='/control-legacy'">↶ &nbsp; Legacy UI</button>
+    </nav>
+    <div class="sidebar-foot">Project Digital Jazz<br>Desktop Alpha</div>
+  </aside>
+
+  <main class="workspace">
+    <header class="topbar">
+      <div class="title">RareIQ Operator Console <span class="version">vX.7</span></div>
+      <div class="top-right">
+        <span><i class="dot"></i>System Live</span>
+        <span id="clock">--:--:--</span>
+        <button class="shutdown-button" onclick="shutdownRareIQ()" title="Stop RareIQ">⏻</button>
+        <span class="avatar">OP</span>
+        <span><b>Operator</b><br><small style="color:var(--green)">Online</small></span>
+      </div>
+    </header>
+
+    <section class="kpis">
+      <div class="kpi"><div class="kpi-icon">▣</div><div><div class="kpi-label">Camera</div><div id="kpiCamera" class="kpi-value">Offline</div><div id="kpiCameraSub" class="kpi-sub">No device</div></div></div>
+      <div class="kpi"><div class="kpi-icon" style="color:var(--cyan)">▤</div><div><div class="kpi-label">Active Set</div><div id="kpiSet" class="kpi-value">All References</div><div id="kpiSetSub" class="kpi-sub">Any language</div></div></div>
+      <div class="kpi"><div class="kpi-icon" style="color:#8b80ff">⬡</div><div><div class="kpi-label">Indexed Cards</div><div id="kpiIndexed" class="kpi-value">0</div><div class="kpi-sub">Visual references</div></div></div>
+      <div class="kpi"><div class="kpi-icon" style="color:#8b80ff">⌁</div><div><div class="kpi-label">Latency</div><div id="kpiLatency" class="kpi-value">—</div><div class="kpi-sub">Recognition total</div></div></div>
+      <div class="kpi"><div class="kpi-icon">◎</div><div><div class="kpi-label">Confidence</div><div id="kpiConfidence" class="kpi-value">0%</div><div id="kpiState" class="kpi-sub">Searching</div></div></div>
+      <div class="kpi"><div class="kpi-icon" style="color:var(--gold);background:rgba(255,201,92,.1)">$</div><div><div class="kpi-label">Batch Value</div><div id="kpiBatch" class="kpi-value">$0.00</div><div id="kpiCards" class="kpi-sub">0 cards</div></div></div>
+    </section>
+
+    <section class="main-grid">
+      <section id="cameraPanel" class="panel camera-panel">
+        <div class="immutable-strip">
+          <span>POKÉMON AI VISION</span>
+          <b id="immutablePrimary">No candidate</b>
+          <small id="immutableState">Waiting for state</small>
+        </div>
+        <div class="panel-head"><h2>▣ Live Card Camera</h2><span id="cameraBadge" class="badge status-banner"><i></i><b>OFFLINE</b></span></div>
+        <div class="camera-stage">
+          <img id="cameraFeed" src="/api/camera/stream" alt="Live camera feed">
+          <div id="cameraEmpty" class="camera-empty">Start a camera to begin scanning.</div>
+          <div class="scan-zone"><span>LIVE OCR ZONE</span></div>
+          <div id="scanOverlayBanner" class="scan-overlay-banner">
+            <span id="scanOverlayState">SEARCHING</span>
+            <b id="scanOverlayConfidence">0%</b>
+          </div>
+          <div id="ocrOverlay" class="ocr-overlay">
+            <div><b id="overlayName">Waiting…</b><span id="overlayNumber">—</span></div>
+            <div><b id="overlayHp">HP —</b><span id="overlayLanguage">—</span></div>
+          </div>
+        </div>
+        <div class="camera-controls">
+          <select id="cameraSelect"><option>Scanning for cameras…</option></select>
+          <button onclick="loadCameras()">Refresh</button>
+          <button onclick="attachCameraStream(true)">Reconnect Feed</button>
+          <button class="good" onclick="startCamera()">Start Camera</button>
+          <button class="danger" onclick="stopCamera()">Stop</button>
+          <button onclick="captureCard()">Capture</button>
+          <label><input id="autoCapture" type="checkbox" checked onchange="toggleAutoCapture()"> Auto Capture</label>
+        </div>
+      </section>
+
+      <section class="panel match-panel">
+        <div class="panel-head"><h2>♧ Verified Match</h2><span id="matchBadge" class="badge">SEARCHING</span></div>
+        <div class="match-body">
+          <div class="match-top reference-layout">
+            <div class="match-data">
+              <div class="match-heading-row">
+                <div class="candidate-thumb-large">
+                  <img id="verifiedThumb" alt="Recognized card thumbnail">
+                  <div id="verifiedThumbEmpty">CARD</div>
+                </div>
+                <div class="name-stack">
+                  <div id="cardName" class="card-title">Waiting for card…</div>
+                  <div id="cardEnglishName" class="english-name">English name unavailable</div>
+                  <div id="cardSubtitle" class="card-sub">RareIQ will place the strongest verified candidate here.</div>
+                </div>
+              </div>
+
+              <div class="meta-grid">
+                <div class="meta"><b>COLLECTOR NUMBER</b><span id="cardNumber">—</span></div>
+                <div class="meta"><b>LANGUAGE</b><span id="cardLanguage">—</span></div>
+                <div class="meta"><b>SET</b><span id="cardSet">—</span></div>
+                <div class="meta"><b>SOURCE</b><span id="cardSource">—</span></div>
+                <div class="meta"><b>RARITY</b><span id="cardRarity">—</span></div>
+                <div class="meta"><b>DATABASE</b><span id="cardDatabase">Waiting</span></div>
+                <div class="meta"><b>HP / TYPE</b><span id="cardHpType">—</span></div>
+                <div class="meta"><b>ILLUSTRATOR</b><span id="cardIllustrator">—</span></div>
+                <div class="meta"><b>VARIANT</b><span id="cardVariant">—</span></div>
+              </div>
+
+              <div class="confidence-breakdown">
+                <div class="break-row" id="breakOcr"><span>OCR</span><div><i></i></div><b>—</b></div>
+                <div class="break-row" id="breakArtwork"><span>Artwork</span><div><i></i></div><b>—</b></div>
+                <div class="break-row" id="breakCatalog"><span>Catalog</span><div><i></i></div><b>—</b></div>
+                <div class="break-row" id="breakLanguage"><span>Language</span><div><i></i></div><b>—</b></div>
+              </div>
+
+              <details class="explanation">
+                <summary>Why RareIQ chose this card</summary>
+                <div id="explanationBody">Waiting for recognition evidence.</div>
+              </details>
+
+              <div class="completion-strip">
+                <div class="completion-item"><b>REFERENCE</b><span id="completionReference">Waiting</span></div>
+                <div class="completion-item"><b>CATALOG</b><span id="completionCatalog">Waiting</span></div>
+                <div class="completion-item"><b>VERIFY</b><span id="completionVerify">Waiting</span></div>
+                <div class="completion-item evidence-item"><b>EVIDENCE</b><span id="completionEvidence">Missing</span></div>
+              </div>
+            </div>
+
+            <div class="official-reference-section">
+              <div class="compare-label">OFFICIAL REFERENCE</div>
+              <div class="reference-frame official-reference-frame">
+                <img id="referenceImage" alt="Official reference card">
+                <div id="referenceEmpty" class="reference-empty">No official reference image yet.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="match-bottom compact-match-bottom">
+            <div class="confidence-compact">
+              <div class="ring" id="confidenceRing"><strong id="confidencePct">0%</strong></div>
+              <div>
+                <div class="kpi-label">MATCH STATUS</div>
+                <strong id="compactMatchState">SEARCHING</strong>
+              </div>
+            </div>
+
+            <div class="match-actions">
+              <div class="market-row">
+                <div>
+                  <div class="kpi-label">MARKET ESTIMATE</div>
+                  <div id="cardPrice" class="compact-price">$0.00</div>
+                </div>
+                <div class="auto-mode-controls">
+                <label class="auto-add-label"><input id="autoAddVerified" type="checkbox" onchange="saveAutoAddPreference()"> Auto-add</label>
+                <label class="auto-add-label test-mode-label"><input id="autoAddTestMode" type="checkbox" onchange="saveAutoAddPreference()"> Test mode</label>
+              </div>
+              </div>
+
+              <div class="action-grid">
+                <button class="good" onclick="confirmCurrentCard(false)">✓ Add Card</button>
+                <button class="danger" onclick="rejectCurrentCard()">✕ Reject</button>
+                <button onclick="openDrawer()">Grade</button>
+              </div>
+
+              <div id="autoAddLatchStatus" class="auto-add-status">Ready for card</div>
+              <div id="autoAddDiagnostic" class="auto-add-diagnostic">Waiting for recognition evidence.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="lower-left">
+        <section class="panel module telemetry-module">
+          <div class="module-head">
+            <h3>AI Engine Telemetry</h3>
+            <span id="telemetryState">IDLE</span>
+          </div>
+          <div class="telemetry-grid">
+            <div><span>Total</span><b id="metricTotalMs">— ms</b></div>
+            <div><span>OCR</span><b id="metricOcrMs">— ms</b></div>
+            <div><span>Artwork</span><b id="metricArtworkMs">— ms</b></div>
+            <div><span>Vector</span><b id="metricVectorMs">— ms</b></div>
+          </div>
+          <div class="pipeline-list">
+            <div data-stage="detect"><span>Detect</span><i></i><b>WAIT</b></div>
+            <div data-stage="crop"><span>Crop</span><i></i><b>WAIT</b></div>
+            <div data-stage="ocr"><span>OCR</span><i></i><b>WAIT</b></div>
+            <div data-stage="artwork"><span>Artwork</span><i></i><b>WAIT</b></div>
+            <div data-stage="catalog"><span>Catalog</span><i></i><b>WAIT</b></div>
+            <div data-stage="verify"><span>Verify</span><i></i><b>WAIT</b></div>
+          </div>
+          <div class="activity-head"><b>AI Activity</b><span id="pipelineSummary">Waiting</span></div>
+          <div id="aiActivityLog" class="ai-activity-log">Waiting for recognition events…</div>
+        </section>
+        <section class="panel module">
+          <h3>Recognition Timeline</h3>
+          <div id="timeline" class="timeline timeline-flow">
+            <div class="stage"><i></i><span>Detect</span></div>
+            <div class="stage"><i></i><span>OCR</span></div>
+            <div class="stage"><i></i><span>Artwork</span></div>
+            <div class="stage"><i></i><span>Catalog</span></div>
+            <div class="stage"><i></i><span>Verify</span></div>
+          </div>
+          <h3 style="margin-top:10px">Top Candidates</h3>
+          <div id="candidateList" class="candidates">
+            <div class="candidate"><div class="rank">1</div><div class="candidate-thumb placeholder">—</div><div><div class="candidate-name">Waiting for recognition</div><div class="candidate-sub">No candidates yet</div></div><div class="score">—</div></div>
+          </div>
+          <div class="thinking-head">
+            <h3>RareIQ Thinking</h3>
+            <span>LIVE</span>
+          </div>
+          <div id="thinkingFeed" class="thinking-feed">
+            <div class="thinking-line pending"><i></i><span>Waiting for a card.</span></div>
+          </div>
+        </section>
+
+        <section class="panel module">
+          <h3>Batch Snapshot</h3>
+          <div class="batch-strip">
+            <div class="batch-stat"><b>BOX</b><span id="batchBox">1/1</span></div>
+            <div class="batch-stat"><b>PACK</b><span id="batchPack">1/5</span></div>
+            <div class="batch-stat"><b>CARDS</b><span id="batchCards">0</span></div>
+            <div class="batch-stat"><b>VALUE</b><span id="batchValue">$0.00</span></div>
+          </div>
+          <div class="batch-progress"><div id="batchProgressFill"></div></div>
+          <div class="action-row">
+            <button onclick="post('/api/session/previous-pack')">◀ Pack</button>
+            <button class="good" onclick="post('/api/session/next-pack')">Next Pack ▶</button>
+            <button onclick="post('/api/session/previous-box')">◀ Box</button>
+            <button class="good" onclick="post('/api/session/next-box')">Next Box ▶</button>
+            <button onclick="post('/api/session/undo')">Undo</button>
+          </div>
+          <div class="session-summary">
+            <div><b id="summaryCards">0</b><span>Cards</span></div>
+            <div><b id="summaryHits">0</b><span>Hits</span></div>
+            <div><b id="summaryAvg">$0.00</b><span>Avg Value</span></div>
+            <div><b id="summaryTop">$0.00</b><span>Best Pull</span></div>
+          </div>
+          <div class="recent-head">
+            <h3>Recent Scans</h3>
+            <button onclick="exportSession()">Export JSON</button>
+          </div>
+          <div id="recentScans" class="recent-scans">
+            <div class="recent-empty">No cards added yet.</div>
+          </div>
+          <div id="workflowToast" class="workflow-toast"></div>
+        </section>
+      </section>
+
+      <section class="panel tools-panel">
+        <div class="panel-head">
+          <h2>Workspace Tools</h2>
+          <div class="tabs">
+            <button id="tab-catalog" class="active" onclick="showTool('catalog')">Catalog</button>
+            <button id="tab-sets" onclick="showTool('sets')">Sets</button>
+            <button id="tab-batch" onclick="showTool('batch')">Batch</button>
+            <button id="tab-developer" onclick="showTool('developer')">Developer</button>
+          </div>
+        </div>
+        <div class="tool-content">
+          <div id="tool-catalog" class="tool-view active">
+            <div class="storage-foundation-panel">
+  <div class="storage-foundation-head">
+    <div>
+      <b>Intelligence Core</b>
+      <span id="storageRootPath">Checking configured drive…</span>
+    </div>
+    <strong id="storageHealth">CHECKING</strong>
+  </div>
+  <div class="storage-metrics">
+    <div><span>Total</span><b id="storageTotal">—</b></div>
+    <div><span>Used</span><b id="storageUsed">—</b></div>
+    <div><span>Free</span><b id="storageFree">—</b></div>
+  </div>
+  <div class="storage-progress"><i id="storageProgressFill"></i></div>
+</div>
+<div class="intelligence-core-panel">
+  <div class="intelligence-core-head">
+    <div>
+      <b>INTELLIGENCE CORE</b>
+      <span>Vision optimization • candidate ranking • explainable confidence</span>
+    </div>
+    <strong id="intelligenceCoreState">READY</strong>
+  </div>
+  <div class="intelligence-core-grid">
+    <div><span>Vision Optimizer</span><b>READY</b></div>
+    <div><span>Candidate Ranker</span><b>READY</b></div>
+    <div><span>Fusion Engine</span><b>READY</b></div>
+    <div><span>Diagnostics</span><b>READY</b></div>
+    <div><span>Learning Queue</span><b id="learningQueueCount">0</b></div>
+    <div><span>Indexed Cards</span><b id="intelligenceIndexedCards">0</b></div>
+  </div>
+  <div class="intelligence-core-actions">
+    <button class="primary-action" onclick="runIntelligenceBenchmark()">Run X7 Benchmark</button>
+  </div>
+  <div id="intelligenceCoreStatus" class="status-box">
+    X7 Intelligence Core is online.
+  </div>
+</div>
+<div class="system-health-panel">
+  <div class="system-health-head">
+    <div>
+      <b>SYSTEM HEALTH</b>
+      <span>Centralized runtime status and automated maintenance</span>
+    </div>
+    <strong id="systemHealthOverall">CHECKING</strong>
+  </div>
+  <div class="system-health-grid">
+    <div><i id="healthCameraDot"></i><span>Camera</span><b id="healthCamera">Offline</b></div>
+    <div><i id="healthRecognitionDot"></i><span>Recognition</span><b id="healthRecognition">Checking</b></div>
+    <div><i id="healthIndexDot"></i><span>Visual Index</span><b id="healthIndex">Checking</b></div>
+    <div><i id="healthMetadataDot"></i><span>Metadata</span><b id="healthMetadata">Checking</b></div>
+    <div><i id="healthProvidersDot"></i><span>Providers</span><b id="healthProviders">Checking</b></div>
+    <div><i id="healthJobsDot"></i><span>Job Queue</span><b id="healthJobs">Ready</b></div>
+  </div>
+  <div class="system-health-metrics">
+    <div><span>Indexed Cards</span><b id="healthIndexedCards">0</b></div>
+    <div><span>Local Images</span><b id="healthLocalImages">0</b></div>
+    <div><span>Unindexed</span><b id="healthUnindexed">0</b></div>
+    <div><span>Queued Jobs</span><b id="healthQueuedJobs">0</b></div>
+  </div>
+  <div class="system-health-actions">
+    <button class="primary-action" onclick="optimizeRareIQLibrary()">Optimize Library</button>
+    <button onclick="runIncrementalIndex()">Index New Artwork</button>
+    <label><input id="autoIndexToggle" type="checkbox" checked onchange="toggleAutoIndex()"> Auto-index</label>
+  </div>
+  <div id="systemHealthStatus" class="status-box">
+    RareIQ is checking all subsystems.
+  </div>
+</div>
+<div class="war-room-panel">
+  <div class="war-room-head">
+    <div>
+      <b>WAR ROOM</b>
+      <span>Wide Architecture Rebuild • measurable systems status</span>
+    </div>
+    <strong id="warMissionState">ONLINE</strong>
+  </div>
+  <div class="war-room-grid">
+    <div><span>Metadata</span><b id="warMetadata">IDLE</b></div>
+    <div><span>HD Artwork</span><b id="warImages">IDLE</b></div>
+    <div><span>Visual Index</span><b id="warVisual">NOT READY</b></div>
+    <div><span>Assets</span><b id="warAssets">0</b></div>
+    <div><span>Plugins</span><b id="warPlugins">1</b></div>
+    <div><span>Fusion Engine</span><b id="warFusion">READY</b></div>
+  </div>
+  <div class="war-room-actions war-room-actions-three">
+    <button class="primary-action" onclick="activateRecognitionIndex()">
+      Activate Recognition Index
+    </button>
+    <button onclick="scanAssetLibrary()">Verify Asset Library</button>
+    <button onclick="runFusionBenchmark()">Run Benchmark</button>
+  </div>
+  <div class="index-activation-progress">
+    <div>
+      <b id="indexActivationPhase">IDLE</b>
+      <span id="indexActivationDetail">Waiting to build from local artwork.</span>
+    </div>
+    <strong id="indexActivationPercent">0%</strong>
+  </div>
+  <div class="index-activation-bar">
+    <i id="indexActivationFill"></i>
+  </div>
+  <div id="warRoomStatus" class="status-box">
+    WAR BUILD foundation ready.
+  </div>
+</div>
+<div class="provider-health-panel">
+  <div class="provider-health-head">
+    <div>
+      <b>Provider Preflight</b>
+      <span>RareIQ checks dependencies before starting a large build.</span>
+    </div>
+    <button onclick="checkProvidersNow()">Run Check</button>
+  </div>
+  <div class="provider-health-grid">
+    <div>
+      <span id="tcgdexProviderDot"></span>
+      <b>TCGdex</b>
+      <small id="tcgdexProviderStatus">Not checked</small>
+    </div>
+    <div>
+      <span id="pokemontcgProviderDot"></span>
+      <b>Pokémon TCG API</b>
+      <small id="pokemontcgProviderStatus">Not checked</small>
+    </div>
+    <div>
+      <span id="apiKeyProviderDot"></span>
+      <b>API Key</b>
+      <small id="apiKeyProviderStatus">Checking</small>
+    </div>
+  </div>
+</div>
+<div class="vision-engine-panel">
+              <div class="vision-engine-head">
+                <div>
+                  <b>Intelligence Core</b>
+                  <span>Global visual search • automatic set detection</span>
+                </div>
+                <strong id="visionEnginePhase">IDLE</strong>
+              </div>
+              <div id="globalBuildBanner" class="global-build-banner">
+                <span id="globalBuildDot"></span>
+                <div>
+                  <b id="globalBuildTitle">Database idle</b>
+                  <small id="globalBuildDetail">Press Sync & Build Everything to begin.</small>
+                </div>
+                <strong id="globalBuildPercent">0%</strong>
+              </div>
+              <div class="global-build-progress"><i id="globalBuildProgressFill"></i></div>
+              <div class="vision-engine-actions">
+                <button class="good" onclick="startFastMetadata()">1. Build Fast Metadata</button>
+                <button onclick="startFastImages()">2. Download HD Artwork</button>
+                <button class="danger" onclick="stopFastPipeline()">Stop</button>
+              </div>
+              <div class="world-progress master-performance-grid">
+                <div><b id="builderSets">0/0</b><span>Sets</span></div>
+                <div><b id="builderCards">0</b><span>Cards</span></div>
+                <div><b id="builderImages">0</b><span>Images</span></div>
+                <div><b id="builderSpeed">0/s</b><span>Cards/sec</span></div>
+                <div><b id="builderEta">—</b><span>ETA</span></div>
+                <div><b id="visionIndexRecords">0</b><span>Indexed Images</span></div>
+                <div><b id="visionIndexDimensions">0</b><span>Dimensions</span></div>
+                <div><b id="visionLastBuild">Never</b><span>Last Build</span></div>
+                <div><b id="visionAutoSync">Off</b><span>Auto Sync</span></div>
+              </div>
+              <div class="dropbox-config">
+                <label><input id="visionAutoSyncEnabled" type="checkbox"> Auto-sync Pokémon database</label>
+                <input id="visionSyncHours" type="number" min="1" value="24" placeholder="Hours">
+                <button onclick="savePokemonVisionConfig()">Save</button>
+              </div>
+              <div class="fast-pipeline-options">
+  <div class="pipeline-language-picker">
+    <label><input id="pipelineEnglish" type="checkbox" checked> English</label>
+    <label><input id="pipelineJapanese" type="checkbox" checked> Japanese</label>
+    <label><input id="pipelineTraditionalChinese" type="checkbox" checked> Traditional Chinese</label>
+  </div>
+  <div class="pipeline-secondary-actions">
+    <label>HD workers
+      <input id="pipelineWorkers" type="number" min="2" max="24" value="12">
+    </label>
+    <button onclick="buildFastVisualIndex()">3. Build Visual Index</button>
+  </div>
+  <div class="pipeline-stage-grid">
+    <div>
+      <span>Metadata</span>
+      <b id="fastMetadataPhase">IDLE</b>
+      <small id="fastMetadataStats">0 sets • 0 cards</small>
+    </div>
+    <div>
+      <span>HD Artwork</span>
+      <b id="fastImagePhase">IDLE</b>
+      <small id="fastImageStats">0 / 0 images</small>
+    </div>
+    <div>
+      <span>Download Rate</span>
+      <b id="fastImageRate">0 MB/s</b>
+      <small id="fastImageEta">ETA —</small>
+    </div>
+  </div>
+</div>
+<div class="current-set-progress">
+  <div>
+    <b id="currentSetProgressTitle">No active set</b>
+    <span id="currentSetProgressText">0 / 0 cards</span>
+  </div>
+  <strong id="currentSetProgressPercent">0%</strong>
+</div>
+<div class="current-set-progress-bar"><i id="currentSetProgressFill"></i></div>
+<div id="visionEngineStatus" class="status-box">Ready to build the global visual index.</div>
+              <div class="task-queue-card">
+                <div class="task-queue-head"><b>Build Activity</b><span id="taskQueueCount">0 active</span></div>
+                <div id="taskQueue" class="task-queue">
+                  <div class="task-empty">No active jobs.</div>
+                </div>
+              </div>
+            </div>
+            <div class="pokemon-master-panel">
+              <div class="pokemon-master-head">
+                <div>
+                  <b>Intelligence Core</b>
+                  <span>Global set discovery • automatic set detection</span>
+                </div>
+                <strong id="worldBuildPhase">IDLE</strong>
+              </div>
+              <div class="world-actions">
+                <button onclick="discoverPokemonWorld()">Discover All Sets</button>
+                <button class="good" onclick="buildPokemonWorld()">Build Pokémon Database</button>
+                <button class="danger" onclick="cancelPokemonWorld()">Stop</button>
+              </div>
+              <div class="world-progress">
+                <div><b id="worldSets">0</b><span>Sets</span></div>
+                <div><b id="worldCards">0</b><span>Cards</span></div>
+                <div><b id="worldImages">0</b><span>Images</span></div>
+                <div><b id="worldCoverage">0%</b><span>Coverage</span></div>
+              </div>
+              <div class="progress"><div id="worldProgressFill"></div></div>
+              <div id="worldCurrentSet" class="status-box">Ready to discover the worldwide Pokémon catalog.</div>
+            </div>
+            <div class="catalog-engine-title">
+              <b>Master Catalog Engine</b>
+              <span id="masterCoverageBadge">0 cards • 0% images</span>
+            </div>
+            <div class="form-grid">
+              <input id="liveSetId" placeholder="TCGdex set ID, e.g. swsh3">
+              <select id="liveSetLanguage">
+                <option>English</option><option>Japanese</option><option>French</option><option>German</option><option>Italian</option><option>Spanish</option><option>Portuguese</option><option selected>Chinese</option><option>Traditional Chinese</option><option>Korean</option>
+              </select>
+              <input id="liveSetLimit" type="number" min="1" placeholder="Blank = full set">
+              <button class="good" onclick="importMasterCatalogSet()">Build Full Catalog</button>
+            </div>
+            <div class="dropbox-config">
+              <input id="dropboxLocalPath" placeholder="Local Dropbox folder, e.g. C:\Users\You\Dropbox">
+              <label><input id="dropboxMirrorEnabled" type="checkbox"> Mirror catalog to Dropbox</label>
+              <button onclick="saveCatalogStorage()">Save Storage</button>
+            </div>
+            <div id="catalogStatus" class="status-box">Ready to build a complete image-backed catalog.</div>
+            <div id="masterCatalogSets" class="master-set-list"></div>
+            <div id="coverageGuard" class="coverage-guard warning">
+              <div>
+                <b>Recognition Coverage</b>
+                <span id="coverageMessage">Only proof references are loaded.</span>
+              </div>
+              <button onclick="focusSetImport()">Import Set</button>
+            </div>
+          </div>
+
+          <div id="tool-sets" class="tool-view">
+            <div class="form-grid">
+              <select id="activeSetSelect" class="full"><option>Loading sets…</option></select>
+              <button class="good full" onclick="applyActiveSet()">Load Active Set</button>
+            </div>
+            <div id="setStatus" class="status-box">Choose the product currently being opened.</div>
+          </div>
+
+          <div id="tool-batch" class="tool-view">
+            <div class="form-grid">
+              <input id="customer" placeholder="Customer">
+              <input id="order" placeholder="Order number">
+              <input id="product" class="full" placeholder="Product name">
+              <input id="boxes" type="number" min="1" value="1">
+              <input id="packs" type="number" min="1" value="5">
+            </div>
+            <div class="action-row">
+              <button class="primary" onclick="startSession()">Start Batch</button>
+              <button class="danger" onclick="post('/api/session/close')">Close Batch</button>
+            </div>
+            <div id="batchStatus" class="status-box">No active customer batch.</div>
+          </div>
+
+          <div id="tool-developer" class="tool-view">
+            <div class="dev-grid">
+              <div class="dev-card"><b>OCR</b><span id="devOcr">—</span></div>
+              <div class="dev-card"><b>NUMBER</b><span id="devNumber">—</span></div>
+              <div class="dev-card"><b>LANGUAGE</b><span id="devLanguage">—</span></div>
+              <div class="dev-card"><b>ARTWORK SEARCH</b><span id="devArtMs">—</span></div>
+              <div class="dev-card"><b>INDEX CARDS</b><span id="devIndex">0</span></div>
+              <div class="dev-card"><b>MODE</b><span id="devMode">—</span></div>
+            </div>
+            <div class="action-row">
+              <button onclick="rebuildIndex()">Rebuild Index</button>
+              <button onclick="location.href='/about'">Diagnostics</button>
+            </div>
+            <div id="developerStatus" class="status-box">Developer data will update during recognition.</div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <footer class="footer">
+      <span><i class="dot"></i>All systems operational</span>
+      <span>RareIQ vX.7 — Intelligence Core <b class="unified-badge">IMMUTABLE</b><span id="syncBadge" class="sync-badge">CONTROLLERS</span></span>
+    </footer>
+  </main>
+</div>
+
+<div id="matchLockOverlay" class="match-lock-overlay" aria-hidden="true">
+  <div class="lock-content" role="status" aria-live="polite">
+    <canvas id="lockCanvas"></canvas>
+    <div class="lock-copy">
+      <div class="lock-check">✓</div>
+      <div class="lock-kicker">MATCH VERIFIED</div>
+      <div id="lockName" class="lock-name">Card Locked</div>
+      <div id="lockMeta" class="lock-meta">—</div>
+      <div id="lockConfidence" class="lock-confidence">0%</div>
+    </div>
+  </div>
+</div>
+
+<aside id="gradeDrawer" class="drawer">
+  <div class="drawer-head"><h2>AI Pre-Grading</h2><button onclick="closeDrawer()">✕</button></div>
+  <div class="form-grid">
+    <input id="gradeAgentName" value="RareIQ" placeholder="Agent name">
+    <input id="gradeContactEmail" placeholder="Email">
+    <button class="primary full" onclick="registerCardGrader()">Register API</button>
+    <input id="gradeApiKey" class="full" type="password" placeholder="Or paste cgk_ API key">
+    <button onclick="saveCardGraderKey()">Save Key</button>
+    <button onclick="refreshCardGraderStatus()">Check Balance</button>
+  </div>
+  <div class="action-row">
+    <button onclick="captureGradeFront()">Capture Front</button>
+    <button onclick="captureGradeBack()">Capture Back</button>
+    <select id="gradeModule"><option value="grade">Grade</option><option value="identify">Identify</option><option value="market">Market</option><option value="full">Full</option></select>
+    <label style="font-size:11px;color:#9bb0c5"><input id="gradeIncludeBack" type="checkbox"> Include back</label>
+    <button class="good" onclick="submitGradeScan()">Submit</button>
+  </div>
+  <div class="batch-strip">
+    <div class="batch-stat"><b>STATUS</b><span id="gradeStatus">Idle</span></div>
+    <div class="batch-stat"><b>CREDITS</b><span id="gradeCredits">—</span></div>
+    <div class="batch-stat"><b>GRADE</b><span id="gradePredicted">—</span></div>
+    <div class="batch-stat"><b>PROGRESS</b><span id="gradeProgress">—</span></div>
+  </div>
+  <div id="gradeResult" class="status-box">Configure the API, capture the card, then submit.</div>
+</aside>
+
+
+<script src="/static/common.js"></script>
+<script src="/static/app_core.js"></script>
+<script src="/static/camera_controller.js"></script>
+<script src="/static/recognition_controller.js"></script>
+<script src="/static/catalog_controller.js"></script>
+<script src="/static/batch_controller.js"></script>
+<script src="/static/grading_controller.js"></script>
+<script src="/static/dashboard_bootstrap.js"></script>
+</body>
+
+</html>

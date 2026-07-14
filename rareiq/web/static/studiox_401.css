@@ -1,0 +1,61 @@
+
+.appbar{
+  position:relative;
+  z-index:120;
+  grid-template-columns:minmax(205px,auto) minmax(300px,1fr) auto auto;
+  align-items:center;
+  overflow:visible;
+}
+.brand,.system-status-strip,.ai-pulse,.app-actions{
+  position:relative;
+  z-index:2;
+  min-width:0;
+}
+.system-status-strip{overflow:hidden}
+.app-actions{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  white-space:nowrap;
+}
+.toolbar{
+  position:relative;
+  z-index:110;
+  overflow:visible;
+}
+.command-group{position:relative;z-index:2}
+.workspace-stage{position:relative;z-index:1}
+.splash-screen.hidden{
+  display:none!important;
+  pointer-events:none!important;
+}
+.camera-recovery{
+  position:absolute;
+  z-index:30;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  display:none;
+  min-width:220px;
+  padding:12px 14px;
+  border-radius:11px;
+  text-align:center;
+  color:#b7c7d3;
+  background:rgba(4,12,20,.92);
+  box-shadow:0 18px 42px rgba(0,0,0,.36),inset 0 0 0 1px rgba(81,145,205,.18);
+}
+.camera-recovery.visible{display:block}
+.camera-recovery strong{display:block;color:#e8f4fb;font-size:11px}
+.camera-recovery span{display:block;margin-top:5px;color:#7f96a8;font-size:8px}
+@media(max-width:1650px){
+  .appbar{
+    grid-template-columns:minmax(185px,auto) minmax(240px,1fr) auto auto;
+    gap:7px;
+  }
+  .state-chip.optional{display:none}
+  .app-actions .riq-pill:nth-child(2){display:none}
+}
+@media(max-width:1380px){
+  .ai-pulse{display:none}
+  .appbar{grid-template-columns:minmax(180px,auto) minmax(220px,1fr) auto}
+}

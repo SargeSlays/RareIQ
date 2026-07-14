@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "ecard2",
+  "set_name": "Aquapolis",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 147,
+  "cards": 185,
+  "images": 145,
+  "coverage_percent": 78.38,
+  "imported_at": 1783898995.7628298,
+  "errors": []
+}

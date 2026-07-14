@@ -1,11 +1,13 @@
 # Changelog
 
-## v1.2.0 — Command Center
+## Studio X 6.3 — Backend Test Foundation
 
-- Rebuilt the dashboard using the premium command-center concept.
-- Added sidebar navigation and KPI strip.
-- Added camera/reference hero workspace.
-- Added confidence ring and verification checklist.
-- Moved grading into a drawer.
-- Collapsed developer diagnostics by default.
-- Optimized the layout for 1080p desktop displays.
+- Added unified runtime snapshot.
+- Added normalized current-card API.
+- Added backend smoke testing.
+- Added latest-crop recognition testing.
+- Added recent-pulls API.
+- Added diagnostic report generation.
+- Added full active-session persistence.
+- Added automated backend contract tests.
+- Camera behavior frozen.

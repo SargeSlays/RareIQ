@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "ex1",
+  "set_name": "Ruby & Sapphire",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 109,
+  "cards": 109,
+  "images": 109,
+  "coverage_percent": 100.0,
+  "imported_at": 1783899089.9729483,
+  "errors": []
+}

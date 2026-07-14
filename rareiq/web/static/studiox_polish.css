@@ -1,0 +1,341 @@
+
+/* RareIQ Studio X 2.1 — Layout Polish */
+
+body{
+  grid-template-rows:54px 42px minmax(0,1fr) 52px;
+}
+
+.appbar{
+  padding:0 14px;
+}
+
+.brand{
+  gap:9px;
+  min-width:250px;
+}
+
+.brand-logo-image{
+  width:30px;
+  height:30px;
+  flex:none;
+}
+
+.brand-text{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  min-width:0;
+}
+
+.brand-name{
+  font:800 16px/1 "Space Grotesk",Inter,sans-serif;
+  letter-spacing:.015em;
+  background:linear-gradient(100deg,#f4f8fb 0%,#d8e4ee 43%,#20d8ff 63%,#8b56ff 81%,#d93dff 100%);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+}
+
+.brand-subtitle{
+  display:block;
+  margin-top:4px;
+  color:#71889d;
+  font-size:8px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.toolbar{
+  min-height:42px;
+  padding:0 9px;
+}
+
+.toolbar select{
+  min-width:205px;
+  max-width:270px;
+}
+
+.workspace-stage{
+  padding:7px 8px;
+}
+
+.live-shell{
+  grid-template-columns:minmax(0,1fr) 372px;
+  grid-template-rows:minmax(0,1fr) 154px;
+  gap:8px;
+}
+
+.camera-workspace{
+  min-width:0;
+}
+
+.camera-placeholder{
+  z-index:0;
+  opacity:1;
+  transition:opacity .2s ease;
+}
+
+.camera-placeholder.hidden{
+  opacity:0;
+  visibility:hidden;
+}
+
+.camera-feed{
+  position:relative;
+  z-index:1;
+}
+
+.scan-zone,
+.camera-top-hud,
+.camera-bottom-hud,
+.brand-watermark{
+  z-index:2;
+}
+
+.camera-top-hud{
+  left:12px;
+  right:12px;
+  top:10px;
+}
+
+.camera-title{
+  padding:7px 9px;
+}
+
+.hud-stages{
+  width:178px;
+  padding:7px 8px;
+  gap:4px;
+}
+
+.hud-stage{
+  grid-template-columns:48px minmax(0,1fr) 28px;
+  font-size:7px;
+}
+
+.camera-bottom-hud{
+  left:10px;
+  right:10px;
+  bottom:9px;
+  padding:9px 11px;
+}
+
+.brand-watermark{
+  right:15px;
+  bottom:53px;
+  width:34px;
+  height:34px;
+  opacity:.16;
+}
+
+/* Inspector rebuilt vertically */
+.inspector{
+  display:grid;
+  grid-template-rows:auto minmax(0,1fr) auto;
+  padding:12px;
+  overflow:hidden;
+}
+
+.inspector-head{
+  margin-bottom:8px;
+}
+
+.inspector-main{
+  display:grid;
+  grid-template-rows:auto auto auto;
+  gap:8px;
+  min-height:0;
+  align-content:start;
+}
+
+.card-showcase{
+  display:block;
+  min-height:0;
+}
+
+.card-art{
+  width:min(198px,62%);
+  aspect-ratio:2.5 / 3.5;
+  max-height:286px;
+  margin:0 auto;
+  border-radius:11px;
+}
+
+.card-art img{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
+
+.card-art span{
+  padding:12px;
+}
+
+.card-info{
+  display:block;
+  text-align:left;
+  padding-top:1px;
+}
+
+.card-info .eyebrow{
+  margin-bottom:4px;
+  font-size:8px;
+}
+
+.card-info h3{
+  margin:0 0 4px;
+  font-size:19px;
+  line-height:1.08;
+}
+
+.card-info p{
+  font-size:9px;
+  line-height:1.35;
+  min-height:12px;
+}
+
+.card-value{
+  margin-top:7px;
+  font-size:24px;
+}
+
+.card-status{
+  margin-top:4px;
+  font-size:8px;
+}
+
+.market-grid{
+  gap:5px;
+}
+
+.market-card{
+  padding:7px 8px;
+}
+
+.market-card span{
+  font-size:7px;
+}
+
+.market-card b{
+  margin-top:3px;
+  font-size:12px;
+}
+
+.signal-list{
+  margin-top:8px;
+  gap:5px;
+}
+
+.signal{
+  grid-template-columns:52px minmax(0,1fr) 32px;
+  gap:6px;
+  font-size:8px;
+}
+
+.signal .bar{
+  height:5px;
+}
+
+.inspector-actions{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:5px;
+  margin-top:8px;
+}
+
+.inspector-actions .riq-button{
+  width:100%;
+  min-width:0;
+  height:31px;
+  padding:0 6px;
+  font-size:9px;
+}
+
+/* Dock tightened */
+.dock{
+  grid-template-rows:32px minmax(0,1fr);
+}
+
+.dock-tabs{
+  padding:0 7px;
+}
+
+.dock-tab,
+.dock-collapse{
+  height:25px;
+  padding:0 8px;
+  font-size:8px;
+}
+
+.dock-content{
+  padding:8px;
+}
+
+.pipeline{
+  gap:6px;
+}
+
+.process{
+  padding:8px;
+  border-radius:8px;
+}
+
+.process b{
+  font-size:9px;
+}
+
+.process span{
+  font-size:7px;
+}
+
+.bottom-nav{
+  gap:4px;
+}
+
+.nav-button{
+  height:35px;
+  min-width:88px;
+  font-size:10px;
+}
+
+/* Avoid clipped right edge at common desktop widths */
+@media(max-width:1700px){
+  .live-shell{
+    grid-template-columns:minmax(0,1fr) 350px;
+  }
+  .card-art{
+    width:min(184px,60%);
+    max-height:258px;
+  }
+}
+
+@media(max-width:1450px){
+  .live-shell{
+    grid-template-columns:minmax(0,1fr) 330px;
+  }
+  .card-art{
+    width:min(168px,58%);
+    max-height:236px;
+  }
+  .card-info h3{
+    font-size:17px;
+  }
+  .inspector-actions{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
+@media(max-height:920px){
+  .live-shell{
+    grid-template-rows:minmax(0,1fr) 138px;
+  }
+  .card-art{
+    width:min(158px,54%);
+    max-height:220px;
+  }
+  .market-card{
+    padding:6px;
+  }
+  .signal-list{
+    margin-top:6px;
+  }
+}

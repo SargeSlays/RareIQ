@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "base2",
+  "set_name": "Jungle",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 64,
+  "cards": 64,
+  "images": 64,
+  "coverage_percent": 100.0,
+  "imported_at": 1783898334.5734806,
+  "errors": []
+}

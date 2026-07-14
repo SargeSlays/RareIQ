@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "base5",
+  "set_name": "Team Rocket",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 82,
+  "cards": 83,
+  "images": 83,
+  "coverage_percent": 100.0,
+  "imported_at": 1783898449.1424081,
+  "errors": []
+}

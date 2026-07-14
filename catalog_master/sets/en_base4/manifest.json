@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "base4",
+  "set_name": "Base Set 2",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 130,
+  "cards": 130,
+  "images": 130,
+  "coverage_percent": 100.0,
+  "imported_at": 1783898417.52864,
+  "errors": []
+}

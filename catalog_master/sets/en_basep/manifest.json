@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "basep",
+  "set_name": "Wizards Black Star Promos",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 53,
+  "cards": 53,
+  "images": 53,
+  "coverage_percent": 100.0,
+  "imported_at": 1783898352.169743,
+  "errors": []
+}

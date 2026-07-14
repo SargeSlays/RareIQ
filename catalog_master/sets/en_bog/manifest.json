@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "bog",
+  "set_name": "Best of game",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 9,
+  "cards": 9,
+  "images": 0,
+  "coverage_percent": 0.0,
+  "imported_at": 1783898945.3296204,
+  "errors": []
+}

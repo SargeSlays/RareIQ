@@ -1,0 +1,483 @@
+
+/* RareIQ Studio X 3.0 — Operator Experience */
+
+:root{
+  --top-h:50px;
+  --command-h:46px;
+  --nav-h:48px;
+  --dock-h:132px;
+  --inspector-w:340px;
+  --gap:7px;
+}
+
+/* Main application shell */
+body{
+  grid-template-rows:var(--top-h) var(--command-h) minmax(0,1fr) var(--nav-h);
+}
+
+.appbar{
+  display:grid;
+  grid-template-columns:minmax(220px,auto) minmax(0,1fr) auto;
+  gap:12px;
+}
+
+.brand{
+  min-width:220px;
+}
+
+.system-status-strip{
+  justify-content:center;
+}
+
+.app-actions{
+  justify-content:flex-end;
+}
+
+/* Command bar groups */
+.toolbar{
+  gap:8px;
+  padding-inline:10px;
+}
+
+.command-group{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  padding:3px;
+  border-radius:10px;
+  background:rgba(9,20,30,.56);
+  box-shadow:inset 0 0 0 1px rgba(112,153,184,.10);
+}
+
+.command-group-label{
+  padding:0 7px;
+  color:#61788c;
+  font-size:7px;
+  letter-spacing:.09em;
+  text-transform:uppercase;
+}
+
+.tool-button,
+.camera-fit-toggle,
+.auto-toggle{
+  border-radius:7px;
+}
+
+.tool-button.active,
+.camera-fit-toggle.active{
+  background:linear-gradient(90deg,rgba(32,216,255,.13),rgba(123,77,255,.13));
+  color:#eef9ff;
+  box-shadow:inset 0 0 0 1px rgba(86,153,255,.20);
+}
+
+/* Main layout */
+.live-shell{
+  grid-template-columns:minmax(0,1fr) var(--inspector-w);
+  grid-template-rows:minmax(0,1fr) var(--dock-h);
+  gap:var(--gap);
+}
+
+/* Camera becomes true hero */
+.camera-workspace{
+  min-width:0;
+  min-height:0;
+  background:#020609;
+}
+
+.camera-stage-inner{
+  position:absolute;
+  inset:0;
+  overflow:hidden;
+}
+
+.camera-feed{
+  width:100%;
+  height:100%;
+}
+
+.camera-workspace.fit-adaptive .camera-feed{
+  object-fit:contain;
+}
+
+.camera-workspace.fit-fill .camera-feed{
+  object-fit:cover;
+}
+
+.camera-workspace.fit-frame .camera-feed{
+  object-fit:contain;
+}
+
+.camera-workspace.zoom-card .camera-feed{
+  transform:scale(1.12)!important;
+}
+
+.camera-workspace.fit-adaptive:before{
+  background:
+    radial-gradient(ellipse at center,transparent 55%,rgba(2,6,9,.38) 100%);
+}
+
+/* Scan frame follows viewport and is less oversized */
+.scan-zone{
+  inset:8% 18%;
+}
+
+.camera-workspace.zoom-card .scan-zone{
+  inset:5% 15%;
+}
+
+.camera-top-hud{
+  align-items:flex-start;
+}
+
+.camera-title{
+  min-width:150px;
+}
+
+.hud-stages{
+  width:172px;
+}
+
+/* Stronger central state banner */
+.camera-bottom-hud{
+  left:10px;
+  right:10px;
+  bottom:10px;
+  min-height:44px;
+  background:linear-gradient(90deg,rgba(3,9,17,.82),rgba(8,12,25,.72));
+}
+
+.camera-bottom-hud:before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:0;
+  bottom:0;
+  width:3px;
+  border-radius:11px 0 0 11px;
+  background:linear-gradient(180deg,var(--cyan),var(--purple),var(--magenta));
+}
+
+/* Inspector 3.0 */
+.inspector{
+  grid-template-rows:auto auto minmax(0,1fr) auto;
+  gap:7px;
+  padding:10px;
+}
+
+.inspector-head{
+  margin:0;
+  padding-bottom:7px;
+  border-bottom:1px solid rgba(110,151,184,.12);
+}
+
+.inspector-empty{
+  display:grid;
+  place-items:center;
+  min-height:112px;
+  border-radius:10px;
+  color:#708799;
+  text-align:center;
+  background:
+    radial-gradient(circle at center,rgba(74,87,170,.08),transparent 55%),
+    rgba(4,10,16,.75);
+  box-shadow:inset 0 0 0 1px rgba(110,151,184,.10);
+}
+
+.inspector-empty img{
+  width:54px;
+  height:54px;
+  object-fit:contain;
+  opacity:.36;
+  filter:drop-shadow(0 0 10px rgba(71,110,255,.18));
+}
+
+.inspector-empty strong{
+  display:block;
+  margin-top:7px;
+  font-size:10px;
+  color:#a8bac8;
+}
+
+.inspector-empty span{
+  display:block;
+  margin-top:3px;
+  font-size:7px;
+}
+
+.card-showcase{
+  display:grid;
+  place-items:center;
+}
+
+.card-art{
+  width:min(182px,68%);
+  max-height:255px;
+}
+
+.card-info h3{
+  font-size:18px;
+}
+
+.card-value{
+  font-size:24px;
+}
+
+.market-grid{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+}
+
+.inspector-footer{
+  display:grid;
+  gap:7px;
+}
+
+.signal-list{
+  margin-top:0;
+}
+
+.inspector-actions{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  margin-top:0;
+}
+
+/* Recognition state is now impossible to miss */
+.recognition-state{
+  min-height:34px;
+  padding:7px 9px;
+  margin:0;
+}
+
+.recognition-state strong{
+  font-size:9px;
+}
+
+.recognition-state span{
+  font-size:7px;
+}
+
+/* Compact timeline instead of large empty boxes */
+.dock{
+  grid-template-rows:30px minmax(0,1fr);
+}
+
+.dock-content{
+  padding:6px;
+}
+
+.pipeline{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:5px;
+}
+
+.process{
+  min-width:0;
+  padding:7px 9px;
+  display:grid;
+  align-content:center;
+  border-radius:8px;
+}
+
+.process b{
+  font-size:9px;
+}
+
+.process span{
+  margin-top:2px;
+  font-size:7px;
+}
+
+.process-status{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  margin-top:7px;
+  color:#6f8496;
+  font-size:7px;
+}
+
+.process-status i{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:#445767;
+}
+
+.process.active .process-status i{
+  background:var(--cyan);
+  box-shadow:0 0 8px rgba(32,216,255,.65);
+}
+
+.process.done .process-status i{
+  background:var(--green);
+  box-shadow:0 0 8px rgba(57,227,154,.60);
+}
+
+/* Bottom navigation */
+.bottom-nav{
+  padding:0 6px;
+}
+
+.nav-button{
+  min-width:84px;
+}
+
+/* 720p */
+@media(max-height:760px), (max-width:1366px){
+  :root{
+    --top-h:42px;
+    --command-h:36px;
+    --nav-h:40px;
+    --dock-h:100px;
+    --inspector-w:280px;
+    --gap:5px;
+  }
+
+  .appbar{
+    grid-template-columns:190px minmax(0,1fr) auto;
+  }
+
+  .brand{
+    min-width:190px;
+  }
+
+  .toolbar{
+    gap:4px;
+    padding-inline:5px;
+  }
+
+  .command-group{
+    gap:2px;
+    padding:2px;
+  }
+
+  .command-group-label{
+    display:none;
+  }
+
+  .card-art{
+    width:min(125px,54%);
+    max-height:174px;
+  }
+
+  .card-info h3{
+    font-size:15px;
+  }
+
+  .card-value{
+    font-size:19px;
+  }
+
+  .inspector-empty{
+    min-height:80px;
+  }
+
+  .pipeline{
+    gap:4px;
+  }
+
+  .process{
+    padding:5px 6px;
+  }
+}
+
+/* 1080p */
+@media(min-width:1600px) and (max-width:2199px) and (min-height:850px){
+  :root{
+    --top-h:50px;
+    --command-h:44px;
+    --nav-h:48px;
+    --dock-h:130px;
+    --inspector-w:340px;
+  }
+}
+
+/* 1440p */
+@media(min-width:2200px) and (max-width:3199px){
+  :root{
+    --top-h:60px;
+    --command-h:52px;
+    --nav-h:58px;
+    --dock-h:168px;
+    --inspector-w:440px;
+    --gap:10px;
+  }
+
+  .card-art{
+    width:min(235px,70%);
+    max-height:330px;
+  }
+
+  .card-info h3{
+    font-size:24px;
+  }
+
+  .card-value{
+    font-size:32px;
+  }
+
+  .process{
+    padding:11px 13px;
+  }
+}
+
+/* 4K */
+@media(min-width:3200px){
+  :root{
+    --top-h:76px;
+    --command-h:64px;
+    --nav-h:76px;
+    --dock-h:235px;
+    --inspector-w:590px;
+    --gap:15px;
+  }
+
+  .appbar{
+    padding-inline:24px;
+  }
+
+  .command-group{
+    padding:6px;
+    border-radius:14px;
+  }
+
+  .tool-button,
+  .camera-fit-toggle,
+  .auto-toggle{
+    height:46px;
+    padding-inline:15px;
+    font-size:13px;
+  }
+
+  .card-art{
+    width:min(325px,74%);
+    max-height:455px;
+  }
+
+  .card-info h3{
+    font-size:32px;
+  }
+
+  .card-value{
+    font-size:42px;
+  }
+
+  .market-card b{
+    font-size:20px;
+  }
+
+  .process b{
+    font-size:15px;
+  }
+
+  .process span,
+  .process-status{
+    font-size:11px;
+  }
+
+  .nav-button{
+    min-width:150px;
+    height:54px;
+    font-size:15px;
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "base3",
+  "set_name": "Fossil",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 62,
+  "cards": 62,
+  "images": 62,
+  "coverage_percent": 100.0,
+  "imported_at": 1783898374.0340874,
+  "errors": []
+}

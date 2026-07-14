@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "ex16",
+  "set_name": "Power Keepers",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 108,
+  "cards": 108,
+  "images": 108,
+  "coverage_percent": 100.0,
+  "imported_at": 1783899727.7104352,
+  "errors": []
+}

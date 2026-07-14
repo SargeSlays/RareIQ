@@ -1,0 +1,91 @@
+
+:root{
+  --bg:#061018;
+  --panel:#0b1722;
+  --panel-2:#0f1d2a;
+  --border:#203447;
+  --primary:#59d8ff;
+  --success:#45e4a0;
+  --intel:#9b78ff;
+  --gold:#f3bd57;
+  --danger:#ef6670;
+  --text:#eef5fa;
+  --muted:#7f97aa;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,sans-serif}
+button,input,select{font:inherit}
+body{display:grid;grid-template-rows:56px minmax(0,1fr) 62px}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 18px;border-bottom:1px solid var(--border);background:rgba(6,16,24,.97)}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-weight:800;color:var(--primary);border:1px solid rgba(89,216,255,.35);background:linear-gradient(145deg,rgba(89,216,255,.11),rgba(155,120,255,.08))}
+.title h1{margin:0;font:700 17px/1 "Space Grotesk",Inter,sans-serif}
+.title span{display:block;color:var(--muted);font-size:10px;margin-top:3px}
+.top-actions{display:flex;align-items:center;gap:8px}
+.pill{padding:7px 10px;border:1px solid rgba(69,228,160,.28);border-radius:999px;color:var(--success);background:rgba(69,228,160,.05);font-size:10px}
+.btn{height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);cursor:pointer}
+.btn.primary{background:linear-gradient(90deg,#148964,#20b783);border-color:#39d39b}
+.stage{min-height:0;padding:10px;overflow:hidden}
+.workspace{display:none;width:100%;height:100%;overflow:hidden}
+.workspace.active{display:block}
+.live-layout{height:100%;display:grid;grid-template-columns:minmax(0,1.72fr) minmax(340px,.72fr);grid-template-rows:minmax(0,1fr) 126px;gap:10px}
+.panel{min-width:0;min-height:0;border:1px solid var(--border);border-radius:12px;background:linear-gradient(180deg,rgba(12,24,35,.98),rgba(8,18,27,.98));box-shadow:0 16px 36px rgba(0,0,0,.24);overflow:hidden}
+.panel-head{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid rgba(32,52,71,.72)}
+.panel-head b{font-size:11px}.panel-head span{font-size:9px;color:var(--muted)}
+.camera-panel{display:grid;grid-template-rows:40px minmax(0,1fr)}
+.camera-view{position:relative;background:#02070b;display:grid;place-items:center;overflow:hidden}
+.camera-view img{width:100%;height:100%;object-fit:contain}
+.camera-placeholder{position:absolute;color:var(--muted);font-size:12px}
+.scan-box{position:absolute;inset:9% 18%;border:1px solid rgba(89,216,255,.48);border-radius:16px;box-shadow:0 0 30px rgba(89,216,255,.07) inset}
+.ai-strip{position:absolute;left:14px;right:14px;bottom:12px;display:flex;align-items:center;justify-content:space-between;padding:9px 11px;border:1px solid rgba(89,216,255,.22);border-radius:9px;background:rgba(4,11,17,.83);backdrop-filter:blur(9px)}
+.ai-strip strong{font-size:11px}.ai-strip span{font-size:9px;color:var(--muted)}
+.card-panel{display:grid;grid-template-rows:40px minmax(0,1fr) auto}
+.card-main{padding:12px;display:grid;grid-template-columns:122px minmax(0,1fr);gap:12px;min-height:0}
+.card-art{background:#03080d;border:1px solid var(--border);border-radius:10px;display:grid;place-items:center;overflow:hidden}
+.card-art img{width:100%;height:100%;object-fit:contain}.card-art span{font-size:9px;color:var(--muted);text-align:center;padding:8px}
+.card-copy h2{margin:0 0 6px;font:700 20px/1.05 "Space Grotesk",Inter,sans-serif}
+.card-copy p{margin:0;color:var(--muted);font-size:10px;line-height:1.5}
+.value{font:800 27px/1 "JetBrains Mono",monospace;color:var(--success);margin-top:12px}
+.signals{padding:0 12px 12px;display:grid;gap:6px}
+.signal{display:grid;grid-template-columns:66px minmax(0,1fr) 34px;gap:7px;align-items:center;font-size:9px}
+.signal span:first-child{color:var(--muted)}
+.bar{height:6px;border-radius:99px;background:#152739;overflow:hidden}.bar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--intel),var(--primary))}
+.lower-left{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:10px}
+.timeline{padding:10px 12px;display:grid;grid-template-rows:auto 1fr}
+.timeline h3,.controls h3{margin:0 0 8px;font-size:10px}
+.steps{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;align-items:center}
+.step{padding:7px 5px;border:1px solid var(--border);border-radius:7px;background:#091520;color:var(--muted);font-size:8px;text-align:center}
+.step.done{color:var(--success);border-color:rgba(69,228,160,.35);background:rgba(69,228,160,.05)}
+.step.active{color:var(--primary);border-color:rgba(89,216,255,.35);background:rgba(89,216,255,.06)}
+.controls{padding:10px 12px;display:grid;grid-template-rows:auto 1fr}
+.control-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.control-grid button{border:1px solid var(--border);border-radius:7px;background:#0d1c2a;color:var(--text);font-size:9px;cursor:pointer}
+.control-grid .capture{background:linear-gradient(135deg,#198663,#28b585);border-color:#45e4a0}
+.session-strip{grid-column:1/-1;padding:10px 12px;display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
+.metric{border:1px solid var(--border);border-radius:8px;background:#091520;padding:9px}
+.metric span{display:block;color:var(--muted);font-size:8px}.metric b{display:block;font:700 17px/1.2 "JetBrains Mono",monospace;margin-top:3px}
+.full-layout{height:100%;display:grid;grid-template-columns:220px minmax(0,1fr);gap:10px}
+.sidebar{padding:10px;display:flex;flex-direction:column;gap:5px}
+.sidebar button{height:38px;text-align:left;padding:0 10px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
+.sidebar button:hover,.sidebar button.active{background:rgba(89,216,255,.07);border-color:rgba(89,216,255,.18);color:var(--text)}
+.content{padding:14px;overflow:auto}
+.content h2{margin:0 0 4px;font:700 22px/1 "Space Grotesk",Inter,sans-serif}
+.content>p{margin:0 0 14px;color:var(--muted);font-size:11px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.card{padding:12px;border:1px solid var(--border);border-radius:10px;background:#091520}
+.card h3{margin:0 0 7px;font-size:11px}.card p{margin:0 0 10px;color:var(--muted);font-size:9px;line-height:1.45}
+.field{display:grid;gap:4px;margin-bottom:8px}.field label{font-size:9px;color:var(--muted)}
+.field input,.field select{height:33px;border:1px solid var(--border);border-radius:7px;background:#06101a;color:var(--text);padding:0 8px}
+.preview-grid{display:grid;grid-template-columns:1.45fr .72fr;gap:10px;margin-top:10px}
+.preview{aspect-ratio:16/9;border:1px solid var(--border);border-radius:9px;background:#02070b;overflow:hidden}.preview.portrait{aspect-ratio:9/16}
+.preview iframe{width:100%;height:100%;border:0}
+.urlrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;margin-bottom:7px}.urlrow input{height:32px;border:1px solid var(--border);border-radius:7px;background:#06101a;color:var(--muted);padding:0 8px}
+.bottom-nav{display:flex;align-items:center;justify-content:center;gap:6px;border-top:1px solid var(--border);background:#07111a;padding:8px 12px}
+.nav-btn{height:44px;min-width:112px;padding:0 14px;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.nav-btn:hover,.nav-btn.active{background:rgba(89,216,255,.08);border-color:rgba(89,216,255,.2);color:var(--primary)}
+.nav-btn b{font-size:11px}
+@media(max-width:1250px){
+  .live-layout{grid-template-columns:minmax(0,1.48fr) minmax(320px,.82fr)}
+  .lower-left{grid-template-columns:minmax(0,1fr) 260px}
+  .nav-btn{min-width:94px}
+}

@@ -1,0 +1,334 @@
+
+/* RareIQ Studio X 2.5 — Adaptive Resolution */
+
+/* Fluid base sizing from 720p through 4K */
+:root{
+  --ui-scale:min(max(0.82, calc(100vw / 1920)), 1.55);
+  --header-h:clamp(46px,2.8vw,64px);
+  --toolbar-h:clamp(38px,2.3vw,52px);
+  --nav-h:clamp(46px,2.7vw,62px);
+  --dock-h:clamp(116px,15vh,190px);
+  --inspector-w:clamp(300px,22vw,500px);
+  --panel-gap:clamp(6px,.55vw,12px);
+  --panel-radius:clamp(10px,.75vw,18px);
+}
+
+body{
+  grid-template-rows:var(--header-h) var(--toolbar-h) minmax(0,1fr) var(--nav-h);
+}
+
+.appbar{
+  padding-inline:clamp(10px,.85vw,20px);
+}
+
+.brand-logo-image{
+  width:clamp(26px,1.8vw,40px);
+  height:clamp(26px,1.8vw,40px);
+}
+
+.brand-name{
+  font-size:clamp(13px,.9vw,19px);
+}
+
+.brand-subtitle{
+  font-size:clamp(6px,.45vw,9px);
+}
+
+.toolbar{
+  min-height:var(--toolbar-h);
+  padding-inline:clamp(7px,.6vw,14px);
+  gap:clamp(4px,.42vw,9px);
+}
+
+.toolbar select{
+  min-width:clamp(170px,13vw,280px);
+  height:clamp(28px,1.9vw,38px);
+  font-size:clamp(8px,.55vw,12px);
+}
+
+.tool-button,
+.camera-fit-toggle,
+.auto-toggle{
+  height:clamp(28px,1.9vw,38px);
+  font-size:clamp(7px,.5vw,10px);
+}
+
+.workspace-stage{
+  padding:clamp(5px,.45vw,10px);
+}
+
+.live-shell{
+  grid-template-columns:minmax(0,1fr) var(--inspector-w);
+  grid-template-rows:minmax(0,1fr) var(--dock-h);
+  gap:var(--panel-gap);
+}
+
+/*
+Adaptive mode preserves the complete image. Fill Crop remains optional.
+Full Frame uses the same safe geometry but disables adaptive padding.
+*/
+.camera-workspace{
+  --camera-fit:contain;
+  display:grid;
+  place-items:center;
+  overflow:hidden;
+  border-radius:var(--panel-radius);
+  background:
+    radial-gradient(ellipse at center,rgba(31,64,92,.19),rgba(2,6,9,.94) 64%),
+    linear-gradient(135deg,#02060a,#07101a);
+}
+
+.camera-workspace.fit-fill{
+  --camera-fit:cover;
+}
+
+.camera-workspace.fit-frame{
+  --camera-fit:contain;
+  background:#020609;
+}
+
+.camera-feed{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:var(--camera-fit);
+  object-position:center;
+  transform:none!important;
+}
+
+/* Soft edge treatment makes safe contain mode feel intentional */
+.camera-workspace.fit-adaptive:before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  background:
+    linear-gradient(90deg,rgba(5,13,21,.86),transparent 14%,transparent 86%,rgba(5,13,21,.86)),
+    linear-gradient(0deg,rgba(5,13,21,.55),transparent 10%,transparent 90%,rgba(5,13,21,.55));
+}
+
+.camera-placeholder{
+  z-index:1;
+}
+
+.scan-zone{
+  inset:clamp(5%,7vh,9%) clamp(12%,18vw,22%);
+  border-radius:clamp(12px,.9vw,20px);
+}
+
+.camera-top-hud{
+  left:clamp(8px,.7vw,16px);
+  right:clamp(8px,.7vw,16px);
+  top:clamp(7px,.55vw,13px);
+}
+
+.camera-title{
+  padding:clamp(6px,.48vw,10px);
+}
+
+.hud-stages{
+  width:clamp(138px,10vw,210px);
+  padding:clamp(6px,.48vw,10px);
+}
+
+.hud-stage{
+  grid-template-columns:clamp(36px,3vw,60px) minmax(0,1fr) clamp(24px,2vw,38px);
+  font-size:clamp(6px,.42vw,9px);
+}
+
+.camera-bottom-hud{
+  left:clamp(7px,.65vw,14px);
+  right:clamp(7px,.65vw,14px);
+  bottom:clamp(7px,.55vw,13px);
+  padding:clamp(8px,.6vw,13px);
+}
+
+.camera-bottom-hud strong{
+  font-size:clamp(9px,.65vw,13px);
+}
+
+.camera-bottom-hud span{
+  font-size:clamp(7px,.48vw,10px);
+}
+
+.camera-confidence{
+  font-size:clamp(18px,1.35vw,28px);
+}
+
+.inspector{
+  padding:clamp(9px,.7vw,16px);
+  border-radius:var(--panel-radius);
+}
+
+.inspector-head h2{
+  font-size:clamp(10px,.68vw,14px);
+}
+
+.card-art{
+  width:min(clamp(140px,11vw,240px),70%);
+  max-height:none;
+  aspect-ratio:2.5/3.5;
+}
+
+.card-info h3{
+  font-size:clamp(15px,1.15vw,25px);
+}
+
+.card-info p{
+  font-size:clamp(8px,.58vw,12px);
+}
+
+.card-value{
+  font-size:clamp(20px,1.5vw,34px);
+}
+
+.market-card b{
+  font-size:clamp(10px,.75vw,16px);
+}
+
+.signal{
+  font-size:clamp(7px,.5vw,10px);
+}
+
+.inspector-actions .riq-button{
+  height:clamp(29px,2vw,39px);
+  font-size:clamp(8px,.55vw,11px);
+}
+
+.dock{
+  grid-template-rows:clamp(29px,2vw,39px) minmax(0,1fr);
+  border-radius:var(--panel-radius);
+}
+
+.dock-tab,
+.dock-collapse{
+  height:clamp(24px,1.65vw,32px);
+  font-size:clamp(7px,.48vw,10px);
+}
+
+.process{
+  padding:clamp(7px,.55vw,12px);
+}
+
+.process b{
+  font-size:clamp(8px,.58vw,11px);
+}
+
+.process span{
+  font-size:clamp(6px,.42vw,9px);
+}
+
+.nav-button{
+  min-width:clamp(72px,5.5vw,112px);
+  height:clamp(32px,2.2vw,44px);
+  font-size:clamp(8px,.58vw,12px);
+}
+
+/* 720p compact workspace */
+@media(max-height:760px), (max-width:1366px){
+  :root{
+    --header-h:44px;
+    --toolbar-h:36px;
+    --nav-h:42px;
+    --dock-h:104px;
+    --inspector-w:290px;
+    --panel-gap:5px;
+  }
+
+  .state-chip.optional,
+  .brand-subtitle{
+    display:none;
+  }
+
+  .live-shell{
+    grid-template-rows:minmax(0,1fr) var(--dock-h);
+  }
+
+  .card-art{
+    width:min(132px,55%);
+  }
+
+  .market-grid{
+    gap:4px;
+  }
+
+  .market-card{
+    padding:5px 6px;
+  }
+
+  .inspector-actions{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+
+  .dock-content{
+    padding:6px;
+  }
+
+  .process{
+    padding:6px;
+  }
+}
+
+/* 1440p */
+@media(min-width:2200px) and (min-height:1200px){
+  :root{
+    --dock-h:176px;
+    --inspector-w:430px;
+  }
+}
+
+/* 4K */
+@media(min-width:3200px) and (min-height:1800px){
+  :root{
+    --header-h:72px;
+    --toolbar-h:58px;
+    --nav-h:70px;
+    --dock-h:230px;
+    --inspector-w:560px;
+    --panel-gap:14px;
+    --panel-radius:22px;
+  }
+
+  .brand-logo-image{
+    width:48px;
+    height:48px;
+  }
+
+  .brand-name{
+    font-size:23px;
+  }
+
+  .brand-subtitle{
+    font-size:11px;
+  }
+
+  .toolbar select{
+    min-width:340px;
+    height:44px;
+    font-size:14px;
+  }
+
+  .tool-button,
+  .camera-fit-toggle,
+  .auto-toggle{
+    height:44px;
+    font-size:12px;
+  }
+
+  .card-art{
+    width:min(300px,72%);
+  }
+
+  .inspector-actions .riq-button{
+    height:46px;
+    font-size:13px;
+  }
+
+  .nav-button{
+    min-width:140px;
+    height:50px;
+    font-size:14px;
+  }
+}

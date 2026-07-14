@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "np",
+  "set_name": "Nintendo Black Star Promos",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 40,
+  "cards": 40,
+  "images": 40,
+  "coverage_percent": 100.0,
+  "imported_at": 1783899141.6334882,
+  "errors": []
+}

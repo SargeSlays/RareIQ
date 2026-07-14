@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "pl2",
+  "set_name": "Rising Rivals",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 111,
+  "cards": 120,
+  "images": 119,
+  "coverage_percent": 99.17,
+  "imported_at": 1783900155.3703654,
+  "errors": []
+}

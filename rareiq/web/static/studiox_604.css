@@ -1,0 +1,21 @@
+.boot-manager{
+  transition:opacity .32s ease,visibility .32s ease;
+}
+.boot-manager.boot-background{
+  pointer-events:none;
+}
+.boot-manager.boot-background .boot-actions{
+  display:none!important;
+}
+.boot-panel{
+  animation:bootPanelIn .42s ease both;
+}
+@keyframes bootPanelIn{
+  from{opacity:0;transform:translateY(8px) scale(.985)}
+  to{opacity:1;transform:none}
+}
+.boot-soft-warning{
+  margin-top:10px;
+  color:#f0c675;
+  font-size:8px;
+}

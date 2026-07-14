@@ -119,9 +119,9 @@ async function syncOverlayVersion(){
   try{
     const response=await fetch("/api/version?ts="+Date.now(),{cache:"no-store"});
     const data=await response.json();
-    if(el)el.textContent=`v${data?.version?.version||"1.2.0"}`;
+    if(el)el.textContent=`v${data?.version?.version||"2.0.0"}`;
   }catch(error){
-    if(el)el.textContent="v1.2.0";
+    if(el)el.textContent="v2.0.0";
   }
 }
 syncOverlayVersion();

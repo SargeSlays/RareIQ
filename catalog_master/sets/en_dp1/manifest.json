@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "dp1",
+  "set_name": "Diamond & Pearl",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 130,
+  "cards": 130,
+  "images": 130,
+  "coverage_percent": 100.0,
+  "imported_at": 1783899777.7205677,
+  "errors": []
+}

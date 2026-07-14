@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "ex14",
+  "set_name": "Crystal Guardians",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 100,
+  "cards": 100,
+  "images": 100,
+  "coverage_percent": 100.0,
+  "imported_at": 1783899648.9443226,
+  "errors": []
+}

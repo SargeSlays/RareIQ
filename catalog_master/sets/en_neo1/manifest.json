@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "neo1",
+  "set_name": "Neo Genesis",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 111,
+  "cards": 111,
+  "images": 111,
+  "coverage_percent": 100.0,
+  "imported_at": 1783898572.8183181,
+  "errors": []
+}

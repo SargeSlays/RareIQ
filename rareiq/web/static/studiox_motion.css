@@ -1,0 +1,234 @@
+
+/* RareIQ Studio X 2.3 — Camera Fill + Motion */
+
+.camera-workspace{
+  --camera-fit:cover;
+  background:
+    radial-gradient(circle at 50% 45%,rgba(32,216,255,.035),transparent 35%),
+    #020609;
+}
+
+.camera-workspace.full-frame{
+  --camera-fit:contain;
+}
+
+.camera-feed{
+  object-fit:var(--camera-fit);
+  object-position:center center;
+  transition:filter .25s ease,transform .28s ease,opacity .2s ease;
+  background:#020609;
+}
+
+.camera-workspace:not(.full-frame) .camera-feed{
+  transform:scale(1.01);
+}
+
+.camera-fit-toggle{
+  height:30px;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  padding:0 10px;
+  border:0;
+  border-radius:8px;
+  color:#b7c6d2;
+  background:rgba(14,29,42,.66);
+  box-shadow:inset 0 0 0 1px rgba(112,153,184,.15);
+  cursor:pointer;
+}
+
+.camera-fit-toggle:hover{
+  background:var(--surface-3);
+}
+
+.camera-fit-toggle i{
+  width:14px;
+  height:10px;
+  border:1px solid currentColor;
+  border-radius:2px;
+  position:relative;
+  opacity:.8;
+}
+
+.camera-fit-toggle i:before,
+.camera-fit-toggle i:after{
+  content:"";
+  position:absolute;
+  width:4px;
+  height:4px;
+  border-color:var(--cyan);
+}
+
+.camera-fit-toggle i:before{
+  left:-3px;
+  top:-3px;
+  border-left:2px solid var(--cyan);
+  border-top:2px solid var(--cyan);
+}
+
+.camera-fit-toggle i:after{
+  right:-3px;
+  bottom:-3px;
+  border-right:2px solid var(--magenta);
+  border-bottom:2px solid var(--magenta);
+}
+
+.camera-fit-toggle strong{
+  font-size:8px;
+  letter-spacing:.04em;
+}
+
+.camera-fit-toggle.full-frame{
+  color:#93a7b7;
+  background:transparent;
+}
+
+/* Branded animated scan frame */
+.scan-zone{
+  border-radius:18px;
+  box-shadow:
+    inset 0 0 0 1px rgba(53,183,255,.20),
+    0 0 34px rgba(32,216,255,.07);
+  overflow:hidden;
+}
+
+.scan-zone:before,
+.scan-zone:after{
+  width:44px;
+  height:44px;
+  animation:cornerBreath 2.2s ease-in-out infinite;
+}
+
+.scan-zone .scan-corner{
+  position:absolute;
+  width:44px;
+  height:44px;
+  pointer-events:none;
+  filter:drop-shadow(0 0 7px rgba(32,216,255,.48));
+  animation:cornerBreath 2.2s ease-in-out infinite;
+}
+
+.scan-zone .scan-corner.tr{
+  right:-2px;
+  top:-2px;
+  border-right:4px solid var(--blue);
+  border-top:4px solid var(--blue);
+  border-radius:0 14px 0 0;
+}
+
+.scan-zone .scan-corner.bl{
+  left:-2px;
+  bottom:-2px;
+  border-left:4px solid var(--purple);
+  border-bottom:4px solid var(--purple);
+  border-radius:0 0 0 14px;
+}
+
+.scan-zone .scan-sweep{
+  position:absolute;
+  left:4%;
+  right:4%;
+  top:10%;
+  height:2px;
+  opacity:.30;
+  background:linear-gradient(90deg,transparent,var(--cyan),var(--purple),transparent);
+  box-shadow:0 0 10px rgba(32,216,255,.25);
+  animation:scanSweep 3.4s ease-in-out infinite;
+}
+
+@keyframes scanSweep{
+  0%,100%{transform:translateY(0);opacity:.14}
+  50%{transform:translateY(410px);opacity:.45}
+}
+
+@keyframes cornerBreath{
+  0%,100%{opacity:.68}
+  50%{opacity:1}
+}
+
+.scan-zone.detected .scan-sweep,
+.scan-zone.reading .scan-sweep{
+  animation-duration:1.45s;
+  opacity:.62;
+}
+
+.scan-zone.verified .scan-sweep{
+  background:linear-gradient(90deg,transparent,var(--green),transparent);
+  animation-duration:2.1s;
+}
+
+.camera-workspace.state-searching .camera-feed{
+  filter:saturate(1.04) contrast(1.02);
+}
+
+.camera-workspace.state-matched{
+  box-shadow:
+    0 20px 54px rgba(0,0,0,.36),
+    inset 0 0 0 1px rgba(57,227,154,.25),
+    0 0 24px rgba(57,227,154,.08);
+}
+
+.camera-workspace.state-captured{
+  animation:captureFlash .42s ease both;
+}
+
+@keyframes captureFlash{
+  0%{filter:brightness(1)}
+  30%{filter:brightness(1.22)}
+  100%{filter:brightness(1)}
+}
+
+/* Less visual weight over the live feed */
+.camera-title,
+.hud-stages,
+.camera-bottom-hud{
+  background:linear-gradient(120deg,rgba(3,9,17,.66),rgba(9,10,24,.58));
+  backdrop-filter:blur(7px);
+}
+
+.camera-title{
+  max-width:180px;
+}
+
+.hud-stages{
+  width:164px;
+  opacity:.88;
+}
+
+.camera-bottom-hud{
+  min-height:42px;
+}
+
+.brand-watermark{
+  opacity:.11;
+}
+
+/* Slightly stronger hierarchy */
+.inspector-head h2{
+  letter-spacing:.02em;
+}
+
+.recognition-state{
+  background:linear-gradient(90deg,rgba(8,20,31,.82),rgba(10,13,29,.78));
+}
+
+.process.active{
+  box-shadow:
+    inset 0 0 0 1px rgba(64,153,242,.24),
+    0 0 14px rgba(79,216,255,.05);
+}
+
+.process.done{
+  box-shadow:
+    inset 0 0 0 1px rgba(57,227,154,.20),
+    0 0 12px rgba(57,227,154,.04);
+}
+
+@media(max-height:900px){
+  .camera-bottom-hud{
+    bottom:7px;
+  }
+  .camera-top-hud{
+    top:7px;
+  }
+}

@@ -1,0 +1,80 @@
+
+/* RareIQ Studio X 5.0 — Core Foundation */
+
+.health-grid{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:8px;
+  margin-top:12px;
+}
+
+.health-card{
+  padding:12px;
+  border-radius:11px;
+  background:rgba(8,18,28,.78);
+  box-shadow:inset 0 0 0 1px rgba(104,146,180,.13);
+}
+
+.health-card-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+
+.health-card h3{
+  margin:0;
+  font-size:10px;
+}
+
+.health-dot{
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#526473;
+}
+
+.health-card.healthy .health-dot{
+  background:var(--green);
+  box-shadow:0 0 9px rgba(57,227,154,.65);
+}
+
+.health-card.error .health-dot{
+  background:var(--red);
+  box-shadow:0 0 9px rgba(255,99,114,.62);
+}
+
+.health-card strong{
+  display:block;
+  margin-top:10px;
+  font-size:12px;
+  text-transform:uppercase;
+}
+
+.health-card p{
+  margin:5px 0 0;
+  color:#7d93a5;
+  font-size:8px;
+  line-height:1.4;
+}
+
+.camera-manager-state{
+  margin-top:10px;
+  padding:10px;
+  border-radius:9px;
+  background:rgba(5,12,20,.72);
+  box-shadow:inset 0 0 0 1px rgba(103,145,180,.11);
+  font:700 9px/1.5 "JetBrains Mono",monospace;
+  color:#9cb1c0;
+}
+
+@media(max-width:1366px){
+  .health-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+@media(min-width:3200px){
+  .health-card{padding:20px}
+  .health-card h3{font-size:16px}
+  .health-card strong{font-size:20px}
+  .health-card p{font-size:12px}
+}

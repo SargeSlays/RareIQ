@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "lc",
+  "set_name": "Legendary Collection",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 110,
+  "cards": 110,
+  "images": 110,
+  "coverage_percent": 100.0,
+  "imported_at": 1783898712.2163246,
+  "errors": []
+}

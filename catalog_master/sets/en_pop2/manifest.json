@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "pop2",
+  "set_name": "POP Series 2",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 17,
+  "cards": 17,
+  "images": 17,
+  "coverage_percent": 100.0,
+  "imported_at": 1783899432.2632797,
+  "errors": []
+}

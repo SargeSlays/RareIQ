@@ -1,0 +1,4 @@
+.camera-recovery.suppressed{display:none!important;opacity:0!important;pointer-events:none!important}
+.camera-workspace.viewer-live .camera-recovery{display:none!important}
+.camera-workspace.viewer-live .camera-placeholder{display:none!important}
+.viewer-bridge-state.live{opacity:.72}

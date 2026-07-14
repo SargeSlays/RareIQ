@@ -1,0 +1,9 @@
+.camera-feed{position:absolute;inset:0;display:block;width:100%;height:100%;opacity:1;visibility:visible;z-index:2}
+.camera-placeholder{z-index:1}
+.camera-placeholder.hidden{display:none!important}
+.camera-recovery{z-index:4}
+.viewer-bridge-state{position:absolute;z-index:5;left:12px;top:12px;display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:999px;color:#8ca1b2;background:rgba(4,12,20,.72);box-shadow:inset 0 0 0 1px rgba(100,145,180,.12);font-size:7px;pointer-events:none}
+.viewer-bridge-state i{width:6px;height:6px;border-radius:50%;background:#617485}
+.viewer-bridge-state.connecting i{background:var(--cyan);box-shadow:0 0 8px rgba(32,216,255,.65)}
+.viewer-bridge-state.live i{background:var(--green);box-shadow:0 0 8px rgba(57,227,154,.62)}
+.viewer-bridge-state.error i{background:var(--red);box-shadow:0 0 8px rgba(255,99,114,.58)}

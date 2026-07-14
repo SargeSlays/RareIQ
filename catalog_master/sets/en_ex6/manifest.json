@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "ex6",
+  "set_name": "FireRed & LeafGreen",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 112,
+  "cards": 116,
+  "images": 116,
+  "coverage_percent": 100.0,
+  "imported_at": 1783899295.7370734,
+  "errors": []
+}

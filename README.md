@@ -1,22 +1,16 @@
-# RareIQ v1.2.0 — Command Center
+# RareIQ Studio X 6.3 — Backend Test Foundation
 
-Build date: 2026.07.11
+Camera UI is intentionally unchanged.
 
-## Premium desktop dashboard
+This release adds the first complete backend testing contract:
 
-This release rebuilds the operator interface around the supplied command-center concept.
+- Unified runtime snapshot
+- Normalized current-card payload
+- Backend smoke test
+- Corrected-crop recognition trigger
+- Recent pulls endpoint
+- Downloadable diagnostics
+- Full active-session persistence and recovery
+- Automated backend contract tests
 
-### Added
-
-- Persistent left navigation
-- Premium top status bar
-- Seven live KPI cards
-- Large live-camera workspace
-- Permanent verified-reference panel
-- Animated confidence ring
-- Visible verification checklist
-- Compact catalog, set, recognition, and grading modules
-- AI grading moved into a slide-out drawer
-- Advanced OCR and recognition diagnostics collapsed by default
-- Batch workflow and live activity panels
-- 1080p desktop-first layout
+See `BACKEND_TEST_GUIDE.md`.

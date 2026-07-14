@@ -1,16 +1,24 @@
 from __future__ import annotations
 import asyncio
+import json
+import os
+import signal
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
+import cv2
+import numpy as np
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from rareiq.core.events import EventBus
 from rareiq.core.orchestrator import RareIQOrchestrator
+from rareiq.core.storage import storage
 from rareiq.version import BUILD_DATE, CODENAME, VERSION, version_payload
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -18,6 +26,21 @@ STATIC_DIR = BASE_DIR / "static"
 CAPTURE_DIR = BASE_DIR.parent.parent / "captures"
 
 app = FastAPI(title=f"RareIQ v{VERSION}")
+
+@app.exception_handler(Exception)
+async def json_api_exception_handler(request: Request, exc: Exception):
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": type(exc).__name__,
+                "message": str(exc),
+                "path": request.url.path,
+            },
+        )
+    raise exc
+
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 event_bus = EventBus()
 orchestrator = RareIQOrchestrator(event_bus, CAPTURE_DIR)
@@ -49,6 +72,43 @@ class LiveSetImportRequest(BaseModel):
     language: str = "English"
     max_cards: int | None = None
 
+class MasterCatalogImportRequest(BaseModel):
+    set_id: str
+    language: str = "Chinese"
+    max_cards: int | None = None
+
+class MasterCatalogConfigRequest(BaseModel):
+    dropbox_local_path: str | None = None
+    mirror_enabled: bool | None = None
+    preferred_language: str | None = None
+
+class PokemonWorldBuildRequest(BaseModel):
+    languages: list[str] | None = None
+    provider_ids: list[str] | None = None
+    resume: bool = True
+    max_sets: int | None = None
+
+class PokemonAutoSyncConfigRequest(BaseModel):
+    enabled: bool | None = None
+    interval_hours: int | None = None
+
+class FastMetadataRequest(BaseModel):
+    languages: list[str] | None = None
+
+class BrandSettingsRequest(BaseModel):
+    settings: dict[str, Any]
+
+class OverlayStateRequest(BaseModel):
+    state: dict[str, Any]
+
+class LearningQueueRequest(BaseModel):
+    scan_payload: dict[str, Any]
+    reason: str
+    correct_card_id: str | None = None
+
+class FastImageRequest(BaseModel):
+    workers: int = Field(default=12, ge=2, le=24)
+
 class CardGraderRegisterRequest(BaseModel):
     name: str = "RareIQ"
     contact_email: str | None = None
@@ -71,7 +131,12 @@ class ConnectionManager:
             "session": orchestrator.sessions.snapshot(),
             "vision": orchestrator.vision.status(),
             "recognition": orchestrator.recognition.status(),
-            "catalog": orchestrator.catalog.status()
+            "catalog": orchestrator.catalog.status(),
+            "recognition_state": orchestrator.recognition_state.refresh(
+                vision=orchestrator.vision.status(),
+                recognition=orchestrator.recognition.status(),
+                catalog=orchestrator.catalog.status(),
+            )
         }})
 
     def disconnect(self, ws):
@@ -106,7 +171,7 @@ async def shutdown(): orchestrator.vision.stop()
 async def root():
     return HTMLResponse(
         f'<h1>RareIQ v{VERSION} — {CODENAME}</h1>'
-        '<p><a href="/control">Open RareIQ Control Center</a></p>'
+        '<p><a href="/control">Open RareIQ Operator Console</a></p>'
         '<p><a href="/about">Build diagnostics</a></p>',
         headers={"Cache-Control": "no-store"},
     )
@@ -118,12 +183,25 @@ async def control():
         headers={"Cache-Control": "no-store, max-age=0"},
     )
 
+
+@app.get("/control-legacy")
+async def control_legacy():
+    return FileResponse(
+        STATIC_DIR / "control_legacy.html",
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
+
 @app.get("/about")
 async def about():
     return FileResponse(
         STATIC_DIR / "about.html",
         headers={"Cache-Control": "no-store, max-age=0"},
     )
+
+
+@app.get("/api/storage/status")
+async def storage_status():
+    return {"ok": True, "storage": storage.status()}
 
 @app.get("/api/version")
 async def api_version():
@@ -132,7 +210,7 @@ async def api_version():
         {
             "python_runtime": "3.13 target",
             "ocr_engine": "RapidOCR",
-            "catalog": "TCGdex",
+            "catalog": "TCGdex + RareIQ Master Catalog",
             "camera": orchestrator.vision.status().get("camera_name"),
         }
     )
@@ -162,28 +240,597 @@ async def websocket_endpoint(ws: WebSocket):
         manager.disconnect(ws)
 
 @app.get("/api/cameras")
-async def list_cameras():
-    return {"ok": True, "cameras": orchestrator.vision.list_cameras()}
+async def list_cameras(force: bool = False):
+    cameras = await asyncio.to_thread(
+        orchestrator.camera_manager.discover,
+        force,
+    )
+    return {
+        "ok": True,
+        "cameras": cameras,
+        "selected_camera": orchestrator.camera_manager.selected_camera(),
+        "manager": orchestrator.camera_manager.status()["manager"],
+    }
 
 @app.post("/api/camera/start")
 async def camera_start(req: CameraStartRequest):
-    status = orchestrator.vision.start(req.camera_index, req.camera_backend)
-    await orchestrator.publish("vision_status", status)
-    return {"ok": True, "vision": status}
+    status = await asyncio.to_thread(
+        orchestrator.camera_manager.start,
+        req.camera_index,
+        req.camera_backend,
+        True,
+    )
+    await orchestrator.publish("camera_manager_status", status)
+    return status
 
 @app.post("/api/camera/stop")
 async def camera_stop():
-    status = orchestrator.vision.stop()
-    await orchestrator.publish("vision_status", status)
-    return {"ok": True, "vision": status}
+    status = await asyncio.to_thread(orchestrator.camera_manager.stop)
+    await orchestrator.publish("camera_manager_status", status)
+    return status
+
+@app.post("/api/camera/recover")
+async def camera_recover():
+    status = await asyncio.to_thread(orchestrator.camera_manager.recover)
+    await orchestrator.publish("camera_manager_status", status)
+    return status
+
+@app.get("/api/camera/ready")
+async def camera_ready():
+    status = orchestrator.camera_manager.status()
+    return {
+        "ok": status["manager"]["state"] == "running",
+        "state": status["manager"]["state"],
+        "message": status["manager"]["message"],
+        "visible": bool(status["vision"].get("visible")),
+        "last_frame_at": status["manager"]["last_frame_at"],
+    }
+
+
+@app.post("/api/system/shutdown")
+async def system_shutdown():
+    """Gracefully stop the local RareIQ process after responding."""
+    def stop_process():
+        time.sleep(0.35)
+        os.kill(os.getpid(), signal.SIGINT)
+
+    threading.Thread(target=stop_process, daemon=True).start()
+    return {"ok": True, "message": "RareIQ is shutting down."}
 
 @app.get("/api/catalog/status")
 async def catalog_status():
     return {"ok": True, "catalog": orchestrator.catalog.status()}
 
+@app.get("/api/catalog-engine/status")
+async def catalog_engine_status():
+    return {
+        "ok": True,
+        "catalog_engine": orchestrator.catalog_intelligence.status(),
+    }
+
+@app.get("/api/pokemon-master/status")
+async def pokemon_master_status():
+    return {
+        "ok": True,
+        "pokemon_master": orchestrator.pokemon_master_database.status(),
+    }
+
+@app.post("/api/pokemon-master/discover")
+async def pokemon_master_discover(req: PokemonWorldBuildRequest):
+    result = await asyncio.to_thread(
+        orchestrator.pokemon_master_database.discover_all,
+        req.languages,
+    )
+    return result
+
+@app.post("/api/pokemon-master/build")
+async def pokemon_master_build(req: PokemonWorldBuildRequest):
+    return orchestrator.pokemon_master_database.start_world_build(
+        languages=req.languages,
+        provider_ids=req.provider_ids,
+        resume=req.resume,
+        max_sets=req.max_sets,
+    )
+
+@app.post("/api/pokemon-master/cancel")
+async def pokemon_master_cancel():
+    return orchestrator.pokemon_master_database.cancel()
+
+@app.get("/api/pokemon-vision/status")
+async def pokemon_vision_status():
+    return {
+        "ok": True,
+        "visual_index": orchestrator.global_visual_index.status(),
+        "auto_sync": orchestrator.pokemon_auto_sync.status(),
+    }
+
+@app.post("/api/pokemon-vision/rebuild")
+async def pokemon_vision_rebuild():
+    return await asyncio.to_thread(
+        orchestrator.global_visual_index.rebuild
+    )
+
+@app.post("/api/pokemon-vision/sync-now")
+async def pokemon_vision_sync_now():
+    return orchestrator.pokemon_auto_sync.start(force=True)
+
+@app.post("/api/pokemon-vision/stop-sync")
+async def pokemon_vision_stop_sync():
+    return orchestrator.pokemon_auto_sync.stop()
+
+
+@app.get("/api/providers/status")
+async def provider_status():
+    return {
+        "ok": True,
+        "diagnostics": orchestrator.provider_diagnostics.status(),
+    }
+
+@app.post("/api/providers/check")
+async def provider_check():
+    return await asyncio.to_thread(
+        orchestrator.provider_diagnostics.run
+    )
+
+
+
+
+
+@app.get("/api/camera/status")
+async def camera_status_compatibility():
+    return orchestrator.camera_manager.status()
+
+@app.get("/api/boot/ping")
+async def boot_ping():
+    return {
+        "ok": True,
+        "version": VERSION,
+        "message": "Boot API online.",
+    }
+
+@app.get("/api/boot/status")
+async def boot_status():
+    return orchestrator.boot_manager.status()
+
+@app.post("/api/boot/run")
+async def boot_run(force: bool = False):
+    return await asyncio.to_thread(orchestrator.boot_manager.run, force)
+
+@app.get("/api/system/health")
+async def system_health():
+    camera = orchestrator.camera_manager.health()
+    recognition = orchestrator.recognition.status()
+    catalog = orchestrator.catalog.status()
+    index = orchestrator.index_activation.status()
+
+    components = {
+        "camera": camera,
+        "recognition": {
+            "healthy": not bool(recognition.get("error")),
+            "state": "ready" if not recognition.get("error") else "error",
+            "message": recognition.get("error") or "Recognition service available.",
+        },
+        "catalog": {
+            "healthy": not bool(catalog.get("error")),
+            "state": "ready" if not catalog.get("error") else "error",
+            "message": catalog.get("error") or "Catalog service available.",
+        },
+        "index": {
+            "healthy": not bool(index.get("error")),
+            "state": index.get("state") or "unknown",
+            "message": index.get("error") or "Index activation service available.",
+        },
+        "storage": {
+            "healthy": True,
+            "state": "ready",
+            "message": "Configured storage paths are available.",
+        },
+    }
+
+    return {
+        "ok": all(component["healthy"] for component in components.values()),
+        "timestamp": time.time(),
+        "components": components,
+    }
+
+@app.get("/api/index-activation/status")
+async def index_activation_status():
+    return {
+        "ok": True,
+        "activation": orchestrator.index_activation.status(),
+    }
+
+@app.post("/api/index-activation/start")
+async def index_activation_start():
+    return orchestrator.index_activation.start()
+
+@app.post("/api/index-activation/stop")
+async def index_activation_stop():
+    return orchestrator.index_activation.stop()
+
+
+
+
+@app.get("/api/brand")
+async def get_brand_settings():
+    return {"ok": True, "brand": orchestrator.brand_settings.get()}
+
+@app.post("/api/brand")
+async def save_brand_settings(request: BrandSettingsRequest):
+    return orchestrator.brand_settings.save(request.settings)
+
+@app.get("/api/overlay/state")
+async def get_overlay_state():
+    return {"ok": True, "state": orchestrator.overlay_state.get()}
+
+@app.post("/api/overlay/state")
+async def update_overlay_state(request: OverlayStateRequest):
+    return {
+        "ok": True,
+        "state": orchestrator.overlay_state.update(request.state),
+    }
+
+@app.post("/api/overlay/reset")
+async def reset_overlay_state():
+    return {"ok": True, "state": orchestrator.overlay_state.reset()}
+
+@app.get("/camera-popout")
+async def camera_popout_view():
+    return FileResponse(STATIC_DIR / "camera_popout.html")
+
+@app.get("/studiox-611")
+async def studiox_611_fallback():
+    return FileResponse(STATIC_DIR / "studiox_611_fallback.html")
+
+@app.get("/studiox-604")
+async def studiox_604_fallback():
+    return FileResponse(STATIC_DIR / "studiox_604_fallback.html")
+
+@app.get("/studiox-50")
+async def studiox_50_fallback():
+    return FileResponse(STATIC_DIR / "studiox_50_fallback.html")
+
+@app.get("/studiox-402")
+async def studiox_402_fallback():
+    return FileResponse(STATIC_DIR / "studiox_402_fallback.html")
+
+@app.get("/studiox-401")
+async def studiox_401_fallback():
+    return FileResponse(STATIC_DIR / "studiox_401_fallback.html")
+
+@app.get("/studiox-40")
+async def studiox_40_fallback():
+    return FileResponse(STATIC_DIR / "studiox_40_fallback.html")
+
+@app.get("/studiox-30")
+async def studiox_30_fallback():
+    return FileResponse(STATIC_DIR / "studiox_30_fallback.html")
+
+@app.get("/studiox-25")
+async def studiox_25_fallback():
+    return FileResponse(STATIC_DIR / "studiox_25_fallback.html")
+
+@app.get("/studiox-241")
+async def studiox_241_fallback():
+    return FileResponse(STATIC_DIR / "studiox_241_fallback.html")
+
+@app.get("/studiox-23")
+async def studiox_23_fallback():
+    return FileResponse(STATIC_DIR / "studiox_23_fallback.html")
+
+@app.get("/studiox-22")
+async def studiox_22_fallback():
+    return FileResponse(STATIC_DIR / "studiox_22_fallback.html")
+
+@app.get("/studiox-21")
+async def studiox_21_fallback():
+    return FileResponse(STATIC_DIR / "studiox_21_fallback.html")
+
+@app.get("/studiox-sprint2")
+async def studiox_sprint2_fallback():
+    return FileResponse(STATIC_DIR / "studiox_sprint2_fallback.html")
+
+@app.get("/studiox-sprint1")
+async def studiox_sprint1_fallback():
+    return FileResponse(STATIC_DIR / "studiox_sprint1_fallback.html")
+
+@app.get("/studio501")
+async def studio501_fallback():
+    return FileResponse(STATIC_DIR / "studio501_fallback.html")
+
+@app.get("/studio40")
+async def studio40_fallback():
+    return FileResponse(STATIC_DIR / "studio40_fallback.html")
+
+@app.get("/studio31")
+async def studio31_fallback():
+    return FileResponse(STATIC_DIR / "studio31_legacy.html")
+
+@app.get("/legacy-control")
+async def legacy_control():
+    return FileResponse(STATIC_DIR / "legacy_control.html")
+
+@app.get("/studio")
+async def studio_page():
+    return FileResponse(STATIC_DIR / "control.html")
+
+@app.get("/program")
+async def program_page():
+    return FileResponse(STATIC_DIR / "program_view.html")
+
+@app.get("/overlay/landscape")
+async def landscape_overlay():
+    return FileResponse(STATIC_DIR / "overlay_landscape.html")
+
+@app.get("/overlay/portrait")
+async def portrait_overlay():
+    return FileResponse(STATIC_DIR / "overlay_portrait.html")
+
+@app.get("/overlay/current-card")
+async def current_card_overlay():
+    return FileResponse(STATIC_DIR / "overlay_current_card.html")
+
+@app.get("/api/intelligence/status")
+async def intelligence_status():
+    return {
+        "ok": True,
+        "version": "X7",
+        "learning_queue": orchestrator.learning_queue.status(),
+        "visual_index": orchestrator.global_visual_index.status(),
+    }
+
+@app.post("/api/intelligence/benchmark")
+async def intelligence_benchmark():
+    return await asyncio.to_thread(
+        orchestrator.x7_benchmarks.run,
+        100,
+    )
+
+@app.post("/api/intelligence/learning")
+async def intelligence_learning(request: LearningQueueRequest):
+    return orchestrator.learning_queue.add(
+        scan_payload=request.scan_payload,
+        reason=request.reason,
+        correct_card_id=request.correct_card_id,
+    )
+
+@app.get("/api/system/health")
+async def system_health():
+    return {
+        "ok": True,
+        "health": orchestrator.system_health.status(),
+    }
+
+@app.get("/api/jobs/status")
+async def job_status():
+    return {
+        "ok": True,
+        "jobs": orchestrator.job_queue.status(),
+    }
+
+@app.post("/api/library/optimize")
+async def optimize_library():
+    job = orchestrator.job_queue.submit(
+        "Optimize RareIQ Library",
+        orchestrator.library_optimizer.run,
+    )
+    return {"ok": True, "job": job}
+
+@app.post("/api/index/incremental")
+async def incremental_index():
+    job = orchestrator.job_queue.submit(
+        "Incremental Recognition Index",
+        orchestrator.global_visual_index.incremental_update,
+    )
+    return {"ok": True, "job": job}
+
+@app.post("/api/system/auto-index/{enabled}")
+async def set_auto_index(enabled: bool):
+    return orchestrator.system_health.set_auto_index(enabled)
+
+@app.get("/api/war-room/status")
+async def war_room_status():
+    return {
+        "ok": True,
+        "war_room": orchestrator.war_room.status(),
+    }
+
+@app.post("/api/assets/scan")
+async def scan_assets():
+    return await asyncio.to_thread(
+        orchestrator.asset_manager.scan_images
+    )
+
+@app.get("/api/assets/status")
+async def asset_status():
+    return {
+        "ok": True,
+        "assets": orchestrator.asset_manager.status(),
+    }
+
+@app.post("/api/benchmarks/fusion")
+async def run_fusion_benchmark():
+    return await asyncio.to_thread(
+        orchestrator.benchmarks.run_fusion_benchmark,
+        10000,
+    )
+
+@app.get("/api/benchmarks/latest")
+async def latest_benchmark():
+    return orchestrator.benchmarks.latest()
+
+@app.get("/api/fast-pipeline/status")
+async def fast_pipeline_status():
+    return {
+        "ok": True,
+        "pipeline": orchestrator.fast_pipeline.status(),
+    }
+
+@app.post("/api/fast-pipeline/metadata/start")
+async def fast_pipeline_metadata_start(request: FastMetadataRequest):
+    return orchestrator.fast_pipeline.start_metadata(request.languages)
+
+@app.post("/api/fast-pipeline/images/start")
+async def fast_pipeline_images_start(request: FastImageRequest):
+    return orchestrator.fast_pipeline.start_images(request.workers)
+
+@app.post("/api/fast-pipeline/stop")
+async def fast_pipeline_stop():
+    return orchestrator.fast_pipeline.stop()
+
+@app.post("/api/fast-pipeline/index")
+async def fast_pipeline_index():
+    return await asyncio.to_thread(
+        orchestrator.fast_pipeline.build_visual_index
+    )
+
+@app.get("/api/master-builder/status")
+async def master_builder_status():
+    return {
+        "ok": True,
+        "builder": orchestrator.master_database_builder.status(),
+    }
+
+@app.post("/api/master-builder/start")
+async def master_builder_start():
+    return orchestrator.master_database_builder.start(resume=True)
+
+@app.post("/api/master-builder/stop")
+async def master_builder_stop():
+    return orchestrator.master_database_builder.cancel()
+
+@app.post("/api/master-builder/rebuild-index")
+async def master_builder_rebuild_index():
+    return await asyncio.to_thread(
+        orchestrator.master_database_builder.rebuild_visual_index
+    )
+
+@app.post("/api/pokemon-vision/config")
+async def pokemon_vision_config(req: PokemonAutoSyncConfigRequest):
+    return orchestrator.pokemon_auto_sync.configure(
+        enabled=req.enabled,
+        interval_hours=req.interval_hours,
+    )
+
+@app.post("/api/catalog-engine/import-set")
+async def catalog_engine_import_set(req: MasterCatalogImportRequest):
+    result = await asyncio.to_thread(
+        orchestrator.catalog_intelligence.import_tcgdex_set,
+        req.set_id,
+        req.language,
+        req.max_cards,
+    )
+    await orchestrator.publish("master_catalog_update", result)
+    return result
+
+@app.post("/api/catalog-engine/rebuild")
+async def catalog_engine_rebuild():
+    result = await asyncio.to_thread(
+        orchestrator.catalog_intelligence.rebuild_master_index
+    )
+    await orchestrator.publish("master_catalog_update", result)
+    return result
+
+@app.post("/api/catalog-engine/config")
+async def catalog_engine_config(req: MasterCatalogConfigRequest):
+    return orchestrator.catalog_intelligence.configure(
+        dropbox_local_path=req.dropbox_local_path,
+        mirror_enabled=req.mirror_enabled,
+        preferred_language=req.preferred_language,
+    )
+
+@app.get("/api/catalog-engine/image/{set_folder}/{filename}")
+async def catalog_engine_image(set_folder: str, filename: str):
+    safe_folder = Path(set_folder).name
+    safe_filename = Path(filename).name
+    path = (
+        orchestrator.catalog_intelligence.sets_dir
+        / safe_folder
+        / "images"
+        / safe_filename
+    )
+    if not path.exists():
+        return Response(status_code=404)
+    return FileResponse(path)
+
+
+@app.get("/api/runtime/snapshot")
+async def runtime_snapshot():
+    return await asyncio.to_thread(
+        orchestrator.backend_test.runtime_snapshot
+    )
+
+@app.get("/api/current-card")
+async def current_card():
+    snapshot = await asyncio.to_thread(
+        orchestrator.backend_test.runtime_snapshot
+    )
+    return {
+        "ok": True,
+        "card": snapshot.get("current_card"),
+        "recognition_state": snapshot.get("recognition_state"),
+    }
+
+@app.get("/api/recent-pulls")
+async def recent_pulls(limit: int = 20):
+    return {
+        "ok": True,
+        "cards": orchestrator.sessions.recent_cards(
+            max(1, min(int(limit), 200))
+        ),
+    }
+
+@app.post("/api/test/recognize-latest-crop")
+async def test_recognize_latest_crop():
+    return await asyncio.to_thread(
+        orchestrator.backend_test.submit_latest_crop_for_recognition
+    )
+
+@app.get("/api/test/smoke")
+async def backend_smoke_test():
+    return await asyncio.to_thread(
+        orchestrator.backend_test.smoke_test
+    )
+
+@app.post("/api/test/diagnostic-report")
+async def backend_diagnostic_report():
+    path = await asyncio.to_thread(
+        orchestrator.backend_test.write_report
+    )
+    return {
+        "ok": True,
+        "filename": path.name,
+        "download_url": f"/api/test/diagnostic-report/{path.name}",
+    }
+
+@app.get("/api/test/diagnostic-report/{filename}")
+async def download_backend_diagnostic_report(filename: str):
+    safe_name = Path(filename).name
+    path = orchestrator.backend_test.report_dir / safe_name
+    if not path.exists() or not path.is_file():
+        return JSONResponse(
+            {"ok": False, "error": "Diagnostic report not found."},
+            status_code=404,
+        )
+    return FileResponse(
+        path,
+        media_type="application/json",
+        filename=path.name,
+        headers={"Cache-Control": "no-store"},
+    )
+
 @app.get("/api/recognition/status")
 async def recognition_status():
     return {"ok": True, "recognition": orchestrator.recognition.status()}
+
+@app.get("/api/recognition-state")
+async def recognition_state():
+    # Read-only snapshot. Recognition producers update this store through
+    # events; dashboard polling must never rebuild the recognition pipeline.
+    return {
+        "ok": True,
+        "recognition_state": orchestrator.recognition_state.snapshot(),
+    }
 
 @app.get("/api/artwork-index/status")
 async def artwork_index_status():
@@ -399,11 +1046,84 @@ async def camera_capture():
     path = orchestrator.vision.save_latest_crop(source="manual")
     return {"ok": bool(path), "path": path, "error": None if path else "No corrected card image available yet."}
 
+
+
+@app.get("/api/camera/crop.jpg")
+async def camera_crop_still():
+    """Return the latest corrected card crop without crashing the UI."""
+    try:
+        crop = orchestrator.vision.latest_crop()
+        if crop is None or getattr(crop, "size", 0) == 0:
+            placeholder = np.zeros((560, 400, 3), dtype=np.uint8)
+            cv2.putText(
+                placeholder,
+                "Waiting for card crop",
+                (48, 285),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.72,
+                (125, 150, 175),
+                2,
+                cv2.LINE_AA,
+            )
+            crop = placeholder
+
+        ok, buffer = cv2.imencode(
+            ".jpg",
+            crop,
+            [int(cv2.IMWRITE_JPEG_QUALITY), 92],
+        )
+        if not ok:
+            return Response(status_code=204)
+
+        return Response(
+            content=buffer.tobytes(),
+            media_type="image/jpeg",
+            headers={
+                "Cache-Control": "no-store, max-age=0",
+                "Pragma": "no-cache",
+            },
+        )
+    except Exception:
+        return Response(status_code=204)
+
+@app.get("/api/camera/crop-stream")
+async def camera_crop_stream():
+    async def frames():
+        try:
+            while True:
+                crop = orchestrator.vision.latest_crop()
+                if crop is not None:
+                    ok, buffer = cv2.imencode(
+                        ".jpg",
+                        crop,
+                        [int(cv2.IMWRITE_JPEG_QUALITY), 88],
+                    )
+                    if ok:
+                        yield (
+                            b"--frame\r\n"
+                            b"Content-Type: image/jpeg\r\n\r\n"
+                            + buffer.tobytes()
+                            + b"\r\n"
+                        )
+                await asyncio.sleep(0.08)
+        except (asyncio.CancelledError, GeneratorExit, BrokenPipeError, ConnectionResetError):
+            return
+
+    return StreamingResponse(
+        frames(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={
+            "Cache-Control": "no-store, max-age=0",
+            "Pragma": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
 @app.get("/api/camera/stream")
 async def camera_stream():
     async def frames():
         while True:
-            jpg = orchestrator.vision.latest_jpeg()
+            jpg = orchestrator.camera_manager.latest_jpeg()
             if jpg:
                 yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"+jpg+b"\r\n"
             await asyncio.sleep(0.04)
@@ -419,6 +1139,67 @@ async def previous_pack(): return {"ok":True,"session":await orchestrator.previo
 async def next_box(): return {"ok":True,"session":await orchestrator.next_box()}
 @app.post("/api/session/previous-box")
 async def previous_box(): return {"ok":True,"session":await orchestrator.previous_box()}
+@app.post("/api/session/confirm-recognition")
+async def confirm_recognition():
+    return await orchestrator.confirm_recognition(automatic=False)
+
+@app.post("/api/session/auto-confirm-recognition")
+async def auto_confirm_recognition(state_id: str | None = None):
+    current = orchestrator.recognition_state.refresh(
+        vision=orchestrator.vision.status(),
+        recognition=orchestrator.recognition.status(),
+        catalog=orchestrator.catalog.status(),
+    )
+    if state_id and current.get("state_id") != state_id:
+        return {
+            "ok": False,
+            "error": "Recognition changed before Auto-add completed.",
+            "reason": "stale_recognition_state",
+            "expected_state_id": state_id,
+            "current_state_id": current.get("state_id"),
+        }
+    return await orchestrator.confirm_recognition(automatic=True)
+
+@app.post("/api/session/test-auto-confirm-recognition")
+async def test_auto_confirm_recognition(state_id: str | None = None):
+    current = orchestrator.recognition_state.refresh(
+        vision=orchestrator.vision.status(),
+        recognition=orchestrator.recognition.status(),
+        catalog=orchestrator.catalog.status(),
+    )
+    if state_id and current.get("state_id") != state_id:
+        return {
+            "ok": False,
+            "error": "Recognition changed before Auto-add completed.",
+            "reason": "stale_recognition_state",
+            "expected_state_id": state_id,
+            "current_state_id": current.get("state_id"),
+        }
+    return await orchestrator.confirm_recognition(
+        automatic=True,
+        allow_unverified_test=True,
+    )
+
+@app.post("/api/session/reject-recognition")
+async def reject_recognition():
+    return await orchestrator.reject_recognition()
+
+@app.get("/api/session/status")
+async def session_status():
+    return {"ok": True, **(await orchestrator.session_snapshot())}
+
+@app.get("/api/session/export")
+async def session_export():
+    payload = orchestrator.sessions.export()
+    return Response(
+        content=json.dumps(payload, indent=2, ensure_ascii=False),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": 'attachment; filename="rareiq_session.json"',
+            "Cache-Control": "no-store",
+        },
+    )
+
 @app.post("/api/session/undo")
 async def undo(): return {"ok":True,"session":await orchestrator.undo()}
 @app.post("/api/session/close")

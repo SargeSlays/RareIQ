@@ -1,0 +1,17 @@
+{
+  "busy": true,
+  "phase": "IMPORTING",
+  "provider": "tcgdex",
+  "language": "English",
+  "set_id": "pl3",
+  "set_name": "Supreme Victors",
+  "sets_discovered": 1557,
+  "sets_completed": 48,
+  "sets_failed": 0,
+  "cards": 4932,
+  "images": 4748,
+  "coverage_percent": 96.27,
+  "started_at": 1783898909.996173,
+  "updated_at": 1783900155.8259003,
+  "errors": []
+}

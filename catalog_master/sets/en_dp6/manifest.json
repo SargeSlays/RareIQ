@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "dp6",
+  "set_name": "Legends Awakened",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 146,
+  "cards": 146,
+  "images": 146,
+  "coverage_percent": 100.0,
+  "imported_at": 1783900014.9231737,
+  "errors": []
+}

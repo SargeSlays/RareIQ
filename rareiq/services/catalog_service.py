@@ -149,9 +149,20 @@ class CatalogService:
         local_id = str(card.get("localId") or "")
         number = f"{local_id}/{denominator}" if denominator else local_id
 
+        raw_image = card.get("image")
+        image_url = None
+        if raw_image:
+            raw_image = str(raw_image).rstrip("/")
+            image_url = (
+                raw_image
+                if raw_image.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
+                else f"{raw_image}/high.webp"
+            )
+
         return {
             "id": card.get("id"),
             "name": card.get("name"),
+            "english_name": card.get("name") if language_code == "en" else None,
             "language_code": language_code,
             "collector_number": number,
             "local_id": local_id,
@@ -162,7 +173,9 @@ class CatalogService:
             "rarity": card.get("rarity"),
             "category": card.get("category"),
             "hp": card.get("hp"),
-            "image": card.get("image"),
+            "image": raw_image,
+            "image_url": image_url,
+            "reference_image_url": image_url,
             "pricing": cls._extract_price(card),
         }
 
@@ -243,13 +256,36 @@ class CatalogService:
                 seen.add(key)
                 deduped.append(card)
 
-            match = deduped[0] if len(deduped) == 1 else None
+            english_candidates = [
+                card for card in deduped if card.get("language_code") == "en"
+            ]
+            local_candidates = [
+                card for card in deduped if card.get("language_code") != "en"
+            ]
+
+            for card in local_candidates:
+                partner = next(
+                    (
+                        english
+                        for english in english_candidates
+                        if english.get("collector_number") == card.get("collector_number")
+                    ),
+                    None,
+                )
+                if partner:
+                    card["english_name"] = partner.get("name")
+                    card["english_image_url"] = partner.get("image_url")
+                    if not card.get("reference_image_url"):
+                        card["reference_image_url"] = partner.get("image_url")
+
+            ordered = local_candidates + english_candidates if local_candidates else english_candidates
+            match = ordered[0] if len(ordered) == 1 else None
             payload = {
                 "busy": False,
                 "source": source,
                 "query": {"language": language, "number": number, "name": name},
                 "match": match,
-                "candidates": deduped[:8],
+                "candidates": ordered[:8],
                 "latency_ms": round((time.perf_counter() - started) * 1000, 1),
                 "error": None,
                 "note": " | ".join(notes) if notes else None,

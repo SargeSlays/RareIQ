@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "gym1",
+  "set_name": "Gym Heroes",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 132,
+  "cards": 132,
+  "images": 132,
+  "coverage_percent": 100.0,
+  "imported_at": 1783898491.2812147,
+  "errors": []
+}

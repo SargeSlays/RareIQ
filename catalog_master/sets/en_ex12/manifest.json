@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "ex12",
+  "set_name": "Legend Maker",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 92,
+  "cards": 93,
+  "images": 93,
+  "coverage_percent": 100.0,
+  "imported_at": 1783899553.0358288,
+  "errors": []
+}

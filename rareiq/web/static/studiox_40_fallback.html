@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RareIQ Studio X</title>
+<link rel="stylesheet" href="/static/studiox.css">
+<link rel="stylesheet" href="/static/studiox_brand.css">
+<link rel="stylesheet" href="/static/studiox_polish.css">
+<link rel="stylesheet" href="/static/studiox_clarity.css">
+<link rel="stylesheet" href="/static/studiox_motion.css">
+<link rel="stylesheet" href="/static/studiox_adaptive.css">
+<link rel="stylesheet" href="/static/studiox_30.css">
+<link rel="stylesheet" href="/static/studiox_40.css">
+<script defer src="/static/studiox.js"></script>
+</head>
+<body>
+<div class="splash-screen" id="brandSplash">
+  <div class="splash-inner">
+    <img class="splash-logo" src="/static/brand/rareiq_full_transparent.png" alt="RareIQ">
+    <div class="splash-loader"><i></i></div>
+  </div>
+</div>
+</div>
+
+<header class="appbar">
+  <div class="brand">
+    <img class="brand-logo-image" src="/static/brand/rareiq_icon_transparent.png" alt="RareIQ">
+    <div class="brand-text">
+      <div class="brand-name">RAREIQ</div>
+      <span class="brand-subtitle">Studio X • Project Iron Vision</span>
+    </div>
+  </div>
+  <div class="system-status-strip">
+    <div class="state-chip" id="cameraStateChip"><i></i><span>CAMERA</span><b>OFFLINE</b></div>
+    <div class="state-chip" id="autoStateChip"><i></i><span>AUTO</span><b>ON</b></div>
+    <div class="state-chip" id="aiStateChip"><i></i><span>AI</span><b>IDLE</b></div>
+    <div class="state-chip optional" id="databaseStateChip"><i></i><span>DATABASE</span><b>READY</b></div>
+    <div class="state-chip optional" id="broadcastStateChip"><i></i><span>BROADCAST</span><b>OFF</b></div>
+  </div>
+  <div class="ai-pulse" id="aiPulse">
+    <strong id="aiPulseLabel">AI IDLE</strong>
+    <span class="ai-wave">
+      <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+    </span>
+  </div>
+  <div class="app-actions">
+    <span class="riq-pill" id="cameraStatus">CAMERA CHECKING</span>
+    <span class="riq-pill" id="fpsValue">FPS —</span>
+    <button class="riq-button" onclick="openProgram()">Program View</button>
+    <button class="riq-button primary">Next Pack</button>
+  </div>
+</header>
+
+<div class="toolbar">
+  <div class="command-group">
+    <span class="command-group-label">Camera</span>
+    <select id="cameraSelect" onchange="selectCamera()">
+      <option>Loading cameras…</option>
+    </select>
+    <button class="tool-button" onclick="loadCameraList()">Refresh</button>
+    <button class="tool-button" onclick="reconnectCamera()">Reconnect</button>
+    <button class="tool-button" onclick="startSelectedCamera()">Start</button>
+    <button class="tool-button" onclick="stopCamera()">Stop</button>
+  </div>
+
+  <div class="command-group">
+    <span class="command-group-label">Capture</span>
+    <button class="tool-button" onclick="captureCamera()">Capture</button>
+    <button class="auto-toggle on" id="autoCaptureToggle" onclick="toggleAutoCapture()">
+      <strong>AUTO</strong>
+      <span class="toggle-track"><i class="toggle-knob"></i></span>
+      <em id="autoCaptureLabel">ON</em>
+    </button>
+  </div>
+
+  <div class="command-group">
+    <span class="command-group-label">View</span>
+    <button class="camera-fit-toggle" onclick="openCameraPopout()">
+      <i></i><strong>POP OUT</strong>
+    </button>
+    <button class="camera-fit-toggle active" id="cameraFitToggle" onclick="cycleCameraFit()">
+      <i></i><strong id="cameraFitLabel">ADAPTIVE</strong>
+    </button>
+    <button class="camera-fit-toggle" id="cameraZoomToggle" onclick="toggleCardZoom()">
+      <i></i><strong>ZOOM CARD</strong>
+    </button>
+  </div>
+
+  <div class="toolbar-spacer"></div>
+  <span class="riq-pill" id="resolutionBadge">1080p</span>
+  <span class="riq-pill">Recognition Active</span>
+</div>
+
+<main class="workspace-stage">
+
+  <section class="workspace active" data-workspace="live">
+    <div class="live-shell">
+
+      <article class="riq-surface camera-workspace">
+        <div class="camera-stage-inner">
+          <div class="camera-placeholder" id="cameraPlaceholder">Waiting for camera feed</div>
+          <img id="cameraFeed" class="camera-feed" alt="">
+        </div>
+
+        <div id="scanZone" class="scan-zone">
+          <span class="scan-corner tr"></span>
+          <span class="scan-corner bl"></span>
+          <span class="scan-sweep"></span>
+        </div>
+        <img class="brand-watermark" src="/static/brand/rareiq_icon_transparent.png" alt="">
+
+        <div class="camera-top-hud">
+          <div class="camera-title">
+            <div class="core-indicator">
+              <span class="core-orb" id="coreOrb"></span>
+              <div>
+                <strong>RAREIQ CORE</strong>
+                <span class="brand-tag" id="coreLabel">IDLE</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="hud-stages">
+            <div class="hud-stage">
+              <span>Vision</span>
+              <div class="hud-bar"><i id="visionHudBar"></i></div>
+              <b id="visionHudValue">0%</b>
+            </div>
+            <div class="hud-stage">
+              <span>OCR</span>
+              <div class="hud-bar"><i id="ocrHudBar"></i></div>
+              <b id="ocrHudValue">0%</b>
+            </div>
+            <div class="hud-stage">
+              <span>Number</span>
+              <div class="hud-bar"><i id="collectorHudBar"></i></div>
+              <b id="collectorHudValue">0%</b>
+            </div>
+            <div class="hud-stage">
+              <span>Fusion</span>
+              <div class="hud-bar"><i id="fusionHudBar"></i></div>
+              <b id="fusionHudValue">0%</b>
+            </div>
+          </div>
+        </div>
+
+        <div class="camera-bottom-hud">
+          <div>
+            <strong id="aiState">WATCHING</strong>
+            <span id="aiDetail">Place a card inside the scan zone.</span>
+          </div>
+          <div class="camera-confidence" id="confidence">0%</div>
+        </div>
+      </article>
+
+      <aside class="riq-surface inspector">
+        <div class="capture-banner" id="captureBanner">
+          <div class="capture-banner-icon" id="captureBannerIcon">✓</div>
+          <div class="capture-banner-copy">
+            <strong id="captureBannerTitle">CAPTURE SAVED</strong>
+            <span id="captureBannerDetail">Saved successfully</span>
+          </div>
+        </div>
+        <div class="inspector-head">
+          <h2>Current Card</h2>
+          <span>Database Match</span>
+        </div>
+
+        <div class="recognition-state" id="recognitionStatePanel">
+          <strong id="recognitionStateLabel">IDLE</strong>
+          <span id="recognitionStateDetail">Waiting for a card</span>
+        </div>
+        <div class="inspector-empty" id="inspectorEmpty">
+          <div>
+            <img src="/static/brand/rareiq_icon_transparent.png" alt="">
+            <strong>Waiting for a card</strong>
+            <span>Database artwork and card intelligence will appear here.</span>
+            <div class="empty-intelligence">
+              <div><span>Session</span><b id="emptySessionCards">0 cards</b></div>
+              <div><span>Auto Capture</span><b id="emptyAutoState">ON</b></div>
+              <div><span>Database</span><b>READY</b></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="session-strip">
+          <div class="session-stat"><span>Cards</span><b id="sessionCards">0</b></div>
+          <div class="session-stat"><span>Hits</span><b id="sessionHits">0</b></div>
+          <div class="session-stat"><span>Value</span><b id="sessionValue">$0.00</b></div>
+          <div class="session-stat"><span>Accuracy</span><b id="sessionAccuracy">—</b></div>
+          <div class="session-stat"><span>Elapsed</span><b id="sessionElapsed">00:00</b></div>
+        </div>
+
+        <div class="copilot-card">
+          <div class="copilot-head">
+            <div class="copilot-title">
+              <img src="/static/brand/rareiq_icon_transparent.png" alt="">
+              <strong>RareIQ Copilot</strong>
+            </div>
+            <span class="copilot-badge" id="copilotBadge">STANDBY</span>
+          </div>
+          <div class="copilot-body" id="copilotBody">
+            Place a card in the scan zone. RareIQ will identify, verify, and explain what it finds.
+          </div>
+          <div class="copilot-actions">
+            <span class="copilot-chip">Recognition guidance</span>
+            <span class="copilot-chip">Market context</span>
+            <span class="copilot-chip">Operator recommendations</span>
+          </div>
+        </div>
+
+        <div class="inspector-main" id="inspectorMain" style="display:none">
+          <div class="card-showcase">
+            <div class="card-art" id="cardArt">
+              <span>Database artwork will appear here</span>
+            </div>
+          </div>
+
+          <div class="card-info">
+            <div class="eyebrow">Verified Candidate</div>
+            <h3 id="cardName">Ready to Scan</h3>
+            <p id="cardMeta">Set • Number • Language • Rarity</p>
+            <div class="card-value" id="cardValue">WAITING</div>
+            <div class="card-status" id="cardStatus">RECOGNITION READY</div>
+          </div>
+
+          <div class="market-grid">
+            <div class="market-card">
+              <span>RAW</span>
+              <b id="rawValue">—</b>
+            </div>
+            <div class="market-card">
+              <span>PSA 10</span>
+              <b id="psaValue">—</b>
+            </div>
+            <div class="market-card">
+              <span>POPULATION</span>
+              <b id="populationValue">—</b>
+            </div>
+          </div>
+        </div>
+
+        <div class="inspector-footer">
+          <div class="confidence-ring" id="confidenceRing" style="--confidence:0">
+            <div><b id="confidenceRingValue">0%</b><span>MATCH</span></div>
+          </div>
+          <div class="signal-list">
+            <div class="signal">
+              <span>Vision</span>
+              <div class="bar"><i id="visionBar"></i></div>
+              <b id="visionValue">0%</b>
+            </div>
+            <div class="signal">
+              <span>OCR</span>
+              <div class="bar"><i id="ocrBar"></i></div>
+              <b id="ocrValue">0%</b>
+            </div>
+            <div class="signal">
+              <span>Number</span>
+              <div class="bar"><i id="collectorBar"></i></div>
+              <b id="collectorValue">0%</b>
+            </div>
+            <div class="signal">
+              <span>Fusion</span>
+              <div class="bar"><i id="fusionBar"></i></div>
+              <b id="fusionValue">0%</b>
+            </div>
+          </div>
+
+          <div class="inspector-actions">
+            <button class="riq-button danger" id="rejectButton" onclick="operatorReject()">Reject</button>
+            <button class="riq-button primary" id="approveButton" onclick="operatorApprove()">Approve</button>
+            <button class="riq-button">Reaction</button>
+            <button class="riq-button" id="detailsButton" onclick="operatorDetails()">Details</button>
+            <button class="riq-button" onclick="openProgram()">Program</button>
+          </div>
+        </div>
+      </aside>
+
+      <section class="riq-surface dock">
+        <div class="dock-tabs">
+          <button class="dock-tab active" data-dock="thinking">Thinking</button>
+          <button class="dock-tab" data-dock="candidates">Candidates</button>
+          <button class="dock-tab" data-dock="ocr">OCR</button>
+          <button class="dock-tab" data-dock="session">Session</button>
+          <button class="dock-tab" data-dock="telemetry">Telemetry</button>
+          <button class="dock-tab" data-dock="recent">Recent Pulls</button>
+          <button class="dock-tab" data-dock="activity">Activity</button>
+          <button class="dock-collapse" id="dockToggle" onclick="toggleDock()">Collapse</button>
+        </div>
+
+        <div class="dock-content">
+
+          <div class="dock-panel active" data-panel="thinking">
+            <div class="pipeline">
+              <div class="process active" data-key="detect">
+                <b>Detect Card</b><span>Finding card region</span><div class="process-status"><i></i><b>Waiting</b></div><i></i>
+              </div>
+              <div class="process" data-key="prepare" data-alt="crop">
+                <b>Prepare Image</b><span>Crop and perspective</span><div class="process-status"><i></i><b>Waiting</b></div><i></i>
+              </div>
+              <div class="process" data-key="read" data-alt="ocr">
+                <b>Read Details</b><span>OCR and number</span><div class="process-status"><i></i><b>Waiting</b></div><i></i>
+              </div>
+              <div class="process" data-key="match" data-alt="artwork">
+                <b>Match Artwork</b><span>Search local references</span><div class="process-status"><i></i><b>Waiting</b></div><i></i>
+              </div>
+              <div class="process" data-key="verify">
+                <b>Verify</b><span>Fuse all signals</span><div class="process-status"><i></i><b>Waiting</b></div><i></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="dock-panel" data-panel="candidates">
+            <div class="dock-grid">
+              <div class="dock-card"><span>Candidate 1</span><b>Waiting</b></div>
+              <div class="dock-card"><span>Candidate 2</span><b>Waiting</b></div>
+              <div class="dock-card"><span>Candidate 3</span><b>Waiting</b></div>
+              <div class="dock-card"><span>Candidate 4</span><b>Waiting</b></div>
+              <div class="dock-card"><span>Candidate 5</span><b>Waiting</b></div>
+              <div class="dock-card"><span>Top Gap</span><b>—</b></div>
+            </div>
+          </div>
+
+          <div class="dock-panel" data-panel="ocr">
+            <div class="dock-grid">
+              <div class="dock-card"><span>Name</span><b>Waiting</b></div>
+              <div class="dock-card"><span>Number</span><b>Waiting</b></div>
+              <div class="dock-card"><span>HP</span><b>Waiting</b></div>
+              <div class="dock-card"><span>Language</span><b>Waiting</b></div>
+              <div class="dock-card"><span>Rarity</span><b>Waiting</b></div>
+              <div class="dock-card"><span>OCR Confidence</span><b>0%</b></div>
+            </div>
+          </div>
+
+          <div class="dock-panel" data-panel="session">
+            <div class="dock-grid">
+              <div class="dock-card"><span>Pack</span><b>1</b></div>
+              <div class="dock-card"><span>Cards</span><b id="cardsValue">0</b></div>
+              <div class="dock-card"><span>Hits</span><b id="hitsValue">0</b></div>
+              <div class="dock-card"><span>Session Value</span><b>$0.00</b></div>
+              <div class="dock-card"><span>Best Pull</span><b>$0.00</b></div>
+              <div class="dock-card"><span>Average Pack</span><b>$0.00</b></div>
+            </div>
+          </div>
+
+          <div class="dock-panel" data-panel="telemetry">
+            <div class="dock-grid">
+              <div class="dock-card"><span>Latency</span><b id="latencyValue">Idle</b></div>
+              <div class="dock-card"><span>FPS</span><b>—</b></div>
+              <div class="dock-card"><span>Visual Index</span><b>Ready</b></div>
+              <div class="dock-card"><span>OCR</span><b>Ready</b></div>
+              <div class="dock-card"><span>Queue</span><b>0</b></div>
+              <div class="dock-card"><span>GPU</span><b>Ready</b></div>
+            </div>
+          </div>
+
+          <div class="dock-panel" data-panel="recent">
+            <div class="dock-grid">
+              <div class="dock-card"><span>Last Pull</span><b>Waiting</b></div>
+              <div class="dock-card"><span>Previous</span><b>Waiting</b></div>
+              <div class="dock-card"><span>Best Pull</span><b>Waiting</b></div>
+              <div class="dock-card"><span>Latest Hit</span><b>Waiting</b></div>
+              <div class="dock-card"><span>Reaction</span><b>Default</b></div>
+              <div class="dock-card"><span>Clip Status</span><b>Idle</b></div>
+            </div>
+          </div>
+
+          <div class="dock-panel" data-panel="activity">
+            <div class="activity-feed" id="activityFeed">
+              <div class="activity-item">
+                <time>--:--:--</time>
+                <strong>RareIQ Ready</strong>
+                <span>Waiting for activity</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </div>
+  </section>
+
+  <section class="workspace" data-workspace="collection">
+    <div class="full-shell">
+      <aside class="riq-surface side-nav">
+        <button class="active">Recent Scans</button>
+        <button>Sessions</button>
+        <button>Boxes</button>
+        <button>Exports</button>
+      </aside>
+      <div class="riq-surface content">
+        <h2>Collection</h2>
+        <p>Inventory, scans, sessions, and exports.</p>
+        <div class="grid">
+          <div class="card"><h3>Recent Scans</h3><p>Review recognized cards.</p></div>
+          <div class="card"><h3>Sessions</h3><p>Reopen past ripping sessions.</p></div>
+          <div class="card"><h3>Exports</h3><p>Export inventory and reports.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="workspace" data-workspace="broadcast">
+    <div class="full-shell">
+      <aside class="riq-surface side-nav">
+        <button class="active">Program</button>
+        <button>Landscape</button>
+        <button>Portrait</button>
+        <button>Browser Sources</button>
+        <button>Virtual Camera</button>
+      </aside>
+      <div class="riq-surface content">
+        <h2>Broadcast</h2>
+        <p>Preview exactly what viewers see.</p>
+        <div class="preview-grid">
+          <div class="card">
+            <h3>Landscape</h3>
+            <div class="preview"><iframe src="/overlay/landscape"></iframe></div>
+          </div>
+          <div class="card">
+            <h3>Portrait</h3>
+            <div class="preview portrait"><iframe src="/overlay/portrait"></iframe></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="workspace" data-workspace="creator">
+    <div class="full-shell">
+      <aside class="riq-surface side-nav">
+        <button class="active">Brand</button>
+        <button>Overlays</button>
+        <button>Reactions</button>
+        <button>Themes</button>
+        <button>Sounds</button>
+      </aside>
+      <div class="riq-surface content">
+        <h2>Creator</h2>
+        <p>Branding, reactions, sounds, and themes.</p>
+        <div class="grid">
+          <div class="card"><h3>Brand Identity</h3><p>Channel name, logo, fonts, and colors.</p></div>
+          <div class="card"><h3>Reaction Rules</h3><p>Assign reactions to cards, groups, rarities, or defaults.</p></div>
+          <div class="card"><h3>Theme Engine</h3><p>Switch between official and custom themes.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="workspace" data-workspace="ai">
+    <div class="full-shell">
+      <aside class="riq-surface side-nav">
+        <button class="active">Recognition</button>
+        <button>OCR</button>
+        <button>Embeddings</button>
+        <button>Learning Queue</button>
+        <button>Benchmarks</button>
+      </aside>
+      <div class="riq-surface content">
+        <h2>AI Lab</h2>
+        <p>Recognition, OCR, candidate search, and diagnostics.</p>
+        <div class="grid">
+          <div class="card"><h3>Recognition Engine</h3><p>Inspect pipeline and fusion state.</p></div>
+          <div class="card"><h3>Learning Queue</h3><p>Review rejected and corrected scans.</p></div>
+          <div class="card"><h3>Benchmarks</h3><p>Measure recognition performance.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="workspace" data-workspace="library">
+    <div class="full-shell">
+      <aside class="riq-surface side-nav">
+        <button class="active">Overview</button>
+        <button>Metadata</button>
+        <button>Artwork</button>
+        <button>Indexes</button>
+        <button>Providers</button>
+        <button>Updates</button>
+      </aside>
+      <div class="riq-surface content">
+        <h2>Library</h2>
+        <p>Maintenance remains separate from Live.</p>
+        <div class="grid">
+          <div class="card">
+            <h3>Optimize Library</h3>
+            <p>Validate artwork and synchronize indexes.</p>
+            <button class="riq-button" onclick="maintenance('/api/library/optimize','Optimization')">Optimize</button>
+          </div>
+          <div class="card">
+            <h3>Index New Artwork</h3>
+            <p>Add only new references.</p>
+            <button class="riq-button" onclick="maintenance('/api/index/incremental','Indexing')">Index</button>
+          </div>
+          <div class="card">
+            <h3>Provider Check</h3>
+            <p>Test external sources.</p>
+            <button class="riq-button" onclick="maintenance('/api/providers/check','Provider check')">Run</button>
+          </div>
+        </div>
+        <p id="systemStatus">Library ready.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="workspace" data-workspace="settings">
+    <div class="full-shell">
+      <aside class="riq-surface side-nav">
+        <button class="active">Camera</button>
+        <button>Output</button>
+        <button>API Keys</button>
+        <button>Storage</button>
+        <button>Logs</button>
+        <button>Developer</button>
+      </aside>
+      <div class="riq-surface content">
+        <h2>Settings</h2>
+        <p>Camera, outputs, storage, and advanced configuration.</p>
+        <div class="grid">
+          <div class="card">
+            <h3>Program View</h3>
+            <p>Open the clean broadcast output.</p>
+            <button class="riq-button" onclick="openProgram()">Open</button>
+          </div>
+          <div class="card">
+            <h3>Studio 5.0.1</h3>
+            <p>Open the previous stable interface.</p>
+            <button class="riq-button" onclick="window.open('/studio501')">Open</button>
+          </div>
+          <div class="card">
+            <h3>Legacy Console</h3>
+            <p>Open engineering diagnostics.</p>
+            <button class="riq-button" onclick="window.open('/legacy-control')">Open</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<nav class="bottom-nav">
+  <button class="nav-button active" data-target="live">LIVE</button>
+  <button class="nav-button" data-target="collection">COLLECTION</button>
+  <button class="nav-button" data-target="broadcast">BROADCAST</button>
+  <button class="nav-button" data-target="creator">CREATOR</button>
+  <button class="nav-button" data-target="ai">AI LAB</button>
+  <button class="nav-button" data-target="library">LIBRARY</button>
+  <button class="nav-button" data-target="settings">SETTINGS</button>
+</nav>
+
+<div class="notification-stack" id="notificationStack"></div>
+
+<div class="shortcut-overlay" id="shortcutOverlay" onclick="shortcutBackdropClose(event)">
+  <div class="shortcut-panel">
+    <h2>RareIQ Keyboard Shortcuts</h2>
+    <p>Fast operator controls for live ripping and scanning.</p>
+    <div class="shortcut-grid">
+      <div class="shortcut-row"><span>Capture</span><kbd>SPACE</kbd></div>
+      <div class="shortcut-row"><span>Approve</span><kbd>A</kbd></div>
+      <div class="shortcut-row"><span>Reject</span><kbd>R</kbd></div>
+      <div class="shortcut-row"><span>Details</span><kbd>D</kbd></div>
+      <div class="shortcut-row"><span>Fullscreen Pop-Out</span><kbd>F</kbd></div>
+      <div class="shortcut-row"><span>Open Pop-Out</span><kbd>P</kbd></div>
+      <div class="shortcut-row"><span>Toggle Card Zoom</span><kbd>Z</kbd></div>
+      <div class="shortcut-row"><span>Shortcut Help</span><kbd>?</kbd></div>
+    </div>
+    <button class="shortcut-close" onclick="toggleShortcutOverlay(false)">Close</button>
+  </div>
+</div>
+</body>
+</html>

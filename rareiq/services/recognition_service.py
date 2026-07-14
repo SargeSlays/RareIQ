@@ -29,6 +29,7 @@ class RecognitionService:
         emit: Callable[[dict[str, Any]], None],
         database_path: Path | None = None,
     ) -> None:
+        self._shutdown_event = threading.Event()
         self.emit = emit
         self._lock = threading.Lock()
         self._engine: RapidOCR | None = None
@@ -49,6 +50,10 @@ class RecognitionService:
         self.artwork_index = ArtworkIndexService()
         self.set_catalog = SetCatalogService()
         self.live_catalog = LiveCatalogService(self.artwork_index)
+        self.global_visual_index: Any | None = None
+        self.vision_optimizer: Any | None = None
+        self.candidate_ranker: Any | None = None
+        self.recognition_diagnostics: Any | None = None
         active = self.set_catalog.active_set()
         if active:
             self.artwork_index.set_active_filter(
@@ -107,6 +112,30 @@ class RecognitionService:
             return json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             return []
+
+
+    def shutdown(self) -> None:
+        """Signal recognition workers to stop and wait briefly."""
+        self._shutdown_event.set()
+        worker = getattr(self, "_worker", None)
+        if worker and worker.is_alive():
+            worker.join(timeout=2.0)
+
+
+
+    def set_intelligence_services(
+        self,
+        vision_optimizer: Any,
+        candidate_ranker: Any,
+        recognition_diagnostics: Any,
+    ) -> None:
+        self.vision_optimizer = vision_optimizer
+        self.candidate_ranker = candidate_ranker
+        self.recognition_diagnostics = recognition_diagnostics
+
+    def set_global_visual_index(self, visual_index: Any) -> None:
+        self.global_visual_index = visual_index
+
 
     def status(self) -> dict[str, Any]:
         with self._lock:
@@ -308,7 +337,26 @@ class RecognitionService:
                     weight *= 2.2
                 votes[number] = votes.get(number, 0.0) + weight
 
-        return max(votes, key=votes.get) if votes else None
+        if not votes:
+            return None
+
+        winner = max(votes, key=votes.get)
+        left, right = winner.split("/", 1)
+
+        # Common OCR error on tiny foil numbers: 239/204 becomes 239/2040.
+        try:
+            left_value = int(left)
+            right_value = int(right)
+            if (
+                right_value >= 1000
+                and right.endswith("0")
+                and int(right[:-1]) >= left_value
+            ):
+                winner = f"{left}/{right[:-1]}"
+        except ValueError:
+            pass
+
+        return winner
 
     @staticmethod
     def _best_name(items: list[dict[str, Any]]) -> str | None:
@@ -526,6 +574,11 @@ class RecognitionService:
             pipeline_stages: list[dict[str, Any]] = []
 
             card = self._card_roi(frame)
+            quality_payload: dict[str, Any] = {}
+            if self.vision_optimizer is not None:
+                optimized_result = self.vision_optimizer.optimize(card)
+                card = optimized_result["image"]
+                quality_payload = optimized_result["quality"]
             pipeline_stages.append({
                 "key": "detect",
                 "label": "Card detected",
@@ -537,6 +590,19 @@ class RecognitionService:
                 "label": "Card crop prepared",
                 "state": "done",
             })
+
+            global_visual_result = (
+                self.global_visual_index.search_image(card, limit=15)
+                if self.global_visual_index is not None
+                else {"ok": False, "matches": [], "latency_ms": 0.0}
+            )
+            global_visual_candidates = list(
+                global_visual_result.get("matches") or []
+            )
+            global_visual_top_score = (
+                float(global_visual_candidates[0].get("score", 0.0))
+                if global_visual_candidates else 0.0
+            )
 
             artwork_started = time.perf_counter()
             artwork_result = self.artwork_index.search(
@@ -669,6 +735,7 @@ class RecognitionService:
             evidence_confidence = max(
                 float(db_confidence),
                 artwork_top_score,
+                global_visual_top_score,
             )
 
             overall_confidence, lock_reasons = (
@@ -683,27 +750,24 @@ class RecognitionService:
 
             visual_candidates = [
                 {
+                    "id": item.get("id"),
                     "name": (
                         item.get("name")
                         or item.get("printed_name")
-                        or "Artwork match"
+                        or "Visual match"
                     ),
                     "printed_name": item.get("printed_name"),
-                    "collector_number": item.get(
-                        "collector_number"
-                    ),
+                    "collector_number": item.get("collector_number"),
                     "language": item.get("language"),
                     "score": float(item.get("score", 0.0)),
-                    "source": "artwork_index",
+                    "source": item.get("source") or "global_visual_index",
                     "distance": item.get("distance"),
                     "set_name": item.get("set_name"),
-                    "reference_image_url": (
-                        f"/api/artwork-index/image/{item.get('id')}"
-                        if item.get("image_path") and item.get("id")
-                        else None
-                    ),
+                    "rarity": item.get("rarity"),
+                    "reference_image_url": item.get("reference_image_url"),
+                    "local_image": item.get("local_image"),
                 }
-                for item in artwork_candidates
+                for item in (global_visual_candidates + artwork_candidates)
             ]
 
             ocr_candidates: list[dict[str, Any]] = []
@@ -732,34 +796,74 @@ class RecognitionService:
                 })
 
             if name or validated_number:
+                provisional_score = max(
+                    0.40,
+                    min(
+                        0.78,
+                        float(ocr_confidence) * 0.65
+                        + (0.13 if validated_number else 0.0)
+                        + (0.05 if language != "Unknown" else 0.0),
+                    ),
+                )
                 ocr_candidates.append({
-                    "name": name or "Unknown card",
+                    "id": f"ocr:{validated_number or name}",
+                    "name": name or (
+                        f"Card {validated_number}"
+                        if validated_number
+                        else "Unknown card"
+                    ),
+                    "printed_name": name,
                     "collector_number": validated_number,
                     "language": language,
-                    "score": (
-                        0.55
-                        if validated_number
-                        else 0.35
-                    ),
-                    "source": "ocr",
+                    "score": round(provisional_score, 3),
+                    "source": "ocr_provisional",
+                    "provisional": True,
+                    "reference_image_url": "/api/camera/crop.jpg",
                 })
 
             combined_candidates = visual_candidates + ocr_candidates
-            for candidate in combined_candidates:
-                candidate["fused_score"] = self._score_candidate(
-                    candidate,
-                    name,
-                    validated_number,
-                    language,
-                )
 
-            candidates = sorted(
-                combined_candidates,
-                key=lambda candidate: float(
-                    candidate.get("fused_score", candidate.get("score", 0.0))
-                ),
-                reverse=True,
-            )[:10]
+            if self.candidate_ranker is not None:
+                candidates = self.candidate_ranker.rank(
+                    visual_candidates=combined_candidates,
+                    ocr_payload={
+                        "text": combined,
+                        "collector_number": validated_number,
+                        "language": language,
+                    },
+                    quality=quality_payload,
+                    limit=10,
+                )
+            else:
+                for candidate in combined_candidates:
+                    candidate["fused_score"] = self._score_candidate(
+                        candidate,
+                        name,
+                        validated_number,
+                        language,
+                    )
+                candidates = sorted(
+                    combined_candidates,
+                    key=lambda candidate: float(
+                        candidate.get(
+                            "fused_score",
+                            candidate.get("score", 0.0),
+                        )
+                    ),
+                    reverse=True,
+                )[:10]
+
+            diagnostics_payload: dict[str, Any] = {}
+            if self.recognition_diagnostics is not None:
+                diagnostics_payload = self.recognition_diagnostics.analyze(
+                    quality=quality_payload,
+                    candidates=candidates,
+                    ocr_payload={
+                        "text": combined,
+                        "collector_number": validated_number,
+                        "language": language,
+                    },
+                )
 
             pipeline_stages.append({
                 "key": "candidates",
@@ -767,17 +871,31 @@ class RecognitionService:
                 "state": "done" if candidates else "waiting",
             })
 
+            has_reference_evidence = bool(
+                db_match
+                or (
+                    global_visual_candidates
+                    and global_visual_top_score >= 0.70
+                )
+                or (
+                    artwork_candidates
+                    and artwork_top_score >= 0.70
+                    and artwork_candidates[0].get("image_path")
+                )
+            )
+
             recognition_locked = (
                 overall_confidence >= 0.72
                 and bool(validated_number)
                 and language != "Unknown"
+                and has_reference_evidence
             )
 
             verification_state = (
                 "VERIFIED"
                 if recognition_locked and candidates
-                else "LOCKED"
-                if recognition_locked
+                else "REFERENCE NEEDED"
+                if candidates and not has_reference_evidence
                 else "SEARCHING"
             )
 
@@ -796,6 +914,9 @@ class RecognitionService:
                     1,
                 ),
                 "stage_timings": {
+                    "global_visual_ms": float(
+                        global_visual_result.get("latency_ms", 0.0)
+                    ),
                     "artwork_search_ms": artwork_ms,
                     "ocr_ms": ocr_ms,
                     "total_ms": round(
@@ -826,6 +947,7 @@ class RecognitionService:
                 "correction_applied": correction_applied,
                 "overall_confidence": overall_confidence,
                 "recognition_locked": recognition_locked,
+                "has_reference_evidence": has_reference_evidence,
                 "verification_state": verification_state,
                 "pipeline_stages": pipeline_stages,
                 "lock_reason": (
@@ -835,6 +957,12 @@ class RecognitionService:
                 ),
                 "candidates": candidates,
                 "candidate_count": len(candidates),
+                "quality": quality_payload,
+                "diagnostics": diagnostics_payload,
+                "intelligence_version": "X7",
+                "provisional_candidate": bool(
+                    candidates and candidates[0].get("provisional")
+                ),
                 "artwork_fingerprint": fingerprint,
                 "active_set": self.set_catalog.status(),
                 "live_catalog": self.live_catalog.status(),

@@ -1,0 +1,332 @@
+
+/* RareIQ Studio X 2.2 — State Clarity */
+
+.appbar{
+  grid-template-columns:auto 1fr auto;
+}
+
+.system-status-strip{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:6px;
+  min-width:0;
+  overflow:hidden;
+}
+
+.state-chip{
+  height:26px;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:0 9px;
+  border-radius:999px;
+  color:#8499aa;
+  background:rgba(10,22,33,.78);
+  box-shadow:inset 0 0 0 1px rgba(112,153,184,.15);
+  font-size:8px;
+  letter-spacing:.04em;
+  white-space:nowrap;
+}
+
+.state-chip i{
+  width:6px;
+  height:6px;
+  flex:none;
+  border-radius:50%;
+  background:#536372;
+  box-shadow:0 0 6px rgba(83,99,114,.35);
+}
+
+.state-chip.on{
+  color:#baf7d7;
+  background:rgba(26,110,77,.13);
+  box-shadow:inset 0 0 0 1px rgba(57,227,154,.24);
+}
+
+.state-chip.on i{
+  background:var(--green);
+  box-shadow:0 0 9px rgba(57,227,154,.78);
+}
+
+.state-chip.working{
+  color:#bcefff;
+  background:rgba(28,102,133,.13);
+  box-shadow:inset 0 0 0 1px rgba(32,216,255,.22);
+}
+
+.state-chip.working i{
+  background:var(--cyan);
+  box-shadow:0 0 9px rgba(32,216,255,.78);
+  animation:statePulse .8s ease-in-out infinite alternate;
+}
+
+.state-chip.warning{
+  color:#ffe1a0;
+  background:rgba(133,91,21,.14);
+  box-shadow:inset 0 0 0 1px rgba(255,200,92,.23);
+}
+
+.state-chip.warning i{
+  background:var(--gold);
+  box-shadow:0 0 9px rgba(255,200,92,.65);
+}
+
+.state-chip.error{
+  color:#ffc0c8;
+  background:rgba(129,30,47,.15);
+  box-shadow:inset 0 0 0 1px rgba(255,99,114,.25);
+}
+
+.state-chip.error i{
+  background:var(--red);
+  box-shadow:0 0 9px rgba(255,99,114,.65);
+}
+
+@keyframes statePulse{
+  from{opacity:.45;transform:scale(.86)}
+  to{opacity:1;transform:scale(1.18)}
+}
+
+.auto-toggle{
+  height:30px;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:0 10px;
+  border:0;
+  border-radius:8px;
+  color:#9cafbf;
+  background:transparent;
+  cursor:pointer;
+  box-shadow:inset 0 0 0 1px transparent;
+}
+
+.auto-toggle:hover{
+  background:var(--surface-2);
+}
+
+.auto-toggle .toggle-track{
+  position:relative;
+  width:34px;
+  height:18px;
+  border-radius:99px;
+  background:#263746;
+  box-shadow:inset 0 0 0 1px rgba(132,164,190,.18);
+  transition:.18s ease;
+}
+
+.auto-toggle .toggle-knob{
+  position:absolute;
+  width:14px;
+  height:14px;
+  left:2px;
+  top:2px;
+  border-radius:50%;
+  background:#7b8c9a;
+  box-shadow:0 1px 5px rgba(0,0,0,.45);
+  transition:.18s ease;
+}
+
+.auto-toggle.on{
+  color:#d7ffec;
+  background:rgba(31,120,85,.10);
+  box-shadow:inset 0 0 0 1px rgba(57,227,154,.18);
+}
+
+.auto-toggle.on .toggle-track{
+  background:linear-gradient(90deg,#168c64,#32d898);
+  box-shadow:0 0 10px rgba(57,227,154,.20);
+}
+
+.auto-toggle.on .toggle-knob{
+  left:18px;
+  background:white;
+}
+
+.auto-toggle strong{
+  font-size:8px;
+  letter-spacing:.06em;
+}
+
+.auto-toggle em{
+  min-width:20px;
+  color:inherit;
+  font-style:normal;
+  font-size:8px;
+  font-weight:800;
+}
+
+.capture-banner{
+  display:none;
+  position:absolute;
+  z-index:20;
+  left:12px;
+  right:12px;
+  top:42px;
+  min-height:48px;
+  align-items:center;
+  gap:10px;
+  padding:9px 12px;
+  border-radius:10px;
+  background:linear-gradient(110deg,rgba(12,38,34,.97),rgba(7,23,32,.97));
+  box-shadow:
+    0 14px 32px rgba(0,0,0,.30),
+    inset 0 0 0 1px rgba(57,227,154,.28),
+    0 0 20px rgba(57,227,154,.10);
+  animation:bannerIn .2s ease both;
+}
+
+.capture-banner.visible{
+  display:flex;
+}
+
+.capture-banner.error{
+  background:linear-gradient(110deg,rgba(53,16,24,.97),rgba(20,14,22,.97));
+  box-shadow:
+    0 14px 32px rgba(0,0,0,.30),
+    inset 0 0 0 1px rgba(255,99,114,.30),
+    0 0 20px rgba(255,99,114,.10);
+}
+
+.capture-banner-icon{
+  width:29px;
+  height:29px;
+  display:grid;
+  place-items:center;
+  flex:none;
+  border-radius:50%;
+  color:#062017;
+  background:var(--green);
+  font-size:16px;
+  font-weight:900;
+  box-shadow:0 0 13px rgba(57,227,154,.45);
+}
+
+.capture-banner.error .capture-banner-icon{
+  color:#2a050b;
+  background:var(--red);
+  box-shadow:0 0 13px rgba(255,99,114,.42);
+}
+
+.capture-banner-copy{
+  min-width:0;
+}
+
+.capture-banner-copy strong{
+  display:block;
+  font-size:11px;
+}
+
+.capture-banner-copy span{
+  display:block;
+  margin-top:3px;
+  color:#91a7b8;
+  font-size:8px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+@keyframes bannerIn{
+  from{opacity:0;transform:translateY(-6px)}
+  to{opacity:1;transform:translateY(0)}
+}
+
+.inspector{
+  position:relative;
+}
+
+.recognition-state{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-bottom:7px;
+  padding:7px 8px;
+  border-radius:8px;
+  background:rgba(9,20,30,.76);
+  box-shadow:inset 0 0 0 1px rgba(107,149,183,.13);
+}
+
+.recognition-state strong{
+  font-size:8px;
+  letter-spacing:.07em;
+}
+
+.recognition-state span{
+  color:#8399aa;
+  font-size:7px;
+}
+
+.recognition-state.searching strong{
+  color:var(--cyan);
+}
+
+.recognition-state.matched strong,
+.recognition-state.captured strong{
+  color:var(--green);
+}
+
+.recognition-state.error strong{
+  color:var(--red);
+}
+
+.activity-feed{
+  height:100%;
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:6px;
+}
+
+.activity-item{
+  min-width:0;
+  padding:8px;
+  border-radius:8px;
+  background:rgba(14,27,39,.72);
+  box-shadow:inset 0 0 0 1px var(--line);
+}
+
+.activity-item time{
+  display:block;
+  color:#637a8e;
+  font:700 7px/1 "JetBrains Mono",monospace;
+}
+
+.activity-item strong{
+  display:block;
+  margin-top:5px;
+  overflow:hidden;
+  color:#dce7ef;
+  font-size:8px;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.activity-item span{
+  display:block;
+  margin-top:3px;
+  overflow:hidden;
+  color:#7e94a6;
+  font-size:7px;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+@media(max-width:1420px){
+  .state-chip.optional{
+    display:none;
+  }
+  .system-status-strip{
+    gap:4px;
+  }
+}
+
+@media(max-width:1200px){
+  .state-chip span{
+    display:none;
+  }
+  .state-chip{
+    padding:0 8px;
+  }
+}

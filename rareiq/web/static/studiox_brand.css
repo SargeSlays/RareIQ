@@ -1,0 +1,207 @@
+
+:root{
+  --cyan:#20d8ff;
+  --blue:#347bff;
+  --purple:#7b4dff;
+  --magenta:#d93dff;
+  --brand-gradient:linear-gradient(110deg,var(--cyan) 0%,var(--blue) 33%,var(--purple) 66%,var(--magenta) 100%);
+  --brand-gradient-soft:linear-gradient(110deg,rgba(32,216,255,.18),rgba(52,123,255,.13),rgba(123,77,255,.14),rgba(217,61,255,.17));
+  --brand-glow:0 0 18px rgba(32,216,255,.14),0 0 34px rgba(217,61,255,.08);
+}
+body{
+  background:
+    radial-gradient(circle at 18% 0%,rgba(32,216,255,.07),transparent 27%),
+    radial-gradient(circle at 82% 0%,rgba(217,61,255,.07),transparent 31%),
+    #03070c;
+}
+body:after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;opacity:.18;
+  background-image:
+    linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);
+  background-size:34px 34px;
+  mask-image:linear-gradient(to bottom,rgba(0,0,0,.8),transparent 80%);
+}
+.appbar{
+  background:linear-gradient(90deg,rgba(3,8,13,.98),rgba(7,11,20,.98));
+}
+.brand-logo-image{
+  width:37px;height:37px;object-fit:contain;
+  filter:drop-shadow(0 0 8px rgba(32,216,255,.5)) drop-shadow(0 0 11px rgba(217,61,255,.28));
+  animation:brandBreath 3.6s ease-in-out infinite;
+}
+.brand-wordmark{
+  height:24px;max-width:170px;object-fit:contain;
+  filter:drop-shadow(0 0 7px rgba(32,216,255,.22));
+}
+@keyframes brandBreath{
+  0%,100%{filter:drop-shadow(0 0 7px rgba(32,216,255,.38)) drop-shadow(0 0 9px rgba(217,61,255,.18))}
+  50%{filter:drop-shadow(0 0 13px rgba(32,216,255,.68)) drop-shadow(0 0 17px rgba(217,61,255,.38))}
+}
+.riq-surface{
+  background:
+    linear-gradient(180deg,rgba(10,22,34,.94),rgba(5,13,22,.97));
+  box-shadow:
+    0 18px 46px rgba(0,0,0,.34),
+    inset 0 0 0 1px rgba(97,150,204,.15),
+    inset 0 1px 0 rgba(255,255,255,.025);
+}
+.riq-surface:where(.inspector,.dock){
+  position:relative;
+}
+.riq-surface:where(.inspector,.dock):before{
+  content:"";position:absolute;left:14px;right:14px;top:0;height:1px;
+  background:var(--brand-gradient);opacity:.42;
+}
+.riq-button.primary{
+  background:var(--brand-gradient);
+  color:white;box-shadow:0 0 15px rgba(52,123,255,.22),inset 0 0 0 1px rgba(255,255,255,.22);
+}
+.riq-button.primary:hover{filter:brightness(1.12)}
+.nav-button.active,.dock-tab.active{
+  background:var(--brand-gradient-soft)!important;
+  color:#fff!important;
+  box-shadow:inset 0 0 0 1px rgba(100,160,255,.21),var(--brand-glow)!important;
+}
+.camera-workspace{
+  box-shadow:
+    0 20px 54px rgba(0,0,0,.36),
+    inset 0 0 0 1px rgba(46,154,231,.22);
+}
+.scan-zone:before,.scan-zone:after{
+  filter:drop-shadow(0 0 7px rgba(32,216,255,.58));
+}
+.hud-stages,.camera-title,.camera-bottom-hud{
+  background:linear-gradient(120deg,rgba(3,9,17,.83),rgba(9,10,24,.78));
+  box-shadow:inset 0 0 0 1px rgba(87,143,218,.16),var(--brand-glow);
+}
+.card-art{
+  box-shadow:inset 0 0 0 1px rgba(82,137,202,.18),0 0 22px rgba(93,63,228,.05);
+}
+.card-info .eyebrow,.camera-confidence{
+  background:var(--brand-gradient);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.core-indicator{
+  display:flex;align-items:center;gap:9px;
+}
+.core-orb{
+  width:25px;height:25px;border-radius:50%;position:relative;flex:none;
+  background:
+    radial-gradient(circle at 50% 50%,rgba(255,255,255,.95) 0 4%,rgba(217,61,255,.85) 7%,rgba(123,77,255,.55) 22%,rgba(52,123,255,.26) 44%,transparent 66%);
+  box-shadow:0 0 14px rgba(52,123,255,.55),0 0 25px rgba(217,61,255,.28);
+}
+.core-orb:before,.core-orb:after{
+  content:"";position:absolute;border-radius:50%;inset:2px;
+  border:1px solid rgba(32,216,255,.72);
+  animation:coreSpin 3s linear infinite;
+}
+.core-orb:after{
+  inset:6px;border-color:rgba(217,61,255,.72);
+  animation-direction:reverse;animation-duration:1.8s;
+}
+.core-orb.scanning{animation:corePulse .8s ease-in-out infinite alternate}
+.core-orb.matched{box-shadow:0 0 18px rgba(57,227,154,.65),0 0 32px rgba(32,216,255,.35)}
+.core-orb.complete{box-shadow:0 0 20px rgba(217,61,255,.74),0 0 38px rgba(123,77,255,.48)}
+@keyframes coreSpin{to{transform:rotate(360deg)}}
+@keyframes corePulse{from{transform:scale(.92)}to{transform:scale(1.08)}}
+.brand-tag{
+  font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:#9bb4c9;
+}
+.splash-screen{
+  position:fixed;inset:0;z-index:5000;display:grid;place-items:center;
+  background:
+    radial-gradient(circle at center,rgba(40,34,112,.24),transparent 36%),
+    linear-gradient(135deg,#010409,#030711 55%,#07020d);
+  transition:opacity .45s ease,visibility .45s ease;
+}
+.splash-screen.hidden{opacity:0;visibility:hidden}
+.splash-inner{text-align:center}
+.splash-logo{
+  width:min(420px,62vw);max-height:390px;object-fit:contain;
+  filter:drop-shadow(0 0 24px rgba(32,216,255,.38)) drop-shadow(0 0 30px rgba(217,61,255,.28));
+  animation:splashFloat 2.6s ease-in-out infinite;
+}
+.splash-title{
+  margin-top:-35px;font-size:12px;letter-spacing:.32em;color:#c5d5e4;text-transform:uppercase;
+}
+.splash-loader{
+  width:270px;height:3px;margin:19px auto 0;border-radius:99px;background:#111b29;overflow:hidden;
+}
+.splash-loader i{
+  display:block;width:42%;height:100%;background:var(--brand-gradient);
+  animation:splashLoad 1.3s ease-in-out infinite;
+}
+@keyframes splashFloat{50%{transform:translateY(-8px)}}
+@keyframes splashLoad{0%{transform:translateX(-110%)}100%{transform:translateX(280%)}}
+.brand-watermark{
+  position:absolute;right:17px;bottom:56px;width:42px;height:42px;object-fit:contain;
+  opacity:.19;filter:drop-shadow(0 0 8px rgba(87,110,255,.25));pointer-events:none;
+}
+.status-spectrum{
+  height:2px;background:var(--brand-gradient);opacity:.64;
+}
+
+.splash-logo{
+  width:min(560px,72vw);
+  max-height:480px;
+}
+.splash-title{
+  margin-top:-52px;
+  font-size:10px;
+  letter-spacing:.34em;
+}
+.splash-boot{
+  margin-top:13px;
+  color:#7f96aa;
+  font-size:9px;
+  letter-spacing:.08em;
+}
+.splash-loader{
+  width:min(340px,58vw);
+  margin-top:16px;
+}
+
+/* Studio X 2.4.1 — Clean loading screen */
+.splash-screen{
+  background:
+    radial-gradient(circle at center,rgba(44,40,120,.20),transparent 34%),
+    linear-gradient(135deg,#010409,#040713 58%,#09020d);
+}
+.splash-inner{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+}
+.splash-logo{
+  width:min(520px,68vw);
+  max-height:430px;
+  object-fit:contain;
+  margin:0;
+  filter:
+    drop-shadow(0 0 22px rgba(32,216,255,.36))
+    drop-shadow(0 0 30px rgba(217,61,255,.26));
+  animation:splashFloat 2.6s ease-in-out infinite;
+}
+.splash-title,
+.splash-boot{
+  display:none!important;
+}
+.splash-loader{
+  width:min(300px,50vw);
+  height:3px;
+  margin:10px auto 0;
+  border-radius:999px;
+  background:rgba(255,255,255,.07);
+  overflow:hidden;
+  box-shadow:0 0 14px rgba(73,108,255,.08);
+}
+.splash-loader i{
+  display:block;
+  width:40%;
+  height:100%;
+  background:linear-gradient(90deg,#20d8ff,#347bff,#7b4dff,#d93dff);
+  box-shadow:0 0 10px rgba(123,77,255,.34);
+  animation:splashLoad 1.2s ease-in-out infinite;
+}

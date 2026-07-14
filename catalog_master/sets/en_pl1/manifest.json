@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "pl1",
+  "set_name": "Platinum",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 127,
+  "cards": 133,
+  "images": 133,
+  "coverage_percent": 100.0,
+  "imported_at": 1783900104.252016,
+  "errors": []
+}

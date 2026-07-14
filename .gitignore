@@ -1,26 +1,2 @@
-# Python
-.venv/
-venv/
-*.py[cod]
-*.pyc
-*.pyo
-*.pyd
-**/__pycache__/
-
-# Runtime data
-captures/
-grading_captures/
-catalog_cache/
-logs/
-temp/
-
-# Environment
-.env
-.env.*
-
-# IDE
-.vscode/
-.idea/
-
-Thumbs.db
 rareiq_secrets.json
+grading_captures/

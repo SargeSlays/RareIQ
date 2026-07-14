@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "ex15",
+  "set_name": "Dragon Frontiers",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 101,
+  "cards": 101,
+  "images": 101,
+  "coverage_percent": 100.0,
+  "imported_at": 1783899684.1691682,
+  "errors": []
+}

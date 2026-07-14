@@ -1,0 +1,14 @@
+{
+  "catalog_format": "RareIQ Master Catalog v1",
+  "provider": "TCGdex",
+  "set_id": "ex5",
+  "set_name": "Hidden Legends",
+  "language": "English",
+  "language_code": "en",
+  "official_count": 101,
+  "cards": 102,
+  "images": 102,
+  "coverage_percent": 100.0,
+  "imported_at": 1783899239.3153636,
+  "errors": []
+}
