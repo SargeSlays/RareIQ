@@ -103,7 +103,8 @@ class BootManagerService:
                     )
                     camera_ready = (
                         camera_status.get("manager", {}).get("state") == "running"
-                        and bool(camera_status.get("vision", {}).get("visible"))
+                        and bool(camera_status.get("vision", {}).get("running"))
+                        and bool(camera_status.get("vision", {}).get("frame_available", True))
                     )
 
                     if camera_ready:

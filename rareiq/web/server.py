@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 import asyncio
 import json
 import os
@@ -162,7 +162,14 @@ DEMO_CARDS = {
 }
 
 @app.on_event("startup")
-async def startup(): orchestrator.set_loop(asyncio.get_running_loop())
+async def startup():
+    orchestrator.set_loop(asyncio.get_running_loop())
+
+    async def boot_in_background() -> None:
+        await asyncio.sleep(0.15)
+        await asyncio.to_thread(orchestrator.boot_manager.run, False)
+
+    asyncio.create_task(boot_in_background())
 
 @app.on_event("shutdown")
 async def shutdown(): orchestrator.vision.stop()
@@ -757,9 +764,21 @@ async def catalog_engine_image(set_folder: str, filename: str):
 
 
 def _live_frame_heartbeat():
-    """Return a lightweight heartbeat for the latest live camera frame."""
+    """Return the real frame heartbeat published by VisionService."""
     try:
-        frame = orchestrator.vision.latest_frame()
+        status = orchestrator.camera_manager.status()
+        vision = status.get("vision") or {}
+        frame_available = bool(vision.get("frame_available"))
+        return {
+            "frame_available": frame_available,
+            "frame_id": vision.get("frame_id"),
+            "frame_timestamp": vision.get("frame_timestamp"),
+            "frame_shape": vision.get("frame_shape"),
+            "frame_error": vision.get("error"),
+            "camera_running": bool(vision.get("running")),
+            "camera_name": vision.get("camera_name"),
+            "manager_state": (status.get("manager") or {}).get("state"),
+        }
     except Exception as exc:
         return {
             "frame_available": False,
@@ -767,25 +786,10 @@ def _live_frame_heartbeat():
             "frame_timestamp": None,
             "frame_shape": None,
             "frame_error": str(exc),
+            "camera_running": False,
+            "camera_name": None,
+            "manager_state": "error",
         }
-
-    if frame is None or getattr(frame, "size", 0) == 0:
-        return {
-            "frame_available": False,
-            "frame_id": None,
-            "frame_timestamp": None,
-            "frame_shape": None,
-            "frame_error": None,
-        }
-
-    timestamp = time.time()
-    return {
-        "frame_available": True,
-        "frame_id": int(timestamp * 1000),
-        "frame_timestamp": timestamp,
-        "frame_shape": list(getattr(frame, "shape", [])),
-        "frame_error": None,
-    }
 
 @app.get("/api/pipeline/frame-heartbeat")
 async def pipeline_frame_heartbeat():

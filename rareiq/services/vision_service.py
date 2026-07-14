@@ -24,6 +24,8 @@ class VisionService:
         self._latest_jpeg: bytes | None = None
         self._latest_frame: np.ndarray | None = None
         self._latest_crop: np.ndarray | None = None
+        self._frame_id = 0
+        self._latest_frame_at: float | None = None
         self._selected_camera: dict[str, Any] | None = None
 
         self._auto_capture_enabled = True
@@ -33,6 +35,10 @@ class VisionService:
 
         self._status: dict[str, Any] = {
             "running": False,
+            "frame_available": False,
+            "frame_id": None,
+            "frame_timestamp": None,
+            "frame_shape": None,
             "camera_index": None,
             "camera_name": None,
             "camera_backend": None,
@@ -322,8 +328,19 @@ class VisionService:
                 break
 
             clean_frame = frame.copy()
+            frame_timestamp = time.time()
             with self._lock:
                 self._latest_frame = clean_frame
+                self._frame_id += 1
+                self._latest_frame_at = frame_timestamp
+                self._status.update(
+                    {
+                        "frame_available": True,
+                        "frame_id": self._frame_id,
+                        "frame_timestamp": frame_timestamp,
+                        "frame_shape": list(clean_frame.shape),
+                    }
+                )
 
             crop, polygon = self._detect(frame)
             visible = bool(polygon)
