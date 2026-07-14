@@ -803,7 +803,7 @@ async def mission_control():
             "manager": camera.get("manager"),
             "vision": camera.get("vision"),
         },
-        "trigger": orchestrator.recognition_trigger_status(),
+        "trigger": orchestrator.trigger_manager.status(),
         "pipeline": orchestrator.pipeline_state.snapshot(),
         "recognition": {
             "enabled": recognition.get("enabled"),
@@ -820,6 +820,15 @@ async def mission_control():
             "error": recognition.get("error"),
             "updated_at": recognition.get("updated_at"),
         },
+    }
+
+
+@app.get("/api/trigger/status")
+async def trigger_status():
+    return {
+        "ok": True,
+        "trigger": orchestrator.trigger_manager.status(),
+        "pipeline": orchestrator.pipeline_state.snapshot(),
     }
 
 @app.get("/api/pipeline/frame-heartbeat")

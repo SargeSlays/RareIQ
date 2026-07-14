@@ -17,6 +17,7 @@ from rareiq.services.camera_manager_service import CameraManagerService
 from rareiq.services.boot_manager_service import BootManagerService
 from rareiq.services.backend_test_service import BackendTestService
 from rareiq.services.pipeline_state_service import PipelineStateService
+from rareiq.services.trigger_manager_service import TriggerManagerService
 from rareiq.services.recognition_service import RecognitionService
 from rareiq.services.catalog_service import CatalogService
 from rareiq.services.cardgrader_service import CardGraderService
@@ -85,6 +86,12 @@ class RareIQOrchestrator:
             cache_dir / "diagnostics",
         )
         self.recognition = RecognitionService(self._emit_from_thread)
+        self.trigger_manager = TriggerManagerService(
+            self.vision,
+            self.recognition,
+            self.pipeline_state,
+        )
+        self.trigger_manager.start()
         self.catalog = CatalogService(self._emit_from_thread, cache_dir / "catalog")
         self.cardgrader = CardGraderService(storage.get_path("grading_path"))
 
@@ -181,6 +188,7 @@ class RareIQOrchestrator:
         self._shutting_down = True
 
         services = (
+            getattr(self, "trigger_manager", None),
             getattr(self, "system_health", None),
             getattr(self, "job_queue", None),
             getattr(self, "index_activation", None),
