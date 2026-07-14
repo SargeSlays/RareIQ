@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 import asyncio
 import json
 import os
@@ -170,7 +170,7 @@ async def shutdown(): orchestrator.vision.stop()
 @app.get("/")
 async def root():
     return HTMLResponse(
-        f'<h1>RareIQ v{VERSION} — {CODENAME}</h1>'
+        f'<h1>RareIQ v{VERSION} â€” {CODENAME}</h1>'
         '<p><a href="/control">Open RareIQ Operator Console</a></p>'
         '<p><a href="/about">Build diagnostics</a></p>',
         headers={"Cache-Control": "no-store"},
@@ -754,6 +754,28 @@ async def catalog_engine_image(set_folder: str, filename: str):
     return FileResponse(path)
 
 
+
+@app.get("/api/pipeline/state")
+async def pipeline_state():
+    snapshot = await asyncio.to_thread(
+        orchestrator.backend_test.runtime_snapshot
+    )
+    state = orchestrator.pipeline_state.sync_from_runtime(
+        camera=snapshot.get("camera"),
+        recognition=snapshot.get("recognition"),
+        current_card=snapshot.get("current_card"),
+    )
+    return {
+        "ok": True,
+        "pipeline": state,
+    }
+
+@app.post("/api/pipeline/reset")
+async def pipeline_reset():
+    return {
+        "ok": True,
+        "pipeline": orchestrator.pipeline_state.reset(),
+    }
 @app.get("/api/runtime/snapshot")
 async def runtime_snapshot():
     return await asyncio.to_thread(
@@ -1214,7 +1236,7 @@ def run():
     print()
     print("=" * 58)
     print("RareIQ Vision")
-    print(f"Version {VERSION} — {CODENAME}")
+    print(f"Version {VERSION} â€” {CODENAME}")
     print(f"Build {BUILD_DATE}")
     print("Project Digital Jazz")
     print("=" * 58)
@@ -1227,3 +1249,4 @@ def run():
         port=8765,
         reload=False,
     )
+

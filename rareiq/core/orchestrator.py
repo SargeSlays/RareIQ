@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 import asyncio
 import time
 import cv2
@@ -16,6 +16,7 @@ from rareiq.services.vision_service import VisionService
 from rareiq.services.camera_manager_service import CameraManagerService
 from rareiq.services.boot_manager_service import BootManagerService
 from rareiq.services.backend_test_service import BackendTestService
+from rareiq.services.pipeline_state_service import PipelineStateService
 from rareiq.services.recognition_service import RecognitionService
 from rareiq.services.catalog_service import CatalogService
 from rareiq.services.cardgrader_service import CardGraderService
@@ -71,6 +72,7 @@ class RareIQOrchestrator:
         # Compatibility alias: legacy recognition code continues using .vision.
         self.vision = self.camera_manager
         self.boot_manager = BootManagerService(self)
+        self.pipeline_state = PipelineStateService()
         self.backend_test = BackendTestService(
             self,
             cache_dir / "diagnostics",
@@ -449,3 +451,4 @@ class RareIQOrchestrator:
         s, removed = self.sessions.undo(); await self.publish("session_updated", {"session": s, "removed": removed}); return s
     async def close_session(self):
         s = self.sessions.close(); await self.publish("session_closed", {"session": s}); return s
+
