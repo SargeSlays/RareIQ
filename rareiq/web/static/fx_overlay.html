@@ -1,10 +1,12 @@
-<!doctype html><html><head><meta charset="utf-8"><style>
+﻿<!doctype html><html><head><meta charset="utf-8"><style>
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}
 #fx{position:absolute;inset:0;opacity:0}
 #title{position:absolute;left:0;right:0;top:43%;text-align:center;color:white;font:900 clamp(34px,8vw,110px)/1 Arial;letter-spacing:.12em;text-shadow:0 0 30px #5cecff}
 .active{animation:life var(--duration) ease-out forwards;background:radial-gradient(circle at center,transparent 20%,rgba(65,224,255,.5))}
 @keyframes life{0%{opacity:0}10%{opacity:1}75%{opacity:.85}100%{opacity:0}}
-</style></head><body>
+</style>    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"></head><body>
 <div id="fx"><div id="title"></div></div>
 <script src="/static/common.js"></script><script>
 const fx=document.getElementById("fx"),title=document.getElementById("title");
@@ -16,3 +18,4 @@ connectRareIQ(m=>{
   fx.classList.add("active");
 });
 </script></body></html>
+

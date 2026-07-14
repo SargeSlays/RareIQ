@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -18,12 +18,14 @@ a{color:#72eaff}
 pre{background:#05080d;border-radius:12px;padding:14px;overflow:auto}
 @media(max-width:700px){.grid{grid-template-columns:1fr}}
 </style>
-</head>
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"></head>
 <body>
 <main>
 <div class="panel">
 <h1>RareIQ Build Diagnostics</h1>
-<p><a href="/control">← Back to Operator Dashboard</a></p>
+<p><a href="/control">â† Back to Operator Dashboard</a></p>
 <div class="grid">
 <div class="card"><span class="label">VERSION</span><span class="value">X.1</span></div>
 <div class="card"><span class="label">CODENAME</span><span class="value">Professional Operator Console</span></div>
@@ -31,11 +33,11 @@ pre{background:#05080d;border-radius:12px;padding:14px;overflow:auto}
 <div class="card"><span class="label">PROJECT</span><span class="value">Project Digital Jazz</span></div>
 <div class="card"><span class="label">OCR ENGINE</span><span class="value">RapidOCR</span></div>
 <div class="card"><span class="label">CATALOG</span><span class="value">TCGdex</span></div>
-<div class="card"><span class="label">CAMERA</span><span id="camera" class="value">Loading…</span></div>
+<div class="card"><span class="label">CAMERA</span><span id="camera" class="value">Loadingâ€¦</span></div>
 <div class="card"><span class="label">SERVER</span><span class="value">12X.1.1:8765</span></div>
 </div>
 <h2>Live version payload</h2>
-<pre id="payload">Loading…</pre>
+<pre id="payload">Loadingâ€¦</pre>
 </div>
 </main>
 <script>
@@ -52,3 +54,4 @@ fetch("/api/version",{cache:"no-store"})
 </script>
 </body>
 </html>
+

@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -12,7 +12,9 @@
 <link rel="stylesheet" href="/static/studiox_adaptive.css">
 <link rel="stylesheet" href="/static/studiox_30.css">
 <script defer src="/static/studiox.js"></script>
-</head>
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"></head>
 <body>
 <div class="splash-screen" id="brandSplash">
   <div class="splash-inner">
@@ -27,7 +29,7 @@
     <img class="brand-logo-image" src="/static/brand/rareiq_icon_transparent.png" alt="RareIQ">
     <div class="brand-text">
       <div class="brand-name">RAREIQ</div>
-      <span class="brand-subtitle">Studio X • Project Iron Vision</span>
+      <span class="brand-subtitle">Studio X â€¢ Project Iron Vision</span>
     </div>
   </div>
   <div class="system-status-strip">
@@ -39,7 +41,7 @@
   </div>
   <div class="app-actions">
     <span class="riq-pill" id="cameraStatus">CAMERA CHECKING</span>
-    <span class="riq-pill" id="fpsValue">FPS —</span>
+    <span class="riq-pill" id="fpsValue">FPS â€”</span>
     <button class="riq-button" onclick="openProgram()">Program View</button>
     <button class="riq-button primary">Next Pack</button>
   </div>
@@ -49,7 +51,7 @@
   <div class="command-group">
     <span class="command-group-label">Camera</span>
     <select id="cameraSelect" onchange="selectCamera()">
-      <option>Loading cameras…</option>
+      <option>Loading camerasâ€¦</option>
     </select>
     <button class="tool-button" onclick="loadCameraList()">Refresh</button>
     <button class="tool-button" onclick="reconnectCamera()">Reconnect</button>
@@ -149,7 +151,7 @@
 
       <aside class="riq-surface inspector">
         <div class="capture-banner" id="captureBanner">
-          <div class="capture-banner-icon" id="captureBannerIcon">✓</div>
+          <div class="capture-banner-icon" id="captureBannerIcon">âœ“</div>
           <div class="capture-banner-copy">
             <strong id="captureBannerTitle">CAPTURE SAVED</strong>
             <span id="captureBannerDetail">Saved successfully</span>
@@ -182,7 +184,7 @@
           <div class="card-info">
             <div class="eyebrow">Verified Candidate</div>
             <h3 id="cardName">Ready to Scan</h3>
-            <p id="cardMeta">Set • Number • Language • Rarity</p>
+            <p id="cardMeta">Set â€¢ Number â€¢ Language â€¢ Rarity</p>
             <div class="card-value" id="cardValue">WAITING</div>
             <div class="card-status" id="cardStatus">RECOGNITION READY</div>
           </div>
@@ -190,15 +192,15 @@
           <div class="market-grid">
             <div class="market-card">
               <span>RAW</span>
-              <b id="rawValue">—</b>
+              <b id="rawValue">â€”</b>
             </div>
             <div class="market-card">
               <span>PSA 10</span>
-              <b id="psaValue">—</b>
+              <b id="psaValue">â€”</b>
             </div>
             <div class="market-card">
               <span>POPULATION</span>
-              <b id="populationValue">—</b>
+              <b id="populationValue">â€”</b>
             </div>
           </div>
         </div>
@@ -278,7 +280,7 @@
               <div class="dock-card"><span>Candidate 3</span><b>Waiting</b></div>
               <div class="dock-card"><span>Candidate 4</span><b>Waiting</b></div>
               <div class="dock-card"><span>Candidate 5</span><b>Waiting</b></div>
-              <div class="dock-card"><span>Top Gap</span><b>—</b></div>
+              <div class="dock-card"><span>Top Gap</span><b>â€”</b></div>
             </div>
           </div>
 
@@ -307,7 +309,7 @@
           <div class="dock-panel" data-panel="telemetry">
             <div class="dock-grid">
               <div class="dock-card"><span>Latency</span><b id="latencyValue">Idle</b></div>
-              <div class="dock-card"><span>FPS</span><b>—</b></div>
+              <div class="dock-card"><span>FPS</span><b>â€”</b></div>
               <div class="dock-card"><span>Visual Index</span><b>Ready</b></div>
               <div class="dock-card"><span>OCR</span><b>Ready</b></div>
               <div class="dock-card"><span>Queue</span><b>0</b></div>
@@ -513,3 +515,4 @@
 
 </body>
 </html>
+

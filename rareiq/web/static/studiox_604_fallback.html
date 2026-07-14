@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -20,7 +20,9 @@
 <link rel="stylesheet" href="/static/studiox_603.css?v=6.0.4">
 <link rel="stylesheet" href="/static/studiox_604.css?v=6.0.4">
 <script defer src="/static/studiox.js?v=6.0.4"></script>
-</head>
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"></head>
 <body>
 <div class="boot-manager" id="bootManager">
   <div class="boot-panel">
@@ -50,7 +52,7 @@
     <img class="brand-logo-image" src="/static/brand/rareiq_icon_transparent.png" alt="RareIQ">
     <div class="brand-text">
       <div class="brand-name">RAREIQ</div>
-      <span class="brand-subtitle">Studio X • Project Iron Vision</span>
+      <span class="brand-subtitle">Studio X â€¢ Project Iron Vision</span>
     </div>
   </div>
   <div class="system-status-strip">
@@ -68,7 +70,7 @@
   </div>
   <div class="app-actions">
     <span class="riq-pill" id="cameraStatus">CAMERA CHECKING</span>
-    <span class="riq-pill" id="fpsValue">FPS —</span>
+    <span class="riq-pill" id="fpsValue">FPS â€”</span>
     <button class="riq-button" onclick="openProgram()">Program View</button>
     <button class="riq-button primary">Next Pack</button>
   </div>
@@ -78,7 +80,7 @@
   <div class="command-group">
     <span class="command-group-label">Camera</span>
     <select id="cameraSelect" onchange="selectCamera()">
-      <option>Loading cameras…</option>
+      <option>Loading camerasâ€¦</option>
     </select>
     <button class="tool-button" onclick="loadCameraList()">Refresh</button>
     <button class="tool-button" onclick="reconnectCamera()">Reconnect</button>
@@ -124,7 +126,7 @@
           <div class="viewer-bridge-state connecting" id="viewerBridgeState"><i></i><span id="viewerBridgeLabel">CONNECTING VIEWER</span></div>
           <div class="camera-placeholder" id="cameraPlaceholder">Waiting for camera feed</div>
           <div class="camera-recovery" id="cameraRecovery">
-            <strong id="cameraRecoveryTitle">Connecting camera…</strong>
+            <strong id="cameraRecoveryTitle">Connecting cameraâ€¦</strong>
             <span id="cameraRecoveryDetail">RareIQ is restoring the saved camera automatically.</span>
             <div class="camera-recovery-progress"><i></i></div>
           </div>
@@ -184,7 +186,7 @@
 
       <aside class="riq-surface inspector">
         <div class="capture-banner" id="captureBanner">
-          <div class="capture-banner-icon" id="captureBannerIcon">✓</div>
+          <div class="capture-banner-icon" id="captureBannerIcon">âœ“</div>
           <div class="capture-banner-copy">
             <strong id="captureBannerTitle">CAPTURE SAVED</strong>
             <span id="captureBannerDetail">Saved successfully</span>
@@ -216,7 +218,7 @@
           <div class="session-stat"><span>Cards</span><b id="sessionCards">0</b></div>
           <div class="session-stat"><span>Hits</span><b id="sessionHits">0</b></div>
           <div class="session-stat"><span>Value</span><b id="sessionValue">$0.00</b></div>
-          <div class="session-stat"><span>Accuracy</span><b id="sessionAccuracy">—</b></div>
+          <div class="session-stat"><span>Accuracy</span><b id="sessionAccuracy">â€”</b></div>
           <div class="session-stat"><span>Elapsed</span><b id="sessionElapsed">00:00</b></div>
         </div>
 
@@ -248,7 +250,7 @@
           <div class="card-info">
             <div class="eyebrow">Verified Candidate</div>
             <h3 id="cardName">Ready to Scan</h3>
-            <p id="cardMeta">Set • Number • Language • Rarity</p>
+            <p id="cardMeta">Set â€¢ Number â€¢ Language â€¢ Rarity</p>
             <div class="card-value" id="cardValue">WAITING</div>
             <div class="card-status" id="cardStatus">RECOGNITION READY</div>
           </div>
@@ -256,15 +258,15 @@
           <div class="market-grid">
             <div class="market-card">
               <span>RAW</span>
-              <b id="rawValue">—</b>
+              <b id="rawValue">â€”</b>
             </div>
             <div class="market-card">
               <span>PSA 10</span>
-              <b id="psaValue">—</b>
+              <b id="psaValue">â€”</b>
             </div>
             <div class="market-card">
               <span>POPULATION</span>
-              <b id="populationValue">—</b>
+              <b id="populationValue">â€”</b>
             </div>
           </div>
         </div>
@@ -347,7 +349,7 @@
               <div class="dock-card"><span>Candidate 3</span><b>Waiting</b></div>
               <div class="dock-card"><span>Candidate 4</span><b>Waiting</b></div>
               <div class="dock-card"><span>Candidate 5</span><b>Waiting</b></div>
-              <div class="dock-card"><span>Top Gap</span><b>—</b></div>
+              <div class="dock-card"><span>Top Gap</span><b>â€”</b></div>
             </div>
           </div>
 
@@ -376,7 +378,7 @@
           <div class="dock-panel" data-panel="telemetry">
             <div class="dock-grid">
               <div class="dock-card"><span>Latency</span><b id="latencyValue">Idle</b></div>
-              <div class="dock-card"><span>FPS</span><b>—</b></div>
+              <div class="dock-card"><span>FPS</span><b>â€”</b></div>
               <div class="dock-card"><span>Visual Index</span><b>Ready</b></div>
               <div class="dock-card"><span>OCR</span><b>Ready</b></div>
               <div class="dock-card"><span>Queue</span><b>0</b></div>
@@ -556,7 +558,7 @@
           <div class="health-card" data-health="storage"><div class="health-card-head"><h3>Storage</h3><i class="health-dot"></i></div><strong>CHECKING</strong><p>Loading storage status.</p></div>
         </div>
 
-        <div class="camera-manager-state" id="cameraManagerState">Camera Manager booting…</div>
+        <div class="camera-manager-state" id="cameraManagerState">Camera Manager bootingâ€¦</div>
         <div class="grid">
           <div class="card">
             <h3>Program View</h3>
@@ -612,3 +614,4 @@
 
 </body>
 </html>
+

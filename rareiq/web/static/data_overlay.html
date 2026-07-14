@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -23,12 +23,14 @@ html,body{width:100%;height:100%;margin:0;overflow:hidden;background:transparent
 .glow{animation:glow .7s ease-out}
 @keyframes glow{0%{box-shadow:inset 0 0 0 rgba(65,255,143,0)}35%{box-shadow:inset 0 0 100px rgba(65,255,143,.3)}100%{box-shadow:inset 0 0 0 rgba(65,255,143,0)}}
 </style>
-</head>
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"></head>
 <body>
 <div class="panel" id="panel">
-  <div class="top"><div class="brand">RAREIQ <span id="overlayVersion" style="font-size:.55em;opacity:.62">v—</span></div><div class="live">● LIVE</div></div><div id="visionStatus" style="margin-top:3%;padding:3%;border-radius:10px;background:rgba(255,255,255,.04);font-weight:900;color:#ffd36b">CAMERA OFFLINE</div>
+  <div class="top"><div class="brand">RAREIQ <span id="overlayVersion" style="font-size:.55em;opacity:.62">vâ€”</span></div><div class="live">â— LIVE</div></div><div id="visionStatus" style="margin-top:3%;padding:3%;border-radius:10px;background:rgba(255,255,255,.04);font-weight:900;color:#ffd36b">CAMERA OFFLINE</div>
   <div class="customer" id="customer">Demo Customer</div>
-  <div class="small" id="order">RIQ-0001 • Greninja Jumbo Box</div>
+  <div class="small" id="order">RIQ-0001 â€¢ Greninja Jumbo Box</div>
 
   <div class="progress">
     <div class="tile"><span>BOX</span><strong id="box">1 / 1</strong></div>
@@ -38,13 +40,13 @@ html,body{width:100%;height:100%;margin:0;overflow:hidden;background:transparent
   </div>
 
   <div class="card">
-    <div class="name" id="cardName">Waiting for card…</div>
+    <div class="name" id="cardName">Waiting for cardâ€¦</div>
     <div class="rarity" id="rarity">SCANNING</div>
     <div class="details">
-      <div class="detail"><label>Card Number</label><strong id="number">—</strong></div>
-      <div class="detail"><label>Language</label><strong id="language">—</strong></div>
-      <div class="detail"><label>Price Confidence</label><strong id="confidence">—</strong></div>
-      <div class="detail"><label>Market Range</label><strong id="range">—</strong></div>
+      <div class="detail"><label>Card Number</label><strong id="number">â€”</strong></div>
+      <div class="detail"><label>Language</label><strong id="language">â€”</strong></div>
+      <div class="detail"><label>Price Confidence</label><strong id="confidence">â€”</strong></div>
+      <div class="detail"><label>Market Range</label><strong id="range">â€”</strong></div>
     </div>
     <div class="value" id="cardValue">$0.00</div>
   </div>
@@ -65,7 +67,7 @@ html,body{width:100%;height:100%;margin:0;overflow:hidden;background:transparent
 const $=id=>document.getElementById(id);
 function session(s){
   $("customer").textContent=s.customer;
-  $("order").textContent=`${s.order_number} • ${s.product_name}`;
+  $("order").textContent=`${s.order_number} â€¢ ${s.product_name}`;
   $("box").textContent=`${s.active_box_number} / ${s.boxes_total}`;
   $("pack").textContent=`${s.active_pack_number} / ${s.packs_per_box}`;
   $("cards").textContent=s.card_count;
@@ -75,10 +77,10 @@ function session(s){
 function card(c){
   $("cardName").textContent=c.card_name;
   $("rarity").textContent=c.rarity;
-  $("number").textContent=c.card_number||"—";
-  $("language").textContent=c.language||"—";
-  $("confidence").textContent=c.price_confidence||"—";
-  $("range").textContent=`${money(c.market_low)} – ${money(c.market_high)}`;
+  $("number").textContent=c.card_number||"â€”";
+  $("language").textContent=c.language||"â€”";
+  $("confidence").textContent=c.price_confidence||"â€”";
+  $("range").textContent=`${money(c.market_low)} â€“ ${money(c.market_high)}`;
   $("cardValue").textContent=money(c.raw_value);
 }
 function renderVision(v){
@@ -128,3 +130,4 @@ syncOverlayVersion();
 </script>
 </body>
 </html>
+

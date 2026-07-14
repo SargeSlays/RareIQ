@@ -755,11 +755,60 @@ async def catalog_engine_image(set_folder: str, filename: str):
 
 
 
+
+def _live_frame_heartbeat():
+    """Return a lightweight heartbeat for the latest live camera frame."""
+    try:
+        frame = orchestrator.vision.latest_frame()
+    except Exception as exc:
+        return {
+            "frame_available": False,
+            "frame_id": None,
+            "frame_timestamp": None,
+            "frame_shape": None,
+            "frame_error": str(exc),
+        }
+
+    if frame is None or getattr(frame, "size", 0) == 0:
+        return {
+            "frame_available": False,
+            "frame_id": None,
+            "frame_timestamp": None,
+            "frame_shape": None,
+            "frame_error": None,
+        }
+
+    timestamp = time.time()
+    return {
+        "frame_available": True,
+        "frame_id": int(timestamp * 1000),
+        "frame_timestamp": timestamp,
+        "frame_shape": list(getattr(frame, "shape", [])),
+        "frame_error": None,
+    }
+
+@app.get("/api/pipeline/frame-heartbeat")
+async def pipeline_frame_heartbeat():
+    heartbeat = await asyncio.to_thread(_live_frame_heartbeat)
+    return {
+        "ok": bool(heartbeat.get("frame_available")),
+        **heartbeat,
+    }
 @app.get("/api/pipeline/state")
 async def pipeline_state():
     snapshot = await asyncio.to_thread(
         orchestrator.backend_test.runtime_snapshot
     )
+    heartbeat = await asyncio.to_thread(_live_frame_heartbeat)
+
+    camera = dict(snapshot.get("camera") or {})
+    camera.update(heartbeat)
+    snapshot["camera"] = camera
+
+    frame_id = heartbeat.get("frame_id")
+    if frame_id is not None:
+        orchestrator.pipeline_state._frame_id = int(frame_id)
+
     return {
         "ok": True,
         "pipeline": orchestrator.pipeline_state.sync_from_snapshot(snapshot),
@@ -769,7 +818,6 @@ async def pipeline_state():
             "recognition_state": snapshot.get("recognition_state"),
         },
     }
-
 @app.post("/api/pipeline/test-latest-crop")
 async def pipeline_test_latest_crop():
     orchestrator.pipeline_state.reset()
@@ -1289,6 +1337,7 @@ def run():
         port=8765,
         reload=False,
     )
+
 
 
 

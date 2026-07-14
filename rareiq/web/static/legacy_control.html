@@ -1,9 +1,9 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>RareIQ X.7 — Intelligence Core</title>
+<title>RareIQ X.7 â€” Intelligence Core</title>
 <style>
 :root {
   color-scheme: dark;
@@ -608,7 +608,7 @@ to{top:88%}}
 .evidence-item span{color:#ffd271}
 .completion-strip{grid-template-columns:repeat(4,minmax(0,1fr))}
 .system-stopping::after{
-  content:"RareIQ is shutting down…";
+  content:"RareIQ is shutting downâ€¦";
   position:fixed;
   inset:0;
   z-index:99999;
@@ -1170,21 +1170,23 @@ to{top:88%}}
 }
 
 </style>
-</head>
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"></head>
 <body>
 <div class="shell">
   <aside class="sidebar">
-    <div class="brand"><div class="logo">◇</div><span>RareIQ</span></div>
+    <div class="brand"><div class="logo">â—‡</div><span>RareIQ</span></div>
     <nav class="nav">
-      <button class="active">◈ &nbsp; Dashboard</button>
-      <button onclick="focusPanel('cameraPanel')">◉ &nbsp; Live Scan</button>
-      <button onclick="showTool('catalog')">▣ &nbsp; Catalogs</button>
-      <button onclick="showTool('sets')">▤ &nbsp; Active Sets</button>
-      <button onclick="showTool('batch')">▦ &nbsp; Batches</button>
-      <button onclick="openDrawer()">✣ &nbsp; AI Grading</button>
-      <button onclick="showTool('developer')">⌁ &nbsp; Developer</button>
+      <button class="active">â—ˆ &nbsp; Dashboard</button>
+      <button onclick="focusPanel('cameraPanel')">â—‰ &nbsp; Live Scan</button>
+      <button onclick="showTool('catalog')">â–£ &nbsp; Catalogs</button>
+      <button onclick="showTool('sets')">â–¤ &nbsp; Active Sets</button>
+      <button onclick="showTool('batch')">â–¦ &nbsp; Batches</button>
+      <button onclick="openDrawer()">âœ£ &nbsp; AI Grading</button>
+      <button onclick="showTool('developer')">âŒ &nbsp; Developer</button>
       <label class="dev-toggle"><input id="developerModeToggle" type="checkbox" onchange="toggleDeveloperMode()"> Developer Mode</label>
-      <button onclick="location.href='/control-legacy'">↶ &nbsp; Legacy UI</button>
+      <button onclick="location.href='/control-legacy'">â†¶ &nbsp; Legacy UI</button>
     </nav>
     <div class="sidebar-foot">Project Digital Jazz<br>Desktop Alpha</div>
   </aside>
@@ -1195,29 +1197,29 @@ to{top:88%}}
       <div class="top-right">
         <span><i class="dot"></i>System Live</span>
         <span id="clock">--:--:--</span>
-        <button class="shutdown-button" onclick="shutdownRareIQ()" title="Stop RareIQ">⏻</button>
+        <button class="shutdown-button" onclick="shutdownRareIQ()" title="Stop RareIQ">â»</button>
         <span class="avatar">OP</span>
         <span><b>Operator</b><br><small style="color:var(--green)">Online</small></span>
       </div>
     </header>
 
     <section class="kpis">
-      <div class="kpi"><div class="kpi-icon">▣</div><div><div class="kpi-label">Camera</div><div id="kpiCamera" class="kpi-value">Offline</div><div id="kpiCameraSub" class="kpi-sub">No device</div></div></div>
-      <div class="kpi"><div class="kpi-icon" style="color:var(--cyan)">▤</div><div><div class="kpi-label">Active Set</div><div id="kpiSet" class="kpi-value">All References</div><div id="kpiSetSub" class="kpi-sub">Any language</div></div></div>
-      <div class="kpi"><div class="kpi-icon" style="color:#8b80ff">⬡</div><div><div class="kpi-label">Indexed Cards</div><div id="kpiIndexed" class="kpi-value">0</div><div class="kpi-sub">Visual references</div></div></div>
-      <div class="kpi"><div class="kpi-icon" style="color:#8b80ff">⌁</div><div><div class="kpi-label">Latency</div><div id="kpiLatency" class="kpi-value">—</div><div class="kpi-sub">Recognition total</div></div></div>
-      <div class="kpi"><div class="kpi-icon">◎</div><div><div class="kpi-label">Confidence</div><div id="kpiConfidence" class="kpi-value">0%</div><div id="kpiState" class="kpi-sub">Searching</div></div></div>
+      <div class="kpi"><div class="kpi-icon">â–£</div><div><div class="kpi-label">Camera</div><div id="kpiCamera" class="kpi-value">Offline</div><div id="kpiCameraSub" class="kpi-sub">No device</div></div></div>
+      <div class="kpi"><div class="kpi-icon" style="color:var(--cyan)">â–¤</div><div><div class="kpi-label">Active Set</div><div id="kpiSet" class="kpi-value">All References</div><div id="kpiSetSub" class="kpi-sub">Any language</div></div></div>
+      <div class="kpi"><div class="kpi-icon" style="color:#8b80ff">â¬¡</div><div><div class="kpi-label">Indexed Cards</div><div id="kpiIndexed" class="kpi-value">0</div><div class="kpi-sub">Visual references</div></div></div>
+      <div class="kpi"><div class="kpi-icon" style="color:#8b80ff">âŒ</div><div><div class="kpi-label">Latency</div><div id="kpiLatency" class="kpi-value">â€”</div><div class="kpi-sub">Recognition total</div></div></div>
+      <div class="kpi"><div class="kpi-icon">â—Ž</div><div><div class="kpi-label">Confidence</div><div id="kpiConfidence" class="kpi-value">0%</div><div id="kpiState" class="kpi-sub">Searching</div></div></div>
       <div class="kpi"><div class="kpi-icon" style="color:var(--gold);background:rgba(255,201,92,.1)">$</div><div><div class="kpi-label">Batch Value</div><div id="kpiBatch" class="kpi-value">$0.00</div><div id="kpiCards" class="kpi-sub">0 cards</div></div></div>
     </section>
 
     <section class="main-grid">
       <section id="cameraPanel" class="panel camera-panel">
         <div class="immutable-strip">
-          <span>POKÉMON AI VISION</span>
+          <span>POKÃ‰MON AI VISION</span>
           <b id="immutablePrimary">No candidate</b>
           <small id="immutableState">Waiting for state</small>
         </div>
-        <div class="panel-head"><h2>▣ Live Card Camera</h2><span id="cameraBadge" class="badge status-banner"><i></i><b>OFFLINE</b></span></div>
+        <div class="panel-head"><h2>â–£ Live Card Camera</h2><span id="cameraBadge" class="badge status-banner"><i></i><b>OFFLINE</b></span></div>
         <div class="camera-stage">
           <img id="cameraFeed" src="/api/camera/stream" alt="Live camera feed">
           <div id="cameraEmpty" class="camera-empty">Start a camera to begin scanning.</div>
@@ -1227,12 +1229,12 @@ to{top:88%}}
             <b id="scanOverlayConfidence">0%</b>
           </div>
           <div id="ocrOverlay" class="ocr-overlay">
-            <div><b id="overlayName">Waiting…</b><span id="overlayNumber">—</span></div>
-            <div><b id="overlayHp">HP —</b><span id="overlayLanguage">—</span></div>
+            <div><b id="overlayName">Waitingâ€¦</b><span id="overlayNumber">â€”</span></div>
+            <div><b id="overlayHp">HP â€”</b><span id="overlayLanguage">â€”</span></div>
           </div>
         </div>
         <div class="camera-controls">
-          <select id="cameraSelect"><option>Scanning for cameras…</option></select>
+          <select id="cameraSelect"><option>Scanning for camerasâ€¦</option></select>
           <button onclick="loadCameras()">Refresh</button>
           <button onclick="attachCameraStream(true)">Reconnect Feed</button>
           <button class="good" onclick="startCamera()">Start Camera</button>
@@ -1243,7 +1245,7 @@ to{top:88%}}
       </section>
 
       <section class="panel match-panel">
-        <div class="panel-head"><h2>♧ Verified Match</h2><span id="matchBadge" class="badge">SEARCHING</span></div>
+        <div class="panel-head"><h2>â™§ Verified Match</h2><span id="matchBadge" class="badge">SEARCHING</span></div>
         <div class="match-body">
           <div class="match-top reference-layout">
             <div class="match-data">
@@ -1253,29 +1255,29 @@ to{top:88%}}
                   <div id="verifiedThumbEmpty">CARD</div>
                 </div>
                 <div class="name-stack">
-                  <div id="cardName" class="card-title">Waiting for card…</div>
+                  <div id="cardName" class="card-title">Waiting for cardâ€¦</div>
                   <div id="cardEnglishName" class="english-name">English name unavailable</div>
                   <div id="cardSubtitle" class="card-sub">RareIQ will place the strongest verified candidate here.</div>
                 </div>
               </div>
 
               <div class="meta-grid">
-                <div class="meta"><b>COLLECTOR NUMBER</b><span id="cardNumber">—</span></div>
-                <div class="meta"><b>LANGUAGE</b><span id="cardLanguage">—</span></div>
-                <div class="meta"><b>SET</b><span id="cardSet">—</span></div>
-                <div class="meta"><b>SOURCE</b><span id="cardSource">—</span></div>
-                <div class="meta"><b>RARITY</b><span id="cardRarity">—</span></div>
+                <div class="meta"><b>COLLECTOR NUMBER</b><span id="cardNumber">â€”</span></div>
+                <div class="meta"><b>LANGUAGE</b><span id="cardLanguage">â€”</span></div>
+                <div class="meta"><b>SET</b><span id="cardSet">â€”</span></div>
+                <div class="meta"><b>SOURCE</b><span id="cardSource">â€”</span></div>
+                <div class="meta"><b>RARITY</b><span id="cardRarity">â€”</span></div>
                 <div class="meta"><b>DATABASE</b><span id="cardDatabase">Waiting</span></div>
-                <div class="meta"><b>HP / TYPE</b><span id="cardHpType">—</span></div>
-                <div class="meta"><b>ILLUSTRATOR</b><span id="cardIllustrator">—</span></div>
-                <div class="meta"><b>VARIANT</b><span id="cardVariant">—</span></div>
+                <div class="meta"><b>HP / TYPE</b><span id="cardHpType">â€”</span></div>
+                <div class="meta"><b>ILLUSTRATOR</b><span id="cardIllustrator">â€”</span></div>
+                <div class="meta"><b>VARIANT</b><span id="cardVariant">â€”</span></div>
               </div>
 
               <div class="confidence-breakdown">
-                <div class="break-row" id="breakOcr"><span>OCR</span><div><i></i></div><b>—</b></div>
-                <div class="break-row" id="breakArtwork"><span>Artwork</span><div><i></i></div><b>—</b></div>
-                <div class="break-row" id="breakCatalog"><span>Catalog</span><div><i></i></div><b>—</b></div>
-                <div class="break-row" id="breakLanguage"><span>Language</span><div><i></i></div><b>—</b></div>
+                <div class="break-row" id="breakOcr"><span>OCR</span><div><i></i></div><b>â€”</b></div>
+                <div class="break-row" id="breakArtwork"><span>Artwork</span><div><i></i></div><b>â€”</b></div>
+                <div class="break-row" id="breakCatalog"><span>Catalog</span><div><i></i></div><b>â€”</b></div>
+                <div class="break-row" id="breakLanguage"><span>Language</span><div><i></i></div><b>â€”</b></div>
               </div>
 
               <details class="explanation">
@@ -1322,8 +1324,8 @@ to{top:88%}}
               </div>
 
               <div class="action-grid">
-                <button class="good" onclick="confirmCurrentCard(false)">✓ Add Card</button>
-                <button class="danger" onclick="rejectCurrentCard()">✕ Reject</button>
+                <button class="good" onclick="confirmCurrentCard(false)">âœ“ Add Card</button>
+                <button class="danger" onclick="rejectCurrentCard()">âœ• Reject</button>
                 <button onclick="openDrawer()">Grade</button>
               </div>
 
@@ -1341,10 +1343,10 @@ to{top:88%}}
             <span id="telemetryState">IDLE</span>
           </div>
           <div class="telemetry-grid">
-            <div><span>Total</span><b id="metricTotalMs">— ms</b></div>
-            <div><span>OCR</span><b id="metricOcrMs">— ms</b></div>
-            <div><span>Artwork</span><b id="metricArtworkMs">— ms</b></div>
-            <div><span>Vector</span><b id="metricVectorMs">— ms</b></div>
+            <div><span>Total</span><b id="metricTotalMs">â€” ms</b></div>
+            <div><span>OCR</span><b id="metricOcrMs">â€” ms</b></div>
+            <div><span>Artwork</span><b id="metricArtworkMs">â€” ms</b></div>
+            <div><span>Vector</span><b id="metricVectorMs">â€” ms</b></div>
           </div>
           <div class="pipeline-list">
             <div data-stage="detect"><span>Detect</span><i></i><b>WAIT</b></div>
@@ -1355,7 +1357,7 @@ to{top:88%}}
             <div data-stage="verify"><span>Verify</span><i></i><b>WAIT</b></div>
           </div>
           <div class="activity-head"><b>AI Activity</b><span id="pipelineSummary">Waiting</span></div>
-          <div id="aiActivityLog" class="ai-activity-log">Waiting for recognition events…</div>
+          <div id="aiActivityLog" class="ai-activity-log">Waiting for recognition eventsâ€¦</div>
         </section>
         <section class="panel module">
           <h3>Recognition Timeline</h3>
@@ -1368,7 +1370,7 @@ to{top:88%}}
           </div>
           <h3 style="margin-top:10px">Top Candidates</h3>
           <div id="candidateList" class="candidates">
-            <div class="candidate"><div class="rank">1</div><div class="candidate-thumb placeholder">—</div><div><div class="candidate-name">Waiting for recognition</div><div class="candidate-sub">No candidates yet</div></div><div class="score">—</div></div>
+            <div class="candidate"><div class="rank">1</div><div class="candidate-thumb placeholder">â€”</div><div><div class="candidate-name">Waiting for recognition</div><div class="candidate-sub">No candidates yet</div></div><div class="score">â€”</div></div>
           </div>
           <div class="thinking-head">
             <h3>RareIQ Thinking</h3>
@@ -1389,10 +1391,10 @@ to{top:88%}}
           </div>
           <div class="batch-progress"><div id="batchProgressFill"></div></div>
           <div class="action-row">
-            <button onclick="post('/api/session/previous-pack')">◀ Pack</button>
-            <button class="good" onclick="post('/api/session/next-pack')">Next Pack ▶</button>
-            <button onclick="post('/api/session/previous-box')">◀ Box</button>
-            <button class="good" onclick="post('/api/session/next-box')">Next Box ▶</button>
+            <button onclick="post('/api/session/previous-pack')">â—€ Pack</button>
+            <button class="good" onclick="post('/api/session/next-pack')">Next Pack â–¶</button>
+            <button onclick="post('/api/session/previous-box')">â—€ Box</button>
+            <button class="good" onclick="post('/api/session/next-box')">Next Box â–¶</button>
             <button onclick="post('/api/session/undo')">Undo</button>
           </div>
           <div class="session-summary">
@@ -1428,14 +1430,14 @@ to{top:88%}}
   <div class="storage-foundation-head">
     <div>
       <b>Intelligence Core</b>
-      <span id="storageRootPath">Checking configured drive…</span>
+      <span id="storageRootPath">Checking configured driveâ€¦</span>
     </div>
     <strong id="storageHealth">CHECKING</strong>
   </div>
   <div class="storage-metrics">
-    <div><span>Total</span><b id="storageTotal">—</b></div>
-    <div><span>Used</span><b id="storageUsed">—</b></div>
-    <div><span>Free</span><b id="storageFree">—</b></div>
+    <div><span>Total</span><b id="storageTotal">â€”</b></div>
+    <div><span>Used</span><b id="storageUsed">â€”</b></div>
+    <div><span>Free</span><b id="storageFree">â€”</b></div>
   </div>
   <div class="storage-progress"><i id="storageProgressFill"></i></div>
 </div>
@@ -1443,7 +1445,7 @@ to{top:88%}}
   <div class="intelligence-core-head">
     <div>
       <b>INTELLIGENCE CORE</b>
-      <span>Vision optimization • candidate ranking • explainable confidence</span>
+      <span>Vision optimization â€¢ candidate ranking â€¢ explainable confidence</span>
     </div>
     <strong id="intelligenceCoreState">READY</strong>
   </div>
@@ -1497,7 +1499,7 @@ to{top:88%}}
   <div class="war-room-head">
     <div>
       <b>WAR ROOM</b>
-      <span>Wide Architecture Rebuild • measurable systems status</span>
+      <span>Wide Architecture Rebuild â€¢ measurable systems status</span>
     </div>
     <strong id="warMissionState">ONLINE</strong>
   </div>
@@ -1546,7 +1548,7 @@ to{top:88%}}
     </div>
     <div>
       <span id="pokemontcgProviderDot"></span>
-      <b>Pokémon TCG API</b>
+      <b>PokÃ©mon TCG API</b>
       <small id="pokemontcgProviderStatus">Not checked</small>
     </div>
     <div>
@@ -1560,7 +1562,7 @@ to{top:88%}}
               <div class="vision-engine-head">
                 <div>
                   <b>Intelligence Core</b>
-                  <span>Global visual search • automatic set detection</span>
+                  <span>Global visual search â€¢ automatic set detection</span>
                 </div>
                 <strong id="visionEnginePhase">IDLE</strong>
               </div>
@@ -1583,14 +1585,14 @@ to{top:88%}}
                 <div><b id="builderCards">0</b><span>Cards</span></div>
                 <div><b id="builderImages">0</b><span>Images</span></div>
                 <div><b id="builderSpeed">0/s</b><span>Cards/sec</span></div>
-                <div><b id="builderEta">—</b><span>ETA</span></div>
+                <div><b id="builderEta">â€”</b><span>ETA</span></div>
                 <div><b id="visionIndexRecords">0</b><span>Indexed Images</span></div>
                 <div><b id="visionIndexDimensions">0</b><span>Dimensions</span></div>
                 <div><b id="visionLastBuild">Never</b><span>Last Build</span></div>
                 <div><b id="visionAutoSync">Off</b><span>Auto Sync</span></div>
               </div>
               <div class="dropbox-config">
-                <label><input id="visionAutoSyncEnabled" type="checkbox"> Auto-sync Pokémon database</label>
+                <label><input id="visionAutoSyncEnabled" type="checkbox"> Auto-sync PokÃ©mon database</label>
                 <input id="visionSyncHours" type="number" min="1" value="24" placeholder="Hours">
                 <button onclick="savePokemonVisionConfig()">Save</button>
               </div>
@@ -1610,7 +1612,7 @@ to{top:88%}}
     <div>
       <span>Metadata</span>
       <b id="fastMetadataPhase">IDLE</b>
-      <small id="fastMetadataStats">0 sets • 0 cards</small>
+      <small id="fastMetadataStats">0 sets â€¢ 0 cards</small>
     </div>
     <div>
       <span>HD Artwork</span>
@@ -1620,7 +1622,7 @@ to{top:88%}}
     <div>
       <span>Download Rate</span>
       <b id="fastImageRate">0 MB/s</b>
-      <small id="fastImageEta">ETA —</small>
+      <small id="fastImageEta">ETA â€”</small>
     </div>
   </div>
 </div>
@@ -1644,13 +1646,13 @@ to{top:88%}}
               <div class="pokemon-master-head">
                 <div>
                   <b>Intelligence Core</b>
-                  <span>Global set discovery • automatic set detection</span>
+                  <span>Global set discovery â€¢ automatic set detection</span>
                 </div>
                 <strong id="worldBuildPhase">IDLE</strong>
               </div>
               <div class="world-actions">
                 <button onclick="discoverPokemonWorld()">Discover All Sets</button>
-                <button class="good" onclick="buildPokemonWorld()">Build Pokémon Database</button>
+                <button class="good" onclick="buildPokemonWorld()">Build PokÃ©mon Database</button>
                 <button class="danger" onclick="cancelPokemonWorld()">Stop</button>
               </div>
               <div class="world-progress">
@@ -1660,11 +1662,11 @@ to{top:88%}}
                 <div><b id="worldCoverage">0%</b><span>Coverage</span></div>
               </div>
               <div class="progress"><div id="worldProgressFill"></div></div>
-              <div id="worldCurrentSet" class="status-box">Ready to discover the worldwide Pokémon catalog.</div>
+              <div id="worldCurrentSet" class="status-box">Ready to discover the worldwide PokÃ©mon catalog.</div>
             </div>
             <div class="catalog-engine-title">
               <b>Master Catalog Engine</b>
-              <span id="masterCoverageBadge">0 cards • 0% images</span>
+              <span id="masterCoverageBadge">0 cards â€¢ 0% images</span>
             </div>
             <div class="form-grid">
               <input id="liveSetId" placeholder="TCGdex set ID, e.g. swsh3">
@@ -1692,7 +1694,7 @@ to{top:88%}}
 
           <div id="tool-sets" class="tool-view">
             <div class="form-grid">
-              <select id="activeSetSelect" class="full"><option>Loading sets…</option></select>
+              <select id="activeSetSelect" class="full"><option>Loading setsâ€¦</option></select>
               <button class="good full" onclick="applyActiveSet()">Load Active Set</button>
             </div>
             <div id="setStatus" class="status-box">Choose the product currently being opened.</div>
@@ -1715,12 +1717,12 @@ to{top:88%}}
 
           <div id="tool-developer" class="tool-view">
             <div class="dev-grid">
-              <div class="dev-card"><b>OCR</b><span id="devOcr">—</span></div>
-              <div class="dev-card"><b>NUMBER</b><span id="devNumber">—</span></div>
-              <div class="dev-card"><b>LANGUAGE</b><span id="devLanguage">—</span></div>
-              <div class="dev-card"><b>ARTWORK SEARCH</b><span id="devArtMs">—</span></div>
+              <div class="dev-card"><b>OCR</b><span id="devOcr">â€”</span></div>
+              <div class="dev-card"><b>NUMBER</b><span id="devNumber">â€”</span></div>
+              <div class="dev-card"><b>LANGUAGE</b><span id="devLanguage">â€”</span></div>
+              <div class="dev-card"><b>ARTWORK SEARCH</b><span id="devArtMs">â€”</span></div>
               <div class="dev-card"><b>INDEX CARDS</b><span id="devIndex">0</span></div>
-              <div class="dev-card"><b>MODE</b><span id="devMode">—</span></div>
+              <div class="dev-card"><b>MODE</b><span id="devMode">â€”</span></div>
             </div>
             <div class="action-row">
               <button onclick="rebuildIndex()">Rebuild Index</button>
@@ -1734,7 +1736,7 @@ to{top:88%}}
 
     <footer class="footer">
       <span><i class="dot"></i>All systems operational</span>
-      <span>RareIQ vX.7 — Intelligence Core <b class="unified-badge">IMMUTABLE</b><span id="syncBadge" class="sync-badge">CONTROLLERS</span></span>
+      <span>RareIQ vX.7 â€” Intelligence Core <b class="unified-badge">IMMUTABLE</b><span id="syncBadge" class="sync-badge">CONTROLLERS</span></span>
     </footer>
   </main>
 </div>
@@ -1743,17 +1745,17 @@ to{top:88%}}
   <div class="lock-content" role="status" aria-live="polite">
     <canvas id="lockCanvas"></canvas>
     <div class="lock-copy">
-      <div class="lock-check">✓</div>
+      <div class="lock-check">âœ“</div>
       <div class="lock-kicker">MATCH VERIFIED</div>
       <div id="lockName" class="lock-name">Card Locked</div>
-      <div id="lockMeta" class="lock-meta">—</div>
+      <div id="lockMeta" class="lock-meta">â€”</div>
       <div id="lockConfidence" class="lock-confidence">0%</div>
     </div>
   </div>
 </div>
 
 <aside id="gradeDrawer" class="drawer">
-  <div class="drawer-head"><h2>AI Pre-Grading</h2><button onclick="closeDrawer()">✕</button></div>
+  <div class="drawer-head"><h2>AI Pre-Grading</h2><button onclick="closeDrawer()">âœ•</button></div>
   <div class="form-grid">
     <input id="gradeAgentName" value="RareIQ" placeholder="Agent name">
     <input id="gradeContactEmail" placeholder="Email">
@@ -1771,9 +1773,9 @@ to{top:88%}}
   </div>
   <div class="batch-strip">
     <div class="batch-stat"><b>STATUS</b><span id="gradeStatus">Idle</span></div>
-    <div class="batch-stat"><b>CREDITS</b><span id="gradeCredits">—</span></div>
-    <div class="batch-stat"><b>GRADE</b><span id="gradePredicted">—</span></div>
-    <div class="batch-stat"><b>PROGRESS</b><span id="gradeProgress">—</span></div>
+    <div class="batch-stat"><b>CREDITS</b><span id="gradeCredits">â€”</span></div>
+    <div class="batch-stat"><b>GRADE</b><span id="gradePredicted">â€”</span></div>
+    <div class="batch-stat"><b>PROGRESS</b><span id="gradeProgress">â€”</span></div>
   </div>
   <div id="gradeResult" class="status-box">Configure the API, capture the card, then submit.</div>
 </aside>
@@ -1790,3 +1792,4 @@ to{top:88%}}
 </body>
 
 </html>
+

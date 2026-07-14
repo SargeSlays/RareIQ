@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><title>RareIQ v1.2.0 — Command Center</title><style>
+﻿<!doctype html><html><head><meta charset="utf-8"><title>RareIQ v1.2.0 â€” Command Center</title><style>
 :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;font-family:Arial;background:#070b12;color:#fff}main{max-width:1450px;margin:auto;padding:22px}.sub{opacity:.6}.grid{display:grid;grid-template-columns:1.35fr .65fr;gap:18px;margin-top:18px}.panel{background:#101725;border:1px solid #273853;border-radius:16px;padding:18px}.camera{position:relative;background:#03060b;border-radius:14px;overflow:hidden;aspect-ratio:16/9;border:1px solid #2d415e}.camera img{width:100%;height:100%;object-fit:contain}.ocr-guide{position:absolute;left:26%;top:9%;width:48%;height:82%;border:2px dashed rgba(105,220,255,.9);border-radius:14px;box-shadow:0 0 18px rgba(105,220,255,.25);pointer-events:none}.ocr-guide:before{content:'LIVE OCR ZONE';position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(5,8,13,.78);padding:4px 8px;border-radius:6px;font-size:10px;font-weight:900;color:#69dcff;letter-spacing:.08em}.vision-hud{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}.hud-card{background:#080d16;border:1px solid #33445f;border-radius:10px;padding:10px}.hud-label{font-size:10px;opacity:.55;font-weight:800;letter-spacing:.08em}.hud-value{display:block;margin-top:4px;font-size:15px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.meter{height:8px;background:#1b2535;border-radius:999px;overflow:hidden;margin-top:7px}.meter>span{display:block;height:100%;width:0%;background:#77e2a3;transition:width .12s ease}.auto-wrap{display:flex;align-items:center;gap:8px;margin:4px 8px;font-size:13px;font-weight:900}.auto-wrap input{width:auto}.recognition-lab{margin-top:14px;background:#080d16;border:1px solid #33445f;border-radius:14px;padding:14px}.recognition-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.recognition-card{background:#101725;border-radius:10px;padding:11px}.recognition-label{display:block;font-size:10px;opacity:.55;font-weight:800;letter-spacing:.08em}.recognition-value{display:block;margin-top:4px;font-size:16px;font-weight:900;overflow:hidden;text-overflow:ellipsis}.region-row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.region-pill{padding:6px 9px;border-radius:999px;background:#1a2230;font-size:11px;font-weight:900}.region-pill.on{background:#173a2b;color:#78e3a4}.catalog-lab{margin-top:12px;background:#0b111c;border:1px solid #3a4f70;border-radius:14px;padding:14px}.catalog-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.catalog-card{background:#101725;border-radius:10px;padding:11px}.catalog-label{display:block;font-size:10px;opacity:.55;font-weight:800;letter-spacing:.08em}.catalog-value{display:block;margin-top:4px;font-size:15px;font-weight:900;overflow:hidden;text-overflow:ellipsis}.candidate-list{margin-top:10px;background:#05080d;border-radius:10px;padding:10px;max-height:170px;overflow:auto;font-size:12px;white-space:pre-wrap}.confidence-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:10px}.confidence-card{background:#080d16;border:1px solid #33445f;border-radius:10px;padding:10px}.confidence-card b{display:block;font-size:10px;opacity:.55;letter-spacing:.08em}.confidence-card span{display:block;margin-top:4px;font-size:15px;font-weight:900}.candidate-list{margin-top:10px;display:grid;gap:7px}.pipeline{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}.pipeline-step{background:#0a101a;border:1px solid #2e3f58;border-radius:10px;padding:10px;font-size:11px;font-weight:800}.pipeline-step.done{border-color:#4de391;color:#7dffb4;box-shadow:0 0 10px rgba(77,227,145,.12)}.pipeline-step.waiting{opacity:.55}.pipeline-step.error{border-color:#ff6b73;color:#ff9da3}.live-import-panel{margin-top:14px;background:#0a101a;border:1px solid #3f5d82;border-radius:14px;padding:14px}.live-import-grid{display:grid;grid-template-columns:1.2fr .8fr .8fr auto;gap:8px;margin-top:10px}.live-import-status{margin-top:10px;background:#080d16;border:1px solid #2d3f5b;border-radius:10px;padding:10px;font-size:12px}.set-panel{margin-top:14px;background:#0a101a;border:1px solid #314661;border-radius:14px;padding:14px}.set-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}.set-card{background:#080d16;border:1px solid #2d3f5b;border-radius:10px;padding:10px}.set-card b{display:block;font-size:10px;opacity:.55;letter-spacing:.08em}.set-card span{display:block;margin-top:4px;font-size:15px;font-weight:900}.reference-panel{margin-top:14px;background:#0a101a;border:1px solid #314661;border-radius:14px;padding:14px}.reference-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}.reference-badge{font-size:11px;font-weight:900;letter-spacing:.08em;color:#7dffb4}.reference-grid{display:grid;grid-template-columns:minmax(180px,280px) 1fr;gap:14px;align-items:start}.reference-image-wrap{background:#05080d;border:1px solid #263951;border-radius:12px;min-height:320px;display:flex;align-items:center;justify-content:center;overflow:hidden}.reference-image-wrap img{width:100%;height:auto;display:block}.reference-empty{padding:20px;text-align:center;opacity:.55;font-size:13px}.reference-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.reference-meta-card{background:#080d16;border:1px solid #2d3f5b;border-radius:10px;padding:10px}.reference-meta-card b{display:block;font-size:10px;opacity:.55;letter-spacing:.08em}.reference-meta-card span{display:block;margin-top:4px;font-size:15px;font-weight:900;word-break:break-word}@media(max-width:900px){.reference-grid{grid-template-columns:1fr}.reference-image-wrap{min-height:220px}}.candidate{background:#0b111d;border:1px solid #2d3f5b;border-radius:10px;padding:10px;display:flex;justify-content:space-between;gap:12px}.candidate.locked{border-color:#5ee7a0;box-shadow:0 0 12px rgba(94,231,160,.16)}.ocr-lines{margin-top:10px;background:#05080d;border-radius:10px;padding:10px;max-height:120px;overflow:auto;font-size:12px}.status{position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,.72);padding:8px 11px;border-radius:9px;font-weight:800}.row{display:flex;gap:8px;align-items:end;flex-wrap:wrap}.field{flex:1;min-width:130px}label{display:block;font-size:11px;opacity:.6;margin-bottom:5px}input,select{width:100%;padding:10px;background:#080d16;color:#fff;border:1px solid #33445f;border-radius:8px}button{border:0;border-radius:9px;padding:11px 13px;margin:4px;cursor:pointer;font-weight:800}.primary{background:#72eaff}.good{background:#77e2a3}.warn{background:#ffc268}.danger{background:#ff727b}.rare{background:#78adff}.double{background:#a88aff}.illustration{background:#ffb45e}.grail{background:#72efff;box-shadow:0 0 18px #5ce9ff66}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:14px 0}.stat{background:#080d16;padding:12px;text-align:center;border-radius:10px}.stat strong{display:block;font-size:25px}.stat span{font-size:10px;opacity:.5}.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.preview{width:100%;aspect-ratio:9/16;border:1px solid #2d415e;border-radius:12px}pre{background:#05080d;padding:10px;border-radius:10px;max-height:250px;overflow:auto}.locked{color:#69ffad}.searching{color:#ffd36b}.offline{color:#ff747c}@media(max-width:1000px){.grid{grid-template-columns:1fr}}
 
 body{min-width:1280px}
@@ -187,7 +187,9 @@ body>main>h1,body>main>.sub{display:none!important}
 }
 
 </style>
-</head><body><main><h1>RareIQ Operator Dashboard <span style="font-size:.45em;opacity:.72">v1.2.0</span></h1><div class="sub">v1.2.0 — Command Center • Build 2026.07.11 • Project Digital Jazz • <a href="/about" style="color:#72eaff">Diagnostics</a></div><div class="grid"><section class="panel">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"></head><body><main><h1>RareIQ Operator Dashboard <span style="font-size:.45em;opacity:.72">v1.2.0</span></h1><div class="sub">v1.2.0 â€” Command Center â€¢ Build 2026.07.11 â€¢ Project Digital Jazz â€¢ <a href="/about" style="color:#72eaff">Diagnostics</a></div><div class="grid"><section class="panel">
 <h2>Live card camera</h2><div class="camera"><img id="cameraFeed"><div id="cameraStatus" class="status offline">CAMERA OFFLINE</div></div>
 <div class="vision-hud">
   <div class="hud-card"><span class="hud-label">CAMERA</span><span id="hudCamera" class="hud-value">OFFLINE</span></div>
@@ -202,7 +204,7 @@ body>main>h1,body>main>.sub{display:none!important}
 <div class="row" style="margin-top:10px">
   <div class="field">
     <label>Camera</label>
-    <select id="cameraSelect"><option>Scanning for cameras…</option></select>
+    <select id="cameraSelect"><option>Scanning for camerasâ€¦</option></select>
   </div>
   <button class="primary" onclick="loadCameras()">Refresh Cameras</button>
   <button class="good" onclick="startCamera()">Start Selected Camera</button>
@@ -216,7 +218,7 @@ body>main>h1,body>main>.sub{display:none!important}
 <section class="live-import-panel">
   <h2 style="margin:0">Live Catalog Import</h2>
   <div style="font-size:12px;opacity:.65;margin-top:4px">
-    Download a real Pokémon set from TCGdex, cache its official card images, and rebuild the local visual index.
+    Download a real PokÃ©mon set from TCGdex, cache its official card images, and rebuild the local visual index.
   </div>
   <div class="live-import-grid">
     <input id="liveSetId" placeholder="TCGdex set ID, example: swsh3">
@@ -256,15 +258,15 @@ body>main>h1,body>main>.sub{display:none!important}
     </div>
     <div class="row">
       <select id="activeSetSelect" style="min-width:260px">
-        <option>Loading sets…</option>
+        <option>Loading setsâ€¦</option>
       </select>
       <button class="good" onclick="applyActiveSet()">Load Set</button>
     </div>
   </div>
   <div class="set-grid">
-    <div class="set-card"><b>GAME</b><span id="activeSetGame">—</span></div>
-    <div class="set-card"><b>LANGUAGE</b><span id="activeSetLanguage">—</span></div>
-    <div class="set-card"><b>SET</b><span id="activeSetName">—</span></div>
+    <div class="set-card"><b>GAME</b><span id="activeSetGame">â€”</span></div>
+    <div class="set-card"><b>LANGUAGE</b><span id="activeSetLanguage">â€”</span></div>
+    <div class="set-card"><b>SET</b><span id="activeSetName">â€”</span></div>
     <div class="set-card"><b>INDEXED CARDS</b><span id="activeSetCards">0</span></div>
   </div>
 </section>
@@ -304,60 +306,60 @@ body>main>h1,body>main>.sub{display:none!important}
   </div>
   <div class="grade-grid">
     <div class="grade-card"><b>STATUS</b><span id="gradeStatus">Idle</span></div>
-    <div class="grade-card"><b>CREDITS</b><span id="gradeCredits">—</span></div>
-    <div class="grade-card"><b>PREDICTED GRADE</b><span id="gradePredicted">—</span></div>
-    <div class="grade-card"><b>PROGRESS</b><span id="gradeProgress">—</span></div>
+    <div class="grade-card"><b>CREDITS</b><span id="gradeCredits">â€”</span></div>
+    <div class="grade-card"><b>PREDICTED GRADE</b><span id="gradePredicted">â€”</span></div>
+    <div class="grade-card"><b>PROGRESS</b><span id="gradeProgress">â€”</span></div>
   </div>
   <div class="grade-grid">
-    <div class="grade-card"><b>CENTERING</b><span id="gradeCentering">—</span></div>
-    <div class="grade-card"><b>CORNERS</b><span id="gradeCorners">—</span></div>
-    <div class="grade-card"><b>EDGES</b><span id="gradeEdges">—</span></div>
-    <div class="grade-card"><b>SURFACE</b><span id="gradeSurface">—</span></div>
+    <div class="grade-card"><b>CENTERING</b><span id="gradeCentering">â€”</span></div>
+    <div class="grade-card"><b>CORNERS</b><span id="gradeCorners">â€”</span></div>
+    <div class="grade-card"><b>EDGES</b><span id="gradeEdges">â€”</span></div>
+    <div class="grade-card"><b>SURFACE</b><span id="gradeSurface">â€”</span></div>
   </div>
   <div class="grade-result"><pre id="gradeResult">Configure the API, capture the card, then submit a scan.</pre></div>
 </section>
 <div class="recognition-lab">
   <div class="row" style="justify-content:space-between;align-items:center">
-    <h3 style="margin:0">Recognition Lab • Command Center</h3>
+    <h3 style="margin:0">Recognition Lab â€¢ Command Center</h3>
     <label class="auto-wrap">
       <input id="recognitionEnabled" type="checkbox" checked onchange="toggleRecognition()">
       Live OCR Enabled
     </label>
   </div>
   <div class="recognition-grid"><div class="recognition-card"><span class="recognition-label">MODE</span><span id="recMode" class="recognition-value">CENTER ROI</span></div>
-    <div class="recognition-card"><span class="recognition-label">NAME CANDIDATE</span><span id="recName" class="recognition-value">Waiting…</span></div><div class="recognition-card"><span class="recognition-label">HP</span><span id="recHp" class="recognition-value">—</span></div>
-    <div class="recognition-card"><span class="recognition-label">OCR NUMBER</span><span id="recOcrNumber" class="recognition-value">—</span></div><div class="recognition-card"><span class="recognition-label">VALIDATED NUMBER</span><span id="recNumber" class="recognition-value">—</span></div><div class="recognition-card"><span class="recognition-label">DATABASE MATCH</span><span id="recDbMatch" class="recognition-value">—</span></div>
-    <div class="recognition-card"><span class="recognition-label">LANGUAGE</span><span id="recLanguage" class="recognition-value">—</span></div>
-    <div class="recognition-card"><span class="recognition-label">LATENCY / CONFIDENCE</span><span id="recPerf" class="recognition-value">—</span></div>
+    <div class="recognition-card"><span class="recognition-label">NAME CANDIDATE</span><span id="recName" class="recognition-value">Waitingâ€¦</span></div><div class="recognition-card"><span class="recognition-label">HP</span><span id="recHp" class="recognition-value">â€”</span></div>
+    <div class="recognition-card"><span class="recognition-label">OCR NUMBER</span><span id="recOcrNumber" class="recognition-value">â€”</span></div><div class="recognition-card"><span class="recognition-label">VALIDATED NUMBER</span><span id="recNumber" class="recognition-value">â€”</span></div><div class="recognition-card"><span class="recognition-label">DATABASE MATCH</span><span id="recDbMatch" class="recognition-value">â€”</span></div>
+    <div class="recognition-card"><span class="recognition-label">LANGUAGE</span><span id="recLanguage" class="recognition-value">â€”</span></div>
+    <div class="recognition-card"><span class="recognition-label">LATENCY / CONFIDENCE</span><span id="recPerf" class="recognition-value">â€”</span></div>
   </div>
-  <div class="region-row"><span id="regionTop" class="region-pill">TOP</span><span id="regionBottom" class="region-pill">BOTTOM</span><span id="regionArtwork" class="region-pill">ARTWORK</span><span id="regionFull" class="region-pill">FULL FALLBACK</span></div><div class="recognition-card"><span class="recognition-label">ARTWORK FINGERPRINT</span><span id="recFingerprint" class="recognition-value">—</span></div><div id="hermesPipeline" class="pipeline">
-  <div class="pipeline-step waiting">Waiting for pipeline…</div>
+  <div class="region-row"><span id="regionTop" class="region-pill">TOP</span><span id="regionBottom" class="region-pill">BOTTOM</span><span id="regionArtwork" class="region-pill">ARTWORK</span><span id="regionFull" class="region-pill">FULL FALLBACK</span></div><div class="recognition-card"><span class="recognition-label">ARTWORK FINGERPRINT</span><span id="recFingerprint" class="recognition-value">â€”</span></div><div id="hermesPipeline" class="pipeline">
+  <div class="pipeline-step waiting">Waiting for pipelineâ€¦</div>
 </div>
 <div class="confidence-grid">
   <div class="confidence-card"><b>OVERALL</b><span id="apolloOverall">0%</span></div>
   <div class="confidence-card"><b>LOCK</b><span id="apolloLock">SEARCHING</span></div>
   <div class="confidence-card"><b>OCR</b><span id="apolloOcr">0%</span></div>
   <div class="confidence-card"><b>DATABASE</b><span id="apolloDb">0%</span></div>
-  <div class="confidence-card"><b>NUMBER</b><span id="apolloNumber">NO</span></div><div class="confidence-card"><b>OCR TIME</b><span id="apolloOcrMs">—</span></div><div class="confidence-card"><b>TOTAL TIME</b><span id="artemisTotalMs">—</span></div><div class="confidence-card"><b>CANDIDATES</b><span id="artemisCandidates">0</span></div><div class="confidence-card"><b>INDEX CARDS</b><span id="artemisIndexCount">0</span></div><div class="confidence-card"><b>INDEX SEARCH</b><span id="artemisIndexMs">—</span></div><div class="confidence-card"><b>TOP ART SCORE</b><span id="artemisTopArt">0%</span></div>
+  <div class="confidence-card"><b>NUMBER</b><span id="apolloNumber">NO</span></div><div class="confidence-card"><b>OCR TIME</b><span id="apolloOcrMs">â€”</span></div><div class="confidence-card"><b>TOTAL TIME</b><span id="artemisTotalMs">â€”</span></div><div class="confidence-card"><b>CANDIDATES</b><span id="artemisCandidates">0</span></div><div class="confidence-card"><b>INDEX CARDS</b><span id="artemisIndexCount">0</span></div><div class="confidence-card"><b>INDEX SEARCH</b><span id="artemisIndexMs">â€”</span></div><div class="confidence-card"><b>TOP ART SCORE</b><span id="artemisTopArt">0%</span></div>
 </div>
 <div class="row" style="margin-top:10px">
   <button id="rebuildIndexButton" class="primary" onclick="rebuildArtworkIndex()">Rebuild Index</button>
   <span id="indexBuildStatus" style="font-size:12px;opacity:.7">Reference folder ready</span>
 </div>
 <div id="apolloCandidates" class="candidate-list">
-  <div class="candidate"><span>Waiting for recognition candidates…</span><strong>—</strong></div>
+  <div class="candidate"><span>Waiting for recognition candidatesâ€¦</span><strong>â€”</strong></div>
 </div>
 <div id="ocrLines" class="ocr-lines">Show a card to begin live OCR.</div>
 <div class="catalog-lab">
-  <h3 style="margin:0 0 10px">Catalog Lookup • TCGdex</h3>
+  <h3 style="margin:0 0 10px">Catalog Lookup â€¢ TCGdex</h3>
   <div class="catalog-grid">
-    <div class="catalog-card"><span class="catalog-label">STATUS</span><span id="catStatus" class="catalog-value">Waiting…</span></div>
-    <div class="catalog-card"><span class="catalog-label">MATCH</span><span id="catMatch" class="catalog-value">—</span></div>
-    <div class="catalog-card"><span class="catalog-label">SET / RARITY</span><span id="catSet" class="catalog-value">—</span></div>
-    <div class="catalog-card"><span class="catalog-label">LOOKUP TIME</span><span id="catLatency" class="catalog-value">—</span></div>
+    <div class="catalog-card"><span class="catalog-label">STATUS</span><span id="catStatus" class="catalog-value">Waitingâ€¦</span></div>
+    <div class="catalog-card"><span class="catalog-label">MATCH</span><span id="catMatch" class="catalog-value">â€”</span></div>
+    <div class="catalog-card"><span class="catalog-label">SET / RARITY</span><span id="catSet" class="catalog-value">â€”</span></div>
+    <div class="catalog-card"><span class="catalog-label">LOOKUP TIME</span><span id="catLatency" class="catalog-value">â€”</span></div>
   </div>
-  <div id="catPrice" class="catalog-card" style="margin-top:9px"><span class="catalog-label">PRICE</span><span class="catalog-value">—</span></div>
-  <div id="catCandidates" class="candidate-list">Waiting for a collector number…</div>
+  <div id="catPrice" class="catalog-card" style="margin-top:9px"><span class="catalog-label">PRICE</span><span class="catalog-value">â€”</span></div>
+  <div id="catCandidates" class="candidate-list">Waiting for a collector numberâ€¦</div>
 </div>
 </div>
 <section id="referencePanel" class="reference-panel">
@@ -378,23 +380,23 @@ body>main>h1,body>main>.sub{display:none!important}
       </div>
     </div>
     <div class="reference-meta">
-      <div class="reference-meta-card"><b>MATCH</b><span id="referenceName">—</span></div>
-      <div class="reference-meta-card"><b>CONFIDENCE</b><span id="referenceConfidence">—</span></div>
-      <div class="reference-meta-card"><b>COLLECTOR NUMBER</b><span id="referenceNumber">—</span></div>
-      <div class="reference-meta-card"><b>LANGUAGE</b><span id="referenceLanguage">—</span></div>
-      <div class="reference-meta-card"><b>SET</b><span id="referenceSet">—</span></div>
-      <div class="reference-meta-card"><b>SOURCE</b><span id="referenceSource">—</span></div>
+      <div class="reference-meta-card"><b>MATCH</b><span id="referenceName">â€”</span></div>
+      <div class="reference-meta-card"><b>CONFIDENCE</b><span id="referenceConfidence">â€”</span></div>
+      <div class="reference-meta-card"><b>COLLECTOR NUMBER</b><span id="referenceNumber">â€”</span></div>
+      <div class="reference-meta-card"><b>LANGUAGE</b><span id="referenceLanguage">â€”</span></div>
+      <div class="reference-meta-card"><b>SET</b><span id="referenceSet">â€”</span></div>
+      <div class="reference-meta-card"><b>SOURCE</b><span id="referenceSource">â€”</span></div>
     </div>
   </div>
 </section>
 <h2>Start customer batch</h2><div class="row"><div class="field"><label>Customer</label><input id="customer" value="Demo Customer"></div><div class="field"><label>Order</label><input id="order" value="RIQ-0001"></div><div class="field"><label>Product</label><input id="product" value="Greninja Jumbo Box"></div><div class="field"><label>Boxes</label><input id="boxes" type="number" value="1"></div><div class="field"><label>Packs per box</label><input id="packs" type="number" value="5"></div></div><button class="primary" onclick="startSession()">Start Batch</button>
 <div class="stats"><div class="stat"><strong id="boxStat">1/1</strong><span>BOX</span></div><div class="stat"><strong id="packStat">1/5</strong><span>PACK</span></div><div class="stat"><strong id="cardStat">0</strong><span>CARDS</span></div><div class="stat"><strong id="valueStat">$0</strong><span>VALUE</span></div></div>
-<h2>Pack and box controls</h2><div class="two"><button class="warn" onclick="post('/api/session/previous-pack')">◀ Previous Pack</button><button class="good" onclick="post('/api/session/next-pack')">Next Pack ▶</button><button class="warn" onclick="post('/api/session/previous-box')">◀ Previous Box</button><button class="good" onclick="post('/api/session/next-box')">Next Box ▶</button></div>
+<h2>Pack and box controls</h2><div class="two"><button class="warn" onclick="post('/api/session/previous-pack')">â—€ Previous Pack</button><button class="good" onclick="post('/api/session/next-pack')">Next Pack â–¶</button><button class="warn" onclick="post('/api/session/previous-box')">â—€ Previous Box</button><button class="good" onclick="post('/api/session/next-box')">Next Box â–¶</button></div>
 <h2>Demo card triggers</h2><button onclick="demo('common')">Common</button><button class="rare" onclick="demo('rare')">Rare</button><button class="double" onclick="demo('double_rare')">Double Rare</button><button class="illustration" onclick="demo('illustration_rare')">Illustration Rare</button><button class="grail" onclick="demo('grail')">Grail</button>
 <h2>Session controls</h2><button class="warn" onclick="post('/api/session/undo')">Undo Last Card</button><button class="danger" onclick="post('/api/session/close')">Close Customer</button>
-<h2>Live event feed</h2><pre id="feed">Connecting…</pre></section><section class="panel"><h2>Portrait data preview</h2><iframe class="preview" src="/overlay/data"></iframe></section></div>
+<h2>Live event feed</h2><pre id="feed">Connectingâ€¦</pre></section><section class="panel"><h2>Portrait data preview</h2><iframe class="preview" src="/overlay/data"></iframe></section></div>
 <footer style="margin-top:18px;text-align:center;opacity:.52;font-size:12px">
-RareIQ Vision v1.2.0 — Command Center • Build 2026.07.11 • Project Digital Jazz
+RareIQ Vision v1.2.0 â€” Command Center â€¢ Build 2026.07.11 â€¢ Project Digital Jazz
 </footer>
 </main>
 <script src="/static/common.js"></script><script>
@@ -431,7 +433,7 @@ async function importLiveSet(){
 
   button.disabled=true;
   renderImportStages({},false);
-  status.textContent="Connecting to TCGdex and importing official card data…";
+  status.textContent="Connecting to TCGdex and importing official card dataâ€¦";
 
   try{
     const payload={
@@ -471,7 +473,7 @@ function renderCardGraderStatus(payload){
   $("gradeApiState").textContent=data.configured?"CONNECTED":"NOT CONFIGURED";
   $("gradeApiState").style.color=data.configured?"#7dffb4":"#ffca66";
   $("gradeCredits").textContent=String(
-    data.agent?.creditsRemaining ?? data.agent?.credits ?? "—"
+    data.agent?.creditsRemaining ?? data.agent?.credits ?? "â€”"
   );
 }
 
@@ -528,7 +530,7 @@ async function submitGradeScan(){
   }
   activeGradeScanId=result.scan?.id;
   $("gradeStatus").textContent=result.scan?.status||"Queued";
-  $("gradeResult").textContent=`Scan ${activeGradeScanId} submitted. Polling…`;
+  $("gradeResult").textContent=`Scan ${activeGradeScanId} submitted. Pollingâ€¦`;
   if(gradePollTimer)clearInterval(gradePollTimer);
   gradePollTimer=setInterval(pollGradeScan,3000);
   pollGradeScan();
@@ -547,17 +549,17 @@ async function pollGradeScan(){
   }
   const scan=result.scan||{};
   $("gradeStatus").textContent=scan.status||"Processing";
-  $("gradeProgress").textContent=scan.progressPercent!=null?`${scan.progressPercent}%`:"—";
+  $("gradeProgress").textContent=scan.progressPercent!=null?`${scan.progressPercent}%`:"â€”";
   if(scan.status==="completed"){
     clearInterval(gradePollTimer);
     gradePollTimer=null;
     const grading=scan.grading||{};
     const sub=grading.subGrades||{};
-    $("gradePredicted").textContent=String(grading.predictedGrade??grading.grade??"—");
-    $("gradeCentering").textContent=String(sub.centering??"—");
-    $("gradeCorners").textContent=String(sub.corners??"—");
-    $("gradeEdges").textContent=String(sub.edges??"—");
-    $("gradeSurface").textContent=String(sub.surface??"—");
+    $("gradePredicted").textContent=String(grading.predictedGrade??grading.grade??"â€”");
+    $("gradeCentering").textContent=String(sub.centering??"â€”");
+    $("gradeCorners").textContent=String(sub.corners??"â€”");
+    $("gradeEdges").textContent=String(sub.edges??"â€”");
+    $("gradeSurface").textContent=String(sub.surface??"â€”");
     $("gradeResult").textContent=JSON.stringify(scan,null,2);
     await refreshCardGraderStatus();
   }else{
@@ -567,9 +569,9 @@ async function pollGradeScan(){
 
 function renderActiveSet(setInfo,indexStatus){
   const active=setInfo||{};
-  $("activeSetGame").textContent=active.game||"—";
-  $("activeSetLanguage").textContent=active.language||"—";
-  $("activeSetName").textContent=active.name||"—";
+  $("activeSetGame").textContent=active.game||"â€”";
+  $("activeSetLanguage").textContent=active.language||"â€”";
+  $("activeSetName").textContent=active.name||"â€”";
   $("activeSetCards").textContent=String(indexStatus?.record_count||0);
 }
 
@@ -582,7 +584,7 @@ async function loadSets(){
     (result.sets||[]).forEach(set=>{
       const option=document.createElement("option");
       option.value=set.id;
-      option.textContent=`${set.game} • ${set.language} • ${set.name}`;
+      option.textContent=`${set.game} â€¢ ${set.language} â€¢ ${set.name}`;
       select.appendChild(option);
     });
     const activeId=result.status?.active_set_id;
@@ -607,7 +609,7 @@ async function applyActiveSet(){
 
 async function loadCameras(){
   const select=$("cameraSelect");
-  select.innerHTML="<option>Scanning for cameras…</option>";
+  select.innerHTML="<option>Scanning for camerasâ€¦</option>";
   try{
     const response=await fetch("/api/cameras");
     const result=await response.json();
@@ -662,18 +664,18 @@ async function toggleRecognition(){
 }
 
 function renderCatalog(c){
-  $("catStatus").textContent=c.busy?"LOOKING UP…":(c.error?"ERROR":(c.match?"MATCH FOUND":((c.candidates||[]).length?"CANDIDATES":"NO MATCH")));
+  $("catStatus").textContent=c.busy?"LOOKING UPâ€¦":(c.error?"ERROR":(c.match?"MATCH FOUND":((c.candidates||[]).length?"CANDIDATES":"NO MATCH")));
   const match=c.match;
-  $("catMatch").textContent=match?`${match.name} • ${match.collector_number}`:"—";
-  $("catSet").textContent=match?`${match.set_name||"Unknown set"} • ${match.rarity||"Unknown rarity"}`:"—";
-  $("catLatency").textContent=c.latency_ms==null?"—":`${c.latency_ms} ms`;
+  $("catMatch").textContent=match?`${match.name} â€¢ ${match.collector_number}`:"â€”";
+  $("catSet").textContent=match?`${match.set_name||"Unknown set"} â€¢ ${match.rarity||"Unknown rarity"}`:"â€”";
+  $("catLatency").textContent=c.latency_ms==null?"â€”":`${c.latency_ms} ms`;
   const price=match&&match.pricing;
-  $("catPrice").querySelector(".catalog-value").textContent=price?`${price.source}: ${price.market??"—"} ${price.unit||""} (low ${price.low??"—"})`:"No pricing returned";
+  $("catPrice").querySelector(".catalog-value").textContent=price?`${price.source}: ${price.market??"â€”"} ${price.unit||""} (low ${price.low??"â€”"})`:"No pricing returned";
   const candidates=c.candidates||[];
   const lines=[];
   if(c.note)lines.push(`NOTE: ${c.note}`);
   if(c.error)lines.push(`ERROR: ${c.error}`);
-  candidates.forEach((card,index)=>lines.push(`${index+1}. ${card.name} • ${card.collector_number} • ${card.set_name||"Unknown set"} • ${card.rarity||"Unknown rarity"} [${card.language_code}]`));
+  candidates.forEach((card,index)=>lines.push(`${index+1}. ${card.name} â€¢ ${card.collector_number} â€¢ ${card.set_name||"Unknown set"} â€¢ ${card.rarity||"Unknown rarity"} [${card.language_code}]`));
   $("catCandidates").textContent=lines.length?lines.join("\n"):"No catalog candidates yet.";
 }
 
@@ -715,12 +717,12 @@ async function rebuildArtworkIndex(){
   const button=$("rebuildIndexButton");
   const status=$("indexBuildStatus");
   button.disabled=true;
-  status.textContent="Building index…";
+  status.textContent="Building indexâ€¦";
   try{
     const result=await post("/api/artwork-index/rebuild");
     const count=result.status?.record_count||0;
     const skipped=result.skipped?.length||0;
-    status.textContent=`Index ready: ${count} cards • skipped ${skipped}`;
+    status.textContent=`Index ready: ${count} cards â€¢ skipped ${skipped}`;
   }catch(error){
     status.textContent=`Index rebuild failed: ${error}`;
   }finally{
@@ -736,12 +738,12 @@ function renderReferenceMatch(r){
 
   if(!top){
     $("referenceBadge").textContent="WAITING";
-    $("referenceName").textContent="—";
-    $("referenceConfidence").textContent="—";
-    $("referenceNumber").textContent="—";
-    $("referenceLanguage").textContent="—";
-    $("referenceSet").textContent="—";
-    $("referenceSource").textContent="—";
+    $("referenceName").textContent="â€”";
+    $("referenceConfidence").textContent="â€”";
+    $("referenceNumber").textContent="â€”";
+    $("referenceLanguage").textContent="â€”";
+    $("referenceSet").textContent="â€”";
+    $("referenceSource").textContent="â€”";
     image.style.display="none";
     image.removeAttribute("src");
     empty.style.display="block";
@@ -753,9 +755,9 @@ function renderReferenceMatch(r){
   $("referenceBadge").textContent=r.verification_state||"MATCH FOUND";
   $("referenceName").textContent=top.name||top.printed_name||"Unknown card";
   $("referenceConfidence").textContent=`${score}%`;
-  $("referenceNumber").textContent=top.collector_number||"—";
+  $("referenceNumber").textContent=top.collector_number||"â€”";
   $("referenceLanguage").textContent=top.language||"Unknown";
-  $("referenceSet").textContent=top.set_name||"—";
+  $("referenceSet").textContent=top.set_name||"â€”";
   $("referenceSource").textContent=top.source||"local index";
 
   if(top.reference_image_url){
@@ -780,14 +782,14 @@ function renderReferenceMatch(r){
 function renderRecognition(r){
   renderReferenceMatch(r);
   $("recognitionEnabled").checked=typeof r.enabled==="boolean"?r.enabled:true;
-  $("recMode").textContent=r.mode||"OCR + DB";$("recName").textContent=r.name_candidate||"Waiting…";$("recHp").textContent=r.hp_candidate||"—";
-  $("recOcrNumber").textContent=r.ocr_collector_number||"—";$("recNumber").textContent=r.collector_number||"—";const match=r.database_match;$("recDbMatch").textContent=match?`${match.english_name||match.printed_name} • ${Math.round(Number(r.database_confidence||0)*100)}%`:"No match";
-  $("recLanguage").textContent=r.language||"—";$("recFingerprint").textContent=r.artwork_fingerprint||"—";
+  $("recMode").textContent=r.mode||"OCR + DB";$("recName").textContent=r.name_candidate||"Waitingâ€¦";$("recHp").textContent=r.hp_candidate||"â€”";
+  $("recOcrNumber").textContent=r.ocr_collector_number||"â€”";$("recNumber").textContent=r.collector_number||"â€”";const match=r.database_match;$("recDbMatch").textContent=match?`${match.english_name||match.printed_name} â€¢ ${Math.round(Number(r.database_confidence||0)*100)}%`:"No match";
+  $("recLanguage").textContent=r.language||"â€”";$("recFingerprint").textContent=r.artwork_fingerprint||"â€”";
   const overall=Math.round(Number(r.overall_confidence||0)*100);
   $("apolloOverall").textContent=`${overall}%`;
   $("apolloOcr").textContent=`${Math.round(Number(r.confidence||0)*100)}%`;
   $("apolloDb").textContent=`${Math.round(Number(r.database_confidence||0)*100)}%`;
-  $("apolloNumber").textContent=r.collector_number?"YES":"NO";$("apolloOcrMs").textContent=r.stage_timings?.ocr_ms!=null?`${r.stage_timings.ocr_ms} ms`:"—";$("artemisTotalMs").textContent=r.stage_timings?.total_ms!=null?`${r.stage_timings.total_ms} ms`:"—";$("artemisCandidates").textContent=String(r.candidate_count||0);renderActiveSet(r.active_set?.active_set,r.artwork_index?.status);const idx=r.artwork_index||{};$("artemisIndexCount").textContent=String(idx.status?.record_count||0);$("artemisIndexMs").textContent=idx.search_ms!=null?`${idx.search_ms} ms`:"—";$("artemisTopArt").textContent=`${Math.round(Number(idx.top_score||0)*100)}%`;
+  $("apolloNumber").textContent=r.collector_number?"YES":"NO";$("apolloOcrMs").textContent=r.stage_timings?.ocr_ms!=null?`${r.stage_timings.ocr_ms} ms`:"â€”";$("artemisTotalMs").textContent=r.stage_timings?.total_ms!=null?`${r.stage_timings.total_ms} ms`:"â€”";$("artemisCandidates").textContent=String(r.candidate_count||0);renderActiveSet(r.active_set?.active_set,r.artwork_index?.status);const idx=r.artwork_index||{};$("artemisIndexCount").textContent=String(idx.status?.record_count||0);$("artemisIndexMs").textContent=idx.search_ms!=null?`${idx.search_ms} ms`:"â€”";$("artemisTopArt").textContent=`${Math.round(Number(idx.top_score||0)*100)}%`;
   $("apolloLock").textContent=r.verification_state||(
     r.recognition_locked?"LOCKED":"SEARCHING"
   );
@@ -795,7 +797,7 @@ function renderRecognition(r){
   const stages=r.pipeline_stages||[];
   pipeline.innerHTML="";
   if(!stages.length){
-    pipeline.innerHTML='<div class="pipeline-step waiting">Waiting for pipeline…</div>';
+    pipeline.innerHTML='<div class="pipeline-step waiting">Waiting for pipelineâ€¦</div>';
   }else{
     stages.forEach(stage=>{
       const el=document.createElement("div");
@@ -810,27 +812,27 @@ function renderRecognition(r){
   const candidates=r.candidates||[];
   list.innerHTML="";
   if(!candidates.length){
-    list.innerHTML='<div class="candidate"><span>No candidates yet</span><strong>—</strong></div>';
+    list.innerHTML='<div class="candidate"><span>No candidates yet</span><strong>â€”</strong></div>';
   }else{
     candidates.forEach((candidate,index)=>{
       const row=document.createElement("div");
       row.className="candidate"+(r.recognition_locked&&index===0?" locked":"");
-      const number=candidate.collector_number||"—";
+      const number=candidate.collector_number||"â€”";
       const score=Math.round(Number(candidate.fused_score??candidate.score??0)*100);
-      row.innerHTML=`<span><strong>${index+1}. ${candidate.name||"Unknown"}</strong><br><small>${number} • ${candidate.language||"Unknown"} • ${candidate.source||"local"}</small></span><strong>${score}%</strong>`;
+      row.innerHTML=`<span><strong>${index+1}. ${candidate.name||"Unknown"}</strong><br><small>${number} â€¢ ${candidate.language||"Unknown"} â€¢ ${candidate.source||"local"}</small></span><strong>${score}%</strong>`;
       list.appendChild(row);
     });
   }
 const regions=r.regions||{};[["regionTop","top"],["regionBottom","bottom"],["regionArtwork","artwork"],["regionFull","full"]].forEach(([id,key])=>{const el=$(id);el.className="region-pill"+(regions[key]?" on":"");});
-  const latency=r.last_latency_ms==null?"—":`${r.last_latency_ms} ms`;
+  const latency=r.last_latency_ms==null?"â€”":`${r.last_latency_ms} ms`;
   const confidence=Math.round(Number(r.confidence||0)*100);
-  $("recPerf").textContent=`${latency} • ${confidence}%`;
+  $("recPerf").textContent=`${latency} â€¢ ${confidence}%`;
 
   if(r.error){
     $("ocrLines").textContent=`OCR error: ${r.error}`;
     return;
   }
-  const correction=r.correction_applied?`CORRECTED: ${r.ocr_collector_number||"—"} → ${r.collector_number||"—"}\n`:"";const lines=(r.raw_text||[]).map(
+  const correction=r.correction_applied?`CORRECTED: ${r.ocr_collector_number||"â€”"} â†’ ${r.collector_number||"â€”"}\n`:"";const lines=(r.raw_text||[]).map(
     item=>`${item.text}  (${Math.round(Number(item.score||0)*100)}%)`
   );
   $("ocrLines").textContent=correction+(lines.length?lines.join("\n"):"No readable text yet. Hold the card inside the blue OCR zone.")
@@ -866,8 +868,8 @@ function renderVision(v){
     e.className="status offline";
   }else if(stable){
     e.textContent=autoEnabled
-      ?"CARD LOCKED • AUTO CAPTURE ARMED"
-      :"CARD LOCKED • MANUAL MODE";
+      ?"CARD LOCKED â€¢ AUTO CAPTURE ARMED"
+      :"CARD LOCKED â€¢ MANUAL MODE";
     e.className="status locked";
   }else{
     e.textContent=visible?"CARD DETECTED":"SEARCHING";
@@ -904,19 +906,19 @@ function buildDesktopWorkstation(){
   const sidebar=document.createElement("aside");
   sidebar.className="command-sidebar";
   sidebar.innerHTML=`
-    <div class="command-brand"><div class="brand-mark">◇</div><span>RareIQ</span></div>
+    <div class="command-brand"><div class="brand-mark">â—‡</div><span>RareIQ</span></div>
     <nav class="command-nav">
-      <button class="active" onclick="scrollCommand('dashboardHero')">◈ &nbsp; Dashboard</button>
-      <button onclick="scrollCommand('cameraModule')">◉ &nbsp; Live Scan</button>
-      <button onclick="scrollCommand('developerLab')">♙ &nbsp; Recognition Lab</button>
-      <button onclick="scrollCommand('catalogTool')">▣ &nbsp; Catalogs</button>
-      <button onclick="scrollCommand('setTool')">▤ &nbsp; Active Sets</button>
-      <button onclick="openGradeDrawer()">⌁ &nbsp; AI Grading</button>
-      <button onclick="scrollCommand('batchModule')">▣ &nbsp; Batches</button>
-      <button>▦ &nbsp; Reports</button>
-      <button>⚙ &nbsp; Settings</button>
+      <button class="active" onclick="scrollCommand('dashboardHero')">â—ˆ &nbsp; Dashboard</button>
+      <button onclick="scrollCommand('cameraModule')">â—‰ &nbsp; Live Scan</button>
+      <button onclick="scrollCommand('developerLab')">â™™ &nbsp; Recognition Lab</button>
+      <button onclick="scrollCommand('catalogTool')">â–£ &nbsp; Catalogs</button>
+      <button onclick="scrollCommand('setTool')">â–¤ &nbsp; Active Sets</button>
+      <button onclick="openGradeDrawer()">âŒ &nbsp; AI Grading</button>
+      <button onclick="scrollCommand('batchModule')">â–£ &nbsp; Batches</button>
+      <button>â–¦ &nbsp; Reports</button>
+      <button>âš™ &nbsp; Settings</button>
     </nav>
-    <div class="sidebar-foot">‹ &nbsp; Collapse</div>`;
+    <div class="sidebar-foot">â€¹ &nbsp; Collapse</div>`;
 
   const content=document.createElement("section");
   content.className="command-main";
@@ -925,20 +927,20 @@ function buildDesktopWorkstation(){
       <div class="command-title">RareIQ Operator Dashboard <span class="version-chip">v${VERSION}</span></div>
       <div class="top-status">
         <span><i class="live-dot"></i>Live</span>
-        <span>◉ ${CODENAME}</span>
+        <span>â—‰ ${CODENAME}</span>
         <span id="commandClock">--:--:--</span>
         <span class="operator-avatar">OP</span>
-        <span><b>Operator</b><br><small style="color:#35e58d">● Online</small></span>
+        <span><b>Operator</b><br><small style="color:#35e58d">â— Online</small></span>
       </div>
     </header>
     <div class="kpi-strip">
-      <div class="kpi-card"><div class="kpi-icon">▣</div><div><div class="kpi-label">Camera Status</div><div id="kpiCamera" class="kpi-value">Live</div><div id="kpiCameraSub" class="kpi-sub">Insta360 Link</div></div></div>
-      <div class="kpi-card"><div class="kpi-icon" style="color:#54d8ff">▤</div><div><div class="kpi-label">Active Set</div><div id="kpiSet" class="kpi-value">All References</div><div id="kpiSetSub" class="kpi-sub">Ready</div></div></div>
-      <div class="kpi-card"><div class="kpi-icon" style="color:#8f7cff">⬡</div><div><div class="kpi-label">Indexed Cards</div><div id="kpiIndexed" class="kpi-value">2</div><div class="kpi-sub">Local visual index</div></div></div>
-      <div class="kpi-card"><div class="kpi-icon" style="color:#827cff">⌁</div><div><div class="kpi-label">Avg Latency</div><div id="kpiLatency" class="kpi-value">—</div><div class="kpi-sub">Recognition pipeline</div></div></div>
-      <div class="kpi-card"><div class="kpi-icon">♢</div><div><div class="kpi-label">OCR Confidence</div><div id="kpiOcr" class="kpi-value">—</div><div id="kpiVerifySub" class="kpi-sub">Searching</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon">â–£</div><div><div class="kpi-label">Camera Status</div><div id="kpiCamera" class="kpi-value">Live</div><div id="kpiCameraSub" class="kpi-sub">Insta360 Link</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon" style="color:#54d8ff">â–¤</div><div><div class="kpi-label">Active Set</div><div id="kpiSet" class="kpi-value">All References</div><div id="kpiSetSub" class="kpi-sub">Ready</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon" style="color:#8f7cff">â¬¡</div><div><div class="kpi-label">Indexed Cards</div><div id="kpiIndexed" class="kpi-value">2</div><div class="kpi-sub">Local visual index</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon" style="color:#827cff">âŒ</div><div><div class="kpi-label">Avg Latency</div><div id="kpiLatency" class="kpi-value">â€”</div><div class="kpi-sub">Recognition pipeline</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon">â™¢</div><div><div class="kpi-label">OCR Confidence</div><div id="kpiOcr" class="kpi-value">â€”</div><div id="kpiVerifySub" class="kpi-sub">Searching</div></div></div>
       <div class="kpi-card"><div class="kpi-icon" style="color:#ff6375;background:rgba(255,99,117,.1)">$</div><div><div class="kpi-label">Batch Total</div><div id="kpiBatch" class="kpi-value">$0.00</div><div id="kpiCards" class="kpi-sub">0 Cards</div></div></div>
-      <div class="kpi-card"><button class="new-batch-btn" onclick="scrollCommand('batchModule')">＋ New Batch</button></div>
+      <div class="kpi-card"><button class="new-batch-btn" onclick="scrollCommand('batchModule')">ï¼‹ New Batch</button></div>
     </div>`;
 
   const hero=document.createElement("div");
@@ -948,7 +950,7 @@ function buildDesktopWorkstation(){
   const cameraCard=document.createElement("section");
   cameraCard.id="cameraModule";
   cameraCard.className="premium-card camera-card";
-  cameraCard.innerHTML=`<div class="card-head"><h2>▣ Live Card Camera</h2><span class="live-pill">● LIVE</span></div>`;
+  cameraCard.innerHTML=`<div class="card-head"><h2>â–£ Live Card Camera</h2><span class="live-pill">â— LIVE</span></div>`;
   cameraCard.appendChild(camera);
   if(hud)cameraCard.appendChild(hud);
   if(cameraControls){
@@ -958,7 +960,7 @@ function buildDesktopWorkstation(){
 
   const matchCard=document.createElement("section");
   matchCard.className="premium-card";
-  matchCard.innerHTML=`<div class="card-head"><h2>♧ Reference Match Preview</h2><span id="premiumVerified" class="verified-pill">✓ Verified</span></div>`;
+  matchCard.innerHTML=`<div class="card-head"><h2>â™§ Reference Match Preview</h2><span id="premiumVerified" class="verified-pill">âœ“ Verified</span></div>`;
   matchCard.appendChild(reference);
   const intelligence=document.createElement("div");
   intelligence.className="match-intelligence";
@@ -966,11 +968,11 @@ function buildDesktopWorkstation(){
     <div class="confidence-box">
       <div class="confidence-ring" id="premiumRing"><strong id="premiumPct">0%</strong></div>
       <div class="verify-list">
-        <div class="verify-row"><span>Card detected</span><span id="verifyDetect" class="verify-check">○</span></div>
-        <div class="verify-row"><span>OCR complete</span><span id="verifyOcr" class="verify-check">○</span></div>
-        <div class="verify-row"><span>Artwork fingerprint</span><span id="verifyArt" class="verify-check">○</span></div>
-        <div class="verify-row"><span>Index search matched</span><span id="verifyIndex" class="verify-check">○</span></div>
-        <div class="verify-row"><span>Candidate verified</span><span id="verifyFinal" class="verify-check">○</span></div>
+        <div class="verify-row"><span>Card detected</span><span id="verifyDetect" class="verify-check">â—‹</span></div>
+        <div class="verify-row"><span>OCR complete</span><span id="verifyOcr" class="verify-check">â—‹</span></div>
+        <div class="verify-row"><span>Artwork fingerprint</span><span id="verifyArt" class="verify-check">â—‹</span></div>
+        <div class="verify-row"><span>Index search matched</span><span id="verifyIndex" class="verify-check">â—‹</span></div>
+        <div class="verify-row"><span>Candidate verified</span><span id="verifyFinal" class="verify-check">â—‹</span></div>
       </div>
     </div>
     <div class="price-box">
@@ -980,7 +982,7 @@ function buildDesktopWorkstation(){
   matchCard.appendChild(intelligence);
   const action=document.createElement("button");
   action.className="match-action";
-  action.textContent="View Full Match Details ↗";
+  action.textContent="View Full Match Details â†—";
   action.onclick=()=>scrollCommand("developerLab");
   matchCard.appendChild(action);
 
@@ -998,18 +1000,18 @@ function buildDesktopWorkstation(){
     return card;
   }
 
-  tools.appendChild(toolWrap("catalogTool","Catalog Import","▣",liveImport));
-  tools.appendChild(toolWrap("setTool","Active Set Mode","▤",setPanel));
+  tools.appendChild(toolWrap("catalogTool","Catalog Import","â–£",liveImport));
+  tools.appendChild(toolWrap("setTool","Active Set Mode","â–¤",setPanel));
 
-  const recTool=toolWrap("recognitionTool","Recognition Lab","♙",recognition);
+  const recTool=toolWrap("recognitionTool","Recognition Lab","â™™",recognition);
   tools.appendChild(recTool);
 
   const gradeTool=document.createElement("section");
   gradeTool.className="premium-card tool-card";
   gradeTool.innerHTML=`
-    <div class="tool-title"><h3>✣ AI Pre-Grading</h3><span id="compactGradeStatus" style="font-size:10px;color:#ffca58">NOT CONFIGURED</span></div>
-    <div class="grade-compact"><div><div style="font-size:29px;margin-bottom:8px">♙</div><div>Configure the grading service to estimate condition.</div><button class="primary" onclick="openGradeDrawer()">Configure API</button></div></div>
-    <div class="grade-actions-bar"><button onclick="openGradeDrawer()">▣ Grade Card</button><button onclick="refreshCardGraderStatus()">◷ Check Balance</button></div>`;
+    <div class="tool-title"><h3>âœ£ AI Pre-Grading</h3><span id="compactGradeStatus" style="font-size:10px;color:#ffca58">NOT CONFIGURED</span></div>
+    <div class="grade-compact"><div><div style="font-size:29px;margin-bottom:8px">â™™</div><div>Configure the grading service to estimate condition.</div><button class="primary" onclick="openGradeDrawer()">Configure API</button></div></div>
+    <div class="grade-actions-bar"><button onclick="openGradeDrawer()">â–£ Grade Card</button><button onclick="refreshCardGraderStatus()">â—· Check Balance</button></div>`;
   tools.appendChild(gradeTool);
   content.appendChild(tools);
 
@@ -1034,7 +1036,7 @@ function buildDesktopWorkstation(){
   const drawer=document.createElement("div");
   drawer.id="gradeDrawer";
   drawer.style.cssText="position:fixed;right:-560px;top:0;width:540px;height:100vh;background:#081523;border-left:1px solid #2b4665;z-index:100;padding:18px;overflow:auto;transition:right .25s ease;box-shadow:-20px 0 60px rgba(0,0,0,.35)";
-  drawer.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="margin:0">AI Pre-Grading</h2><button onclick="closeGradeDrawer()">✕</button></div>`;
+  drawer.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="margin:0">AI Pre-Grading</h2><button onclick="closeGradeDrawer()">âœ•</button></div>`;
   drawer.appendChild(gradePanel);
   document.body.appendChild(drawer);
 
@@ -1090,10 +1092,10 @@ function syncCommandCenter(){
   $("kpiCamera").textContent=vision.includes("OFFLINE")?"Offline":"Live";
   $("kpiCameraSub").textContent=camera;
   $("kpiSet").textContent=text("activeSetName")||"All References";
-  $("kpiSetSub").textContent=`${text("activeSetLanguage")||"Any"} • ${text("activeSetGame")||"Any"}`;
+  $("kpiSetSub").textContent=`${text("activeSetLanguage")||"Any"} â€¢ ${text("activeSetGame")||"Any"}`;
   $("kpiIndexed").textContent=text("artemisIndexCount")||text("activeSetCards")||"0";
-  $("kpiLatency").textContent=text("artemisTotalMs")||text("recPerf")||"—";
-  $("kpiOcr").textContent=text("apolloOcr")||"—";
+  $("kpiLatency").textContent=text("artemisTotalMs")||text("recPerf")||"â€”";
+  $("kpiOcr").textContent=text("apolloOcr")||"â€”";
   $("kpiVerifySub").textContent=text("apolloLock")||"Searching";
   $("kpiBatch").textContent=text("valueStat")||"$0.00";
   $("kpiCards").textContent=`${text("cardStat")||"0"} Cards`;
@@ -1105,13 +1107,13 @@ function syncCommandCenter(){
   $("premiumRing").style.setProperty("--pct",pct);
   const stages=[...document.querySelectorAll("#hermesPipeline .pipeline-step")];
   const done=label=>stages.some(s=>s.textContent.toLowerCase().includes(label)&&s.classList.contains("done"));
-  $("verifyDetect").textContent=done("card detected")?"✓":"○";
-  $("verifyOcr").textContent=done("ocr")?"✓":"○";
-  $("verifyArt").textContent=done("artwork fingerprint")?"✓":"○";
-  $("verifyIndex").textContent=done("index")?"✓":"○";
-  $("verifyFinal").textContent=done("final")?"✓":"○";
+  $("verifyDetect").textContent=done("card detected")?"âœ“":"â—‹";
+  $("verifyOcr").textContent=done("ocr")?"âœ“":"â—‹";
+  $("verifyArt").textContent=done("artwork fingerprint")?"âœ“":"â—‹";
+  $("verifyIndex").textContent=done("index")?"âœ“":"â—‹";
+  $("verifyFinal").textContent=done("final")?"âœ“":"â—‹";
   const verified=(text("apolloLock")==="VERIFIED"||text("apolloLock")==="LOCKED");
-  $("premiumVerified").textContent=verified?"✓ Verified":"Searching";
+  $("premiumVerified").textContent=verified?"âœ“ Verified":"Searching";
   $("premiumVerified").style.color=verified?"#63ffa8":"#ffca58";
   $("compactGradeStatus").textContent=$("gradeApiState")?.textContent||"NOT CONFIGURED";
 }
@@ -1142,7 +1144,7 @@ if(m.type==="artwork_index_update"){
   renderVision(m.payload);
 }
 if(m.type==="card_captured"){
-  $("cameraStatus").textContent=`CAPTURED • ${m.payload.source.toUpperCase()}`;
+  $("cameraStatus").textContent=`CAPTURED â€¢ ${m.payload.source.toUpperCase()}`;
   $("cameraStatus").className="status locked";
   $("hudVision").textContent="CAPTURED";
   setTimeout(()=>{
@@ -1150,3 +1152,4 @@ if(m.type==="card_captured"){
   },900);
 }})
 </script></body></html>
+
