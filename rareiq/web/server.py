@@ -985,7 +985,103 @@ async def recognition_state():
         "ok": True,
         "recognition_state": orchestrator.recognition_state.snapshot(),
     }
+@app.get("/api/reference-image")
+async def reference_image(
+    path: str,
+):
+    """Serve a local catalog image safely to Studio X."""
 
+    from pathlib import Path
+
+    from fastapi import HTTPException
+    from fastapi.responses import FileResponse
+
+    project_root = Path(
+        __file__
+    ).resolve().parents[2]
+
+    requested = Path(
+        str(
+            path
+        )
+    )
+
+    if not requested.is_absolute():
+        requested = (
+            project_root
+            / requested
+        )
+
+    try:
+        resolved = requested.resolve(
+            strict=True
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="Reference image not found.",
+        ) from exc
+
+    allowed_roots = (
+        (
+            project_root
+            / "catalog_master"
+        ).resolve(),
+        (
+            project_root
+            / "rareiq"
+            / "data"
+        ).resolve(),
+    )
+
+    is_allowed = any(
+        resolved == root
+        or root in resolved.parents
+        for root in allowed_roots
+    )
+
+    if not is_allowed:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Reference image is outside "
+                "the allowed catalog folders."
+            ),
+        )
+
+    supported_extensions = {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp",
+        ".avif",
+        ".bmp",
+    }
+
+    if (
+        not resolved.is_file()
+        or resolved.suffix.lower()
+        not in supported_extensions
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "Reference image is unavailable "
+                "or unsupported."
+            ),
+        )
+
+    return FileResponse(
+        path=str(
+            resolved
+        ),
+        headers={
+            "Cache-Control": (
+                "public, max-age=3600"
+            ),
+        },
+    )
 @app.get("/api/artwork-index/status")
 async def artwork_index_status():
     return {

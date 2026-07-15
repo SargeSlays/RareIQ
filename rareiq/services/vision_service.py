@@ -1340,20 +1340,48 @@ class VisionService:
 
             return
 
-        capture.set(
-            cv2.CAP_PROP_FRAME_WIDTH,
-            1280,
+        camera_properties = (
+            (
+                cv2.CAP_PROP_FRAME_WIDTH,
+                1280,
+                "frame width",
+            ),
+            (
+                cv2.CAP_PROP_FRAME_HEIGHT,
+                720,
+                "frame height",
+            ),
+            (
+                cv2.CAP_PROP_BUFFERSIZE,
+                1,
+                "buffer size",
+            ),
         )
 
-        capture.set(
-            cv2.CAP_PROP_FRAME_HEIGHT,
-            720,
-        )
+        for (
+            property_id,
+            value,
+            label,
+        ) in camera_properties:
+            try:
+                capture.set(
+                    property_id,
+                    value,
+                )
 
-        capture.set(
-            cv2.CAP_PROP_BUFFERSIZE,
-            1,
-        )
+            except cv2.error as exc:
+                print(
+                    "[RareIQ Vision] "
+                    f"Camera rejected {label}: "
+                    f"{exc}"
+                )
+
+            except Exception as exc:
+                print(
+                    "[RareIQ Vision] "
+                    f"Could not set {label}: "
+                    f"{exc}"
+                )       
 
         tracker = ConfidenceLockTracker(
             stable_target=self.STABLE_TARGET,

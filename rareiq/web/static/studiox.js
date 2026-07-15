@@ -1453,13 +1453,45 @@ async function loadRecognition(){
           ""
         }`;
 
-      $("cardName").textContent =
+      const rawCardName = String(
         card.english_name ||
-        card.name ||
         card.printed_name ||
-        snapshot?.english_name ||
-        snapshot?.name_candidate ||
-        "Candidate Card";
+        card.name ||
+        ""
+      ).trim();
+
+      const setId = String(
+        card.set_id ||
+        card.set_name ||""
+      ).trim();
+
+      const collectorNumber = String(
+        card.collector_number ||
+        ""
+      ).trim();
+
+      const looksLikeFilename =
+        rawCardName.length > 70 ||
+        rawCardName.includes("-Set-List-") ||
+        rawCardName.includes("-Pokemon-") ||
+        rawCardName.includes("-Pokipair-") ||
+        rawCardName.includes("-Store-") ||
+        /\.(jpg|jpeg|png|webp|avif)$/i.test(
+          rawCardName
+        );
+
+      $("cardName").textContent =
+        looksLikeFilename || !rawCardName
+          ? [
+              "Unidentified",
+              setId,
+              collectorNumber
+                ? `Card ${collectorNumber}`
+                : "Card"
+            ]
+              .filter(Boolean)
+              .join(" ")
+          : rawCardName;
 
       $("cardMeta").textContent = [
         card.set_name,
@@ -1516,13 +1548,23 @@ async function loadRecognition(){
         ? "CANDIDATE MATCH"
         : "REVIEW REQUIRED";
 
-      const image =
-        card.reference_image_url ||
-        card.image_url ||
-        card.local_image ||
-        card.reference_image ||
+      const localImage =
         card.image_path ||
+        card.reference_image ||
+        card.local_image ||
         "";
+
+      const image =
+       card.reference_image_url ||
+       card.image_url ||
+       (
+         localImage
+           ? "/api/reference-image?path="
+             + encodeURIComponent(
+                 String(localImage)
+               )
+            : ""
+      );
 
       if(image){
         const source = String(image).replaceAll("\\","/");
