@@ -23,6 +23,325 @@ class DetectionResult:
     area_score: float = 0.0
 
 
+@dataclass
+class AcquisitionFrame:
+    crop: np.ndarray
+    polygon: np.ndarray
+    frame_id: int
+    detection_confidence: float
+    quality_score: float
+    sharpness: float
+    brightness: float
+    contrast: float
+    glare_score: float
+    fingerprint: np.ndarray
+
+
+class MultiFrameAcquisitionBuffer:
+    """Keeps and ranks several corrected views of the current physical card."""
+
+    def __init__(
+        self,
+        *,
+        max_samples: int = 12,
+        consensus_count: int = 3,
+    ) -> None:
+        self.max_samples = max(3, int(max_samples))
+        self.consensus_count = max(2, int(consensus_count))
+        self.samples: list[AcquisitionFrame] = []
+        self.last_captured_fingerprint: np.ndarray | None = None
+        self.replacement_frames = 0
+
+    def reset(self) -> None:
+        self.samples.clear()
+        self.replacement_frames = 0
+
+    @staticmethod
+    def _fingerprint(image: np.ndarray) -> np.ndarray:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        resized = cv2.resize(
+            gray,
+            (32, 32),
+            interpolation=cv2.INTER_AREA,
+        )
+        normalized = cv2.equalizeHist(resized)
+        return normalized.astype(np.float32).reshape(-1) / 255.0
+
+    @staticmethod
+    def fingerprint_distance(
+        left: np.ndarray | None,
+        right: np.ndarray | None,
+    ) -> float:
+        if left is None or right is None:
+            return 1.0
+
+        if left.shape != right.shape:
+            return 1.0
+
+        return float(np.mean(np.abs(left - right)))
+
+    @staticmethod
+    def _quality(image: np.ndarray) -> dict[str, float]:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+        raw_sharpness = float(
+            cv2.Laplacian(
+                gray,
+                cv2.CV_64F,
+            ).var()
+        )
+        sharpness = float(
+            np.clip(
+                raw_sharpness / 700.0,
+                0.0,
+                1.0,
+            )
+        )
+
+        mean = float(gray.mean())
+        brightness = float(
+            np.clip(
+                1.0 - abs(mean - 132.0) / 132.0,
+                0.0,
+                1.0,
+            )
+        )
+
+        contrast = float(
+            np.clip(
+                float(gray.std()) / 72.0,
+                0.0,
+                1.0,
+            )
+        )
+
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        glare_mask = cv2.inRange(
+            hsv,
+            np.array([0, 0, 235], dtype=np.uint8),
+            np.array([180, 52, 255], dtype=np.uint8),
+        )
+        glare_ratio = (
+            float(np.count_nonzero(glare_mask))
+            / float(max(1, glare_mask.size))
+        )
+        glare_score = float(
+            np.clip(
+                1.0 - glare_ratio / 0.16,
+                0.0,
+                1.0,
+            )
+        )
+
+        quality_score = (
+            sharpness * 0.38
+            + brightness * 0.17
+            + contrast * 0.18
+            + glare_score * 0.27
+        )
+
+        return {
+            "quality_score": round(quality_score, 5),
+            "sharpness": round(sharpness, 5),
+            "brightness": round(brightness, 5),
+            "contrast": round(contrast, 5),
+            "glare_score": round(glare_score, 5),
+        }
+
+    def add(
+        self,
+        *,
+        crop: np.ndarray,
+        polygon: np.ndarray,
+        frame_id: int,
+        detection_confidence: float,
+    ) -> AcquisitionFrame | None:
+        if crop is None or crop.size == 0:
+            return None
+
+        quality = self._quality(crop)
+        fingerprint = self._fingerprint(crop)
+
+        sample = AcquisitionFrame(
+            crop=crop.copy(),
+            polygon=np.asarray(
+                polygon,
+                dtype=np.float32,
+            ).copy(),
+            frame_id=int(frame_id),
+            detection_confidence=float(
+                np.clip(
+                    detection_confidence,
+                    0.0,
+                    1.0,
+                )
+            ),
+            quality_score=float(quality["quality_score"]),
+            sharpness=float(quality["sharpness"]),
+            brightness=float(quality["brightness"]),
+            contrast=float(quality["contrast"]),
+            glare_score=float(quality["glare_score"]),
+            fingerprint=fingerprint,
+        )
+
+        self.samples.append(sample)
+        self.samples.sort(
+            key=lambda item: (
+                item.quality_score * 0.72
+                + item.detection_confidence * 0.28
+            ),
+            reverse=True,
+        )
+
+        if len(self.samples) > self.max_samples:
+            self.samples = self.samples[:self.max_samples]
+
+        return sample
+
+    def best_consensus(self) -> AcquisitionFrame | None:
+        if not self.samples:
+            return None
+
+        candidate_pool = self.samples[
+            :min(
+                len(self.samples),
+                max(self.consensus_count * 2, 6),
+            )
+        ]
+
+        best_sample = candidate_pool[0]
+        best_score = -1.0
+
+        for sample in candidate_pool:
+            similarities = []
+
+            for other in candidate_pool:
+                if other is sample:
+                    continue
+
+                distance = self.fingerprint_distance(
+                    sample.fingerprint,
+                    other.fingerprint,
+                )
+                similarities.append(
+                    float(
+                        np.clip(
+                            1.0 - distance / 0.30,
+                            0.0,
+                            1.0,
+                        )
+                    )
+                )
+
+            similarities.sort(reverse=True)
+            agreement = (
+                sum(
+                    similarities[
+                        :max(
+                            1,
+                            self.consensus_count - 1,
+                        )
+                    ]
+                )
+                / max(
+                    1,
+                    min(
+                        len(similarities),
+                        self.consensus_count - 1,
+                    ),
+                )
+                if similarities
+                else 0.0
+            )
+
+            combined = (
+                sample.quality_score * 0.60
+                + sample.detection_confidence * 0.18
+                + agreement * 0.22
+            )
+
+            if combined > best_score:
+                best_score = combined
+                best_sample = sample
+
+        return best_sample
+
+    def mark_captured(
+        self,
+        sample: AcquisitionFrame | None,
+    ) -> None:
+        if sample is not None:
+            self.last_captured_fingerprint = (
+                sample.fingerprint.copy()
+            )
+
+        self.replacement_frames = 0
+
+    def observe_replacement(
+        self,
+        fingerprint: np.ndarray | None,
+        *,
+        distance_threshold: float = 0.115,
+        required_frames: int = 4,
+    ) -> bool:
+        if (
+            fingerprint is None
+            or self.last_captured_fingerprint is None
+        ):
+            self.replacement_frames = 0
+            return False
+
+        distance = self.fingerprint_distance(
+            fingerprint,
+            self.last_captured_fingerprint,
+        )
+
+        if distance >= distance_threshold:
+            self.replacement_frames += 1
+        else:
+            self.replacement_frames = max(
+                0,
+                self.replacement_frames - 1,
+            )
+
+        return self.replacement_frames >= required_frames
+
+    def telemetry(self) -> dict[str, Any]:
+        best = self.best_consensus()
+
+        return {
+            "buffer_size": len(self.samples),
+            "buffer_capacity": self.max_samples,
+            "consensus_target": self.consensus_count,
+            "best_quality": (
+                round(best.quality_score, 4)
+                if best is not None
+                else 0.0
+            ),
+            "best_sharpness": (
+                round(best.sharpness, 4)
+                if best is not None
+                else 0.0
+            ),
+            "best_brightness": (
+                round(best.brightness, 4)
+                if best is not None
+                else 0.0
+            ),
+            "best_contrast": (
+                round(best.contrast, 4)
+                if best is not None
+                else 0.0
+            ),
+            "best_glare_score": (
+                round(best.glare_score, 4)
+                if best is not None
+                else 0.0
+            ),
+            "replacement_frames": self.replacement_frames,
+        }
+
+
 class ConfidenceLockTracker:
     """Converts imperfect card detections into a stable temporal lock.
 
@@ -240,6 +559,10 @@ class VisionService:
 
         self._best_lock_crop: np.ndarray | None = None
         self._best_lock_quality = 0.0
+        self._acquisition = MultiFrameAcquisitionBuffer(
+            max_samples=12,
+            consensus_count=3,
+        )
 
         self._frame_id = 0
         self._latest_frame_at: float | None = None
@@ -269,6 +592,17 @@ class VisionService:
             "movement": None,
             "candidate_scores": {},
             "capture_quality": 0.0,
+            "acquisition": {
+                "buffer_size": 0,
+                "buffer_capacity": 12,
+                "consensus_target": 3,
+                "best_quality": 0.0,
+                "best_sharpness": 0.0,
+                "best_brightness": 0.0,
+                "best_contrast": 0.0,
+                "best_glare_score": 0.0,
+                "replacement_frames": 0,
+            },
             "polygon": [],
             "error": None,
             "auto_capture_enabled": True,
@@ -393,6 +727,8 @@ class VisionService:
         self._missing_frames = 0
         self._best_lock_crop = None
         self._best_lock_quality = 0.0
+        self._acquisition.reset()
+        self._acquisition.last_captured_fingerprint = None
         self._running = True
 
         with self._lock:
@@ -1089,9 +1425,14 @@ class VisionService:
                     else []
                 )
 
+                current_sample = None
+
                 if candidate_found and result.crop is not None:
-                    quality = self._crop_quality(
-                        result.crop
+                    current_sample = self._acquisition.add(
+                        crop=result.crop,
+                        polygon=result.polygon,
+                        frame_id=self._frame_id,
+                        detection_confidence=result.confidence,
                     )
 
                     with self._lock:
@@ -1099,15 +1440,21 @@ class VisionService:
                             result.crop.copy()
                         )
 
+                    consensus_sample = (
+                        self._acquisition.best_consensus()
+                    )
+
                     if (
                         visible
-                        and quality >= self._best_lock_quality
+                        and consensus_sample is not None
                     ):
                         self._best_lock_crop = (
-                            result.crop.copy()
+                            consensus_sample.crop.copy()
                         )
 
-                        self._best_lock_quality = quality
+                        self._best_lock_quality = (
+                            consensus_sample.quality_score
+                        )
 
                 if reference is not None:
                     frame_height, frame_width = frame.shape[:2]
@@ -1162,6 +1509,14 @@ class VisionService:
                     )
 
                     if saved_path:
+                        captured_sample = (
+                            self._acquisition.best_consensus()
+                        )
+
+                        self._acquisition.mark_captured(
+                            captured_sample
+                        )
+
                         self._auto_capture_armed = False
                         self._last_auto_capture_at = now
 
@@ -1252,7 +1607,10 @@ class VisionService:
                                 },
                                 "capture_quality": round(
                                     self._best_lock_quality,
-                                    2,
+                                    4,
+                                ),
+                                "acquisition": (
+                                    self._acquisition.telemetry()
                                 ),
                                 "polygon": polygon,
                                 "error": None,
