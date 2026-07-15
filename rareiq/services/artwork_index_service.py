@@ -46,17 +46,48 @@ class ArtworkIndexService:
     def load(self) -> None:
         with self._lock:
             try:
-                payload = json.loads(self.index_path.read_text(encoding="utf-8"))
-                rows = payload.get("records", payload)
-                self._records = [
-                    row for row in rows
-                    if isinstance(row, dict)
-                    and isinstance(row.get("fingerprint"), str)
-                ]
+                payload = json.loads(
+                    self.index_path.read_text(
+                        encoding="utf-8"
+                    )
+                )
+
+                rows = (
+                    payload.get("records")
+                    if isinstance(payload, dict)
+                    else payload
+                )
+
+                if rows is None and isinstance(payload, dict):
+                    rows = payload.get("references", [])
+
+                normalized: list[dict[str, Any]] = []
+
+                for row in rows or []:
+                    if not isinstance(row, dict):
+                        continue
+
+                    fingerprint = row.get("fingerprint")
+
+                    if not isinstance(fingerprint, str):
+                        continue
+
+                    normalized.append({
+                        **row,
+                        "image_path": (
+                            row.get("image_path")
+                            or row.get("reference_image")
+                        ),
+                        "fingerprint": fingerprint,
+                    })
+
+                self._records = normalized
                 self._error = None
+
             except FileNotFoundError:
                 self._records = []
                 self._error = None
+
             except Exception as exc:
                 self._records = []
                 self._error = str(exc)

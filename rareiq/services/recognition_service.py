@@ -527,6 +527,60 @@ class RecognitionService:
         return round(score, 3), reasons
 
     @staticmethod
+    @staticmethod
+    def _usable_ocr_identity(
+        name: str | None,
+        collector_number: str | None,
+    ) -> bool:
+        if collector_number:
+            return True
+
+        value = str(
+            name
+            or ""
+        ).strip()
+
+        if len(
+            value
+        ) < 2:
+            return False
+
+        mojibake_markers = (
+            "Ã",
+            "Â",
+            "â",
+            "�",
+            "¤",
+            "©",
+        )
+
+        if any(
+            marker in value
+            for marker in mojibake_markers
+        ):
+            return False
+
+        readable = sum(
+            1
+            for character in value
+            if (
+                character.isalnum()
+                or "\u3400"
+                <= character
+                <= "\u9fff"
+            )
+        )
+
+        return (
+            readable
+            / max(
+                1,
+                len(
+                    value
+                ),
+            )
+        ) >= 0.55
+
     def _score_candidate(
         candidate: dict[str, Any],
         observed_name: str | None,
@@ -762,10 +816,20 @@ class RecognitionService:
                     "score": float(item.get("score", 0.0)),
                     "source": item.get("source") or "global_visual_index",
                     "distance": item.get("distance"),
+                    "set_id": item.get("set_id"),
                     "set_name": item.get("set_name"),
                     "rarity": item.get("rarity"),
+                    "visual_score": float(
+                        item.get(
+                            "visual_score",
+                            item.get("score", 0.0),
+                        )
+                    ),
+                    "image_path": item.get("image_path"),
+                    "reference_image": item.get("reference_image"),
                     "reference_image_url": item.get("reference_image_url"),
                     "local_image": item.get("local_image"),
+                    "source_url": item.get("source_url"),
                 }
                 for item in (global_visual_candidates + artwork_candidates)
             ]
@@ -795,7 +859,10 @@ class RecognitionService:
                     "source": "database",
                 })
 
-            if name or validated_number:
+            if self._usable_ocr_identity(
+                name,
+                validated_number,
+            ):
                 provisional_score = max(
                     0.40,
                     min(
@@ -884,12 +951,114 @@ class RecognitionService:
                 )
             )
 
-            recognition_locked = (
+            top_candidate = (
+                candidates[0]
+                if candidates
+                else {}
+            )
+
+            second_candidate = (
+                candidates[1]
+                if len(candidates) > 1
+                else {}
+            )
+
+            top_source = str(
+                top_candidate.get(
+                    "source",
+                    ""
+                )
+            ).lower()
+
+            top_visual = float(
+                top_candidate.get(
+                    "visual_similarity",
+                    top_candidate.get(
+                        "visual_score",
+                        top_candidate.get(
+                            "score",
+                            0.0,
+                        ),
+                    ),
+                )
+                or 0.0
+            )
+
+            top_fused = float(
+                top_candidate.get(
+                    "fused_score",
+                    0.0,
+                )
+                or 0.0
+            )
+
+            second_fused = float(
+                second_candidate.get(
+                    "fused_score",
+                    0.0,
+                )
+                or 0.0
+            )
+
+            score_gap = (
+                top_fused
+                - second_fused
+            )
+
+            artwork_locked = (
+                top_source
+                in {
+                    "artwork_index",
+                    "pokipair",
+                    "pokipair_visual_index",
+                }
+                and top_visual >= 0.94
+                and top_fused >= 0.82
+                and score_gap >= 0.05
+                and bool(
+                    top_candidate.get(
+                        "image_path"
+                    )
+                    or top_candidate.get(
+                        "reference_image"
+                    )
+                    or top_candidate.get(
+                        "local_image"
+                    )
+                )
+            )
+
+            ocr_locked = (
                 overall_confidence >= 0.72
                 and bool(validated_number)
                 and language != "Unknown"
                 and has_reference_evidence
             )
+
+            recognition_locked = (
+                artwork_locked
+                or ocr_locked
+            )
+
+            if candidates:
+                overall_confidence = round(
+                    max(
+                        float(
+                            overall_confidence
+                        ),
+                        top_fused,
+                    ),
+                    4,
+                )
+
+            if artwork_locked:
+                lock_reasons = [
+                    "strong artwork reference",
+                    (
+                        "safe candidate gap "
+                        f"{score_gap:.3f}"
+                    ),
+                ]
 
             verification_state = (
                 "VERIFIED"
