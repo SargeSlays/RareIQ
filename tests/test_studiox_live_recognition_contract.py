@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 
 
 def test_studiox_uses_recognition_state_contract() -> None:
@@ -32,5 +32,6 @@ def test_control_html_busts_studiox_cache() -> None:
         encoding="utf-8"
     )
 
-    assert "/static/studiox.js?v=6.3.1" in html
+    assert "/static/studiox.js?v=6.3.2" in html
     assert 'http-equiv="Cache-Control"' in html
+
