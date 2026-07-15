@@ -550,42 +550,165 @@ class SimplifiedChineseProxyCatalogService:
             )
         ]
 
+
     def _fetch_card_candidates(
         self,
         *,
         client: httpx.Client,
         language_code: str,
-        local_number: str,
-    ) -> list[
-        dict[str, Any]
-    ]:
-        query = (
-            f"localId=eq:{local_number}"
+        registry: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        expected_name = {
+            "en": registry.get(
+                "english_name"
+            ),
+            "ja": registry.get(
+                "japanese_name"
+            ),
+            "zh-tw": registry.get(
+                "traditional_chinese_name"
+            ),
+        }.get(
+            language_code
         )
 
-        response = client.get(
-            (
-                f"{self.API_BASE}/"
-                f"{language_code}/cards?"
-                f"{query}"
-            )
-        )
-
-        response.raise_for_status()
-
-        briefs = response.json()
-
-        if not isinstance(
-            briefs,
-            list,
-        ):
+        if not expected_name:
             return []
+
+        briefs: list[dict[str, Any]] = []
+
+        try:
+            response = client.get(
+                (
+                    f"{self.API_BASE}/"
+                    f"{language_code}/cards"
+                ),
+                params={
+                    "name": (
+                        f"eq:{expected_name}"
+                    ),
+                },
+            )
+
+            response.raise_for_status()
+
+            payload = response.json()
+
+            if isinstance(
+                payload,
+                list,
+            ):
+                briefs = [
+                    item
+                    for item in payload
+                    if isinstance(
+                        item,
+                        dict,
+                    )
+                ]
+
+        except Exception:
+            briefs = []
+
+        if not briefs:
+            response = client.get(
+                (
+                    f"{self.API_BASE}/"
+                    f"{language_code}/cards"
+                )
+            )
+
+            response.raise_for_status()
+
+            payload = response.json()
+
+            if not isinstance(
+                payload,
+                list,
+            ):
+                return []
+
+            expected_normalized = (
+                self._normalize_name(
+                    expected_name
+                )
+            )
+
+            scored_briefs: list[
+                tuple[
+                    float,
+                    dict[str, Any],
+                ]
+            ] = []
+
+            for item in payload:
+                if not isinstance(
+                    item,
+                    dict,
+                ):
+                    continue
+
+                actual_name = (
+                    item.get(
+                        "name"
+                    )
+                    or ""
+                )
+
+                actual_normalized = (
+                    self._normalize_name(
+                        actual_name
+                    )
+                )
+
+                if not actual_normalized:
+                    continue
+
+                similarity = (
+                    SequenceMatcher(
+                        None,
+                        expected_normalized,
+                        actual_normalized,
+                    ).ratio()
+                )
+
+                if (
+                    expected_normalized
+                    in actual_normalized
+                    or actual_normalized
+                    in expected_normalized
+                ):
+                    similarity = max(
+                        similarity,
+                        0.92,
+                    )
+
+                if similarity >= 0.60:
+                    scored_briefs.append(
+                        (
+                            similarity,
+                            item,
+                        )
+                    )
+
+            scored_briefs.sort(
+                key=lambda item: item[0],
+                reverse=True,
+            )
+
+            briefs = [
+                item
+                for _,
+                item in scored_briefs[:80]
+            ]
 
         details: list[
             dict[str, Any]
         ] = []
 
-        for brief in briefs[:60]:
+        seen: set[str] = set()
+
+        for brief in briefs[:80]:
             card_id = brief.get(
                 "id"
             )
@@ -593,13 +716,24 @@ class SimplifiedChineseProxyCatalogService:
             if not card_id:
                 continue
 
+            card_id_text = str(
+                card_id
+            )
+
+            if card_id_text in seen:
+                continue
+
+            seen.add(
+                card_id_text
+            )
+
             try:
                 detail_response = (
                     client.get(
                         (
                             f"{self.API_BASE}/"
                             f"{language_code}/cards/"
-                            f"{card_id}"
+                            f"{card_id_text}"
                         )
                     )
                 )
@@ -623,6 +757,7 @@ class SimplifiedChineseProxyCatalogService:
 
         return details
 
+
     @classmethod
     def _candidate_score(
         cls,
@@ -631,55 +766,57 @@ class SimplifiedChineseProxyCatalogService:
         candidate: dict[str, Any],
         language_code: str,
     ) -> float:
-        (
-            local_number,
-            denominator,
-        ) = (
-            cls._split_collector_number(
-                registry.get(
-                    "collector_number"
-                )
+        expected_name = {
+            "en": registry.get(
+                "english_name"
+            ),
+            "ja": registry.get(
+                "japanese_name"
+            ),
+            "zh-tw": registry.get(
+                "traditional_chinese_name"
+            ),
+        }.get(
+            language_code
+        )
+
+        expected = cls._normalize_name(
+            expected_name
+        )
+
+        actual = cls._normalize_name(
+            candidate.get(
+                "name"
             )
         )
 
-        candidate_local = str(
-            candidate.get(
-                "localId"
-            )
-            or candidate.get(
-                "local_id"
-            )
-            or ""
-        ).lstrip(
-            "0"
-        ) or "0"
-
-        if (
-            candidate_local
-            != local_number
-        ):
+        if not expected or not actual:
             return 0.0
 
-        score = 0.40
-
-        candidate_total = (
-            cls._card_total(
-                candidate
-            )
+        name_similarity = (
+            SequenceMatcher(
+                None,
+                expected,
+                actual,
+            ).ratio()
         )
 
-        if denominator:
-            if (
-                candidate_total
-                == denominator
-            ):
-                score += 0.30
+        if (
+            expected in actual
+            or actual in expected
+        ):
+            name_similarity = max(
+                name_similarity,
+                0.92,
+            )
 
-            elif (
-                candidate_total
-                is not None
-            ):
-                score -= 0.20
+        if name_similarity < 0.55:
+            return 0.0
+
+        score = (
+            name_similarity
+            * 0.55
+        )
 
         allowed_sets = (
             registry.get(
@@ -717,50 +854,156 @@ class SimplifiedChineseProxyCatalogService:
                 score += 0.20
 
             else:
-                score -= 0.25
+                score -= 0.12
 
-        expected_name = {
-            "en": registry.get(
-                "english_name"
-            ),
-            "ja": registry.get(
-                "japanese_name"
-            ),
-            "zh-tw": registry.get(
-                "traditional_chinese_name"
-            ),
-        }.get(
-            language_code
+        registry_rarity = (
+            cls._normalize_name(
+                registry.get(
+                    "rarity"
+                )
+            )
         )
 
-        if expected_name:
-            expected = (
-                cls._normalize_name(
-                    expected_name
+        candidate_rarity = (
+            cls._normalize_name(
+                candidate.get(
+                    "rarity"
                 )
             )
+        )
 
-            actual = (
-                cls._normalize_name(
-                    candidate.get(
-                        "name"
-                    )
+        if (
+            registry_rarity
+            and candidate_rarity
+        ):
+            if (
+                registry_rarity
+                == candidate_rarity
+            ):
+                score += 0.08
+
+            else:
+                score -= 0.03
+
+        registry_hp = str(
+            registry.get(
+                "hp"
+            )
+            or ""
+        ).strip()
+
+        candidate_hp = str(
+            candidate.get(
+                "hp"
+            )
+            or ""
+        ).strip()
+
+        if (
+            registry_hp
+            and candidate_hp
+        ):
+            if (
+                registry_hp
+                == candidate_hp
+            ):
+                score += 0.08
+
+            else:
+                score -= 0.03
+
+        registry_category = (
+            cls._normalize_name(
+                registry.get(
+                    "category"
                 )
             )
+        )
 
-            if expected and actual:
-                similarity = (
-                    SequenceMatcher(
-                        None,
-                        expected,
-                        actual,
-                    ).ratio()
+        candidate_category = (
+            cls._normalize_name(
+                candidate.get(
+                    "category"
                 )
+            )
+        )
 
-                score += (
-                    similarity
-                    * 0.30
+        if (
+            registry_category
+            and candidate_category
+        ):
+            if (
+                registry_category
+                == candidate_category
+            ):
+                score += 0.05
+
+        registry_illustrator = (
+            cls._normalize_name(
+                registry.get(
+                    "illustrator"
                 )
+            )
+        )
+
+        candidate_illustrator = (
+            cls._normalize_name(
+                candidate.get(
+                    "illustrator"
+                )
+            )
+        )
+
+        if (
+            registry_illustrator
+            and candidate_illustrator
+        ):
+            if (
+                registry_illustrator
+                == candidate_illustrator
+            ):
+                score += 0.10
+
+        (
+            registry_local,
+            registry_total,
+        ) = cls._split_collector_number(
+            registry.get(
+                "collector_number"
+            )
+        )
+
+        candidate_local = str(
+            candidate.get(
+                "localId"
+            )
+            or candidate.get(
+                "local_id"
+            )
+            or ""
+        ).lstrip(
+            "0"
+        ) or "0"
+
+        candidate_total = (
+            cls._card_total(
+                candidate
+            )
+        )
+
+        if (
+            registry_local
+            and candidate_local
+            == registry_local
+        ):
+            score += 0.04
+
+        if (
+            registry_total
+            and candidate_total
+            == registry_total
+        ):
+            score += 0.04
 
         return round(
             max(
@@ -1047,17 +1290,6 @@ class SimplifiedChineseProxyCatalogService:
                         ),
                     )
 
-                    (
-                        local_number,
-                        _,
-                    ) = (
-                        self._split_collector_number(
-                            registry_record.get(
-                                "collector_number"
-                            )
-                        )
-                    )
-
                     proxies: dict[
                         str,
                         Any,
@@ -1083,8 +1315,8 @@ class SimplifiedChineseProxyCatalogService:
                                     language_code=(
                                         language_code
                                     ),
-                                    local_number=(
-                                        local_number
+                                    registry=(
+                                        registry_record
                                     ),
                                 )
                             )

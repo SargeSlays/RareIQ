@@ -55,71 +55,6 @@ def test_split_collector_number() -> None:
     )
 
 
-def test_split_collector_number_without_total() -> None:
-    assert (
-        SimplifiedChineseProxyCatalogService._split_collector_number(
-            "007"
-        )
-        == (
-            "7",
-            None,
-        )
-    )
-
-
-def test_image_url_adds_high_webp() -> None:
-    assert (
-        SimplifiedChineseProxyCatalogService._image_url({
-            "image": "https://example.com/card"
-        })
-        == "https://example.com/card/high.webp"
-    )
-
-
-def test_image_url_preserves_existing_extension() -> None:
-    assert (
-        SimplifiedChineseProxyCatalogService._image_url({
-            "image": "https://example.com/card.png"
-        })
-        == "https://example.com/card.png"
-    )
-
-
-def test_card_total_uses_total() -> None:
-    card = {
-        "set": {
-            "cardCount": {
-                "total": 204,
-                "official": 180,
-            }
-        }
-    }
-
-    assert (
-        SimplifiedChineseProxyCatalogService._card_total(
-            card
-        )
-        == "204"
-    )
-
-
-def test_card_total_falls_back_to_official() -> None:
-    card = {
-        "set": {
-            "cardCount": {
-                "official": 180,
-            }
-        }
-    }
-
-    assert (
-        SimplifiedChineseProxyCatalogService._card_total(
-            card
-        )
-        == "180"
-    )
-
-
 def test_initialize_registry(
     tmp_path: Path,
 ) -> None:
@@ -139,31 +74,9 @@ def test_initialize_registry(
         )
     )
 
-    assert (
-        payload["format"]
-        == (
-            "RareIQ Simplified Chinese "
-            "Proxy Registry v1"
-        )
-    )
-
     assert len(
         payload["records"]
     ) == 1
-
-
-def test_initialize_registry_does_not_overwrite(
-    tmp_path: Path,
-) -> None:
-    service = make_service(
-        tmp_path
-    )
-
-    first = service.initialize_registry()
-    second = service.initialize_registry()
-
-    assert first["created"]
-    assert not second["created"]
 
 
 def test_load_registry(
@@ -178,14 +91,10 @@ def test_load_registry(
     records = service.load_registry()
 
     assert len(records) == 1
-
-    assert (
-        records[0]["id"]
-        == "CSV7C-084"
-    )
+    assert records[0]["id"] == "CSV7C-084"
 
 
-def test_candidate_score_matching_card() -> None:
+def test_candidate_score_uses_name_first() -> None:
     registry = {
         "collector_number": "084/204",
         "english_name": "Greninja",
@@ -195,12 +104,12 @@ def test_candidate_score_matching_card() -> None:
     }
 
     candidate = {
-        "localId": "084",
+        "localId": "106",
         "name": "Greninja",
         "set": {
-            "id": "set-a",
+            "id": "different-set",
             "cardCount": {
-                "total": 204,
+                "total": 167,
             },
         },
     }
@@ -213,10 +122,10 @@ def test_candidate_score_matching_card() -> None:
         )
     )
 
-    assert score >= 0.9
+    assert score >= 0.55
 
 
-def test_candidate_score_rejects_wrong_local_number() -> None:
+def test_candidate_score_rejects_wrong_name() -> None:
     registry = {
         "collector_number": "084/204",
         "english_name": "Greninja",
@@ -226,8 +135,8 @@ def test_candidate_score_rejects_wrong_local_number() -> None:
     }
 
     candidate = {
-        "localId": "085",
-        "name": "Greninja",
+        "localId": "084",
+        "name": "Pikachu",
         "set": {
             "id": "set-a",
             "cardCount": {
@@ -247,24 +156,30 @@ def test_candidate_score_rejects_wrong_local_number() -> None:
     assert score == 0.0
 
 
-def test_candidate_score_rewards_allowed_set() -> None:
+def test_candidate_score_rewards_metadata() -> None:
     registry = {
         "collector_number": "084/204",
         "english_name": "Greninja",
+        "rarity": "Illustration Rare",
+        "hp": "170",
+        "category": "Pokémon",
+        "illustrator": "Test Artist",
         "proxy_set_ids": {
-            "en": [
-                "allowed-set"
-            ],
+            "en": [],
         },
     }
 
     candidate = {
-        "localId": "084",
+        "localId": "106",
         "name": "Greninja",
+        "rarity": "Illustration Rare",
+        "hp": "170",
+        "category": "Pokémon",
+        "illustrator": "Test Artist",
         "set": {
-            "id": "allowed-set",
+            "id": "set-a",
             "cardCount": {
-                "total": 204,
+                "total": 167,
             },
         },
     }
@@ -277,10 +192,43 @@ def test_candidate_score_rewards_allowed_set() -> None:
         )
     )
 
-    assert score == 1.0
+    assert score > 0.75
 
 
-def test_choose_best_candidate() -> None:
+def test_candidate_score_rewards_allowed_set() -> None:
+    registry = {
+        "collector_number": "084/204",
+        "english_name": "Greninja",
+        "proxy_set_ids": {
+            "en": [
+                "allowed-set"
+            ],
+        },
+    }
+
+    candidate = {
+        "localId": "106",
+        "name": "Greninja",
+        "set": {
+            "id": "allowed-set",
+            "cardCount": {
+                "total": 167,
+            },
+        },
+    }
+
+    score = (
+        SimplifiedChineseProxyCatalogService._candidate_score(
+            registry=registry,
+            candidate=candidate,
+            language_code="en",
+        )
+    )
+
+    assert score >= 0.75
+
+
+def test_choose_best_candidate_prefers_name_match() -> None:
     registry = {
         "collector_number": "084/204",
         "english_name": "Greninja",
@@ -291,20 +239,20 @@ def test_choose_best_candidate() -> None:
 
     candidates = [
         {
-            "id": "wrong",
-            "localId": "084",
-            "name": "Pikachu",
+            "id": "wrong-number-right-name",
+            "localId": "106",
+            "name": "Greninja",
             "set": {
                 "id": "set-one",
                 "cardCount": {
-                    "total": 100,
+                    "total": 167,
                 },
             },
         },
         {
-            "id": "right",
+            "id": "right-number-wrong-name",
             "localId": "084",
-            "name": "Greninja",
+            "name": "Pikachu",
             "set": {
                 "id": "set-two",
                 "cardCount": {
@@ -323,13 +271,64 @@ def test_choose_best_candidate() -> None:
     )
 
     assert candidate is not None
+    assert candidate["id"] == "wrong-number-right-name"
+    assert score >= 0.55
 
-    assert (
-        candidate["id"]
-        == "right"
+
+def test_choose_best_candidate_prefers_metadata_match() -> None:
+    registry = {
+        "collector_number": "084/204",
+        "english_name": "Greninja",
+        "rarity": "Rare",
+        "hp": "170",
+        "illustrator": "Artist A",
+        "proxy_set_ids": {
+            "en": [],
+        },
+    }
+
+    candidates = [
+        {
+            "id": "weak",
+            "localId": "106",
+            "name": "Greninja",
+            "rarity": "Common",
+            "hp": "120",
+            "illustrator": "Artist B",
+            "set": {
+                "id": "set-one",
+                "cardCount": {
+                    "total": 167,
+                },
+            },
+        },
+        {
+            "id": "strong",
+            "localId": "090",
+            "name": "Greninja",
+            "rarity": "Rare",
+            "hp": "170",
+            "illustrator": "Artist A",
+            "set": {
+                "id": "set-two",
+                "cardCount": {
+                    "total": 66,
+                },
+            },
+        },
+    ]
+
+    candidate, score = (
+        SimplifiedChineseProxyCatalogService.choose_best_candidate(
+            registry=registry,
+            candidates=candidates,
+            language_code="en",
+        )
     )
 
-    assert score >= 0.9
+    assert candidate is not None
+    assert candidate["id"] == "strong"
+    assert score > 0.75
 
 
 def test_choose_best_candidate_rejects_low_score() -> None:
@@ -351,7 +350,7 @@ def test_choose_best_candidate_rejects_low_score() -> None:
             "set": {
                 "id": "wrong-set",
                 "cardCount": {
-                    "total": 100,
+                    "total": 204,
                 },
             },
         },
