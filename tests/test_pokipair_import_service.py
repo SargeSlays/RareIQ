@@ -108,3 +108,31 @@ def test_collector_number() -> None:
     )
 
     assert number == "084/204"
+
+
+def test_gem_pack_card_is_not_product() -> None:
+    category, reason = (
+        PokiPairImportService
+        .classify(
+            make_image(),
+            "Gem Pack Vol 5 Greninja 084/100",
+            "https://x/card.webp",
+        )
+    )
+
+    assert category == "cards"
+    assert reason == "card_aspect_ratio"
+
+
+def test_booster_pack_artwork_stays_product() -> None:
+    category, reason = (
+        PokiPairImportService
+        .classify(
+            make_image(),
+            "Gem Pack Vol 5 booster pack artwork",
+            "https://x/booster-pack.webp",
+        )
+    )
+
+    assert category == "products"
+    assert reason == "product_keyword"

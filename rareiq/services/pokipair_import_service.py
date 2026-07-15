@@ -151,16 +151,17 @@ IGNORE_KEYWORDS = {
 
 PRODUCT_KEYWORDS = {
     "banner",
-    "booster",
-    "box",
+    "booster box",
+    "booster pack",
+    "box artwork",
     "bundle",
-    "display",
-    "gift",
-    "jumbo",
+    "display box",
+    "gift box",
+    "jumbo box",
     "logo",
-    "pack",
-    "product",
-    "sealed",
+    "pack artwork",
+    "product image",
+    "sealed box",
 }
 
 
