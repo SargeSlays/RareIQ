@@ -4,3 +4,16 @@ updates/
 __pycache__/
 *.pyc
 *.zip
+# RareIQ generated runtime data
+RareIQ_Release_Source/
+RareIQ_Zip/
+backup_*/
+catalog_master/card_scan_imports/
+catalog_master/greninja_test/
+catalog_master/pokipair/
+catalog_master/recognition/
+catalog_master/simplified_chinese/
+catalog_master/simplified_chinese_proxy/
+catalog_master/*.pre_pokipair_*.json
+rareiq/data/*activation_report.json
+test_card_import/
