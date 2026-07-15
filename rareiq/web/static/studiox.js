@@ -38,7 +38,7 @@ function notify(title,detail="",type="info"){
   const node=document.createElement("div");
   node.className=`riq-notification ${type}`;
   node.innerHTML=`
-    <div class="notification-icon">${type==="success"?"✓":type==="error"?"!":"◆"}</div>
+    <div class="notification-icon">${type==="success"?"âœ“":type==="error"?"!":"â—†"}</div>
     <div class="notification-copy">
       <strong>${title}</strong>
       <span>${detail}</span>
@@ -80,11 +80,29 @@ function setCopilot(status,message){
   if(body) body.innerHTML=message;
 }
 
+function money(value){
+  const amount = Number(value || 0);
+
+  return new Intl.NumberFormat(
+    "en-US",
+    {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }
+  ).format(
+    Number.isFinite(amount)
+      ? amount
+      : 0
+  );
+}
+
 function updateSessionStats(){
   const elapsed=Math.max(0,Math.floor((Date.now()-sessionStartedAt)/1000));
   const minutes=Math.floor(elapsed/60);
   const seconds=elapsed%60;
-  const accuracy=sessionAttempts?`${Math.round(sessionMatches/sessionAttempts*100)}%`:"—";
+  const accuracy=sessionAttempts?`${Math.round(sessionMatches/sessionAttempts*100)}%`:"â€”";
 
   if($("sessionCards")) $("sessionCards").textContent=String(sessionCards);
   if($("sessionHits")) $("sessionHits").textContent=String(sessionHits);
@@ -267,7 +285,7 @@ function showCaptureBanner(success,title,detail){
   const banner=$("captureBanner");
   if(!banner) return;
   banner.classList.toggle("error",!success);
-  $("captureBannerIcon").textContent=success?"✓":"!";
+  $("captureBannerIcon").textContent=success?"âœ“":"!";
   $("captureBannerTitle").textContent=title;
   $("captureBannerDetail").textContent=detail||"";
   banner.classList.add("visible");
@@ -744,7 +762,7 @@ async function waitForCameraReady(timeoutMs=15000){
         return ready;
       }
       setCameraRecovery(
-        "Camera starting…",
+        "Camera startingâ€¦",
         ready.message||"Waiting for the first frame."
       );
     }catch{}
@@ -766,7 +784,7 @@ async function ensureCameraStarted(force=false){
 
   try{
     setCameraRecovery(
-      "Starting camera…",
+      "Starting cameraâ€¦",
       camera.name||"Opening the selected video device."
     );
 
@@ -844,7 +862,7 @@ function scheduleCameraDiscovery(){
 async function loadCameraList(options={}){
   const {retries=5,delay=650,silent=false}=options;
   const select=$("cameraSelect");
-  if(!silent) select.innerHTML=`<option value="">Scanning cameras…</option>`;
+  if(!silent) select.innerHTML=`<option value="">Scanning camerasâ€¦</option>`;
 
   for(let attempt=0;attempt<=retries;attempt+=1){
     try{
@@ -857,7 +875,7 @@ async function loadCameraList(options={}){
             backend:Number(camera.backend??700),
             name:camera.name||`Camera ${index+1}`
           }));
-          const backendName=camera.backend_name?` • ${camera.backend_name}`:"";
+          const backendName=camera.backend_name?` â€¢ ${camera.backend_name}`:"";
           return `<option value="${payload}">${camera.name||`Camera ${index+1}`}${backendName}</option>`;
         }).join("");
 
@@ -871,12 +889,12 @@ async function loadCameraList(options={}){
     }catch{}
 
     if(attempt<retries){
-      select.innerHTML=`<option value="">Camera scan retry ${attempt+1}/${retries}…</option>`;
+      select.innerHTML=`<option value="">Camera scan retry ${attempt+1}/${retries}â€¦</option>`;
       await new Promise(resolve=>setTimeout(resolve,delay));
     }
   }
 
-  select.innerHTML=`<option value="">No cameras detected — Refresh to retry</option>`;
+  select.innerHTML=`<option value="">No cameras detected â€” Refresh to retry</option>`;
   selectedCamera=null;
   return [];
 }
@@ -933,7 +951,7 @@ async function reconnectCamera(){
   cameraStreamFailures=0;
 
   setCameraRecovery(
-    "Recovering camera…",
+    "Recovering cameraâ€¦",
     "The backend Camera Manager is reopening the saved device."
   );
 
@@ -970,7 +988,7 @@ async function reconnectCamera(){
 }
 
 async function captureCamera(){
-  setRecognitionState("searching","Saving current corrected card crop…");
+  setRecognitionState("searching","Saving current corrected card cropâ€¦");
   try{
     const result=await api("/api/camera/capture",{
       method:"POST",
@@ -1012,7 +1030,7 @@ function __oldStartCameraStream(force=false){
 
   if(recovery){
     recovery.classList.add("visible");
-    $("cameraRecoveryTitle").textContent="Connecting camera…";
+    $("cameraRecoveryTitle").textContent="Connecting cameraâ€¦";
     $("cameraRecoveryDetail").textContent="Waiting for the first live frame.";
   }
 
@@ -1027,7 +1045,7 @@ function __oldStartCameraStream(force=false){
       if(cameraStreamFailures<=8){
         if(recovery){
           recovery.classList.add("visible");
-          $("cameraRecoveryTitle").textContent="Restoring live preview…";
+          $("cameraRecoveryTitle").textContent="Restoring live previewâ€¦";
           $("cameraRecoveryDetail").textContent=`Retry ${cameraStreamFailures} of 8`;
         }
         startCameraStream(true);
@@ -1056,7 +1074,7 @@ async function bootstrapCamera(){
 
   try{
     setCameraRecovery(
-      "Discovering cameras…",
+      "Discovering camerasâ€¦",
       "RareIQ is scanning Windows video devices."
     );
 
@@ -1069,7 +1087,7 @@ async function bootstrapCamera(){
       setCameraStatus("CAMERA NOT FOUND","var(--gold)");
       setStateChip("cameraStateChip","warning","SEARCHING");
       setCameraRecovery(
-        "Waiting for camera…",
+        "Waiting for cameraâ€¦",
         "RareIQ will continue checking automatically."
       );
       scheduleCameraDiscovery();
@@ -1322,7 +1340,7 @@ async function loadRecognition(){
     }else if(hasCandidate){
       setRecognitionState(
         "searching",
-        `${phase.replaceAll("_"," ")} • ${
+        `${phase.replaceAll("_"," ")} â€¢ ${
           candidates.length || snapshot?.candidate_count || 1
         } candidate${(
           candidates.length ||
@@ -1453,7 +1471,7 @@ async function loadRecognition(){
         verified
           ? "VERIFIED"
           : "PROVISIONAL"
-      ].filter(Boolean).join(" • ");
+      ].filter(Boolean).join(" â€¢ ");
 
       const rawValue = Number(
         card.market_price ||
@@ -1480,17 +1498,17 @@ async function loadRecognition(){
       $("rawValue").textContent =
         rawValue > 0
           ? `$${rawValue.toFixed(2)}`
-          : "—";
+          : "â€”";
 
       $("psaValue").textContent =
         psa10 > 0
           ? `$${psa10.toFixed(2)}`
-          : "—";
+          : "â€”";
 
       $("populationValue").textContent =
         population > 0
           ? String(population)
-          : "—";
+          : "â€”";
 
       $("cardStatus").textContent = verified
         ? "VERIFIED DATABASE MATCH"
@@ -1535,7 +1553,7 @@ async function loadRecognition(){
             card.english_name ||
             card.printed_name ||
             "Card"
-          } • ${Math.round(confidence*100)}%`
+          } â€¢ ${Math.round(confidence*100)}%`
         );
 
         notify(
@@ -1547,7 +1565,7 @@ async function loadRecognition(){
             card.english_name ||
             card.printed_name ||
             "Card"
-          } • ${Math.round(confidence*100)}%`,
+          } â€¢ ${Math.round(confidence*100)}%`,
           "success"
         );
 
@@ -1648,7 +1666,7 @@ async function loadCameraManagerState(){
         `CACHED DEVICES: ${manager.cached_devices??0}`,
         `RECOVERIES: ${manager.recovery_count??0}`,
         `MESSAGE: ${manager.message||"None"}`
-      ].join("  •  ");
+      ].join("  â€¢  ");
     }
   }catch{}
 }
@@ -1668,7 +1686,7 @@ function openProgram(){
 }
 
 async function maintenance(path,label){
-  $("systemStatus").textContent=`${label} started…`;
+  $("systemStatus").textContent=`${label} startedâ€¦`;
   try{
     const result=await api(path,{method:"POST",body:"{}"});
     $("systemStatus").textContent=result.ok===false
@@ -1726,7 +1744,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       if(cameraStreamFailures<=8){
         if(recovery){
           recovery.classList.add("visible");
-          $("cameraRecoveryTitle").textContent="Recovering live preview…";
+          $("cameraRecoveryTitle").textContent="Recovering live previewâ€¦";
           $("cameraRecoveryDetail").textContent=`Retry ${cameraStreamFailures} of 8`;
         }
         cameraStreamRetryTimer=setTimeout(()=>startCameraStream(true),650);

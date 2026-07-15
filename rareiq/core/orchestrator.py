@@ -221,7 +221,25 @@ class RareIQOrchestrator:
 
     def set_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         self.loop = loop
+    async def publish(
+        self,
+        event_type: str,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        """Publish a normalized RareIQ event."""
 
+        event = {
+            "type": str(event_type),
+            "payload": payload or {},
+        }
+
+        self._handle_internal_event(
+            event
+        )
+
+        await self.event_bus.publish(
+            event
+        )
     def _emit_from_thread(self, event: dict[str, Any]) -> None:
         if self._shutting_down:
             return
