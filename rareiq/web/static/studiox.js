@@ -1219,124 +1219,401 @@ function setCoreState(state){
 
 async function loadRecognition(){
   try{
-    const result = await api("/api/recognition-state");
-    const state = result.state||result||{};
-    const payload = state.payload||state.latest||{};
-    const card = payload.card||payload.match||payload.current_card||null;
-    const confidence = normalize(payload.confidence||payload.fused_score||0);
+    const result = await api(
+      `/api/recognition-state?t=${Date.now()}`
+    );
 
-    $("aiState").textContent = card
+    const snapshot =
+      result?.recognition_state ||
+      result?.state ||
+      result?.snapshot ||
+      result ||
+      {};
+
+    const raw =
+      snapshot?.raw_recognition ||
+      snapshot?.payload ||
+      snapshot?.latest ||
+      {};
+
+    const candidates = Array.isArray(snapshot?.candidates)
+      ? snapshot.candidates
+      : Array.isArray(raw?.candidates)
+      ? raw.candidates
+      : [];
+
+    const card =
+      snapshot?.primary_candidate ||
+      snapshot?.database_match ||
+      raw?.primary_candidate ||
+      raw?.card ||
+      raw?.match ||
+      raw?.current_card ||
+      candidates[0] ||
+      null;
+
+    const phase = String(
+      snapshot?.phase ||
+      raw?.status ||
+      snapshot?.verification_state ||
+      "IDLE"
+    ).toUpperCase();
+
+    const confidence = normalize(
+      snapshot?.overall_confidence ??
+      snapshot?.confidence ??
+      card?.fused_score ??
+      card?.score ??
+      card?.confidence ??
+      raw?.fused_score ??
+      raw?.confidence ??
+      0
+    );
+
+    const locked = Boolean(
+      snapshot?.recognition_locked ||
+      raw?.recognition_locked
+    );
+
+    const hasCandidate = Boolean(
+      card ||
+      snapshot?.provisional_candidate ||
+      candidates.length
+    );
+
+    const verified = Boolean(
+      locked ||
+      phase === "VERIFIED" ||
+      phase === "MATCHED" ||
+      phase === "REFERENCE_FOUND"
+    );
+
+    $("aiState").textContent = verified
       ? "VERIFIED"
-      : payload.status
-      ? String(payload.status).toUpperCase()
-      : "WATCHING";
-    setCoreState(card ? "matched" : payload.status ? "scanning" : "idle");
+      : hasCandidate
+      ? "CANDIDATE"
+      : phase === "IDLE"
+      ? "WATCHING"
+      : phase;
 
-    if(card){
-      setRecognitionState("matched","Database match found.");
-    }else if(payload.status){
-      setRecognitionState("searching",String(payload.status).replaceAll("_"," "));
+    setCoreState(
+      verified
+        ? "matched"
+        : phase === "IDLE"
+        ? "idle"
+        : "scanning"
+    );
+
+    if(verified && card){
+      setRecognitionState(
+        "matched",
+        "Database match verified."
+      );
+
+      setCopilot(
+        "VERIFIED",
+        `RareIQ verified <b>${
+          card.name ||
+          card.english_name ||
+          card.printed_name ||
+          "this card"
+        }</b> at ${Math.round(confidence*100)}% confidence.`
+      );
+    }else if(hasCandidate){
+      setRecognitionState(
+        "searching",
+        `${phase.replaceAll("_"," ")} • ${
+          candidates.length || snapshot?.candidate_count || 1
+        } candidate${(
+          candidates.length ||
+          snapshot?.candidate_count ||
+          1
+        ) === 1 ? "" : "s"}`
+      );
+
       setCopilot(
         "ANALYZING",
-        `RareIQ is <b>${String(payload.status).replaceAll("_"," ").toLowerCase()}</b>. Visual, OCR, and database signals are being fused.`
+        `RareIQ found reference evidence and is verifying the strongest candidate.`
+      );
+    }else if(phase !== "IDLE"){
+      setRecognitionState(
+        "searching",
+        phase.replaceAll("_"," ")
+      );
+
+      setCopilot(
+        "ANALYZING",
+        `RareIQ is <b>${phase.replaceAll("_"," ").toLowerCase()}</b>. Visual, OCR, and database signals are being fused.`
       );
     }else{
-      setRecognitionState("idle","Waiting for a card.");
+      setRecognitionState(
+        "idle",
+        "Waiting for a card."
+      );
+
       updateConfidenceRing(0);
+
       setCopilot(
         "STANDBY",
         "Place a card in the scan zone. RareIQ will identify, verify, and explain what it finds."
       );
     }
-    $("aiDetail").textContent = card
-      ? "Card matched against the local index."
+
+    $("aiDetail").textContent = verified
+      ? "Card verified against the active artwork index."
+      : hasCandidate
+      ? `${candidates.length || snapshot?.candidate_count || 1} candidate result${
+          (candidates.length || snapshot?.candidate_count || 1) === 1
+            ? ""
+            : "s"
+        } available.`
       : "Place a card inside the scan zone.";
-    $("confidence").textContent = `${Math.round(confidence*100)}%`;
 
-    setScanState(payload,card,confidence);
+    $("confidence").textContent =
+      `${Math.round(confidence*100)}%`;
 
-    const vision = payload.visual_score||payload.artwork_score||confidence;
-    const ocr = payload.ocr_score||0;
-    const collector = payload.collector_score||0;
+    const uiPayload = {
+      ...raw,
+      ...snapshot,
+      status: phase,
+      candidates,
+      card,
+      confidence,
+      fused_score: confidence,
+      pipeline_stages:
+        snapshot?.pipeline_stages ||
+        raw?.pipeline_stages ||
+        [],
+      latency_ms:
+        snapshot?.stage_timings?.total_ms ??
+        raw?.latency_ms ??
+        0,
+    };
+
+    setScanState(
+      uiPayload,
+      card,
+      confidence
+    );
+
+    const vision =
+      snapshot?.artwork_index?.score ??
+      card?.visual_score ??
+      card?.artwork_score ??
+      raw?.visual_score ??
+      raw?.artwork_score ??
+      confidence;
+
+    const ocr =
+      card?.ocr_score ??
+      raw?.ocr_score ??
+      0;
+
+    const collector =
+      card?.collector_score ??
+      raw?.collector_score ??
+      0;
 
     setSignal("vision",vision);
     setSignal("ocr",ocr);
     setSignal("collector",collector);
     setSignal("fusion",confidence);
 
+    const empty = $("inspectorEmpty");
+    const main = $("inspectorMain");
+
     if(card){
-      const empty=$("inspectorEmpty");
-      const main=$("inspectorMain");
       if(empty) empty.style.display="none";
       if(main) main.style.display="grid";
 
-      const cardId = card.id || `${card.set_id||""}:${card.collector_number||""}:${card.name||""}`;
-      $("cardName").textContent = card.name||card.printed_name||"Recognized Card";
+      const cardId =
+        card.id ||
+        `${card.set_id||""}:${card.collector_number||""}:${
+          card.name ||
+          card.english_name ||
+          card.printed_name ||
+          ""
+        }`;
+
+      $("cardName").textContent =
+        card.english_name ||
+        card.name ||
+        card.printed_name ||
+        snapshot?.english_name ||
+        snapshot?.name_candidate ||
+        "Candidate Card";
+
       $("cardMeta").textContent = [
         card.set_name,
-        card.collector_number,
-        card.language,
-        card.rarity
+        card.collector_number ||
+          snapshot?.collector_number,
+        card.language ||
+          snapshot?.language,
+        card.rarity,
+        verified
+          ? "VERIFIED"
+          : "PROVISIONAL"
       ].filter(Boolean).join(" • ");
 
-      const raw = Number(card.market_price||card.price||0);
-      const psa10 = Number(card.psa10_price||0);
-      const population = Number(card.population||card.psa10_population||0);
+      const rawValue = Number(
+        card.market_price ||
+        card.price ||
+        0
+      );
 
-      $("cardValue").textContent = raw>0 ? `$${raw.toFixed(2)}` : "VALUE PENDING";
-      $("rawValue").textContent = raw>0 ? `$${raw.toFixed(2)}` : "—";
-      $("psaValue").textContent = psa10>0 ? `$${psa10.toFixed(2)}` : "—";
-      $("populationValue").textContent = population>0 ? String(population) : "—";
-      $("cardStatus").textContent = confidence>=.9
-        ? "HIGH CONFIDENCE MATCH"
-        : confidence>=.68
+      const psa10 = Number(
+        card.psa10_price ||
+        0
+      );
+
+      const population = Number(
+        card.population ||
+        card.psa10_population ||
+        0
+      );
+
+      $("cardValue").textContent =
+        rawValue > 0
+          ? `$${rawValue.toFixed(2)}`
+          : "VALUE PENDING";
+
+      $("rawValue").textContent =
+        rawValue > 0
+          ? `$${rawValue.toFixed(2)}`
+          : "—";
+
+      $("psaValue").textContent =
+        psa10 > 0
+          ? `$${psa10.toFixed(2)}`
+          : "—";
+
+      $("populationValue").textContent =
+        population > 0
+          ? String(population)
+          : "—";
+
+      $("cardStatus").textContent = verified
+        ? "VERIFIED DATABASE MATCH"
+        : confidence >= .68
         ? "CANDIDATE MATCH"
         : "REVIEW REQUIRED";
 
-      const image = card.reference_image_url||card.local_image||"";
-      if(image) $("cardArt").innerHTML=`<img src="${image}" alt="">`;
+      const image =
+        card.reference_image_url ||
+        card.image_url ||
+        card.local_image ||
+        card.reference_image ||
+        card.image_path ||
+        "";
 
-      if(cardId && cardId!==previousCardId){
-        sessionCards+=1;
-        sessionAttempts+=1;
-        sessionMatches+=1;
-        sessionValue+=raw;
-        if(raw>=100) sessionHits+=1;
+      if(image){
+        const source = String(image).replaceAll("\\","/");
+        $("cardArt").innerHTML =
+          `<img src="${source}" alt="">`;
+      }
+
+      if(
+        verified &&
+        cardId &&
+        cardId !== previousCardId
+      ){
+        sessionCards += 1;
+        sessionAttempts += 1;
+        sessionMatches += 1;
+        sessionValue += rawValue;
+
+        if(rawValue >= 100){
+          sessionHits += 1;
+        }
+
         updateSessionStats();
 
         addActivity(
           "Match Found",
-          `${card.name||card.printed_name||"Card"} • ${Math.round(confidence*100)}%`
+          `${
+            card.name ||
+            card.english_name ||
+            card.printed_name ||
+            "Card"
+          } • ${Math.round(confidence*100)}%`
         );
+
         notify(
-          raw>=100?"High-Value Match":"Match Found",
-          `${card.name||card.printed_name||"Card"} • ${Math.round(confidence*100)}%`,
+          rawValue >= 100
+            ? "High-Value Match"
+            : "Match Found",
+          `${
+            card.name ||
+            card.english_name ||
+            card.printed_name ||
+            "Card"
+          } • ${Math.round(confidence*100)}%`,
           "success"
         );
-        if(previousCardId && raw>=100){
+
+        if(
+          previousCardId &&
+          rawValue >= 100
+        ){
           triggerHit();
         }
       }
-      previousCardId=cardId;
-    }
 
-    if(!card){
-      const empty=$("inspectorEmpty");
-      const main=$("inspectorMain");
+      if(verified){
+        previousCardId = cardId;
+      }
+    }else{
       if(empty) empty.style.display="grid";
       if(main) main.style.display="none";
     }
 
-    renderPipeline(payload.pipeline_stages||[],Boolean(card));
+    renderPipeline(
+      uiPayload.pipeline_stages,
+      verified
+    );
 
-    $("latencyValue").textContent = payload.latency_ms
-      ? `${Math.round(Number(payload.latency_ms))} ms`
-      : "Idle";
-    $("cardsValue").textContent = String(payload.session_cards||0);
-    $("hitsValue").textContent = String(payload.session_hits||0);
-  }catch{}
+    $("latencyValue").textContent =
+      uiPayload.latency_ms
+        ? `${Math.round(Number(uiPayload.latency_ms))} ms`
+        : phase === "IDLE"
+        ? "Idle"
+        : "Active";
+
+    $("cardsValue").textContent =
+      String(
+        snapshot?.session_cards ||
+        raw?.session_cards ||
+        0
+      );
+
+    $("hitsValue").textContent =
+      String(
+        snapshot?.session_hits ||
+        raw?.session_hits ||
+        0
+      );
+
+    window.__rareiqRecognitionPoll = {
+      revision: snapshot?.revision ?? null,
+      phase,
+      candidateCount:
+        candidates.length ||
+        snapshot?.candidate_count ||
+        0,
+      updatedAt: Date.now(),
+    };
+  }catch(error){
+    console.warn(
+      "RareIQ recognition poll failed",
+      error
+    );
+
+    setRecognitionState(
+      "error",
+      "Recognition state unavailable."
+    );
+  }
 }
-
 
 
 async function loadSystemHealth(){
