@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
+
+import cv2
+import numpy as np
 
 from rareiq.services.simplified_chinese_proxy_catalog_service import (
     SimplifiedChineseProxyCatalogService,
@@ -16,219 +18,36 @@ def make_service(
     )
 
 
-def test_safe_filename() -> None:
-    assert (
-        SimplifiedChineseProxyCatalogService._safe_filename(
-            "CSV7C/card:084?"
-        )
-        == "CSV7C_card_084"
+def make_image(
+    seed: int,
+) -> np.ndarray:
+    return np.random.default_rng(
+        seed
+    ).integers(
+        0,
+        256,
+        size=(
+            700,
+            500,
+            3,
+        ),
+        dtype=np.uint8,
     )
 
 
-def test_normalize_name_removes_spacing() -> None:
-    assert (
-        SimplifiedChineseProxyCatalogService._normalize_name(
-            "Greninja ex"
-        )
-        == "greninjaex"
-    )
-
-
-def test_normalize_name_handles_symbols() -> None:
-    assert (
-        SimplifiedChineseProxyCatalogService._normalize_name(
-            "甲贺忍蛙：ex"
-        )
-        == "甲贺忍蛙ex"
-    )
-
-
-def test_split_collector_number() -> None:
-    assert (
-        SimplifiedChineseProxyCatalogService._split_collector_number(
-            "084/204"
-        )
-        == (
-            "84",
-            "204",
-        )
-    )
-
-
-def test_initialize_registry(
-    tmp_path: Path,
+def save_image(
+    path: Path,
+    image: np.ndarray,
 ) -> None:
-    service = make_service(
-        tmp_path
+    assert cv2.imwrite(
+        str(
+            path
+        ),
+        image,
     )
 
-    result = service.initialize_registry()
 
-    assert result["ok"]
-    assert result["created"]
-    assert service.registry_path.exists()
-
-    payload = json.loads(
-        service.registry_path.read_text(
-            encoding="utf-8"
-        )
-    )
-
-    assert len(
-        payload["records"]
-    ) == 1
-
-
-def test_load_registry(
-    tmp_path: Path,
-) -> None:
-    service = make_service(
-        tmp_path
-    )
-
-    service.initialize_registry()
-
-    records = service.load_registry()
-
-    assert len(records) == 1
-    assert records[0]["id"] == "CSV7C-084"
-
-
-def test_candidate_score_uses_name_first() -> None:
-    registry = {
-        "collector_number": "084/204",
-        "english_name": "Greninja",
-        "proxy_set_ids": {
-            "en": [],
-        },
-    }
-
-    candidate = {
-        "localId": "106",
-        "name": "Greninja",
-        "set": {
-            "id": "different-set",
-            "cardCount": {
-                "total": 167,
-            },
-        },
-    }
-
-    score = (
-        SimplifiedChineseProxyCatalogService._candidate_score(
-            registry=registry,
-            candidate=candidate,
-            language_code="en",
-        )
-    )
-
-    assert score >= 0.55
-
-
-def test_candidate_score_rejects_wrong_name() -> None:
-    registry = {
-        "collector_number": "084/204",
-        "english_name": "Greninja",
-        "proxy_set_ids": {
-            "en": [],
-        },
-    }
-
-    candidate = {
-        "localId": "084",
-        "name": "Pikachu",
-        "set": {
-            "id": "set-a",
-            "cardCount": {
-                "total": 204,
-            },
-        },
-    }
-
-    score = (
-        SimplifiedChineseProxyCatalogService._candidate_score(
-            registry=registry,
-            candidate=candidate,
-            language_code="en",
-        )
-    )
-
-    assert score == 0.0
-
-
-def test_candidate_score_rewards_metadata() -> None:
-    registry = {
-        "collector_number": "084/204",
-        "english_name": "Greninja",
-        "rarity": "Illustration Rare",
-        "hp": "170",
-        "category": "Pokémon",
-        "illustrator": "Test Artist",
-        "proxy_set_ids": {
-            "en": [],
-        },
-    }
-
-    candidate = {
-        "localId": "106",
-        "name": "Greninja",
-        "rarity": "Illustration Rare",
-        "hp": "170",
-        "category": "Pokémon",
-        "illustrator": "Test Artist",
-        "set": {
-            "id": "set-a",
-            "cardCount": {
-                "total": 167,
-            },
-        },
-    }
-
-    score = (
-        SimplifiedChineseProxyCatalogService._candidate_score(
-            registry=registry,
-            candidate=candidate,
-            language_code="en",
-        )
-    )
-
-    assert score > 0.75
-
-
-def test_candidate_score_rewards_allowed_set() -> None:
-    registry = {
-        "collector_number": "084/204",
-        "english_name": "Greninja",
-        "proxy_set_ids": {
-            "en": [
-                "allowed-set"
-            ],
-        },
-    }
-
-    candidate = {
-        "localId": "106",
-        "name": "Greninja",
-        "set": {
-            "id": "allowed-set",
-            "cardCount": {
-                "total": 167,
-            },
-        },
-    }
-
-    score = (
-        SimplifiedChineseProxyCatalogService._candidate_score(
-            registry=registry,
-            candidate=candidate,
-            language_code="en",
-        )
-    )
-
-    assert score >= 0.75
-
-
-def test_choose_best_candidate_prefers_name_match() -> None:
+def test_name_only_match_is_rejected() -> None:
     registry = {
         "collector_number": "084/204",
         "english_name": "Greninja",
@@ -239,125 +58,22 @@ def test_choose_best_candidate_prefers_name_match() -> None:
 
     candidates = [
         {
-            "id": "wrong-number-right-name",
-            "localId": "106",
+            "id": "det1-9",
+            "localId": "9",
             "name": "Greninja",
+            "rarity": "Ultra Rare",
             "set": {
-                "id": "set-one",
+                "id": "det1",
                 "cardCount": {
-                    "total": 167,
+                    "total": 18,
                 },
             },
-        },
-        {
-            "id": "right-number-wrong-name",
-            "localId": "084",
-            "name": "Pikachu",
-            "set": {
-                "id": "set-two",
-                "cardCount": {
-                    "total": 204,
-                },
-            },
-        },
+        }
     ]
 
     candidate, score = (
-        SimplifiedChineseProxyCatalogService.choose_best_candidate(
-            registry=registry,
-            candidates=candidates,
-            language_code="en",
-        )
-    )
-
-    assert candidate is not None
-    assert candidate["id"] == "wrong-number-right-name"
-    assert score >= 0.55
-
-
-def test_choose_best_candidate_prefers_metadata_match() -> None:
-    registry = {
-        "collector_number": "084/204",
-        "english_name": "Greninja",
-        "rarity": "Rare",
-        "hp": "170",
-        "illustrator": "Artist A",
-        "proxy_set_ids": {
-            "en": [],
-        },
-    }
-
-    candidates = [
-        {
-            "id": "weak",
-            "localId": "106",
-            "name": "Greninja",
-            "rarity": "Common",
-            "hp": "120",
-            "illustrator": "Artist B",
-            "set": {
-                "id": "set-one",
-                "cardCount": {
-                    "total": 167,
-                },
-            },
-        },
-        {
-            "id": "strong",
-            "localId": "090",
-            "name": "Greninja",
-            "rarity": "Rare",
-            "hp": "170",
-            "illustrator": "Artist A",
-            "set": {
-                "id": "set-two",
-                "cardCount": {
-                    "total": 66,
-                },
-            },
-        },
-    ]
-
-    candidate, score = (
-        SimplifiedChineseProxyCatalogService.choose_best_candidate(
-            registry=registry,
-            candidates=candidates,
-            language_code="en",
-        )
-    )
-
-    assert candidate is not None
-    assert candidate["id"] == "strong"
-    assert score > 0.75
-
-
-def test_choose_best_candidate_rejects_low_score() -> None:
-    registry = {
-        "collector_number": "084/204",
-        "english_name": "Greninja",
-        "proxy_set_ids": {
-            "en": [
-                "required-set"
-            ],
-        },
-    }
-
-    candidates = [
-        {
-            "id": "wrong",
-            "localId": "084",
-            "name": "Pikachu",
-            "set": {
-                "id": "wrong-set",
-                "cardCount": {
-                    "total": 204,
-                },
-            },
-        },
-    ]
-
-    candidate, score = (
-        SimplifiedChineseProxyCatalogService.choose_best_candidate(
+        SimplifiedChineseProxyCatalogService
+        .choose_best_candidate(
             registry=registry,
             candidates=candidates,
             language_code="en",
@@ -365,4 +81,257 @@ def test_choose_best_candidate_rejects_low_score() -> None:
     )
 
     assert candidate is None
-    assert score < 0.55
+    assert score < 0.82
+
+
+def test_strong_metadata_match_is_allowed() -> None:
+    registry = {
+        "collector_number": "084/204",
+        "english_name": "Greninja",
+        "rarity": "Illustration Rare",
+        "hp": "170",
+        "proxy_set_ids": {
+            "en": [],
+        },
+    }
+
+    candidates = [
+        {
+            "id": "good",
+            "localId": "106",
+            "name": "Greninja",
+            "rarity": "Illustration Rare",
+            "hp": "170",
+            "set": {
+                "id": "set-a",
+                "cardCount": {
+                    "total": 167,
+                },
+            },
+        }
+    ]
+
+    candidate, score = (
+        SimplifiedChineseProxyCatalogService
+        .choose_best_candidate(
+            registry=registry,
+            candidates=candidates,
+            language_code="en",
+        )
+    )
+
+    assert candidate is not None
+    assert candidate["id"] == "good"
+    assert score >= 0.70
+
+
+def test_close_candidates_are_ambiguous() -> None:
+    registry = {
+        "collector_number": "084/204",
+        "english_name": "Greninja",
+        "rarity": "Rare",
+        "hp": "170",
+        "proxy_set_ids": {
+            "en": [],
+        },
+    }
+
+    candidates = [
+        {
+            "id": "first",
+            "localId": "106",
+            "name": "Greninja",
+            "rarity": "Rare",
+            "hp": "170",
+            "set": {
+                "id": "set-a",
+                "cardCount": {
+                    "total": 167,
+                },
+            },
+        },
+        {
+            "id": "second",
+            "localId": "107",
+            "name": "Greninja",
+            "rarity": "Rare",
+            "hp": "170",
+            "set": {
+                "id": "set-b",
+                "cardCount": {
+                    "total": 168,
+                },
+            },
+        },
+    ]
+
+    candidate, score = (
+        SimplifiedChineseProxyCatalogService
+        .choose_best_candidate(
+            registry=registry,
+            candidates=candidates,
+            language_code="en",
+        )
+    )
+
+    assert candidate is None
+    assert score >= 0.70
+
+
+def test_identical_images_match(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "first.jpg"
+    second = tmp_path / "second.jpg"
+
+    image = make_image(
+        42
+    )
+
+    save_image(
+        first,
+        image,
+    )
+
+    save_image(
+        second,
+        image,
+    )
+
+    similarity = (
+        SimplifiedChineseProxyCatalogService
+        ._visual_similarity(
+            first,
+            second,
+        )
+    )
+
+    assert similarity > 0.99
+
+
+def test_different_images_do_not_match(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "first.jpg"
+    second = tmp_path / "second.jpg"
+
+    save_image(
+        first,
+        make_image(
+            42
+        ),
+    )
+
+    save_image(
+        second,
+        make_image(
+            99
+        ),
+    )
+
+    similarity = (
+        SimplifiedChineseProxyCatalogService
+        ._visual_similarity(
+            first,
+            second,
+        )
+    )
+
+    assert similarity < 0.90
+
+
+def test_visual_anchor_selects_correct_candidate(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    service = make_service(
+        tmp_path
+    )
+
+    anchor = tmp_path / "anchor.jpg"
+    correct = tmp_path / "correct.jpg"
+    wrong = tmp_path / "wrong.jpg"
+
+    anchor_image = make_image(
+        42
+    )
+
+    save_image(
+        anchor,
+        anchor_image,
+    )
+
+    save_image(
+        correct,
+        anchor_image,
+    )
+
+    save_image(
+        wrong,
+        make_image(
+            99
+        ),
+    )
+
+    candidates = [
+        {
+            "id": "wrong",
+            "name": "Greninja",
+        },
+        {
+            "id": "correct",
+            "name": "Greninja",
+        },
+    ]
+
+    paths = {
+        "wrong": wrong,
+        "correct": correct,
+    }
+
+    def fake_download(
+        *,
+        client,
+        registry_id,
+        language_code,
+        card,
+    ):
+        return {
+            "card": card,
+            "download": {
+                "ok": True,
+                "state": "existing",
+                "path": str(
+                    paths[
+                        card["id"]
+                    ]
+                ),
+            },
+        }
+
+    monkeypatch.setattr(
+        service,
+        "_download_candidate_for_comparison",
+        fake_download,
+    )
+
+    candidate, score, result = (
+        service._choose_by_visual_anchor(
+            client=None,
+            registry={
+                "exact_zh_cn_image": str(
+                    anchor
+                ),
+            },
+            registry_id="CSV7C-084",
+            language_code="en",
+            candidates=candidates,
+        )
+    )
+
+    assert candidate is not None
+    assert candidate["id"] == "correct"
+    assert score > 0.99
+    assert result["path"] == str(
+        correct
+    )

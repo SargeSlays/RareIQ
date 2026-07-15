@@ -12,6 +12,7 @@ from typing import Any, Callable
 
 import cv2
 import httpx
+import numpy as np
 
 
 class SimplifiedChineseProxyCatalogService:
@@ -1016,14 +1017,13 @@ class SimplifiedChineseProxyCatalogService:
             4,
         )
 
+
     @classmethod
     def choose_best_candidate(
         cls,
         *,
         registry: dict[str, Any],
-        candidates: list[
-            dict[str, Any]
-        ],
+        candidates: list[dict[str, Any]],
         language_code: str,
     ) -> tuple[
         dict[str, Any] | None,
@@ -1034,9 +1034,7 @@ class SimplifiedChineseProxyCatalogService:
                 cls._candidate_score(
                     registry=registry,
                     candidate=candidate,
-                    language_code=(
-                        language_code
-                    ),
+                    language_code=language_code,
                 ),
                 candidate,
             )
@@ -1049,24 +1047,455 @@ class SimplifiedChineseProxyCatalogService:
         )
 
         if not ranked:
-            return (
-                None,
-                0.0,
-            )
+            return None, 0.0
 
-        score, candidate = (
-            ranked[0]
+        best_score, best_candidate = ranked[0]
+
+        exact_image = registry.get(
+            "exact_zh_cn_image"
         )
 
-        if score < 0.55:
+        has_visual_anchor = bool(
+            exact_image
+            and Path(
+                str(
+                    exact_image
+                )
+            ).exists()
+        )
+
+        metadata_fields = (
+            "rarity",
+            "hp",
+            "category",
+            "illustrator",
+        )
+
+        metadata_count = sum(
+            1
+            for field in metadata_fields
+            if registry.get(
+                field
+            )
+        )
+
+        if has_visual_anchor:
+            minimum_score = 0.55
+
+        elif metadata_count >= 2:
+            minimum_score = 0.70
+
+        elif metadata_count == 1:
+            minimum_score = 0.78
+
+        else:
+            minimum_score = 0.82
+
+        if best_score < minimum_score:
+            return None, best_score
+
+        if (
+            not has_visual_anchor
+            and len(
+                ranked
+            ) > 1
+        ):
+            second_score = ranked[1][0]
+
+            if (
+                best_score
+                - second_score
+            ) < 0.08:
+                return None, best_score
+
+        return (
+            best_candidate,
+            best_score,
+        )
+
+
+    @staticmethod
+    def _load_comparison_image(
+        path: Path,
+    ) -> np.ndarray | None:
+        try:
+            image = cv2.imread(
+                str(
+                    path
+                )
+            )
+
+            if (
+                image is None
+                or image.size == 0
+            ):
+                return None
+
+            return image
+
+        except Exception:
+            return None
+
+    @staticmethod
+    def _comparison_feature(
+        image: np.ndarray,
+    ) -> np.ndarray:
+        resized = cv2.resize(
+            image,
+            (
+                256,
+                356,
+            ),
+            interpolation=cv2.INTER_AREA,
+        )
+
+        hsv = cv2.cvtColor(
+            resized,
+            cv2.COLOR_BGR2HSV,
+        )
+
+        histograms = []
+
+        for channel in range(
+            3
+        ):
+            histogram = cv2.calcHist(
+                [hsv],
+                [channel],
+                None,
+                [32],
+                [0, 256],
+            )
+
+            histogram = cv2.normalize(
+                histogram,
+                None,
+            ).flatten()
+
+            histograms.append(
+                histogram
+            )
+
+        color_grid = cv2.resize(
+            hsv,
+            (
+                24,
+                34,
+            ),
+            interpolation=cv2.INTER_AREA,
+        ).astype(
+            np.float32
+        )
+
+        color_grid[:, :, 0] /= 179.0
+        color_grid[:, :, 1] /= 255.0
+        color_grid[:, :, 2] /= 255.0
+
+        color_grid = color_grid.flatten()
+
+        gray = cv2.cvtColor(
+            resized,
+            cv2.COLOR_BGR2GRAY,
+        )
+
+        edges = cv2.Canny(
+            gray,
+            50,
+            150,
+        )
+
+        edge_grid = cv2.resize(
+            edges,
+            (
+                32,
+                44,
+            ),
+            interpolation=cv2.INTER_AREA,
+        ).astype(
+            np.float32
+        ).flatten()
+
+        if edge_grid.size:
+            edge_grid /= 255.0
+
+        feature = np.concatenate(
+            [
+                *histograms,
+                color_grid,
+                edge_grid,
+            ]
+        ).astype(
+            np.float32
+        )
+
+        norm = float(
+            np.linalg.norm(
+                feature
+            )
+        )
+
+        if norm > 0:
+            feature /= norm
+
+        return feature
+
+    @classmethod
+    def _visual_similarity(
+        cls,
+        first_path: Path,
+        second_path: Path,
+    ) -> float:
+        first = cls._load_comparison_image(
+            first_path
+        )
+
+        second = cls._load_comparison_image(
+            second_path
+        )
+
+        if (
+            first is None
+            or second is None
+        ):
+            return 0.0
+
+        first_resized = cv2.resize(
+            first,
+            (
+                256,
+                356,
+            ),
+            interpolation=cv2.INTER_AREA,
+        ).astype(
+            np.float32
+        )
+
+        second_resized = cv2.resize(
+            second,
+            (
+                256,
+                356,
+            ),
+            interpolation=cv2.INTER_AREA,
+        ).astype(
+            np.float32
+        )
+
+        pixel_difference = float(
+            np.mean(
+                np.abs(
+                    first_resized
+                    - second_resized
+                )
+            )
+        )
+
+        pixel_similarity = max(
+            0.0,
+            1.0
+            - pixel_difference
+            / 128.0,
+        )
+
+        first_feature = (
+            cls._comparison_feature(
+                first
+            )
+        )
+
+        second_feature = (
+            cls._comparison_feature(
+                second
+            )
+        )
+
+        feature_similarity = float(
+            np.dot(
+                first_feature,
+                second_feature,
+            )
+        )
+
+        similarity = (
+            pixel_similarity
+            * 0.80
+            + feature_similarity
+            * 0.20
+        )
+
+        return round(
+            max(
+                0.0,
+                min(
+                    1.0,
+                    similarity,
+                ),
+            ),
+            4,
+        )
+
+    def _download_candidate_for_comparison(
+        self,
+        *,
+        client: httpx.Client,
+        registry_id: str,
+        language_code: str,
+        card: dict[str, Any],
+    ) -> dict[str, Any]:
+        result = self._download_proxy_image(
+            client=client,
+            registry_id=registry_id,
+            language_code=language_code,
+            card=card,
+        )
+
+        return {
+            "card": card,
+            "download": result,
+        }
+
+    def _choose_by_visual_anchor(
+        self,
+        *,
+        client: httpx.Client | None,
+        registry: dict[str, Any],
+        registry_id: str,
+        language_code: str,
+        candidates: list[dict[str, Any]],
+    ) -> tuple[
+        dict[str, Any] | None,
+        float,
+        dict[str, Any],
+    ]:
+        anchor_value = registry.get(
+            "exact_zh_cn_image"
+        )
+
+        if not anchor_value:
+            return None, 0.0, {}
+
+        anchor_path = Path(
+            str(
+                anchor_value
+            )
+        )
+
+        if not anchor_path.exists():
+            return None, 0.0, {}
+
+        ranked = []
+
+        for candidate in candidates[:20]:
+            try:
+                result = (
+                    self._download_candidate_for_comparison(
+                        client=client,
+                        registry_id=registry_id,
+                        language_code=language_code,
+                        card=candidate,
+                    )
+                )
+
+                download = (
+                    result.get(
+                        "download"
+                    )
+                    or {}
+                )
+
+                local_path = download.get(
+                    "path"
+                )
+
+                if not local_path:
+                    continue
+
+                similarity = (
+                    self._visual_similarity(
+                        anchor_path,
+                        Path(
+                            str(
+                                local_path
+                            )
+                        ),
+                    )
+                )
+
+                ranked.append(
+                    (
+                        similarity,
+                        candidate,
+                        download,
+                    )
+                )
+
+            except Exception:
+                continue
+
+        ranked.sort(
+            key=lambda item: item[0],
+            reverse=True,
+        )
+
+        if not ranked:
+            return None, 0.0, {}
+
+        (
+            best_similarity,
+            best_candidate,
+            best_download,
+        ) = ranked[0]
+
+        second_similarity = (
+            ranked[1][0]
+            if len(
+                ranked
+            ) > 1
+            else 0.0
+        )
+
+        if best_similarity < 0.78:
             return (
                 None,
-                score,
+                best_similarity,
+                {
+                    "state": "ambiguous_visual",
+                    "top_similarity": (
+                        best_similarity
+                    ),
+                    "second_similarity": (
+                        second_similarity
+                    ),
+                },
+            )
+
+        if (
+            len(
+                ranked
+            ) > 1
+            and (
+                best_similarity
+                - second_similarity
+            ) < 0.04
+        ):
+            return (
+                None,
+                best_similarity,
+                {
+                    "state": "ambiguous_visual",
+                    "top_similarity": (
+                        best_similarity
+                    ),
+                    "second_similarity": (
+                        second_similarity
+                    ),
+                },
             )
 
         return (
-            candidate,
-            score,
+            best_candidate,
+            best_similarity,
+            best_download,
         )
 
     def _download_proxy_image(
@@ -1321,50 +1750,112 @@ class SimplifiedChineseProxyCatalogService:
                                 )
                             )
 
-                            (
-                                candidate,
-                                match_score,
-                            ) = (
-                                self.choose_best_candidate(
-                                    registry=(
-                                        registry_record
-                                    ),
-                                    candidates=(
-                                        candidates
-                                    ),
-                                    language_code=(
-                                        language_code
-                                    ),
+                            visual_anchor = (
+                                registry_record.get(
+                                    "exact_zh_cn_image"
                                 )
                             )
+
+                            if (
+                                visual_anchor
+                                and Path(
+                                    str(
+                                        visual_anchor
+                                    )
+                                ).exists()
+                            ):
+                                (
+                                    candidate,
+                                    match_score,
+                                    image_result,
+                                ) = (
+                                    self._choose_by_visual_anchor(
+                                        client=client,
+                                        registry=(
+                                            registry_record
+                                        ),
+                                        registry_id=(
+                                            registry_id
+                                        ),
+                                        language_code=(
+                                            language_code
+                                        ),
+                                        candidates=(
+                                            candidates
+                                        ),
+                                    )
+                                )
+
+                                matching_method = (
+                                    "visual_anchor"
+                                )
+
+                            else:
+                                (
+                                    candidate,
+                                    match_score,
+                                ) = (
+                                    self.choose_best_candidate(
+                                        registry=(
+                                            registry_record
+                                        ),
+                                        candidates=(
+                                            candidates
+                                        ),
+                                        language_code=(
+                                            language_code
+                                        ),
+                                    )
+                                )
+
+                                image_result = {}
+
+                                matching_method = (
+                                    "metadata"
+                                )
 
                             if candidate is None:
                                 proxies[
                                     language_code
                                 ] = {
                                     "matched": False,
+                                    "ambiguous": True,
+                                    "matching_method": (
+                                        matching_method
+                                    ),
                                     "match_score": (
                                         match_score
                                     ),
                                     "candidate_count": len(
                                         candidates
                                     ),
+                                    "state": (
+                                        image_result.get(
+                                            "state"
+                                        )
+                                        if isinstance(
+                                            image_result,
+                                            dict,
+                                        )
+                                        else "ambiguous"
+                                    ),
                                 }
 
                                 continue
 
-                            image_result = (
-                                self._download_proxy_image(
-                                    client=client,
-                                    registry_id=(
-                                        registry_id
-                                    ),
-                                    language_code=(
-                                        language_code
-                                    ),
-                                    card=candidate,
+                            if not image_result:
+                                image_result = (
+                                    self._download_proxy_image(
+                                        client=client,
+                                        registry_id=(
+                                            registry_id
+                                        ),
+                                        language_code=(
+                                            language_code
+                                        ),
+                                        card=candidate,
+                                    )
                                 )
-                            )
 
                             state = (
                                 image_result.get(
@@ -1387,6 +1878,10 @@ class SimplifiedChineseProxyCatalogService:
                                 language_code
                             ] = {
                                 "matched": True,
+                                "ambiguous": False,
+                                "matching_method": (
+                                    matching_method
+                                ),
                                 "match_score": (
                                     match_score
                                 ),
