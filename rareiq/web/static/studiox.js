@@ -196,15 +196,57 @@ function toggleCardZoom(){
   );
 }
 
-function updateResolutionBadge(){
-  const width=window.innerWidth;
-  const label =
-    width>=3200 ? "4K UI" :
-    width>=2200 ? "1440p UI" :
-    width>=1500 ? "1080p UI" :
-    "720p UI";
+function updateResolutionBadge(vision={}){
+  const actual=vision.actual_resolution;
+  const requested=vision.requested_resolution;
   const badge=$("resolutionBadge");
-  if(badge) badge.textContent=label;
+  if(!badge) return;
+
+  if(Array.isArray(actual)&&actual.length>=2){
+    const fallback=Boolean(vision.resolution_fallback);
+    badge.textContent=`${actual[0]}x${actual[1]}${fallback?" FALLBACK":""}`;
+    badge.classList.toggle("fallback",fallback);
+    badge.title=fallback&&Array.isArray(requested)
+      ? `Camera requested ${requested[0]}x${requested[1]} and supplied ${actual[0]}x${actual[1]}.`
+      : `Camera input ${actual[0]}x${actual[1]}.`;
+  }else{
+    badge.textContent="CAMERA --";
+    badge.classList.remove("fallback");
+    badge.title="Waiting for the first camera frame.";
+  }
+}
+
+function alignScanZone(vision={}){
+  const workspace=document.querySelector(".camera-workspace");
+  const feed=$("cameraFeed");
+  const zone=$("scanZone");
+  if(!workspace||!feed||!zone) return;
+
+  const actual=vision.actual_resolution||[];
+  const sourceWidth=Number(feed.naturalWidth||actual[0]||0);
+  const sourceHeight=Number(feed.naturalHeight||actual[1]||0);
+  const workspaceWidth=workspace.clientWidth;
+  const workspaceHeight=workspace.clientHeight;
+  if(!sourceWidth||!sourceHeight||!workspaceWidth||!workspaceHeight) return;
+
+  const zoneValues=vision.scan_zone||{
+    left:0.10,top:0.08,right:0.90,bottom:0.92
+  };
+  const fit=cameraFitMode==="fill"?"cover":"contain";
+  const scale=fit==="cover"
+    ? Math.max(workspaceWidth/sourceWidth,workspaceHeight/sourceHeight)
+    : Math.min(workspaceWidth/sourceWidth,workspaceHeight/sourceHeight);
+  const renderedWidth=sourceWidth*scale;
+  const renderedHeight=sourceHeight*scale;
+  const offsetX=(workspaceWidth-renderedWidth)/2;
+  const offsetY=(workspaceHeight-renderedHeight)/2;
+
+  zone.style.left=`${offsetX+renderedWidth*Number(zoneValues.left)}px`;
+  zone.style.top=`${offsetY+renderedHeight*Number(zoneValues.top)}px`;
+  zone.style.width=`${renderedWidth*(Number(zoneValues.right)-Number(zoneValues.left))}px`;
+  zone.style.height=`${renderedHeight*(Number(zoneValues.bottom)-Number(zoneValues.top))}px`;
+  zone.style.right="auto";
+  zone.style.bottom="auto";
 }
 
 function applyCameraFit(mode){
@@ -229,6 +271,7 @@ function applyCameraFit(mode){
   if(toggle) toggle.classList.toggle("active",cameraFitMode==="adaptive");
 
   localStorage.setItem("rareiq.cameraFitMode",cameraFitMode);
+  alignScanZone(window.__rareiqVisionTelemetry||{});
 }
 
 function cycleCameraFit(){
@@ -1122,11 +1165,15 @@ async function loadCameraStatus(options={}){
     );
     setStateChip("cameraStateChip",online?"on":"error",online?"ONLINE":"OFFLINE");
     applyAutoCaptureState(vision.auto_capture_enabled ?? true);
+    window.__rareiqVisionTelemetry=vision;
+    updateResolutionBadge(vision);
+    alignScanZone(vision);
     const feed=$("cameraFeed");
     const viewerHasFrame=Boolean(feed&&feed.naturalWidth>0&&feed.naturalHeight>0);
 
     if(viewerHasFrame){
       markViewerLive();
+      alignScanZone(window.__rareiqVisionTelemetry||{});
     }else if(online){
       if(forceStream||!cameraStreamStarted){
         startCameraStream(forceStream);
@@ -1784,6 +1831,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       cameraStreamFailures=0;
       cameraStreamStarted=true;
       cameraAutostartComplete=true;
+      alignScanZone(window.__rareiqVisionTelemetry||{});
       const placeholder=$("cameraPlaceholder");
       const recovery=$("cameraRecovery");
       if(placeholder) placeholder.classList.add("hidden");
@@ -1819,7 +1867,9 @@ document.addEventListener("DOMContentLoaded",()=>{
   applyCameraFit(savedFit);
   applyCardZoom(localStorage.getItem("rareiq.cardZoom")==="on");
   updateResolutionBadge();
-  window.addEventListener("resize",updateResolutionBadge);
+  window.addEventListener("resize",()=>{
+    alignScanZone(window.__rareiqVisionTelemetry||{});
+  });
   applyAutoCaptureState(true);
   setStateChip("databaseStateChip","on","READY");
   setStateChip("broadcastStateChip","","OFF");

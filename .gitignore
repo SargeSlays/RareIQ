@@ -1,6 +1,10 @@
 rareiq_secrets.json
 grading_captures/
 updates/
+!updates/
+updates/*
+!updates/RareIQ_6.4_Update_12.py
+!updates/RareIQ_6.4_Update_12_Guide.md
 __pycache__/
 *.pyc
 *.zip

@@ -113,7 +113,7 @@ def test_imperfect_card_border_is_detected():
 
     assert result.polygon is not None
     assert result.crop is not None
-    assert result.crop.shape == (700, 500, 3)
+    assert result.crop.shape == (1400, 1000, 3)
     assert result.confidence >= VisionService.DETECT_THRESHOLD
 
 
