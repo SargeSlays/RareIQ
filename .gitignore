@@ -17,3 +17,11 @@ catalog_master/simplified_chinese_proxy/
 catalog_master/*.pre_pokipair_*.json
 rareiq/data/*activation_report.json
 test_card_import/
+# RareIQ generated runtime data
+__pycache__/
+*.pyc
+catalog_master/
+grading_captures/
+pokemon_master_database/
+rarityiq/
+rareiq/data/artwork_index.json
