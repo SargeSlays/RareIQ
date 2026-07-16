@@ -1260,15 +1260,30 @@ async function loadRecognition(){
       ? raw.candidates
       : [];
 
-    const card =
-      snapshot?.primary_candidate ||
-      snapshot?.database_match ||
-      raw?.primary_candidate ||
-      raw?.card ||
-      raw?.match ||
-      raw?.current_card ||
-      candidates[0] ||
+    const databaseCandidate =
+      candidates.find(
+        candidate =>
+          candidate &&
+          candidate.source !== "ocr_provisional" &&
+          (
+            candidate.image_path ||
+            candidate.reference_image ||
+            candidate.local_image ||
+            candidate.reference_image_url
+          )
+      ) ||
+      candidates.find(
+        candidate =>
+          candidate &&
+          candidate.source !== "ocr_provisional"
+      ) ||
       null;
+
+    const card =
+      databaseCandidate ||
+      snapshot.primary_candidate ||
+      snapshot.provisional_candidate ||
+      {};
 
     const phase = String(
       snapshot?.phase ||

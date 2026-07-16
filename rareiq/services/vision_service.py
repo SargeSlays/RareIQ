@@ -1016,25 +1016,40 @@ class VisionService:
             )
         )
 
-        edge_score = cls._edge_support(
-            edges,
-            points,
-        )
-
         approximation = cv2.approxPolyDP(
             contour,
-            0.035 * perimeter,
+            0.025 * perimeter,
             True,
         )
 
-        four_corner_bonus = (
-            1.0
-            if (
-                len(approximation) == 4
-                and cv2.isContourConvex(approximation)
-            )
-            else 0.0
+        has_four_corners = (
+            len(approximation) == 4
+            and cv2.isContourConvex(approximation)
         )
+
+        if has_four_corners:
+            # Use the card's actual detected corners for perspective correction.
+            # Do not warp from the larger rotated bounding rectangle.
+            points = cls._order(
+                approximation.reshape(4, 2)
+            )
+
+            four_corner_bonus = 1.0
+        else:
+            # A min-area rectangle around a noisy contour can include large amounts
+            # of background. Reject weak blob-like candidates instead of warping them.
+            if (
+                rectangularity < 0.68
+                or solidity < 0.78
+            ):
+                return None
+
+            four_corner_bonus = 0.0
+
+        edge_score = cls._edge_support(
+            edges,
+            points,
+        )    
 
         confidence = (
             0.30 * aspect_score
