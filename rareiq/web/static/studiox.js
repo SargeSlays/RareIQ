@@ -1307,27 +1307,40 @@ async function loadRecognition(){
       ? raw.candidates
       : [];
 
-    const databaseCandidate =
+    const identityAgrees = candidate => {
+      const signals = candidate?.signals || {};
+      return Number(signals.ocr_name || 0) >= 0.75 ||
+        Number(signals.collector_number || 0) >= 1;
+    };
+
+    const realIdentityCandidate =
       candidates.find(
         candidate =>
           candidate &&
           candidate.source !== "ocr_provisional" &&
+          ["database", "live_catalog", "catalog"].includes(
+            String(candidate.source || "").toLowerCase()
+          ) &&
           (
             candidate.image_path ||
             candidate.reference_image ||
             candidate.local_image ||
             candidate.reference_image_url
           )
-      ) ||
+      ) || null;
+
+    const verifiedVisualCandidate =
       candidates.find(
         candidate =>
           candidate &&
-          candidate.source !== "ocr_provisional"
-      ) ||
-      null;
+          candidate.source !== "ocr_provisional" &&
+          candidate.verification_strong === true &&
+          identityAgrees(candidate)
+      ) || null;
 
     const card =
-      databaseCandidate ||
+      realIdentityCandidate ||
+      verifiedVisualCandidate ||
       snapshot.primary_candidate ||
       snapshot.provisional_candidate ||
       {};
@@ -1340,11 +1353,14 @@ async function loadRecognition(){
     ).toUpperCase();
 
     const confidence = normalize(
-      snapshot?.overall_confidence ??
-      snapshot?.confidence ??
       card?.fused_score ??
       card?.score ??
       card?.confidence ??
+      (
+        card === snapshot?.primary_candidate
+          ? snapshot?.overall_confidence ?? snapshot?.confidence
+          : 0
+      ) ??
       raw?.fused_score ??
       raw?.confidence ??
       0
@@ -1362,10 +1378,8 @@ async function loadRecognition(){
     );
 
     const verified = Boolean(
-      locked ||
-      phase === "VERIFIED" ||
-      phase === "MATCHED" ||
-      phase === "REFERENCE_FOUND"
+      realIdentityCandidate ||
+      verifiedVisualCandidate
     );
 
     $("aiState").textContent = verified

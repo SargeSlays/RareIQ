@@ -184,6 +184,23 @@ class RecognitionService:
         return frame[y1:y1 + roi_height, x1:x1 + roi_width]
 
     @staticmethod
+    def _is_rectified_card(frame: np.ndarray) -> bool:
+        """Return whether Vision already supplied a normalized portrait card."""
+        if frame is None or frame.ndim < 2:
+            return False
+        height, width = frame.shape[:2]
+        if width < 400 or height < 560 or height <= width:
+            return False
+        aspect_ratio = width / float(height)
+        return 0.66 <= aspect_ratio <= 0.78
+
+    @classmethod
+    def _prepare_card(cls, frame: np.ndarray) -> np.ndarray:
+        if cls._is_rectified_card(frame):
+            return frame
+        return cls._card_roi(frame)
+
+    @staticmethod
     def _regions(card: np.ndarray) -> dict[str, np.ndarray]:
         height, width = card.shape[:2]
         return {
@@ -359,6 +376,15 @@ class RecognitionService:
         return winner
 
     @staticmethod
+    def _valid_collector_number(number: str | None) -> bool:
+        if not number:
+            return False
+        match = re.fullmatch(r"(\d{1,3})/(\d{2,3})", str(number).strip())
+        if not match:
+            return False
+        return int(match.group(1)) > 0 and int(match.group(2)) > 0
+
+    @staticmethod
     def _best_name(items: list[dict[str, Any]]) -> str | None:
         candidates: dict[str, float] = {}
 
@@ -480,10 +506,9 @@ class RecognitionService:
     @staticmethod
     def _fuse_confidence(
         ocr_confidence: float,
-        collector_number: str | None,
+        collector_evidence: float,
         language: str,
         evidence_confidence: float,
-        artwork_fingerprint: str | None,
     ) -> tuple[float, list[str]]:
         components = [
             (
@@ -492,8 +517,8 @@ class RecognitionService:
                 "OCR",
             ),
             (
-                1.0 if collector_number else 0.0,
-                0.30,
+                max(0.0, min(1.0, collector_evidence)),
+                0.25,
                 "Collector number",
             ),
             (
@@ -505,13 +530,8 @@ class RecognitionService:
             ),
             (
                 max(0.0, min(1.0, evidence_confidence)),
-                0.25,
+                0.40,
                 "Database or artwork",
-            ),
-            (
-                1.0 if artwork_fingerprint else 0.0,
-                0.10,
-                "Artwork fingerprint",
             ),
         ]
 
@@ -627,12 +647,17 @@ class RecognitionService:
         try:
             pipeline_stages: list[dict[str, Any]] = []
 
-            card = self._card_roi(frame)
+            already_rectified = self._is_rectified_card(frame)
+            card = self._prepare_card(frame)
             quality_payload: dict[str, Any] = {}
             if self.vision_optimizer is not None:
-                optimized_result = self.vision_optimizer.optimize(card)
-                card = optimized_result["image"]
-                quality_payload = optimized_result["quality"]
+                if already_rectified:
+                    card = self.vision_optimizer._normalize(card)
+                    quality_payload = vars(self.vision_optimizer.quality(card))
+                else:
+                    optimized_result = self.vision_optimizer.optimize(card)
+                    card = optimized_result["image"]
+                    quality_payload = optimized_result["quality"]
             pipeline_stages.append({
                 "key": "detect",
                 "label": "Card detected",
@@ -659,8 +684,10 @@ class RecognitionService:
             )
 
             artwork_started = time.perf_counter()
+            # Artwork-index fingerprints are built from normalized full-card
+            # references, so query with the same full-card geometry.
             artwork_result = self.artwork_index.search(
-                regions["artwork"],
+                card,
                 limit=10,
             )
             artwork_ms = round(
@@ -788,17 +815,29 @@ class RecognitionService:
 
             evidence_confidence = max(
                 float(db_confidence),
-                artwork_top_score,
-                global_visual_top_score,
+                max(
+                    (
+                        float(item.get("score", 0.0))
+                        for item in artwork_candidates
+                        if item.get("verification_strong")
+                    ),
+                    default=0.0,
+                ),
+            )
+
+            collector_valid = self._valid_collector_number(validated_number)
+            collector_evidence = (
+                1.0 if collector_valid and db_match
+                else 0.35 if collector_valid
+                else 0.0
             )
 
             overall_confidence, lock_reasons = (
                 self._fuse_confidence(
                     float(ocr_confidence),
-                    validated_number,
+                    collector_evidence,
                     language,
                     evidence_confidence,
-                    fingerprint,
                 )
             )
 
@@ -830,6 +869,11 @@ class RecognitionService:
                     "reference_image_url": item.get("reference_image_url"),
                     "local_image": item.get("local_image"),
                     "source_url": item.get("source_url"),
+                    "verification_strong": bool(item.get("verification_strong")),
+                    "retrieval_only": bool(item.get("retrieval_only")),
+                    "artwork_verification_strong": bool(
+                        item.get("artwork_verification_strong")
+                    ),
                 }
                 for item in (global_visual_candidates + artwork_candidates)
             ]
@@ -941,13 +985,12 @@ class RecognitionService:
             has_reference_evidence = bool(
                 db_match
                 or (
-                    global_visual_candidates
-                    and global_visual_top_score >= 0.70
-                )
-                or (
                     artwork_candidates
-                    and artwork_top_score >= 0.70
-                    and artwork_candidates[0].get("image_path")
+                    and any(
+                        item.get("verification_strong")
+                        and item.get("image_path")
+                        for item in artwork_candidates
+                    )
                 )
             )
 
@@ -1029,10 +1072,17 @@ class RecognitionService:
             )
 
             ocr_locked = (
-                overall_confidence >= 0.72
-                and bool(validated_number)
-                and language != "Unknown"
-                and has_reference_evidence
+                bool(db_match)
+                or (
+                    overall_confidence >= 0.72
+                    and collector_valid
+                    and language != "Unknown"
+                    and bool(top_candidate.get("verification_strong"))
+                    and (
+                        float((top_candidate.get("signals") or {}).get("ocr_name", 0.0)) >= 0.75
+                        or float((top_candidate.get("signals") or {}).get("collector_number", 0.0)) >= 1.0
+                    )
+                )
             )
 
             recognition_locked = (
