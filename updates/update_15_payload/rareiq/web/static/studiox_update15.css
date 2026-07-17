@@ -1,0 +1,280 @@
+/* RareIQ 6.4 Update 15 — compact Studio X operator layout. */
+
+body.studiox-ui4{
+  --update15-control-height:var(--ui4-control-default);
+  --update15-dock-height:var(--ui4-dock-wide);
+  --update15-inspector-width:var(--ui4-inspector-wide);
+}
+
+body.studiox-ui4 .appbar{
+  display:grid;
+  grid-template-columns:minmax(210px,auto) minmax(420px,1fr) auto auto;
+  align-items:center;
+  gap:var(--ui4-space-3);
+  min-height:52px;
+  padding:6px 14px;
+  border-bottom:1px solid var(--ui4-border-subtle);
+  background:var(--ui4-surface-1);
+  box-shadow:none;
+}
+
+body.studiox-ui4 .brand{min-width:0}
+body.studiox-ui4 .brand-name{font-size:15px;letter-spacing:.12em}
+body.studiox-ui4 .brand-subtitle{font-size:8px;white-space:nowrap}
+body.studiox-ui4 .system-status-strip{min-width:0;justify-content:flex-start;gap:5px}
+body.studiox-ui4 .state-chip{min-height:28px;padding:4px 7px;box-shadow:none}
+body.studiox-ui4 .ai-pulse{min-width:112px}
+body.studiox-ui4 .ui4-app-health{display:flex;align-items:center;justify-content:flex-end;gap:5px;min-width:0}
+body.studiox-ui4 .ui4-app-health .riq-pill{white-space:nowrap}
+
+body.studiox-ui4 .live-shell{
+  grid-template-columns:minmax(0,1fr) var(--update15-inspector-width);
+  grid-template-rows:minmax(0,1fr) var(--update15-dock-height);
+  gap:var(--ui4-space-2);
+}
+
+body.studiox-ui4 .toolbar{
+  flex-wrap:nowrap;
+  gap:var(--ui4-space-1);
+  min-height:46px;
+  padding:5px var(--ui4-space-3);
+  border-bottom:1px solid var(--ui4-border-subtle);
+  background:var(--ui4-surface-2);
+  box-shadow:none;
+  overflow:hidden;
+}
+
+body.studiox-ui4 .command-group{
+  gap:var(--ui4-space-1);
+  padding:2px 8px 2px 4px;
+  border:0;
+  border-right:1px solid var(--ui4-border-subtle);
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+}
+
+body.studiox-ui4 .command-group-label{font-size:8px;letter-spacing:.08em}
+body.studiox-ui4 .ui4-program-actions{border-right:0}
+
+body.studiox-ui4 .toolbar select,
+body.studiox-ui4 .tool-button,
+body.studiox-ui4 .restart-feed-btn,
+body.studiox-ui4 .camera-fit-toggle,
+body.studiox-ui4 .auto-toggle,
+body.studiox-ui4 .toolbar .riq-button,
+body.studiox-ui4 .inspector-actions .riq-button{
+  height:var(--update15-control-height);
+  min-height:var(--ui4-control-compact);
+  max-height:var(--ui4-control-large);
+  padding-inline:10px;
+}
+
+body.studiox-ui4 .tool-button:focus-visible,
+body.studiox-ui4 .restart-feed-btn:focus-visible,
+body.studiox-ui4 .camera-fit-toggle:focus-visible,
+body.studiox-ui4 .auto-toggle:focus-visible,
+body.studiox-ui4 .inspector-actions .riq-button:focus-visible,
+body.studiox-ui4 .dock-tab:focus-visible,
+body.studiox-ui4 .dock-collapse:focus-visible{
+  outline:2px solid var(--ui4-focus-color);
+  outline-offset:2px;
+}
+
+body.studiox-ui4 .inspector{
+  display:grid;
+  grid-template-rows:auto auto minmax(0,1fr) auto auto auto;
+  padding:10px;
+  gap:7px;
+  overflow:auto;
+  border-color:var(--ui4-border-subtle);
+  box-shadow:none;
+}
+
+body.studiox-ui4 .capture-banner{order:-1}
+body.studiox-ui4 .inspector-head{order:0}
+body.studiox-ui4 .recognition-state{order:1}
+body.studiox-ui4 .inspector-empty,
+body.studiox-ui4 .inspector-main{order:2;min-height:0}
+body.studiox-ui4 .inspector-footer{order:3}
+body.studiox-ui4 .copilot-card{order:4}
+body.studiox-ui4 .session-strip{order:5}
+body.studiox-ui4 .inspector-main{gap:8px}
+body.studiox-ui4 .card-showcase,
+body.studiox-ui4 .card-info,
+body.studiox-ui4 .copilot-card,
+body.studiox-ui4 .session-strip,
+body.studiox-ui4 .recognition-state{box-shadow:none}
+body.studiox-ui4 .inspector-footer{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center}
+body.studiox-ui4 .inspector-actions{grid-column:1/-1;grid-row:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+body.studiox-ui4 .confidence-ring{grid-column:1;grid-row:2}
+body.studiox-ui4 .signal-stack{grid-column:2;grid-row:2;min-width:0}
+
+body.studiox-ui4 .inspector-actions{
+  gap:5px;
+}
+
+body.studiox-ui4 .dock{
+  grid-template-rows:34px minmax(0,1fr);
+  border-color:var(--ui4-border-subtle);
+  box-shadow:none;
+}
+
+body.studiox-ui4 .dock-tabs{background:var(--ui4-surface-2);border-bottom:1px solid var(--ui4-border-subtle)}
+body.studiox-ui4 .camera-workspace{border-color:var(--ui4-border-subtle);box-shadow:none}
+body.studiox-ui4 .bottom-nav{border-top:1px solid var(--ui4-border-subtle);background:var(--ui4-surface-1);box-shadow:none}
+
+body.studiox-ui4 .dock-tab,
+body.studiox-ui4 .dock-collapse{
+  height:34px;
+  min-height:var(--ui4-control-compact);
+  max-height:var(--ui4-control-large);
+  padding-inline:10px;
+}
+
+body.studiox-ui4 .dock-panel[data-panel="thinking"]{
+  overflow:hidden;
+}
+
+body.studiox-ui4 .dock-panel[data-panel="thinking"] .pipeline-rail{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  align-items:stretch;
+  gap:0;
+  height:100%;
+  overflow:visible;
+}
+
+body.studiox-ui4 .pipeline-rail .pipeline-step{
+  position:relative;
+  min-width:0;
+  padding:5px 18px 5px 9px;
+  display:grid;
+  grid-template-columns:14px minmax(0,1fr) auto;
+  align-items:center;
+  gap:5px;
+  border:0;
+  border-radius:0;
+  background:rgba(7,16,25,.46);
+  box-shadow:inset 0 0 0 1px rgba(105,144,177,.10);
+}
+
+body.studiox-ui4 .pipeline-rail .pipeline-step:first-child{border-radius:8px 0 0 8px}
+body.studiox-ui4 .pipeline-rail .pipeline-step:last-child{border-radius:0 8px 8px 0}
+
+body.studiox-ui4 .pipeline-rail .pipeline-step:not(:last-child):before{
+  content:"";
+  position:absolute;
+  right:4px;
+  top:50%;
+  width:10px;
+  height:1px;
+  background:#52677a;
+}
+
+body.studiox-ui4 .pipeline-rail .pipeline-step:not(:last-child):after{
+  content:"";
+  position:absolute;
+  left:auto;
+  right:3px;
+  top:calc(50% - 3px);
+  bottom:auto;
+  width:5px;
+  height:5px;
+  background:transparent;
+  border-top:1px solid #52677a;
+  border-right:1px solid #52677a;
+  transform:rotate(45deg);
+  animation:none;
+  transition:none;
+}
+
+body.studiox-ui4 .pipeline-rail .pipeline-step > b{
+  margin:0;
+  font-size:10px;
+  line-height:1;
+  white-space:nowrap;
+}
+
+body.studiox-ui4 .pipeline-rail .process-state-icon{
+  display:grid;
+  place-items:center;
+  width:14px;
+  height:14px;
+  margin:0;
+  border:1px solid currentColor;
+  border-radius:50%;
+  color:var(--ui4-status-muted);
+  font:800 10px/1 "JetBrains Mono",monospace;
+}
+
+body.studiox-ui4 .pipeline-rail .process-status{
+  margin:0;
+  color:var(--ui4-status-muted);
+  font-size:8px;
+  white-space:nowrap;
+}
+
+body.studiox-ui4 .pipeline-rail .process-status b{
+  display:block;
+  font-size:8px;
+  line-height:1;
+}
+
+body.studiox-ui4 .pipeline-rail .state-active .process-state-icon{
+  color:var(--ui4-status-info);
+  animation:update15Pulse 1s ease-in-out infinite alternate;
+}
+body.studiox-ui4 .pipeline-rail .state-complete .process-state-icon{color:var(--ui4-status-success)}
+body.studiox-ui4 .pipeline-rail .state-warning .process-state-icon{color:var(--ui4-status-warning)}
+body.studiox-ui4 .pipeline-rail .state-failed .process-state-icon{color:var(--ui4-status-danger)}
+body.studiox-ui4 .pipeline-rail .state-skipped .process-state-icon{color:#71808d;border-style:dashed}
+body.studiox-ui4 .pipeline-rail .state-warning .process-status{color:var(--ui4-status-warning)}
+body.studiox-ui4 .pipeline-rail .state-failed .process-status{color:var(--ui4-status-danger)}
+body.studiox-ui4 .pipeline-rail .state-complete .process-status{color:var(--ui4-status-success)}
+
+@keyframes update15Pulse{
+  from{box-shadow:0 0 0 rgba(79,216,255,0)}
+  to{box-shadow:0 0 10px rgba(79,216,255,.72)}
+}
+
+body.studiox-ui4.dock-collapsed .live-shell{
+  grid-template-rows:minmax(0,1fr) 34px;
+}
+
+@media(min-width:2200px) and (min-height:1200px){
+  body.studiox-ui4{
+    --update15-inspector-width:var(--ui4-inspector-ultrawide);
+    --update15-dock-height:var(--ui4-dock-ultrawide);
+  }
+}
+
+@media(max-width:1366px), (max-height:768px){
+  body.studiox-ui4{
+    --update15-control-height:var(--ui4-control-compact);
+    --update15-dock-height:var(--ui4-dock-compact);
+    --update15-inspector-width:var(--ui4-inspector-compact);
+  }
+
+  body.studiox-ui4 .live-shell{gap:5px}
+  body.studiox-ui4 .toolbar{gap:3px;padding-inline:5px}
+  body.studiox-ui4 .command-group{gap:2px;padding-inline:2px}
+  body.studiox-ui4 .command-group-label{display:none}
+  body.studiox-ui4 .toolbar select{min-width:164px}
+  body.studiox-ui4 .tool-button,
+  body.studiox-ui4 .restart-feed-btn,
+  body.studiox-ui4 .camera-fit-toggle,
+  body.studiox-ui4 .auto-toggle{padding-inline:7px}
+  body.studiox-ui4 .dock{grid-template-rows:30px minmax(0,1fr)}
+  body.studiox-ui4 .dock-tab,
+  body.studiox-ui4 .dock-collapse{height:34px;padding-inline:7px}
+  body.studiox-ui4 .dock-content{padding:4px}
+  body.studiox-ui4 .pipeline-rail .pipeline-step{padding:3px 13px 3px 5px;gap:3px}
+  body.studiox-ui4 .pipeline-rail .pipeline-step > b{font-size:8px}
+  body.studiox-ui4 .pipeline-rail .process-status{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  body.studiox-ui4 .pipeline-rail .process-state-icon{width:12px;height:12px;font-size:8px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  body.studiox-ui4 .pipeline-rail .state-active .process-state-icon{animation:none}
+}
