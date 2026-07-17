@@ -7,6 +7,10 @@ updates/*
 !updates/RareIQ_6.4_Update_12_Guide.md
 !updates/RareIQ_6.4_Update_13.py
 !updates/RareIQ_6.4_Update_13_Guide.md
+!updates/RareIQ_6.4_Update_14.py
+!updates/RareIQ_6.4_Update_14_Guide.md
+!updates/update_14_payload/
+!updates/update_14_payload/**
 __pycache__/
 *.pyc
 *.zip
