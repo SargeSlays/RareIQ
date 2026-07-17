@@ -67,11 +67,15 @@ body{
 }
 
 .scan-zone{
-  position:absolute;inset:7% 20%;border-radius:20px;
+  position:absolute;left:10%;top:8%;width:80%;height:84%;border-radius:20px;
   box-shadow:
     inset 0 0 0 2px rgba(79,216,255,.34),
     0 0 44px rgba(79,216,255,.06);
   transition:.22s;
+}
+.riq-pill.fallback{
+  color:var(--gold);
+  box-shadow:inset 0 0 0 1px rgba(255,200,92,.45);
 }
 .scan-zone:before,.scan-zone:after{
   content:"";position:absolute;width:38px;height:38px;

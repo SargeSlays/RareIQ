@@ -530,6 +530,18 @@ class ConfidenceLockTracker:
 class VisionService:
     STABLE_TARGET = 8
 
+    REQUESTED_FRAME_WIDTH = 1920
+    REQUESTED_FRAME_HEIGHT = 1080
+    DETECTION_MAX_WIDTH = 960
+    OUTPUT_CROP_WIDTH = 1000
+    OUTPUT_CROP_HEIGHT = 1400
+    SCAN_ZONE = {
+        "left": 0.10,
+        "top": 0.08,
+        "right": 0.90,
+        "bottom": 0.92,
+    }
+
     DETECT_THRESHOLD = 0.42
     LOCK_THRESHOLD = 0.76
     UNLOCK_THRESHOLD = 0.44
@@ -579,6 +591,14 @@ class VisionService:
             "frame_id": None,
             "frame_timestamp": None,
             "frame_shape": None,
+            "requested_resolution": [
+                self.REQUESTED_FRAME_WIDTH,
+                self.REQUESTED_FRAME_HEIGHT,
+            ],
+            "actual_resolution": None,
+            "resolution_fallback": None,
+            "scan_zone": dict(self.SCAN_ZONE),
+            "scan_zone_pixels": None,
             "camera_index": None,
             "camera_name": None,
             "camera_backend": None,
@@ -749,6 +769,9 @@ class VisionService:
                     "candidate_scores": {},
                     "capture_quality": 0.0,
                     "polygon": [],
+                    "actual_resolution": None,
+                    "resolution_fallback": None,
+                    "scan_zone_pixels": None,
                     "error": None,
                     "auto_capture_armed": True,
                 }
@@ -1087,11 +1110,43 @@ class VisionService:
                 confidence=0.0,
             )
 
-        height, width = frame.shape[:2]
+        full_height, full_width = frame.shape[:2]
+
+        left = int(round(full_width * cls.SCAN_ZONE["left"]))
+        top = int(round(full_height * cls.SCAN_ZONE["top"]))
+        right = int(round(full_width * cls.SCAN_ZONE["right"]))
+        bottom = int(round(full_height * cls.SCAN_ZONE["bottom"]))
+
+        left = max(0, min(left, full_width - 1))
+        top = max(0, min(top, full_height - 1))
+        right = max(left + 1, min(right, full_width))
+        bottom = max(top + 1, min(bottom, full_height))
+
+        roi = frame[top:bottom, left:right]
+        roi_height, roi_width = roi.shape[:2]
+
+        detection_scale = min(
+            1.0,
+            cls.DETECTION_MAX_WIDTH / max(roi_width, 1),
+        )
+
+        if detection_scale < 1.0:
+            detection_frame = cv2.resize(
+                roi,
+                (
+                    max(1, int(round(roi_width * detection_scale))),
+                    max(1, int(round(roi_height * detection_scale))),
+                ),
+                interpolation=cv2.INTER_AREA,
+            )
+        else:
+            detection_frame = roi
+
+        height, width = detection_frame.shape[:2]
         frame_area = float(width * height)
 
         gray = cv2.cvtColor(
-            frame,
+            detection_frame,
             cv2.COLOR_BGR2GRAY,
         )
 
@@ -1183,10 +1238,20 @@ class VisionService:
             key=lambda item: item[0],
         )
 
+        roi_points = (
+            points.astype(np.float32)
+            / max(detection_scale, np.finfo(np.float32).eps)
+        )
+
+        full_points = roi_points + np.array(
+            [left, top],
+            dtype=np.float32,
+        )
+
         normalized = (
-            points
+            full_points
             / np.array(
-                [width, height],
+                [full_width, full_height],
                 dtype=np.float32,
             )
         ).astype(np.float32)
@@ -1194,22 +1259,28 @@ class VisionService:
         destination = np.array(
             [
                 [0, 0],
-                [499, 0],
-                [499, 699],
-                [0, 699],
+                [cls.OUTPUT_CROP_WIDTH - 1, 0],
+                [
+                    cls.OUTPUT_CROP_WIDTH - 1,
+                    cls.OUTPUT_CROP_HEIGHT - 1,
+                ],
+                [0, cls.OUTPUT_CROP_HEIGHT - 1],
             ],
             dtype=np.float32,
         )
 
         transform = cv2.getPerspectiveTransform(
-            points.astype(np.float32),
+            full_points.astype(np.float32),
             destination,
         )
 
         crop = cv2.warpPerspective(
             frame,
             transform,
-            (500, 700),
+            (
+                cls.OUTPUT_CROP_WIDTH,
+                cls.OUTPUT_CROP_HEIGHT,
+            ),
             flags=cv2.INTER_CUBIC,
             borderMode=cv2.BORDER_REPLICATE,
         )
@@ -1358,12 +1429,12 @@ class VisionService:
         camera_properties = (
             (
                 cv2.CAP_PROP_FRAME_WIDTH,
-                1280,
+                self.REQUESTED_FRAME_WIDTH,
                 "frame width",
             ),
             (
                 cv2.CAP_PROP_FRAME_HEIGHT,
-                720,
+                self.REQUESTED_FRAME_HEIGHT,
                 "frame height",
             ),
             (
@@ -1430,8 +1501,24 @@ class VisionService:
 
                 clean_frame = frame.copy()
                 frame_timestamp = time.time()
+                actual_height, actual_width = clean_frame.shape[:2]
 
                 with self._lock:
+                    actual_resolution = (
+                        self._status.get("actual_resolution")
+                        or [actual_width, actual_height]
+                    )
+                    telemetry_width, telemetry_height = actual_resolution
+                    scan_zone_pixels = {
+                        "left": int(round(telemetry_width * self.SCAN_ZONE["left"])),
+                        "top": int(round(telemetry_height * self.SCAN_ZONE["top"])),
+                        "right": int(round(telemetry_width * self.SCAN_ZONE["right"])),
+                        "bottom": int(round(telemetry_height * self.SCAN_ZONE["bottom"])),
+                    }
+                    resolution_fallback = actual_resolution != [
+                        self.REQUESTED_FRAME_WIDTH,
+                        self.REQUESTED_FRAME_HEIGHT,
+                    ]
                     self._latest_frame = clean_frame
                     self._frame_id += 1
                     self._latest_frame_at = frame_timestamp
@@ -1444,6 +1531,9 @@ class VisionService:
                             "frame_shape": list(
                                 clean_frame.shape
                             ),
+                            "actual_resolution": actual_resolution,
+                            "resolution_fallback": resolution_fallback,
+                            "scan_zone_pixels": scan_zone_pixels,
                         }
                     )
 
