@@ -22,6 +22,16 @@ class CandidateRankerService:
     ) -> None:
         self.fusion_service = fusion_service
 
+    @staticmethod
+    def _canonical_language(value: Any) -> str:
+        normalized = str(value or "").strip().lower().replace("_", "-")
+        aliases = {
+            "chinese": "zh-cn",
+            "simplified chinese": "zh-cn",
+            "zh-cn": "zh-cn",
+        }
+        return aliases.get(normalized, normalized)
+
     def rank(
         self,
         *,
@@ -127,12 +137,11 @@ class CandidateRankerService:
             or ""
         ).strip().lower()
 
-        detected_language = str(
+        detected_language = self._canonical_language(
             ocr_payload.get(
                 "language"
             )
-            or ""
-        ).strip().lower()
+        )
 
         ranked = []
 
@@ -161,12 +170,11 @@ class CandidateRankerService:
                 or ""
             ).lower()
 
-            language = str(
+            language = self._canonical_language(
                 item.get(
                     "language"
                 )
-                or ""
-            ).lower()
+            )
 
             signals = {
                 "visual_similarity": (
@@ -196,8 +204,7 @@ class CandidateRankerService:
                     if (
                         detected_language
                         and language
-                        and detected_language
-                        in language
+                        and detected_language == language
                     )
                     else 0.5
                     if not detected_language
@@ -247,6 +254,17 @@ class CandidateRankerService:
                     visual_similarity
                     * 0.88,
                 )
+                verified = bool(item.get("verification_strong"))
+                identity_agreement = max(
+                    float(signals["ocr_name"]),
+                    float(signals["collector_number"]),
+                )
+                if not verified:
+                    fused_score = min(
+                        fused_score,
+                        0.49 if identity_agreement == 0.0 else 0.59,
+                    )
+                    item["retrieval_only"] = True
 
             elif source in OCR_SOURCES:
                 fused_score = min(
@@ -301,6 +319,7 @@ class CandidateRankerService:
                         0.0,
                     )
                 ),
+                str(candidate.get("id") or ""),
             ),
             reverse=True,
         )

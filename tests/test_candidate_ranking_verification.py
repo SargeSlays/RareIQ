@@ -68,3 +68,36 @@ def test_collector_number_keeps_ocr_candidate_valid() -> None:
         None,
         "084/204",
     )
+
+
+def test_invalid_collector_number_is_not_identity_evidence() -> None:
+    assert not RecognitionService._valid_collector_number("0501/070")
+    assert RecognitionService._valid_collector_number("239/204")
+
+
+def test_hash_only_candidate_is_capped_below_verified_candidate() -> None:
+    ranker = CandidateRankerService(RecognitionFusionService())
+    ranked = ranker.rank(
+        visual_candidates=[
+            {
+                "id": "hash-only",
+                "name": "Unrelated",
+                "score": 0.95,
+                "source": "artwork_index",
+                "verification_strong": False,
+            },
+            {
+                "id": "verified",
+                "name": "Unknown",
+                "score": 0.70,
+                "source": "artwork_index",
+                "verification_strong": True,
+            },
+        ],
+        ocr_payload={"text": "", "collector_number": None, "language": "Unknown"},
+        quality=None,
+    )
+    assert ranked[0]["id"] == "verified"
+    failed = next(item for item in ranked if item["id"] == "hash-only")
+    assert failed["fused_score"] <= 0.49
+    assert failed["retrieval_only"] is True

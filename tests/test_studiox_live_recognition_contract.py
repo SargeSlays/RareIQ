@@ -18,6 +18,11 @@ def test_studiox_uses_recognition_state_contract() -> None:
     assert "snapshot.primary_candidate" in script
     assert "snapshot?.pipeline_stages" in script
     assert "window.__rareiqRecognitionPoll" in script
+    assert "verifiedVisualCandidate" in script
+    assert "realIdentityCandidate" in script
+    assert "candidate.verification_strong === true" in script
+    assert "databaseCandidate ||" not in script
+    assert "snapshot?.overall_confidence ??\n      snapshot?.confidence" not in script
 
 
 def test_control_html_busts_studiox_cache() -> None:
