@@ -24,8 +24,8 @@
 <link rel="stylesheet" href="/static/studiox_604.css?v=6.1">
 <link rel="stylesheet" href="/static/studiox_61.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
-<link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.4.15-ui4p2">
-<link rel="stylesheet" href="/static/studiox_update15.css?v=6.4.15-ui4p2">
+<link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.4.15-ui4structural">
+<link rel="stylesheet" href="/static/studiox_update15.css?v=6.4.15-ui4structural">
 <script defer src="/static/studiox.js?v=6.4.15"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
@@ -35,9 +35,22 @@
   <img src="/static/brand/rareiq_full_transparent.png" alt="RareIQ">
 </div>
 
-  </div>
 </div>
 </div>
+</div>
+
+<div class="ui4-desktop-shell">
+<nav class="ui4-navigation-rail ui4-product-navigation" data-ui4-region="product-navigation" aria-label="Studio X product navigation">
+  <button class="nav-button active" data-target="live"><span aria-hidden="true">&#9673;</span><b>Live</b></button>
+  <button class="nav-button" data-target="collection"><span aria-hidden="true">&#9638;</span><b>Collection</b></button>
+  <button class="nav-button" data-target="broadcast"><span aria-hidden="true">&#9670;</span><b>Broadcast</b></button>
+  <button class="nav-button" data-target="creator"><span aria-hidden="true">&#10022;</span><b>Creator</b></button>
+  <button class="nav-button" data-target="ai"><span aria-hidden="true">&#10024;</span><b>AI Lab</b></button>
+  <button class="nav-button" data-target="library"><span aria-hidden="true">&#9636;</span><b>Library</b></button>
+  <button class="nav-button" data-target="settings"><span aria-hidden="true">&#9881;</span><b>Settings</b></button>
+</nav>
+<div class="ui4-center-column">
+<div class="ui4-command-bar" data-ui4-region="command-bar">
 
 <header class="appbar ui4-top-app-bar" data-ui4-region="top-app-bar" aria-label="Studio X application bar">
   <div class="brand">
@@ -117,6 +130,7 @@
   <span class="riq-pill" id="resolutionBadge">CAMERA --</span>
   <span class="riq-pill">Recognition Active</span>
   <div class="ui4-mobile-action-region" data-ui4-region="mobile-actions" aria-hidden="true"></div>
+</div>
 </div>
 
 <main class="workspace-stage">
@@ -199,6 +213,10 @@
           <h2>Current Card</h2>
           <span>Database Match</span>
         </div>
+        <div class="ui4-inspector-primary-tabs" role="tablist" aria-label="Inspector views">
+          <button type="button" role="tab" data-inspector-view="current" aria-selected="true">Current Card</button>
+          <button type="button" role="tab" data-inspector-view="recent" aria-selected="false">Recent Scans</button>
+        </div>
 
         <div class="recognition-state" id="recognitionStatePanel">
           <strong id="recognitionStateLabel">IDLE</strong>
@@ -207,7 +225,7 @@
         <div class="inspector-empty" id="inspectorEmpty">
           <div>
             <img src="/static/brand/rareiq_icon_transparent.png" alt="">
-            <strong>Waiting for a card</strong>
+            <strong>Ready to Scan</strong>
             <span>Database artwork and card intelligence will appear here.</span>
             <div class="empty-intelligence">
               <div><span>Session</span><b id="emptySessionCards">0 cards</b></div>
@@ -584,16 +602,9 @@
   </section>
 
 </main>
-
-<nav class="bottom-nav ui4-product-navigation" data-ui4-region="product-navigation" aria-label="Studio X product navigation">
-  <button class="nav-button active" data-target="live">LIVE</button>
-  <button class="nav-button" data-target="collection">COLLECTION</button>
-  <button class="nav-button" data-target="broadcast">BROADCAST</button>
-  <button class="nav-button" data-target="creator">CREATOR</button>
-  <button class="nav-button" data-target="ai">AI LAB</button>
-  <button class="nav-button" data-target="library">LIBRARY</button>
-  <button class="nav-button" data-target="settings">SETTINGS</button>
-</nav>
+</div>
+<aside class="ui4-inspector-column" aria-label="Card result panel"></aside>
+</div>
 
 <div class="notification-stack" id="notificationStack"></div>
 

@@ -23,11 +23,13 @@ TARGETS = tuple(Path(value) for value in (
     "tests/test_studiox_live_recognition_contract.py",
     "tests/test_update_15_studiox_compact_ui.py",
     "tests/test_update_15_studiox_responsive_ui.py",
+    "tests/test_update_15_camera_preview_history.py",
 ))
 PYTHON_TARGETS = tuple(path for path in TARGETS if path.suffix == ".py")
 TARGETED_TESTS = (
     "tests/test_update_15_studiox_compact_ui.py",
     "tests/test_update_15_studiox_responsive_ui.py",
+    "tests/test_update_15_camera_preview_history.py",
     "tests/test_studiox_live_recognition_contract.py",
 )
 PRE_MARKERS = {
@@ -35,12 +37,13 @@ PRE_MARKERS = {
     Path("rareiq/web/static/studiox.js"): "function renderPipeline(stages,hasCard)",
 }
 POST_MARKERS = {
-    Path("rareiq/web/static/control.html"): "ui4-program-actions",
-    Path("rareiq/web/static/studiox.js"): "const PIPELINE_STAGE_DEFINITIONS=",
+    Path("rareiq/web/static/control.html"): "ui4-desktop-shell",
+    Path("rareiq/web/static/studiox.js"): "function initializeStudioXUI4()",
     Path("rareiq/web/static/studiox_ui4_tokens.css"): "--ui4-touch-target:44px",
-    Path("rareiq/web/static/studiox_update15.css"): "@media(min-width:2200px) and (min-height:1200px)",
+    Path("rareiq/web/static/studiox_update15.css"): "True Studio X UI 4.0 desktop application shell",
     Path("tests/test_update_15_studiox_compact_ui.py"): "test_compact_pipeline_has_exact_order",
     Path("tests/test_update_15_studiox_responsive_ui.py"): "test_all_91_existing_ids_remain_unique",
+    Path("tests/test_update_15_camera_preview_history.py"): "test_checkpoint_camera_viewport_and_scan_zone_contracts_are_restored",
 }
 
 

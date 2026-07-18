@@ -45,30 +45,48 @@ def test_ui4_scope_and_semantic_regions_exist_without_new_functional_ids() -> No
     assert 'class="command-group ui4-program-actions"' in html
 
 
-def test_phase2_desktop_hierarchy_prioritizes_camera_and_compact_inspector() -> None:
-    css = read("studiox_update15.css")
-    tokens = read("studiox_ui4_tokens.css")
-    assert "grid-template-columns:minmax(210px,auto) minmax(420px,1fr) auto auto" in css
-    assert "flex-wrap:nowrap" in css
-    assert "grid-template-columns:minmax(0,1fr) var(--update15-inspector-width)" in css
-    assert "--ui4-inspector-wide:380px" in tokens
-    assert "--ui4-inspector-ultrawide:440px" in tokens
-    assert "@media(min-width:2200px) and (min-height:1200px)" in css
-    assert "overflow-x" not in css
-
-
-def test_phase2_inspector_and_diagnostics_keep_operator_hierarchy() -> None:
+def test_structural_desktop_shell_has_rail_center_and_result_columns() -> None:
     html = read("control.html")
+    script = read("studiox.js")
     css = read("studiox_update15.css")
-    for marker in (
-        ".inspector-head{order:0}", ".recognition-state{order:1}",
-        ".inspector-footer{order:3}", ".copilot-card{order:4}",
-        ".session-strip{order:5}",
-    ):
-        assert marker in css
+    assert html.count('class="ui4-desktop-shell"') == 1
+    assert html.count('class="ui4-navigation-rail ui4-product-navigation"') == 1
+    assert html.count('class="ui4-command-bar"') == 1
+    assert html.count('class="ui4-inspector-column"') == 1
+    assert 'class="bottom-nav' not in html
+    assert "grid-template-columns:84px minmax(0,1fr) 400px" in css
+    assert "grid-template-columns:188px minmax(0,1fr) 460px" in css
+    assert 'inspectorMount.appendChild(inspector)' in script
+
+
+def test_navigation_pipeline_drawer_and_inspector_tabs_are_single_instance() -> None:
+    html = read("control.html")
+    script = read("studiox.js")
     for tab in ("Thinking", "Candidates", "OCR", "Session", "Telemetry", "Recent Pulls", "Activity"):
         assert f'>{tab}</button>' in html
     assert html.count('class="nav-button') == 7
+    assert html.count('data-panel=') == 7
+    assert 'camera.appendChild(pipeline)' in script
+    assert 'dock.classList.add("ui4-diagnostics-drawer")' in script
+    assert 'camera.appendChild(dock)' in script
+    assert '["details","Details",null]' in script
+    for key in ("market", "copilot", "signals", "session"):
+        assert f'["{key}"' in script
+
+
+def test_presentation_state_is_local_and_api_free() -> None:
+    script = read("studiox.js")
+    start = script.index("function setUI4DiagnosticsOpen")
+    end = script.index('document.addEventListener("DOMContentLoaded"', start)
+    presentation = script[start:end]
+    assert "fetch(" not in presentation
+    assert presentation.count("api(") == 1
+    assert 'api("/api/recent-pulls?limit=20")' in presentation
+    assert "loadRecognition(" not in presentation
+    assert "captureCamera();" not in presentation
+    assert 'setAttribute("aria-hidden"' in presentation
+    assert 'resetUI4PresentationSurfaces();' in script
+    assert 'event.key==="Escape"' in script
 
 
 def test_existing_inline_handlers_and_keyboard_controls_remain() -> None:
@@ -114,8 +132,8 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
     html = read("control.html")
     styles = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
     assert styles[-2:] == [
-        "/static/studiox_ui4_tokens.css?v=6.4.15-ui4p2",
-        "/static/studiox_update15.css?v=6.4.15-ui4p2",
+        "/static/studiox_ui4_tokens.css?v=6.4.15-ui4structural",
+        "/static/studiox_update15.css?v=6.4.15-ui4structural",
     ]
     assert len(styles) == 19
 

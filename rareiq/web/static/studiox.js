@@ -29,6 +29,11 @@ let viewerBridgeConnected = false;
 let viewerBridgeGeneration = 0;
 let bootAutoEnterTimer = null;
 let studioEntered = false;
+let ui4DiagnosticsOpen = false;
+let ui4HealthOpen = false;
+let ui4InspectorTab = "details";
+let ui4InspectorView = "current";
+let ui4RecentScans = [];
 
 
 
@@ -176,6 +181,7 @@ document.addEventListener("keydown",event=>{
   }else if(event.key==="?" || (event.shiftKey&&event.key==="/")){
     toggleShortcutOverlay();
   }else if(event.key==="Escape"){
+    resetUI4PresentationSurfaces();
     toggleShortcutOverlay(false);
   }
 });
@@ -392,6 +398,7 @@ async function toggleAutoCapture(){
 }
 
 function switchWorkspace(name){
+  document.body.dataset.ui4Workspace=name;
   document.querySelectorAll(".workspace").forEach(el=>{
     el.classList.toggle("active",el.dataset.workspace===name);
   });
@@ -410,11 +417,7 @@ function switchDock(name){
 }
 
 function toggleDock(){
-  document.body.classList.toggle("dock-collapsed");
-  $("dockToggle").textContent =
-    document.body.classList.contains("dock-collapsed")
-      ? "Expand"
-      : "Collapse";
+  setUI4DiagnosticsOpen(!ui4DiagnosticsOpen);
 }
 
 async function api(path,options={}){
@@ -1341,6 +1344,7 @@ function setCoreState(state){
 }
 
 function resetRecognitionPresentation(reason="reset"){
+  resetUI4PresentationSurfaces();
   previousCardId=null;
   const empty=$("inspectorEmpty");
   const main=$("inspectorMain");
@@ -1395,6 +1399,7 @@ async function loadRecognition(){
       resetRecognitionPresentation(
         hadPreviousSession ? "server_session_changed" : "server_session_initialized"
       );
+      setUI4InspectorView("current",false);
     }
 
     const generation=Number(snapshot?.generation ?? 0);
@@ -1954,8 +1959,293 @@ async function maintenance(path,label){
   }
 }
 
+function setUI4DiagnosticsOpen(open){
+  ui4DiagnosticsOpen=Boolean(open);
+  const drawer=document.querySelector(".ui4-diagnostics-drawer");
+  if(drawer){
+    drawer.classList.toggle("open",ui4DiagnosticsOpen);
+    drawer.setAttribute("aria-hidden",ui4DiagnosticsOpen?"false":"true");
+  }
+  const trigger=document.querySelector('[data-ui4-action="diagnostics"]');
+  if(trigger) trigger.setAttribute("aria-expanded",ui4DiagnosticsOpen?"true":"false");
+  if($("dockToggle")) $("dockToggle").textContent="Close";
+}
+
+function setUI4HealthOpen(open){
+  ui4HealthOpen=Boolean(open);
+  const popover=document.querySelector(".ui4-health-popover");
+  if(popover){
+    popover.classList.toggle("open",ui4HealthOpen);
+    popover.setAttribute("aria-hidden",ui4HealthOpen?"false":"true");
+  }
+  const trigger=document.querySelector('[data-ui4-action="health"]');
+  if(trigger) trigger.setAttribute("aria-expanded",ui4HealthOpen?"true":"false");
+}
+
+function setUI4InspectorTab(name){
+  ui4InspectorTab=name||"details";
+  document.querySelectorAll("[data-inspector-tab]").forEach(button=>{
+    const selected=button.dataset.inspectorTab===ui4InspectorTab;
+    button.classList.toggle("active",selected);
+    button.setAttribute("aria-selected",selected?"true":"false");
+    button.tabIndex=selected?0:-1;
+  });
+  document.querySelectorAll("[data-inspector-panel]").forEach(panel=>{
+    panel.hidden=panel.dataset.inspectorPanel!==ui4InspectorTab;
+  });
+}
+
+function resetUI4PresentationSurfaces(){
+  setUI4DiagnosticsOpen(false);
+  setUI4HealthOpen(false);
+  setUI4InspectorTab("details");
+}
+
+function recentScanConfidence(value){
+  const numeric=Number(value||0);
+  return Math.round(Math.max(0,Math.min(100,numeric<=1?numeric*100:numeric)));
+}
+
+function renderUI4RecentScanDetail(card){
+  const view=document.querySelector(".ui4-recent-scans-view");
+  if(!view) return;
+  view.replaceChildren();
+  const back=document.createElement("button");
+  back.type="button";
+  back.className="ui4-history-back";
+  back.textContent="Back to Recent Scans";
+  back.addEventListener("click",()=>renderUI4RecentScans(ui4RecentScans));
+  const detail=document.createElement("article");
+  detail.className="ui4-history-detail";
+  if(card.reference_image_url){
+    const image=document.createElement("img");
+    image.src=card.reference_image_url;
+    image.alt="";
+    detail.appendChild(image);
+  }
+  const name=document.createElement("h3");
+  name.textContent=card.card_name||card.printed_name||"Unknown card";
+  const meta=document.createElement("p");
+  meta.textContent=[card.set_name,card.collector_number].filter(Boolean).join(" • ")||"Set details unavailable";
+  const confidence=document.createElement("strong");
+  confidence.textContent=`${recentScanConfidence(card.confidence)}% confidence`;
+  const stamp=document.createElement("time");
+  stamp.textContent=card.timestamp?new Date(Number(card.timestamp)*1000).toLocaleString():"Time unavailable";
+  detail.append(name,meta,confidence,stamp);
+  const live=document.createElement("button");
+  live.type="button";
+  live.className="ui4-return-live";
+  live.textContent="Return to Live Card";
+  live.addEventListener("click",()=>setUI4InspectorView("current",false));
+  view.append(back,detail,live);
+}
+
+function renderUI4RecentScans(cards=[]){
+  const view=document.querySelector(".ui4-recent-scans-view");
+  if(!view) return;
+  ui4RecentScans=[...cards]
+    .sort((left,right)=>Number(right.timestamp||0)-Number(left.timestamp||0))
+    .slice(0,20);
+  view.replaceChildren();
+  if(!ui4RecentScans.length){
+    const empty=document.createElement("div");
+    empty.className="ui4-history-empty";
+    const title=document.createElement("strong");
+    title.textContent="No recent scans";
+    const copy=document.createElement("span");
+    copy.textContent="Completed cards from this session will appear here.";
+    empty.append(title,copy);
+    view.appendChild(empty);
+    return;
+  }
+  const list=document.createElement("div");
+  list.className="ui4-history-list";
+  ui4RecentScans.forEach(card=>{
+    const row=document.createElement("button");
+    row.type="button";
+    row.className="ui4-history-row";
+    row.addEventListener("click",()=>renderUI4RecentScanDetail(card));
+    const thumb=document.createElement("span");
+    thumb.className="ui4-history-thumb";
+    if(card.reference_image_url){
+      const image=document.createElement("img");
+      image.src=card.reference_image_url;
+      image.alt="";
+      thumb.appendChild(image);
+    }
+    const identity=document.createElement("span");
+    identity.className="ui4-history-identity";
+    const name=document.createElement("strong");
+    name.textContent=card.card_name||card.printed_name||"Unknown card";
+    const meta=document.createElement("span");
+    meta.textContent=[card.set_name,card.collector_number].filter(Boolean).join(" • ")||"Set details unavailable";
+    identity.append(name,meta);
+    const result=document.createElement("span");
+    result.className="ui4-history-result";
+    const confidence=document.createElement("b");
+    confidence.textContent=`${recentScanConfidence(card.confidence)}%`;
+    const stamp=document.createElement("time");
+    stamp.textContent=card.timestamp?new Date(Number(card.timestamp)*1000).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}):"—";
+    result.append(confidence,stamp);
+    row.append(thumb,identity,result);
+    list.appendChild(row);
+  });
+  view.appendChild(list);
+}
+
+async function loadUI4RecentScans(){
+  const view=document.querySelector(".ui4-recent-scans-view");
+  if(view) view.setAttribute("aria-busy","true");
+  try{
+    const payload=await api("/api/recent-pulls?limit=20");
+    renderUI4RecentScans(Array.isArray(payload.cards)?payload.cards:[]);
+  }catch{
+    renderUI4RecentScans([]);
+  }finally{
+    if(view) view.setAttribute("aria-busy","false");
+  }
+}
+
+function setUI4InspectorView(name,loadHistory=true){
+  ui4InspectorView=name==="recent"?"recent":"current";
+  document.querySelectorAll("[data-inspector-view]").forEach(button=>{
+    const selected=button.dataset.inspectorView===ui4InspectorView;
+    button.classList.toggle("active",selected);
+    button.setAttribute("aria-selected",selected?"true":"false");
+    button.tabIndex=selected?0:-1;
+  });
+  const current=document.querySelector(".ui4-current-card-view");
+  const recent=document.querySelector(".ui4-recent-scans-view");
+  if(current) current.hidden=ui4InspectorView!=="current";
+  if(recent) recent.hidden=ui4InspectorView!=="recent";
+  if(ui4InspectorView==="recent"&&loadHistory) loadUI4RecentScans();
+}
+
+function initializeStudioXUI4(){
+  const camera=document.querySelector(".camera-workspace");
+  const inspector=document.querySelector(".inspector");
+  const inspectorMount=document.querySelector(".ui4-inspector-column");
+  const pipeline=document.querySelector(".pipeline-rail");
+  const dock=document.querySelector(".dock");
+  const toolbar=document.querySelector(".toolbar");
+  const appbar=document.querySelector(".appbar");
+  if(!camera||!inspector||!inspectorMount||!pipeline||!dock||!toolbar||!appbar) return;
+
+  inspectorMount.appendChild(inspector);
+  camera.appendChild(pipeline);
+  dock.classList.add("ui4-diagnostics-drawer");
+  dock.setAttribute("aria-hidden","true");
+  camera.appendChild(dock);
+
+  const rail=document.querySelector(".ui4-navigation-rail");
+  if(rail && !rail.querySelector('[data-ui4-action="rail"]')){
+    const toggle=document.createElement("button");
+    toggle.className="ui4-rail-toggle";
+    toggle.dataset.ui4Action="rail";
+    toggle.type="button";
+    toggle.setAttribute("aria-label","Toggle compact navigation");
+    toggle.textContent="Menu";
+    toggle.addEventListener("click",()=>document.body.classList.toggle("ui4-rail-compact"));
+    rail.prepend(toggle);
+  }
+
+  const recovery=toolbar.querySelector('[onclick="reconnectCamera()"]');
+  if(recovery) recovery.textContent="Reconnect";
+  const manual=toolbar.querySelector('[onclick="captureCamera()"]');
+  if(manual) manual.textContent="Capture";
+
+  const healthButton=document.createElement("button");
+  healthButton.className="ui4-command-button";
+  healthButton.dataset.ui4Action="health";
+  healthButton.type="button";
+  healthButton.textContent="Status";
+  healthButton.setAttribute("aria-expanded","false");
+  healthButton.addEventListener("click",()=>setUI4HealthOpen(!ui4HealthOpen));
+
+  const diagnosticsButton=document.createElement("button");
+  diagnosticsButton.className="ui4-command-button";
+  diagnosticsButton.dataset.ui4Action="diagnostics";
+  diagnosticsButton.type="button";
+  diagnosticsButton.textContent="Diagnostics";
+  diagnosticsButton.setAttribute("aria-expanded","false");
+  diagnosticsButton.addEventListener("click",()=>setUI4DiagnosticsOpen(!ui4DiagnosticsOpen));
+  toolbar.append(diagnosticsButton,healthButton);
+
+  const healthPopover=document.createElement("div");
+  healthPopover.className="ui4-health-popover";
+  healthPopover.setAttribute("aria-hidden","true");
+  const lowFrequency=[
+    toolbar.querySelector('[onclick="loadCameraList()"]'),
+    toolbar.querySelector('[onclick="reconnectCamera()"]'),
+    toolbar.querySelector('[onclick="startSelectedCamera()"]'),
+    toolbar.querySelector('[onclick="stopCamera()"]'),
+    toolbar.querySelector('[onclick="openCameraPopout()"]'),
+    $("resolutionBadge"),
+    document.querySelector(".ui4-app-health"),
+    document.querySelector(".system-status-strip"),
+  ].filter(Boolean);
+  lowFrequency.forEach(node=>healthPopover.appendChild(node));
+  document.querySelector(".ui4-command-bar")?.appendChild(healthPopover);
+
+  const primaryTabs=inspector.querySelector(".ui4-inspector-primary-tabs");
+  const currentView=document.createElement("div");
+  currentView.className="ui4-current-card-view";
+  const recentView=document.createElement("div");
+  recentView.className="ui4-recent-scans-view";
+  recentView.hidden=true;
+  [...inspector.children].forEach(child=>{
+    if(child!==primaryTabs&&!child.classList.contains("inspector-head")) currentView.appendChild(child);
+  });
+  inspector.append(currentView,recentView);
+  primaryTabs?.querySelectorAll("[data-inspector-view]").forEach(button=>{
+    button.addEventListener("click",()=>setUI4InspectorView(button.dataset.inspectorView));
+  });
+
+  const tabs=document.createElement("div");
+  tabs.className="ui4-inspector-tabs";
+  tabs.setAttribute("role","tablist");
+  const panels=document.createElement("div");
+  panels.className="ui4-inspector-panels";
+  const tabDefinitions=[
+    ["details","Details",null],
+    ["market","Market",document.querySelector(".market-grid")],
+    ["copilot","Copilot",document.querySelector(".copilot-card")],
+    ["signals","Signals",document.querySelector(".signal-list")],
+    ["session","Session",document.querySelector(".session-strip")],
+  ];
+  tabDefinitions.forEach(([key,label,content])=>{
+    const button=document.createElement("button");
+    button.type="button";
+    button.dataset.inspectorTab=key;
+    button.setAttribute("role","tab");
+    button.textContent=label;
+    button.addEventListener("click",()=>setUI4InspectorTab(key));
+    tabs.appendChild(button);
+    const panel=document.createElement("section");
+    panel.dataset.inspectorPanel=key;
+    panel.setAttribute("role","tabpanel");
+    if(content) panel.appendChild(content);
+    else panel.innerHTML='<p class="ui4-panel-note">Candidate identity and recognition status remain visible above.</p>';
+    panels.appendChild(panel);
+  });
+  currentView.append(tabs,panels);
+
+  const actions=document.querySelector(".inspector-actions");
+  const reaction=actions?[...actions.querySelectorAll("button")].find(button=>button.textContent.trim()==="Reaction"):null;
+  if(reaction){
+    reaction.textContent="Next / Clear";
+    reaction.addEventListener("click",()=>resetRecognitionPresentation("operator_clear"));
+  }
+  setUI4InspectorTab("details");
+  setUI4InspectorView("current",false);
+  setUI4DiagnosticsOpen(false);
+  setUI4HealthOpen(false);
+  switchWorkspace("live");
+}
+
 
 document.addEventListener("DOMContentLoaded",()=>{
+  initializeStudioXUI4();
   setTimeout(()=>verifyAndConnectMainViewer(),120);
   const bridgeFeed=$("cameraFeed");
   if(bridgeFeed){

@@ -70,8 +70,8 @@ def test_control_html_busts_studiox_cache() -> None:
 
     assert "/static/studiox.js?v=6.4.15" in html
     assert "/static/studiox.css?v=6.4.12" in html
-    assert "/static/studiox_ui4_tokens.css?v=6.4.15-ui4p2" in html
-    assert "/static/studiox_update15.css?v=6.4.15-ui4p2" in html
+    assert "/static/studiox_ui4_tokens.css?v=6.4.15-ui4structural" in html
+    assert "/static/studiox_update15.css?v=6.4.15-ui4structural" in html
     assert html.index("studiox_ui4_tokens.css") < html.index("studiox_update15.css")
     assert html.index("studiox_update15.css") < html.index("studiox.js?v=6.4.15")
     assert 'http-equiv="Cache-Control"' in html

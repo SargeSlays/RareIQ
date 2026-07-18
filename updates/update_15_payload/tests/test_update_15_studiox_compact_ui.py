@@ -89,8 +89,8 @@ def test_warning_failed_and_skipped_have_non_color_indicators() -> None:
 def test_update15_stylesheet_is_last_and_cache_busted() -> None:
     html = read("control.html")
     links = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
-    assert links[-2] == "/static/studiox_ui4_tokens.css?v=6.4.15-ui4p2"
-    assert links[-1] == "/static/studiox_update15.css?v=6.4.15-ui4p2"
+    assert links[-2] == "/static/studiox_ui4_tokens.css?v=6.4.15-ui4structural"
+    assert links[-1] == "/static/studiox_update15.css?v=6.4.15-ui4structural"
     assert '/static/studiox.js?v=6.4.15' in html
 
 
@@ -105,7 +105,8 @@ def test_compact_controls_and_primary_breakpoints_are_contractual() -> None:
     assert "--update15-dock-height:var(--ui4-dock-compact)" in css
     assert "--update15-inspector-width:var(--ui4-inspector-compact)" in css
     assert "grid-template-columns:repeat(5,minmax(0,1fr))" in css
-    assert "overflow-x" not in css
+    assert "height:100dvh" in css
+    assert "overflow:hidden" in css
     assert "body ." not in css
     assert "body.studiox-ui4" in css
 
