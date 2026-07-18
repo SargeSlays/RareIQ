@@ -606,3 +606,248 @@ body.studiox-ui4.dock-collapsed .live-shell{
   body.studiox-ui4 .ui4-center-column{grid-template-rows:68px minmax(0,1fr)}
   body.studiox-ui4 .card-art{width:min(278px,100%);max-height:400px}
 }
+
+
+/* =========================================================
+   Studio X UI 4.0 — Desktop readability polish
+   Branch: feature/update-15-ui4-desktop-polish
+   ========================================================= */
+
+@media (min-width: 1367px) {
+
+  /* Command bar */
+  body.studiox-ui4 .ui4-command-bar {
+    grid-template-columns: minmax(250px, auto) minmax(0, 1fr);
+    min-height: 72px;
+    padding: 0 14px;
+    column-gap: 14px;
+    background: rgba(9, 16, 23, 0.98);
+    border-bottom: 1px solid rgba(139, 164, 184, 0.14);
+  }
+
+  body.studiox-ui4 .appbar,
+  body.studiox-ui4 .toolbar {
+    height: 72px;
+    min-height: 72px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  body.studiox-ui4 .appbar {
+    gap: 12px;
+    padding-left: 14px;
+    padding-right: 8px;
+  }
+
+  body.studiox-ui4 .toolbar {
+    gap: 8px;
+    padding-left: 6px;
+    padding-right: 14px;
+  }
+
+  body.studiox-ui4 .brand-logo-image {
+    width: 42px;
+    height: 42px;
+  }
+
+  body.studiox-ui4 .brand-name {
+    font-size: 18px;
+    line-height: 1.15;
+    letter-spacing: 0.045em;
+  }
+
+  body.studiox-ui4 .ai-pulse {
+    min-height: 38px;
+    padding: 7px 10px;
+    font-size: 12px;
+    border-radius: 10px;
+  }
+
+  body.studiox-ui4 .command-group {
+    gap: 7px;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  body.studiox-ui4 .toolbar select {
+    min-width: 190px;
+    max-width: 240px;
+    height: 42px;
+    min-height: 42px;
+    padding: 0 34px 0 12px;
+    font-size: 13px;
+    border-radius: 10px;
+  }
+
+  body.studiox-ui4 .tool-button,
+  body.studiox-ui4 .restart-feed-btn,
+  body.studiox-ui4 .camera-fit-toggle,
+  body.studiox-ui4 .auto-toggle,
+  body.studiox-ui4 .toolbar .riq-button,
+  body.studiox-ui4 .ui4-command-button {
+    height: 42px;
+    min-height: 42px;
+    padding: 0 13px;
+    font-size: 13px;
+    line-height: 1;
+    border-radius: 10px;
+  }
+
+  body.studiox-ui4 .tool-button:hover,
+  body.studiox-ui4 .restart-feed-btn:hover,
+  body.studiox-ui4 .camera-fit-toggle:hover,
+  body.studiox-ui4 .ui4-command-button:hover {
+    background: rgba(35, 49, 62, 0.96);
+    border-color: rgba(130, 176, 212, 0.35);
+  }
+
+  /* Left navigation */
+  body.studiox-ui4 .ui4-navigation-rail {
+    padding: 16px 10px 12px;
+  }
+
+  body.studiox-ui4 .ui4-navigation-rail .nav-button {
+    min-height: 46px;
+    margin-bottom: 6px;
+    padding: 0 11px;
+    gap: 10px;
+    font-size: 13px;
+    line-height: 1.2;
+    border-radius: 10px;
+  }
+
+  body.studiox-ui4 .ui4-navigation-rail .nav-button svg,
+  body.studiox-ui4 .ui4-navigation-rail .nav-button .nav-icon {
+    width: 17px;
+    height: 17px;
+    flex: 0 0 17px;
+  }
+
+  body.studiox-ui4 .ui4-navigation-rail .nav-button.active {
+    background: linear-gradient(
+      90deg,
+      rgba(45, 199, 255, 0.14),
+      rgba(151, 87, 255, 0.12)
+    );
+  }
+
+  /* Pipeline readability */
+  body.studiox-ui4 .ui4-pipeline-strip,
+  body.studiox-ui4 .pipeline-rail {
+    min-height: 58px;
+    height: 58px;
+    padding: 0 14px;
+    background: rgba(8, 15, 22, 0.94);
+    border-top: 1px solid rgba(139, 164, 184, 0.14);
+  }
+
+  body.studiox-ui4 .pipeline-step {
+    min-width: 0;
+    padding: 8px 12px;
+    gap: 7px;
+  }
+
+  body.studiox-ui4 .pipeline-step .step-label,
+  body.studiox-ui4 .pipeline-step .process-title,
+  body.studiox-ui4 .pipeline-step strong {
+    font-size: 12px;
+    line-height: 1.2;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+  }
+
+  body.studiox-ui4 .pipeline-step .step-status,
+  body.studiox-ui4 .pipeline-step .process-status,
+  body.studiox-ui4 .pipeline-step small {
+    font-size: 11px;
+    line-height: 1.2;
+  }
+
+  body.studiox-ui4 .pipeline-step::after {
+    opacity: 0.5;
+  }
+
+  body.studiox-ui4 .pipeline-step[data-state="active"] {
+    background: rgba(37, 190, 255, 0.08);
+  }
+
+  body.studiox-ui4 .pipeline-step[data-state="complete"] {
+    background: rgba(49, 196, 135, 0.055);
+  }
+
+  /* Result inspector */
+  body.studiox-ui4 .ui4-result-inspector,
+  body.studiox-ui4 .inspector {
+    background: rgba(9, 17, 25, 0.99);
+  }
+
+  body.studiox-ui4 .inspector-header {
+    min-height: 56px;
+    padding: 13px 14px;
+  }
+
+  body.studiox-ui4 .inspector-header h2,
+  body.studiox-ui4 .inspector-title {
+    font-size: 16px;
+    line-height: 1.25;
+  }
+
+  body.studiox-ui4 .ui4-inspector-primary-tabs {
+    min-height: 44px;
+    gap: 6px;
+    padding: 6px 10px;
+  }
+
+  body.studiox-ui4 .ui4-inspector-primary-tabs button {
+    min-height: 34px;
+    padding: 0 12px;
+    font-size: 12px;
+    border-radius: 9px;
+  }
+
+  body.studiox-ui4 .inspector-empty,
+  body.studiox-ui4 .empty-card-state {
+    justify-content: flex-start;
+    padding: 72px 26px 28px;
+  }
+
+  body.studiox-ui4 .inspector-empty h3,
+  body.studiox-ui4 .empty-card-state h3 {
+    font-size: 18px;
+    line-height: 1.25;
+    margin-bottom: 8px;
+  }
+
+  body.studiox-ui4 .inspector-empty p,
+  body.studiox-ui4 .empty-card-state p {
+    max-width: 280px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  body.studiox-ui4 .recent-scan-row {
+    min-height: 76px;
+    padding: 10px 12px;
+    gap: 12px;
+  }
+
+  body.studiox-ui4 .recent-scan-row img {
+    width: 52px;
+    height: 68px;
+    object-fit: contain;
+    border-radius: 6px;
+  }
+
+  body.studiox-ui4 .recent-scan-name {
+    font-size: 14px;
+    line-height: 1.25;
+    font-weight: 650;
+  }
+
+  body.studiox-ui4 .recent-scan-meta,
+  body.studiox-ui4 .recent-scan-time,
+  body.studiox-ui4 .recent-scan-confidence {
+    font-size: 11px;
+    line-height: 1.35;
+  }
+}
