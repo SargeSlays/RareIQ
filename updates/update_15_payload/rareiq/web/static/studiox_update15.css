@@ -1,4 +1,4 @@
-/* RareIQ 6.4 Update 15 — compact Studio X operator layout. */
+/* RareIQ 6.4 Update 15 -- compact Studio X operator layout. */
 
 body.studiox-ui4{
   --update15-control-height:var(--ui4-control-default);
@@ -605,4 +605,890 @@ body.studiox-ui4.dock-collapsed .live-shell{
   body.studiox-ui4 .ui4-navigation-rail .nav-button b{font-size:13px}
   body.studiox-ui4 .ui4-center-column{grid-template-rows:68px minmax(0,1fr)}
   body.studiox-ui4 .card-art{width:min(278px,100%);max-height:400px}
+}
+
+
+/* =========================================================
+   Studio X UI 4.0 -- Desktop readability polish
+   Branch: feature/update-15-ui4-desktop-polish
+   ========================================================= */
+
+@media (min-width: 1367px) {
+
+  /* Command bar */
+  body.studiox-ui4 .ui4-command-bar {
+    grid-template-columns: minmax(250px, auto) minmax(0, 1fr);
+    min-height: 72px;
+    padding: 0 14px;
+    column-gap: 14px;
+    background: rgba(9, 16, 23, 0.98);
+    border-bottom: 1px solid rgba(139, 164, 184, 0.14);
+  }
+
+  body.studiox-ui4 .appbar,
+  body.studiox-ui4 .toolbar {
+    height: 72px;
+    min-height: 72px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  body.studiox-ui4 .appbar {
+    gap: 12px;
+    padding-left: 14px;
+    padding-right: 8px;
+  }
+
+  body.studiox-ui4 .toolbar {
+    gap: 8px;
+    padding-left: 6px;
+    padding-right: 14px;
+  }
+
+  body.studiox-ui4 .brand-logo-image {
+    width: 42px;
+    height: 42px;
+  }
+
+  body.studiox-ui4 .brand-name {
+    font-size: 18px;
+    line-height: 1.15;
+    letter-spacing: 0.045em;
+  }
+
+  body.studiox-ui4 .ai-pulse {
+    min-height: 38px;
+    padding: 7px 10px;
+    font-size: 12px;
+    border-radius: 10px;
+  }
+
+  body.studiox-ui4 .command-group {
+    gap: 7px;
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  body.studiox-ui4 .toolbar select {
+    min-width: 190px;
+    max-width: 240px;
+    height: 42px;
+    min-height: 42px;
+    padding: 0 34px 0 12px;
+    font-size: 13px;
+    border-radius: 10px;
+  }
+
+  body.studiox-ui4 .tool-button,
+  body.studiox-ui4 .restart-feed-btn,
+  body.studiox-ui4 .camera-fit-toggle,
+  body.studiox-ui4 .auto-toggle,
+  body.studiox-ui4 .toolbar .riq-button,
+  body.studiox-ui4 .ui4-command-button {
+    height: 42px;
+    min-height: 42px;
+    padding: 0 13px;
+    font-size: 13px;
+    line-height: 1;
+    border-radius: 10px;
+  }
+
+  body.studiox-ui4 .tool-button:hover,
+  body.studiox-ui4 .restart-feed-btn:hover,
+  body.studiox-ui4 .camera-fit-toggle:hover,
+  body.studiox-ui4 .ui4-command-button:hover {
+    background: rgba(35, 49, 62, 0.96);
+    border-color: rgba(130, 176, 212, 0.35);
+  }
+
+  /* Left navigation */
+  body.studiox-ui4 .ui4-navigation-rail {
+    padding: 16px 10px 12px;
+  }
+
+  body.studiox-ui4 .ui4-navigation-rail .nav-button {
+    min-height: 46px;
+    margin-bottom: 6px;
+    padding: 0 11px;
+    gap: 10px;
+    font-size: 13px;
+    line-height: 1.2;
+    border-radius: 10px;
+  }
+
+  body.studiox-ui4 .ui4-navigation-rail .nav-button svg,
+  body.studiox-ui4 .ui4-navigation-rail .nav-button .nav-icon {
+    width: 17px;
+    height: 17px;
+    flex: 0 0 17px;
+  }
+
+  body.studiox-ui4 .ui4-navigation-rail .nav-button.active {
+    background: linear-gradient(
+      90deg,
+      rgba(45, 199, 255, 0.14),
+      rgba(151, 87, 255, 0.12)
+    );
+  }
+
+  /* Pipeline readability */
+  body.studiox-ui4 .ui4-pipeline-strip,
+  body.studiox-ui4 .pipeline-rail {
+    min-height: 58px;
+    height: 58px;
+    padding: 0 14px;
+    background: rgba(8, 15, 22, 0.94);
+    border-top: 1px solid rgba(139, 164, 184, 0.14);
+  }
+
+  body.studiox-ui4 .pipeline-step {
+    min-width: 0;
+    padding: 8px 12px;
+    gap: 7px;
+  }
+
+  body.studiox-ui4 .pipeline-step .step-label,
+  body.studiox-ui4 .pipeline-step .process-title,
+  body.studiox-ui4 .pipeline-step strong {
+    font-size: 12px;
+    line-height: 1.2;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+  }
+
+  body.studiox-ui4 .pipeline-step .step-status,
+  body.studiox-ui4 .pipeline-step .process-status,
+  body.studiox-ui4 .pipeline-step small {
+    font-size: 11px;
+    line-height: 1.2;
+  }
+
+  body.studiox-ui4 .pipeline-step::after {
+    opacity: 0.5;
+  }
+
+  body.studiox-ui4 .pipeline-step[data-state="active"] {
+    background: rgba(37, 190, 255, 0.08);
+  }
+
+  body.studiox-ui4 .pipeline-step[data-state="complete"] {
+    background: rgba(49, 196, 135, 0.055);
+  }
+
+  /* Result inspector */
+  body.studiox-ui4 .ui4-result-inspector,
+  body.studiox-ui4 .inspector {
+    background: rgba(9, 17, 25, 0.99);
+  }
+
+  body.studiox-ui4 .inspector-header {
+    min-height: 56px;
+    padding: 13px 14px;
+  }
+
+  body.studiox-ui4 .inspector-header h2,
+  body.studiox-ui4 .inspector-title {
+    font-size: 16px;
+    line-height: 1.25;
+  }
+
+  body.studiox-ui4 .ui4-inspector-primary-tabs {
+    min-height: 44px;
+    gap: 6px;
+    padding: 6px 10px;
+  }
+
+  body.studiox-ui4 .ui4-inspector-primary-tabs button {
+    min-height: 34px;
+    padding: 0 12px;
+    font-size: 12px;
+    border-radius: 9px;
+  }
+
+  body.studiox-ui4 .inspector-empty,
+  body.studiox-ui4 .empty-card-state {
+    justify-content: flex-start;
+    padding: 72px 26px 28px;
+  }
+
+  body.studiox-ui4 .inspector-empty h3,
+  body.studiox-ui4 .empty-card-state h3 {
+    font-size: 18px;
+    line-height: 1.25;
+    margin-bottom: 8px;
+  }
+
+  body.studiox-ui4 .inspector-empty p,
+  body.studiox-ui4 .empty-card-state p {
+    max-width: 280px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  body.studiox-ui4 .recent-scan-row {
+    min-height: 76px;
+    padding: 10px 12px;
+    gap: 12px;
+  }
+
+  body.studiox-ui4 .recent-scan-row img {
+    width: 52px;
+    height: 68px;
+    object-fit: contain;
+    border-radius: 6px;
+  }
+
+  body.studiox-ui4 .recent-scan-name {
+    font-size: 14px;
+    line-height: 1.25;
+    font-weight: 650;
+  }
+
+  body.studiox-ui4 .recent-scan-meta,
+  body.studiox-ui4 .recent-scan-time,
+  body.studiox-ui4 .recent-scan-confidence {
+    font-size: 11px;
+    line-height: 1.35;
+  }
+}
+
+/* =========================================================
+   UI 4.0 card intelligence inspector
+   ========================================================= */
+
+body.studiox-ui4 .ui4-card-identity-layout{
+  display:grid;
+  grid-template-columns:minmax(150px,42%) minmax(0,1fr);
+  gap:14px;
+  align-items:start;
+}
+
+body.studiox-ui4 .ui4-translation-block{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  gap:2px;
+  margin:8px 0 10px;
+}
+
+body.studiox-ui4 .ui4-translation-block .ui4-data-label{
+  color:#7f92a2;
+  font-size:10px;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+
+body.studiox-ui4 .ui4-translation-block strong{
+  overflow:hidden;
+  color:#e7f4fb;
+  font-size:14px;
+  line-height:1.3;
+  text-overflow:ellipsis;
+}
+
+body.studiox-ui4 .ui4-identity-grid,
+body.studiox-ui4 .ui4-card-extra-data,
+body.studiox-ui4 .ui4-live-pull-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:6px;
+}
+
+body.studiox-ui4 .ui4-identity-grid>div,
+body.studiox-ui4 .ui4-card-extra-data>div,
+body.studiox-ui4 .ui4-live-pull-grid>div{
+  min-width:0;
+  padding:7px 8px;
+  border:1px solid rgba(139,164,184,.10);
+  border-radius:8px;
+  background:rgba(255,255,255,.025);
+}
+
+body.studiox-ui4 .ui4-identity-grid span,
+body.studiox-ui4 .ui4-card-extra-data span,
+body.studiox-ui4 .ui4-live-pull-grid span{
+  display:block;
+  margin-bottom:3px;
+  color:#718696;
+  font-size:10px;
+}
+
+body.studiox-ui4 .ui4-identity-grid b,
+body.studiox-ui4 .ui4-card-extra-data b,
+body.studiox-ui4 .ui4-live-pull-grid b{
+  display:block;
+  overflow:hidden;
+  color:#dbeaf2;
+  font-size:11px;
+  line-height:1.3;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+body.studiox-ui4 .ui4-price-summary{
+  display:grid;
+  gap:7px;
+  padding-top:9px;
+  border-top:1px solid rgba(139,164,184,.12);
+}
+
+body.studiox-ui4 .ui4-price-primary{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:7px;
+}
+
+body.studiox-ui4 .ui4-price-primary .market-card{
+  min-height:62px;
+  padding:10px;
+  background:linear-gradient(
+    145deg,
+    rgba(79,216,255,.07),
+    rgba(155,118,255,.045)
+  );
+}
+
+body.studiox-ui4 .ui4-price-primary .market-card b{
+  margin-top:5px;
+  font-size:18px;
+}
+
+body.studiox-ui4 .ui4-price-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:6px;
+}
+
+body.studiox-ui4 .ui4-price-grid .market-card{
+  min-width:0;
+  padding:7px;
+  border:1px solid rgba(139,164,184,.09);
+  border-radius:8px;
+  background:rgba(255,255,255,.022);
+}
+
+body.studiox-ui4 .ui4-price-grid .market-card span{
+  display:block;
+  color:#718696;
+  font-size:9px;
+  line-height:1.25;
+}
+
+body.studiox-ui4 .ui4-price-grid .market-card b{
+  display:block;
+  margin-top:4px;
+  overflow:hidden;
+  color:#dcecf4;
+  font-size:11px;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+body.studiox-ui4 .ui4-price-footnote{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  color:#718696;
+  font-size:10px;
+}
+
+body.studiox-ui4 .ui4-price-footnote b{
+  color:#9fb1be;
+  font-weight:600;
+}
+
+body.studiox-ui4 .ui4-card-extra-data{
+  padding-top:9px;
+  border-top:1px solid rgba(139,164,184,.12);
+}
+
+body.studiox-ui4 .ui4-live-pull-preview{
+  display:grid;
+  gap:8px;
+  padding:10px;
+  border:1px solid rgba(155,118,255,.15);
+  border-radius:10px;
+  background:linear-gradient(
+    145deg,
+    rgba(155,118,255,.055),
+    rgba(79,216,255,.025)
+  );
+}
+
+body.studiox-ui4 .ui4-section-heading{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+
+body.studiox-ui4 .ui4-section-heading>div span{
+  display:block;
+  color:#798c9b;
+  font-size:9px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+body.studiox-ui4 .ui4-section-heading>div strong{
+  display:block;
+  margin-top:2px;
+  color:#e1eff6;
+  font-size:13px;
+}
+
+body.studiox-ui4 .ui4-overlay-ready{
+  padding:4px 7px;
+  border:1px solid rgba(79,216,255,.20);
+  border-radius:999px;
+  color:#79defd;
+  font-size:9px;
+  font-weight:700;
+}
+
+body.studiox-ui4 .session-strip{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+
+body.studiox-ui4 .ui4-history-prices{
+  color:#6fdcb2;
+  font-size:10px;
+  line-height:1.3;
+}
+
+body.studiox-ui4 .ui4-history-detail-prices{
+  margin:0;
+  color:#6fdcb2;
+  font-size:12px;
+}
+
+@media(max-width:1600px){
+  body.studiox-ui4 .ui4-price-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  body.studiox-ui4 .ui4-card-identity-layout{
+    grid-template-columns:minmax(130px,38%) minmax(0,1fr);
+  }
+}
+/* =========================================================
+   Update 15 — slim top recognition workflow
+   Keeps the existing pipeline elements for JavaScript.
+   ========================================================= */
+
+@media (min-width: 1367px) {
+  body.studiox-ui4 .camera-workspace > .pipeline-rail {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    z-index: 18;
+
+    width: min(620px, calc(100% - 340px));
+    height: 34px;
+    min-height: 34px;
+
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    align-items: center;
+
+    padding: 3px 8px;
+    border: 1px solid rgba(139, 164, 184, 0.13);
+    border-radius: 999px;
+
+    background: rgba(5, 11, 17, 0.78);
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.24),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.015);
+
+    backdrop-filter: blur(12px);
+    transform: translateX(-50%);
+    overflow: hidden;
+  }
+
+  body.studiox-ui4 .camera-workspace > .pipeline-rail .pipeline-step {
+    position: relative;
+
+    min-width: 0;
+    height: 28px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+
+    padding: 0 12px;
+    border: 0;
+    border-radius: 999px;
+
+    color: #637482;
+    background: transparent;
+    box-shadow: none;
+
+    transition:
+      color 160ms ease,
+      background 160ms ease,
+      box-shadow 160ms ease,
+      opacity 160ms ease;
+  }
+
+  body.studiox-ui4
+    .camera-workspace
+    > .pipeline-rail
+    .pipeline-step:not(:last-child) {
+    border-right: 0;
+  }
+
+  body.studiox-ui4
+    .camera-workspace
+    > .pipeline-rail
+    .pipeline-step:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: -4px;
+
+    width: 8px;
+    height: 1px;
+
+    background: rgba(125, 145, 160, 0.28);
+    transform: translateY(-50%);
+  }
+
+  body.studiox-ui4
+    .camera-workspace
+    > .pipeline-rail
+    .pipeline-step:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: -4px;
+
+    width: 4px;
+    height: 4px;
+
+    border-top: 1px solid rgba(125, 145, 160, 0.35);
+    border-right: 1px solid rgba(125, 145, 160, 0.35);
+
+    transform: translateY(-50%) rotate(45deg);
+  }
+
+  body.studiox-ui4
+    .camera-workspace
+    > .pipeline-rail
+    .pipeline-step
+    > b {
+    margin: 0;
+
+    color: inherit;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  body.studiox-ui4
+    .camera-workspace
+    > .pipeline-rail
+    .process-status {
+    display: none;
+  }
+
+  body.studiox-ui4
+    .camera-workspace
+    > .pipeline-rail
+    .process-state-icon {
+    width: 8px;
+    height: 8px;
+    min-width: 8px;
+
+    overflow: hidden;
+
+    border: 0;
+    border-radius: 50%;
+
+    color: transparent;
+    background: currentColor;
+    font-size: 0;
+    line-height: 0;
+
+    opacity: 0.55;
+  }
+
+  body.studiox-ui4
+    .camera-workspace
+    > .pipeline-rail
+    .state-complete {
+    color: #6eddb1;
+  }
+
+  body.studiox-ui4
+    .camera-workspace
+    > .pipeline-rail
+    .state-complete
+    .process-state-icon {
+    opacity: 0.9;
+    box-shadow: 0 0 8px rgba(110, 221, 177, 0.45);
+  }
+
+  body.studiox-ui4
+    .camera-workspace
+    > .pipeline-rail
+    .state-active {
+    color: #eafaff;
+    background: linear-gradient(
+      135deg,
+      rgba(79, 216, 255, 0.16),
+      rgba(155, 118, 255, 0.13)
+    );
+
+    box-shadow:
+      inset 0 0 0 1px rgba(79, 216, 255, 0.18),
+      0 0 18px rgba(79, 216, 255, 0.13);
+  }
+
+  body.studiox-ui4
+    .camera-workspace
+    > .pipeline-rail
+    .state-active
+    .process-state-icon {
+    color: #59ddff;
+    opacity: 1;
+
+    animation: ui4WorkflowPulse 900ms ease-in-out infinite alternate;
+  }
+
+  body.studiox-ui4
+    .camera-workspace
+    > .pipeline-rail
+    .state-warning {
+    color: #ffd06a;
+  }
+
+  body.studiox-ui4
+    .camera-workspace
+    > .pipeline-rail
+    .state-failed {
+    color: #ff6f7f;
+  }
+
+  body.studiox-ui4 .camera-bottom-hud {
+    bottom: 14px;
+  }
+}
+
+@keyframes ui4WorkflowPulse {
+  from {
+    transform: scale(0.82);
+    box-shadow: 0 0 5px rgba(89, 221, 255, 0.35);
+  }
+
+  to {
+    transform: scale(1.15);
+    box-shadow:
+      0 0 9px rgba(89, 221, 255, 0.8),
+      0 0 18px rgba(155, 118, 255, 0.38);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.studiox-ui4
+    .camera-workspace
+    > .pipeline-rail
+    .state-active
+    .process-state-icon {
+    animation: none;
+  }
+}
+/* =========================================================
+   Update 15 — persistent waiting card placeholder
+   ========================================================= */
+
+@media (min-width: 1367px) {
+  body.studiox-ui4 .inspector-empty {
+    min-height: 0;
+    padding: 14px 4px 4px;
+    align-content: start;
+  }
+
+  body.studiox-ui4 .inspector-empty > div {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+  }
+
+  body.studiox-ui4 .ui4-waiting-card-state {
+    display: grid;
+    gap: 12px;
+  }
+
+  body.studiox-ui4 .ui4-card-placeholder {
+    position: relative;
+    width: min(210px, 74%);
+    aspect-ratio: 63 / 88;
+    margin: 6px auto 0;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid rgba(79, 216, 255, 0.16);
+    border-radius: 14px;
+    background:
+      linear-gradient(
+        145deg,
+        rgba(79, 216, 255, 0.04),
+        rgba(155, 118, 255, 0.055)
+      ),
+      #071019;
+    box-shadow:
+      0 18px 34px rgba(0, 0, 0, 0.28),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.018);
+  }
+
+  body.studiox-ui4 .ui4-card-placeholder::before {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    border: 1px dashed rgba(139, 164, 184, 0.16);
+    border-radius: 10px;
+  }
+
+  body.studiox-ui4 .ui4-card-placeholder-glow {
+    position: absolute;
+    inset: 20% 10%;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      rgba(79, 216, 255, 0.13),
+      rgba(155, 118, 255, 0.055) 42%,
+      transparent 72%
+    );
+    filter: blur(12px);
+    animation: ui4CardPlaceholderGlow 1800ms ease-in-out infinite alternate;
+  }
+
+  body.studiox-ui4 .ui4-card-placeholder-logo {
+    position: relative;
+    z-index: 2;
+    width: 68px;
+    height: 68px;
+    object-fit: contain;
+    opacity: 0.84;
+    filter: drop-shadow(0 0 18px rgba(79, 216, 255, 0.22));
+  }
+
+  body.studiox-ui4 .ui4-card-placeholder-scan {
+    position: absolute;
+    z-index: 3;
+    left: 12px;
+    right: 12px;
+    top: 16%;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(79, 216, 255, 0.82),
+      rgba(155, 118, 255, 0.72),
+      transparent
+    );
+    box-shadow: 0 0 12px rgba(79, 216, 255, 0.55);
+    animation: ui4CardPlaceholderScan 2200ms ease-in-out infinite;
+  }
+
+  body.studiox-ui4 .ui4-card-placeholder-copy {
+    position: absolute;
+    z-index: 4;
+    left: 12px;
+    right: 12px;
+    bottom: 18px;
+    display: grid;
+    gap: 4px;
+    text-align: center;
+  }
+
+  body.studiox-ui4 .ui4-card-placeholder-copy strong {
+    color: #eefaff;
+    font-size: 15px;
+    line-height: 1.2;
+  }
+
+  body.studiox-ui4 .ui4-card-placeholder-copy span {
+    color: #8194a3;
+    font-size: 10px;
+    line-height: 1.35;
+  }
+
+  body.studiox-ui4 .ui4-waiting-values {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  body.studiox-ui4 .ui4-waiting-values > div {
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid rgba(139, 164, 184, 0.1);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.025);
+  }
+
+  body.studiox-ui4 .ui4-waiting-values span {
+    display: block;
+    margin-bottom: 5px;
+    color: #718696;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.055em;
+  }
+
+  body.studiox-ui4 .ui4-waiting-values b {
+    display: block;
+    color: #8fa1ae;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  body.studiox-ui4 .ui4-waiting-card-state .empty-intelligence {
+    margin-top: 0;
+  }
+}
+
+@keyframes ui4CardPlaceholderGlow {
+  from {
+    opacity: 0.48;
+    transform: scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes ui4CardPlaceholderScan {
+  0% {
+    top: 15%;
+    opacity: 0;
+  }
+
+  15% {
+    opacity: 1;
+  }
+
+  85% {
+    opacity: 1;
+  }
+
+  100% {
+    top: 82%;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.studiox-ui4 .ui4-card-placeholder-glow,
+  body.studiox-ui4 .ui4-card-placeholder-scan {
+    animation: none;
+  }
 }

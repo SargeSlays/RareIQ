@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -25,8 +25,8 @@
 <link rel="stylesheet" href="/static/studiox_61.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.4.15-ui4structural">
-<link rel="stylesheet" href="/static/studiox_update15.css?v=6.4.15-ui4structural">
-<script defer src="/static/studiox.js?v=6.4.15"></script>
+<link rel="stylesheet" href="/static/studiox_update15.css?v=6.4.15-carddata1">
+<script defer src="/static/studiox.js?v=6.4.15-carddata1"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"></head>
@@ -223,14 +223,53 @@
           <span id="recognitionStateDetail">Waiting for a card</span>
         </div>
         <div class="inspector-empty" id="inspectorEmpty">
-          <div>
-            <img src="/static/brand/rareiq_icon_transparent.png" alt="">
-            <strong>Ready to Scan</strong>
-            <span>Database artwork and card intelligence will appear here.</span>
+          <div class="ui4-waiting-card-state">
+            <div class="ui4-card-placeholder" id="cardPlaceholder">
+              <div class="ui4-card-placeholder-glow"></div>
+
+              <img
+                class="ui4-card-placeholder-logo"
+                src="/static/brand/rareiq_icon_transparent.png"
+                alt="RareIQ"
+              >
+
+              <div class="ui4-card-placeholder-scan"></div>
+
+              <div class="ui4-card-placeholder-copy">
+                <strong id="cardPlaceholderTitle">Waiting for Card</strong>
+                <span id="cardPlaceholderDetail">
+                  Place a card inside the scan zone
+                </span>
+              </div>
+            </div>
+
+            <div class="ui4-waiting-values">
+              <div>
+                <span>Raw Market</span>
+                <b>--</b>
+              </div>
+
+              <div>
+                <span>PSA 10</span>
+                <b>--</b>
+              </div>
+            </div>
+
             <div class="empty-intelligence">
-              <div><span>Session</span><b id="emptySessionCards">0 cards</b></div>
-              <div><span>Auto Capture</span><b id="emptyAutoState">ON</b></div>
-              <div><span>Database</span><b>READY</b></div>
+              <div>
+                <span>Session</span>
+                <b id="emptySessionCards">0 cards</b>
+              </div>
+
+              <div>
+                <span>Auto Capture</span>
+                <b id="emptyAutoState">ON</b>
+              </div>
+
+              <div>
+                <span>Database</span>
+                <b>READY</b>
+              </div>
             </div>
           </div>
         </div>
@@ -238,7 +277,10 @@
         <div class="session-strip">
           <div class="session-stat"><span>Cards</span><b id="sessionCards">0</b></div>
           <div class="session-stat"><span>Hits</span><b id="sessionHits">0</b></div>
+          <div class="session-stat"><span>Packs</span><b id="sessionPacks">0</b></div>
+          <div class="session-stat"><span>Boxes</span><b id="sessionBoxes">0</b></div>
           <div class="session-stat"><span>Value</span><b id="sessionValue">$0.00</b></div>
+          <div class="session-stat"><span>Top Pull</span><b id="sessionTopPull">--</b></div>
           <div class="session-stat"><span>Accuracy</span><b id="sessionAccuracy">Ã¢â‚¬â€</b></div>
           <div class="session-stat"><span>Elapsed</span><b id="sessionElapsed">00:00</b></div>
         </div>
@@ -260,36 +302,183 @@
             <span class="copilot-chip">Operator recommendations</span>
           </div>
         </div>
-
         <div class="inspector-main" id="inspectorMain" style="display:none">
-          <div class="card-showcase">
-            <div class="card-art" id="cardArt">
-              <span>Database artwork will appear here</span>
+          <div class="ui4-card-identity-layout">
+            <div class="card-showcase">
+              <div class="card-art" id="cardArt">
+                <span>Database artwork will appear here</span>
+              </div>
+            </div>
+
+            <div class="card-info">
+              <div class="eyebrow">Verified Candidate</div>
+
+              <h3 id="cardName">Ready to Scan</h3>
+
+              <div class="ui4-translation-block">
+                <span class="ui4-data-label">Printed name</span>
+                <strong id="cardPrintedName">--</strong>
+
+                <span class="ui4-data-label">English name</span>
+                <strong id="cardEnglishName">--</strong>
+              </div>
+
+              <p id="cardMeta">Set  |  Number  |  Language  |  Rarity</p>
+
+              <div class="ui4-identity-grid">
+                <div>
+                  <span>Set</span>
+                  <b id="cardSetName">--</b>
+                </div>
+                <div>
+                  <span>Set Code</span>
+                  <b id="cardSetCode">--</b>
+                </div>
+                <div>
+                  <span>Collector No.</span>
+                  <b id="cardCollectorNumber">--</b>
+                </div>
+                <div>
+                  <span>Language</span>
+                  <b id="cardLanguage">--</b>
+                </div>
+                <div>
+                  <span>Rarity</span>
+                  <b id="cardRarity">--</b>
+                </div>
+                <div>
+                  <span>Variant</span>
+                  <b id="cardVariant">--</b>
+                </div>
+                <div>
+                  <span>Finish</span>
+                  <b id="cardFinish">--</b>
+                </div>
+                <div>
+                  <span>Release Year</span>
+                  <b id="cardReleaseYear">--</b>
+                </div>
+              </div>
+
+              <div class="card-value" id="cardValue">VALUE PENDING</div>
+              <div class="card-status" id="cardStatus">RECOGNITION READY</div>
             </div>
           </div>
 
-          <div class="card-info">
-            <div class="eyebrow">Verified Candidate</div>
-            <h3 id="cardName">Ready to Scan</h3>
-            <p id="cardMeta">Set Ã¢â‚¬Â¢ Number Ã¢â‚¬Â¢ Language Ã¢â‚¬Â¢ Rarity</p>
-            <div class="card-value" id="cardValue">WAITING</div>
-            <div class="card-status" id="cardStatus">RECOGNITION READY</div>
-          </div>
+          <section class="ui4-price-summary" aria-label="Current card value">
+            <div class="ui4-price-primary">
+              <div class="market-card featured">
+                <span>Raw Market</span>
+                <b id="rawValue">No public data</b>
+              </div>
 
-          <div class="market-grid">
-            <div class="market-card">
-              <span>RAW</span>
-              <b id="rawValue">Ã¢â‚¬â€</b>
+              <div class="market-card featured">
+                <span>PSA 10</span>
+                <b id="psaValue">No public data</b>
+              </div>
             </div>
-            <div class="market-card">
-              <span>PSA 10</span>
-              <b id="psaValue">Ã¢â‚¬â€</b>
+
+            <div class="ui4-price-grid">
+              <div class="market-card">
+                <span>Raw Low</span>
+                <b id="rawLowValue">--</b>
+              </div>
+
+              <div class="market-card">
+                <span>Raw High</span>
+                <b id="rawHighValue">--</b>
+              </div>
+
+              <div class="market-card">
+                <span>PSA 9</span>
+                <b id="psa9Value">--</b>
+              </div>
+
+              <div class="market-card">
+                <span>PSA 8</span>
+                <b id="psa8Value">--</b>
+              </div>
+
+              <div class="market-card">
+                <span>Last Sold Raw</span>
+                <b id="lastSoldRawValue">--</b>
+              </div>
+
+              <div class="market-card">
+                <span>Last Sold PSA 10</span>
+                <b id="lastSoldPsa10Value">--</b>
+              </div>
+
+              <div class="market-card">
+                <span>PSA 10 Population</span>
+                <b id="populationValue">--</b>
+              </div>
+
+              <div class="market-card">
+                <span>30-Day Sales</span>
+                <b id="salesVolumeValue">--</b>
+              </div>
             </div>
-            <div class="market-card">
-              <span>POPULATION</span>
-              <b id="populationValue">Ã¢â‚¬â€</b>
+
+            <div class="ui4-price-footnote">
+              <span>
+                Source:
+                <b id="pricingSource">No provider connected</b>
+              </span>
+              <span>
+                Updated:
+                <b id="pricingUpdatedAt">--</b>
+              </span>
             </div>
-          </div>
+          </section>
+
+          <section class="ui4-card-extra-data" aria-label="Card details">
+            <div>
+              <span>PokÃ©mon / Character</span>
+              <b id="cardPokemonName">--</b>
+            </div>
+            <div>
+              <span>Card Type</span>
+              <b id="cardTypeValue">--</b>
+            </div>
+            <div>
+              <span>HP</span>
+              <b id="cardHpValue">--</b>
+            </div>
+            <div>
+              <span>Energy / Type</span>
+              <b id="cardEnergyType">--</b>
+            </div>
+          </section>
+
+          <section class="ui4-live-pull-preview" aria-label="Live Pull Engine placeholders">
+            <div class="ui4-section-heading">
+              <div>
+                <span>Broadcast Intelligence</span>
+                <strong>Live Pull Engine</strong>
+              </div>
+              <span class="ui4-overlay-ready">OVERLAY READY</span>
+            </div>
+
+            <div class="ui4-live-pull-grid">
+              <div>
+                <span>Event Tier</span>
+                <b id="rarityTierValue">Standard</b>
+              </div>
+              <div>
+                <span>Animation</span>
+                <b id="overlayAnimationValue">Standard reveal</b>
+              </div>
+              <div>
+                <span>Sound</span>
+                <b id="overlaySoundValue">Default scan</b>
+              </div>
+              <div>
+                <span>Card Tracking</span>
+                <b id="overlayTrackingValue">Waiting for lock</b>
+              </div>
+            </div>
+          </section>
         </div>
 
         <div class="inspector-footer">
@@ -629,3 +818,4 @@
 <div class="operator-toast" id="operatorToast"></div>
 </body>
 </html>
+

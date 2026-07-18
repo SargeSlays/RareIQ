@@ -13,14 +13,14 @@ def read(name: str) -> str:
     return (STATIC / name).read_text(encoding="utf-8-sig")
 
 
-def test_all_91_existing_ids_remain_unique() -> None:
+def test_all_existing_ids_remain_unique() -> None:
     html = read("control.html")
     ids = re.findall(r'\bid="([^"]+)"', html)
     unique = sorted(set(ids))
     digest = hashlib.sha256("\n".join(unique).encode()).hexdigest()
-    assert len(ids) == 91
-    assert len(unique) == 91
-    assert digest == "3ffee1c37d61d08ed569811c7f9caab7ba813f08872fd29735e24d554c7f9331"
+    assert len(ids) == 124
+    assert len(unique) == 124
+    assert digest == "7551920178ed2cbc4b568ead86729f4fc66bf49b1d35521f117a35ffaa631c5d"
 
 
 def test_one_camera_feed_and_no_video_clone() -> None:
@@ -133,7 +133,7 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
     styles = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
     assert styles[-2:] == [
         "/static/studiox_ui4_tokens.css?v=6.4.15-ui4structural",
-        "/static/studiox_update15.css?v=6.4.15-ui4structural",
+        "/static/studiox_update15.css?v=6.4.15-carddata1",
     ]
     assert len(styles) == 19
 
@@ -173,3 +173,4 @@ def test_installer_allowlist_is_frontend_and_tests_only() -> None:
     )
     targets = installer[installer.index("TARGETS ="):installer.index("PYTHON_TARGETS")]
     assert not any(value in targets for value in forbidden)
+

@@ -34,6 +34,7 @@ let ui4HealthOpen = false;
 let ui4InspectorTab = "details";
 let ui4InspectorView = "current";
 let ui4RecentScans = [];
+let cardPlaceholderResetTimer = null;
 
 
 
@@ -46,7 +47,7 @@ function notify(title,detail="",type="info"){
   const node=document.createElement("div");
   node.className=`riq-notification ${type}`;
   node.innerHTML=`
-    <div class="notification-icon">${type==="success"?"âœ“":type==="error"?"!":"â—†"}</div>
+    <div class="notification-icon">${type==="success"?"âœ“":type==="error"?"!":"â--†"}</div>
     <div class="notification-copy">
       <strong>${title}</strong>
       <span>${detail}</span>
@@ -110,7 +111,7 @@ function updateSessionStats(){
   const elapsed=Math.max(0,Math.floor((Date.now()-sessionStartedAt)/1000));
   const minutes=Math.floor(elapsed/60);
   const seconds=elapsed%60;
-  const accuracy=sessionAttempts?`${Math.round(sessionMatches/sessionAttempts*100)}%`:"â€”";
+  const accuracy=sessionAttempts?`${Math.round(sessionMatches/sessionAttempts*100)}%`:"--";
 
   if($("sessionCards")) $("sessionCards").textContent=String(sessionCards);
   if($("sessionHits")) $("sessionHits").textContent=String(sessionHits);
@@ -311,6 +312,61 @@ function setStateChip(id,state,label){
 function setRecognitionState(state,detail=""){
   const panel=$("recognitionStatePanel");
   const label=$("recognitionStateLabel");
+  const placeholder = $("cardPlaceholder");
+  const placeholderTitle = $("cardPlaceholderTitle");
+  const placeholderDetail = $("cardPlaceholderDetail");
+
+  function applyPlaceholderState(placeholderState) {
+    if (!placeholder) return;
+
+    placeholder.classList.remove(
+      "state-waiting",
+      "state-searching",
+      "state-matched",
+      "state-error"
+    );
+
+    placeholder.classList.add(`state-${placeholderState}`);
+
+    if (placeholderTitle) {
+      placeholderTitle.textContent =
+        placeholderState === "searching"
+          ? "Analyzing Card..."
+          : placeholderState === "matched"
+          ? "Match Found"
+          : placeholderState === "error"
+          ? "Recognition Paused"
+          : "Waiting for Card";
+    }
+
+    if (placeholderDetail) {
+      placeholderDetail.textContent =
+        placeholderState === "searching"
+          ? "RareIQ is identifying and verifying this card"
+          : placeholderState === "matched"
+          ? "Card intelligence is ready"
+          : placeholderState === "error"
+          ? "Adjust the card and try again"
+          : "Place a card inside the scan zone";
+    }
+  }
+
+  clearTimeout(cardPlaceholderResetTimer);
+
+  if (state === "searching" || state === "captured") {
+    applyPlaceholderState("searching");
+  } else if (state === "matched") {
+    applyPlaceholderState("matched");
+  } else if (state === "error") {
+    cardPlaceholderResetTimer = setTimeout(() => {
+      applyPlaceholderState("error");
+    }, 1200);
+  } else {
+    cardPlaceholderResetTimer = setTimeout(() => {
+      applyPlaceholderState("waiting");
+    }, 1500);
+  }
+
   const detailNode=$("recognitionStateDetail");
   if(panel){
     panel.classList.remove("idle","searching","matched","captured","error");
@@ -816,7 +872,7 @@ async function waitForCameraReady(timeoutMs=15000){
         return ready;
       }
       setCameraRecovery(
-        "Camera startingâ€¦",
+        "Camera starting...",
         ready.message||"Waiting for the first frame."
       );
     }catch{}
@@ -838,7 +894,7 @@ async function ensureCameraStarted(force=false){
 
   try{
     setCameraRecovery(
-      "Starting cameraâ€¦",
+      "Starting camera...",
       camera.name||"Opening the selected video device."
     );
 
@@ -919,7 +975,7 @@ function scheduleCameraDiscovery(){
 async function loadCameraList(options={}){
   const {retries=5,delay=650,silent=false}=options;
   const select=$("cameraSelect");
-  if(!silent) select.innerHTML=`<option value="">Scanning camerasâ€¦</option>`;
+  if(!silent) select.innerHTML=`<option value="">Scanning cameras...</option>`;
 
   for(let attempt=0;attempt<=retries;attempt+=1){
     try{
@@ -932,7 +988,7 @@ async function loadCameraList(options={}){
             backend:Number(camera.backend??700),
             name:camera.name||`Camera ${index+1}`
           }));
-          const backendName=camera.backend_name?` â€¢ ${camera.backend_name}`:"";
+          const backendName=camera.backend_name?`  |  ${camera.backend_name}`:"";
           return `<option value="${payload}">${camera.name||`Camera ${index+1}`}${backendName}</option>`;
         }).join("");
 
@@ -946,12 +1002,12 @@ async function loadCameraList(options={}){
     }catch{}
 
     if(attempt<retries){
-      select.innerHTML=`<option value="">Camera scan retry ${attempt+1}/${retries}â€¦</option>`;
+      select.innerHTML=`<option value="">Camera scan retry ${attempt+1}/${retries}...</option>`;
       await new Promise(resolve=>setTimeout(resolve,delay));
     }
   }
 
-  select.innerHTML=`<option value="">No cameras detected â€” Refresh to retry</option>`;
+  select.innerHTML=`<option value="">No cameras detected -- Refresh to retry</option>`;
   selectedCamera=null;
   return [];
 }
@@ -1008,7 +1064,7 @@ async function reconnectCamera(){
   cameraStreamFailures=0;
 
   setCameraRecovery(
-    "Recovering cameraâ€¦",
+    "Recovering camera...",
     "The backend Camera Manager is reopening the saved device."
   );
 
@@ -1045,7 +1101,7 @@ async function reconnectCamera(){
 }
 
 async function captureCamera(){
-  setRecognitionState("searching","Saving current corrected card cropâ€¦");
+  setRecognitionState("searching","Saving current corrected card crop...");
   try{
     const result=await api("/api/camera/capture",{
       method:"POST",
@@ -1092,7 +1148,7 @@ function __oldStartCameraStream(force=false){
 
   if(recovery){
     recovery.classList.add("visible");
-    $("cameraRecoveryTitle").textContent="Connecting cameraâ€¦";
+    $("cameraRecoveryTitle").textContent="Connecting camera...";
     $("cameraRecoveryDetail").textContent="Waiting for the first live frame.";
   }
 
@@ -1107,7 +1163,7 @@ function __oldStartCameraStream(force=false){
       if(cameraStreamFailures<=8){
         if(recovery){
           recovery.classList.add("visible");
-          $("cameraRecoveryTitle").textContent="Restoring live previewâ€¦";
+          $("cameraRecoveryTitle").textContent="Restoring live preview...";
           $("cameraRecoveryDetail").textContent=`Retry ${cameraStreamFailures} of 8`;
         }
         startCameraStream(true);
@@ -1136,7 +1192,7 @@ async function bootstrapCamera(){
 
   try{
     setCameraRecovery(
-      "Discovering camerasâ€¦",
+      "Discovering cameras...",
       "RareIQ is scanning Windows video devices."
     );
 
@@ -1149,7 +1205,7 @@ async function bootstrapCamera(){
       setCameraStatus("CAMERA NOT FOUND","var(--gold)");
       setStateChip("cameraStateChip","warning","SEARCHING");
       setCameraRecovery(
-        "Waiting for cameraâ€¦",
+        "Waiting for camera...",
         "RareIQ will continue checking automatically."
       );
       scheduleCameraDiscovery();
@@ -1245,7 +1301,7 @@ const PIPELINE_STATE_LABELS={
   warning:"Warning",failed:"Failed",skipped:"Skipped"
 };
 const PIPELINE_STATE_ICONS={
-  waiting:"•",active:"▶",complete:"✓",warning:"!",failed:"×",skipped:"–"
+  waiting:" | ",active:"▶",complete:"✓",warning:"!",failed:"×",skipped:"–"
 };
 
 function normalizePipelineState(stage){
@@ -1551,7 +1607,7 @@ async function loadRecognition(){
     }else if(hasCandidate){
       setRecognitionState(
         "searching",
-        `${phase.replaceAll("_"," ")} â€¢ ${
+        `${phase.replaceAll("_"," ")}  |  ${
           candidates.length || snapshot?.candidate_count || 1
         } candidate${(
           candidates.length ||
@@ -1714,7 +1770,7 @@ async function loadRecognition(){
         verified
           ? "VERIFIED"
           : "PROVISIONAL"
-      ].filter(Boolean).join(" â€¢ ");
+      ].filter(Boolean).join("  |  ");
 
       const rawValue = Number(
         card.market_price ||
@@ -1741,23 +1797,25 @@ async function loadRecognition(){
       $("rawValue").textContent =
         rawValue > 0
           ? `$${rawValue.toFixed(2)}`
-          : "â€”";
+          : "--";
 
       $("psaValue").textContent =
         psa10 > 0
           ? `$${psa10.toFixed(2)}`
-          : "â€”";
+          : "--";
 
       $("populationValue").textContent =
         population > 0
           ? String(population)
-          : "â€”";
+          : "--";
 
       $("cardStatus").textContent = verified
         ? "VERIFIED DATABASE MATCH"
         : confidence >= .68
         ? "CANDIDATE MATCH"
         : "REVIEW REQUIRED";
+
+      renderExtendedCardData(card,snapshot,confidence,verified);
 
       const localImage =
         card.image_path ||
@@ -1806,7 +1864,7 @@ async function loadRecognition(){
             card.english_name ||
             card.printed_name ||
             "Card"
-          } â€¢ ${Math.round(confidence*100)}%`
+          }  |  ${Math.round(confidence*100)}%`
         );
 
         notify(
@@ -1818,7 +1876,7 @@ async function loadRecognition(){
             card.english_name ||
             card.printed_name ||
             "Card"
-          } â€¢ ${Math.round(confidence*100)}%`,
+          }  |  ${Math.round(confidence*100)}%`,
           "success"
         );
 
@@ -1834,6 +1892,7 @@ async function loadRecognition(){
       $("cardName").textContent="Waiting for card";
       $("cardMeta").textContent="";
       $("cardArt").innerHTML="";
+      resetExtendedCardData();
       updateConfidenceRing(0);
     }
 
@@ -1928,7 +1987,7 @@ async function loadCameraManagerState(){
         `CACHED DEVICES: ${manager.cached_devices??0}`,
         `RECOVERIES: ${manager.recovery_count??0}`,
         `MESSAGE: ${manager.message||"None"}`
-      ].join("  â€¢  ");
+      ].join("   |   ");
     }
   }catch{}
 }
@@ -1948,7 +2007,7 @@ function openProgram(){
 }
 
 async function maintenance(path,label){
-  $("systemStatus").textContent=`${label} startedâ€¦`;
+  $("systemStatus").textContent=`${label} started...`;
   try{
     const result=await api(path,{method:"POST",body:"{}"});
     $("systemStatus").textContent=result.ok===false
@@ -2026,12 +2085,23 @@ function renderUI4RecentScanDetail(card){
   const name=document.createElement("h3");
   name.textContent=card.card_name||card.printed_name||"Unknown card";
   const meta=document.createElement("p");
-  meta.textContent=[card.set_name,card.collector_number].filter(Boolean).join(" • ")||"Set details unavailable";
+  meta.textContent=[card.set_name,card.collector_number].filter(Boolean).join("  |  ")||"Set details unavailable";
   const confidence=document.createElement("strong");
   confidence.textContent=`${recentScanConfidence(card.confidence)}% confidence`;
   const stamp=document.createElement("time");
   stamp.textContent=card.timestamp?new Date(Number(card.timestamp)*1000).toLocaleString():"Time unavailable";
-  detail.append(name,meta,confidence,stamp);
+  const historyPricing=normalizeCardPricing(card);
+  const values=document.createElement("p");
+  values.className="ui4-history-detail-prices";
+  values.textContent=[
+    nullableCardNumber(historyPricing.rawMarket)!==null
+      ? `Raw ${cardMoney(historyPricing.rawMarket)}`
+      : "Raw value unavailable",
+    nullableCardNumber(historyPricing.psa10)!==null
+      ? `PSA 10 ${cardMoney(historyPricing.psa10)}`
+      : "PSA 10 unavailable"
+  ].join("  |  ");
+  detail.append(name,meta,values,confidence,stamp);
   const live=document.createElement("button");
   live.type="button";
   live.className="ui4-return-live";
@@ -2078,14 +2148,25 @@ function renderUI4RecentScans(cards=[]){
     const name=document.createElement("strong");
     name.textContent=card.card_name||card.printed_name||"Unknown card";
     const meta=document.createElement("span");
-    meta.textContent=[card.set_name,card.collector_number].filter(Boolean).join(" • ")||"Set details unavailable";
-    identity.append(name,meta);
+    meta.textContent=[card.set_name,card.collector_number].filter(Boolean).join("  |  ")||"Set details unavailable";
+    const historyPricing=normalizeCardPricing(card);
+    const prices=document.createElement("span");
+    prices.className="ui4-history-prices";
+    prices.textContent=[
+      nullableCardNumber(historyPricing.rawMarket)!==null
+        ? `Raw ${cardMoney(historyPricing.rawMarket)}`
+        : null,
+      nullableCardNumber(historyPricing.psa10)!==null
+        ? `PSA 10 ${cardMoney(historyPricing.psa10)}`
+        : null
+    ].filter(Boolean).join("  |  ")||"Value unavailable";
+    identity.append(name,meta,prices);
     const result=document.createElement("span");
     result.className="ui4-history-result";
     const confidence=document.createElement("b");
     confidence.textContent=`${recentScanConfidence(card.confidence)}%`;
     const stamp=document.createElement("time");
-    stamp.textContent=card.timestamp?new Date(Number(card.timestamp)*1000).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}):"—";
+    stamp.textContent=card.timestamp?new Date(Number(card.timestamp)*1000).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}):"--";
     result.append(confidence,stamp);
     row.append(thumb,identity,result);
     list.appendChild(row);
@@ -2292,7 +2373,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       if(cameraStreamFailures<=8){
         if(recovery){
           recovery.classList.add("visible");
-          $("cameraRecoveryTitle").textContent="Recovering live previewâ€¦";
+          $("cameraRecoveryTitle").textContent="Recovering live preview...";
           $("cameraRecoveryDetail").textContent=`Retry ${cameraStreamFailures} of 8`;
         }
         cameraStreamRetryTimer=setTimeout(()=>startCameraStream(true),650);
@@ -2326,3 +2407,261 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   setInterval(loadRecognition,600);
 });
+
+
+/* =========================================================
+   RareIQ UI 4.0 card intelligence normalization
+   Frontend placeholders only. Missing values remain null.
+   ========================================================= */
+
+function firstCardValue(source,keys){
+  for(const key of keys){
+    const value=source?.[key];
+    if(value!==undefined&&value!==null&&value!=="") return value;
+  }
+  return null;
+}
+
+function nullableCardNumber(value){
+  if(value===undefined||value===null||value==="") return null;
+  const number=Number(value);
+  return Number.isFinite(number)&&number>0?number:null;
+}
+
+function cardMoney(value){
+  const number=nullableCardNumber(value);
+  return number===null
+    ? "No public data"
+    : new Intl.NumberFormat("en-US",{
+        style:"currency",
+        currency:"USD",
+        minimumFractionDigits:2,
+        maximumFractionDigits:2
+      }).format(number);
+}
+
+function cardText(value,fallback="--"){
+  const text=String(value??"").trim();
+  return text||fallback;
+}
+
+function setCardText(id,value,fallback="--"){
+  const node=$(id);
+  if(node) node.textContent=cardText(value,fallback);
+}
+
+function normalizeCardPricing(card={}){
+  const pricing=card.pricing||{};
+  const prices=card.prices||{};
+  const market=pricing.market||pricing.market_price||prices.market||prices.raw||null;
+
+  return {
+    currency:firstCardValue(pricing,["currency","unit"])||"USD",
+    rawMarket:firstCardValue(card,[
+      "market_price","raw_market","raw_value","price"
+    ])??market,
+    rawLow:firstCardValue(card,[
+      "raw_low","low_price","market_low"
+    ])??firstCardValue(pricing,["low","low_price"]),
+    rawHigh:firstCardValue(card,[
+      "raw_high","high_price","market_high"
+    ])??firstCardValue(pricing,["high","high_price"]),
+    psa10:firstCardValue(card,[
+      "psa10_price","psa_10_price","graded_10_value"
+    ])??firstCardValue(pricing,["psa10","psa_10"]),
+    psa9:firstCardValue(card,[
+      "psa9_price","psa_9_price","graded_9_value"
+    ])??firstCardValue(pricing,["psa9","psa_9"]),
+    psa8:firstCardValue(card,[
+      "psa8_price","psa_8_price","graded_8_value"
+    ])??firstCardValue(pricing,["psa8","psa_8"]),
+    lastSoldRaw:firstCardValue(card,[
+      "last_sold_raw","raw_last_sold"
+    ])??firstCardValue(pricing,["last_sold_raw"]),
+    lastSoldPsa10:firstCardValue(card,[
+      "last_sold_psa10","psa10_last_sold"
+    ])??firstCardValue(pricing,["last_sold_psa10"]),
+    population:firstCardValue(card,[
+      "population","psa10_population","psa_10_population"
+    ]),
+    salesVolume30d:firstCardValue(card,[
+      "sales_volume_30d","sales_30d","volume_30d"
+    ])??firstCardValue(pricing,["sales_volume_30d"]),
+    provider:firstCardValue(card,[
+      "price_source","pricing_source"
+    ])??firstCardValue(pricing,["source","provider"]),
+    updatedAt:firstCardValue(card,[
+      "price_updated_at","pricing_updated_at"
+    ])??firstCardValue(pricing,["updated_at","updatedAt"])
+  };
+}
+
+function rarityEventTier(card={}){
+  const rarity=String(
+    card.rarity_tier||
+    card.rarity||
+    ""
+  ).toLowerCase();
+
+  if(
+    rarity.includes("special art")||
+    rarity.includes("special illustration")||
+    rarity.includes("sar")||
+    rarity.includes("secret")
+  ) return "Special";
+
+  if(
+    rarity.includes("illustration")||
+    rarity.includes("art rare")||
+    rarity.includes("ir")
+  ) return "Illustration Rare";
+
+  if(
+    rarity.includes("double rare")||
+    rarity.includes("double")||
+    rarity.includes("ex")
+  ) return "Double Rare";
+
+  if(rarity.includes("rare")) return "Rare";
+  return "Standard";
+}
+
+function rarityAnimationName(tier){
+  return {
+    "Special":"Cinematic chase reveal",
+    "Illustration Rare":"Illustration shimmer",
+    "Double Rare":"Double Rare burst",
+    "Rare":"Rare shimmer",
+    "Standard":"Standard reveal"
+  }[tier]||"Standard reveal";
+}
+
+function raritySoundName(tier){
+  return {
+    "Special":"Special card fanfare",
+    "Illustration Rare":"Illustration Rare hit",
+    "Double Rare":"Double Rare hit",
+    "Rare":"Rare hit",
+    "Standard":"Default scan"
+  }[tier]||"Default scan";
+}
+
+function readablePriceTimestamp(value){
+  if(!value) return "--";
+  const numeric=Number(value);
+  const date=Number.isFinite(numeric)
+    ? new Date(numeric<100000000000?numeric*1000:numeric)
+    : new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "--"
+    : date.toLocaleString();
+}
+
+function renderExtendedCardData(card={},snapshot={},confidence=0,verified=false){
+  const printedName=firstCardValue(card,[
+    "printed_name","localized_name","name"
+  ]);
+  const englishName=firstCardValue(card,[
+    "english_name","translated_name","canonical_name"
+  ]);
+  const pricing=normalizeCardPricing(card);
+  const tier=rarityEventTier(card);
+
+  setCardText("cardPrintedName",printedName);
+  setCardText("cardEnglishName",englishName);
+  setCardText("cardPokemonName",firstCardValue(card,[
+    "pokemon_name","character_name","species"
+  ])||englishName||printedName);
+
+  setCardText("cardSetName",firstCardValue(card,[
+    "set_name","set"
+  ]));
+  setCardText("cardSetCode",firstCardValue(card,[
+    "set_code","set_id"
+  ]));
+  setCardText("cardCollectorNumber",firstCardValue(card,[
+    "collector_number","card_number"
+  ])||snapshot?.collector_number);
+  setCardText("cardLanguage",firstCardValue(card,[
+    "language","language_name","language_code"
+  ])||snapshot?.language);
+  setCardText("cardRarity",card.rarity);
+  setCardText("cardVariant",firstCardValue(card,[
+    "variant","variant_name","rarity_variant"
+  ]));
+  setCardText("cardFinish",firstCardValue(card,[
+    "finish","foil","foil_type","surface"
+  ]));
+  setCardText("cardReleaseYear",firstCardValue(card,[
+    "release_year","year"
+  ]));
+  setCardText("cardTypeValue",firstCardValue(card,[
+    "card_type","category","supertype"
+  ]));
+  setCardText("cardHpValue",firstCardValue(card,["hp"]));
+  setCardText("cardEnergyType",firstCardValue(card,[
+    "energy_type","type","types"
+  ]));
+
+  setCardText("rawValue",cardMoney(pricing.rawMarket));
+  setCardText("rawLowValue",cardMoney(pricing.rawLow));
+  setCardText("rawHighValue",cardMoney(pricing.rawHigh));
+  setCardText("psaValue",cardMoney(pricing.psa10));
+  setCardText("psa9Value",cardMoney(pricing.psa9));
+  setCardText("psa8Value",cardMoney(pricing.psa8));
+  setCardText("lastSoldRawValue",cardMoney(pricing.lastSoldRaw));
+  setCardText("lastSoldPsa10Value",cardMoney(pricing.lastSoldPsa10));
+  setCardText("populationValue",pricing.population);
+  setCardText("salesVolumeValue",pricing.salesVolume30d);
+  setCardText("pricingSource",pricing.provider,"No provider connected");
+  setCardText("pricingUpdatedAt",readablePriceTimestamp(pricing.updatedAt));
+
+  setCardText("rarityTierValue",tier);
+  setCardText("overlayAnimationValue",rarityAnimationName(tier));
+  setCardText("overlaySoundValue",raritySoundName(tier));
+  setCardText(
+    "overlayTrackingValue",
+    verified
+      ? "Locked to recognized card"
+      : confidence>=0.68
+      ? "Candidate tracking"
+      : "Waiting for lock"
+  );
+}
+
+function resetExtendedCardData(){
+  [
+    "cardPrintedName",
+    "cardEnglishName",
+    "cardPokemonName",
+    "cardSetName",
+    "cardSetCode",
+    "cardCollectorNumber",
+    "cardLanguage",
+    "cardRarity",
+    "cardVariant",
+    "cardFinish",
+    "cardReleaseYear",
+    "cardTypeValue",
+    "cardHpValue",
+    "cardEnergyType",
+    "rawLowValue",
+    "rawHighValue",
+    "psa9Value",
+    "psa8Value",
+    "lastSoldRawValue",
+    "lastSoldPsa10Value",
+    "salesVolumeValue",
+    "pricingUpdatedAt"
+  ].forEach(id=>setCardText(id,null));
+
+  setCardText("rawValue",null,"No public data");
+  setCardText("psaValue",null,"No public data");
+  setCardText("populationValue",null);
+  setCardText("pricingSource",null,"No provider connected");
+  setCardText("rarityTierValue","Standard");
+  setCardText("overlayAnimationValue","Standard reveal");
+  setCardText("overlaySoundValue","Default scan");
+  setCardText("overlayTrackingValue","Waiting for lock");
+}
+

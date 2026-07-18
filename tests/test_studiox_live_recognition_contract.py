@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 
 def test_studiox_uses_recognition_state_contract() -> None:
@@ -68,10 +68,10 @@ def test_control_html_busts_studiox_cache() -> None:
         encoding="utf-8"
     )
 
-    assert "/static/studiox.js?v=6.4.15" in html
+    assert "/static/studiox.js?v=6.4.15-carddata1" in html
     assert "/static/studiox.css?v=6.4.12" in html
     assert "/static/studiox_ui4_tokens.css?v=6.4.15-ui4structural" in html
-    assert "/static/studiox_update15.css?v=6.4.15-ui4structural" in html
+    assert "/static/studiox_update15.css?v=6.4.15-carddata1" in html
     assert html.index("studiox_ui4_tokens.css") < html.index("studiox_update15.css")
     assert html.index("studiox_update15.css") < html.index("studiox.js?v=6.4.15")
     assert 'http-equiv="Cache-Control"' in html
