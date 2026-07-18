@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import threading
 import time
@@ -523,7 +523,7 @@ class MultiFrameAcquisitionBuffer:
             < self.ARTWORK_STRONG_STRUCTURAL_SIMILARITY_THRESHOLD
         )
         identity_changed = bool(
-            primary_identity_changed or artwork_identity_changed
+            primary_identity_changed
         )
         identity_collapsed = (
             full_distance < self.FULL_CARD_HASH_THRESHOLD - 4
@@ -693,14 +693,14 @@ class ConfidenceLockTracker:
     def __init__(
         self,
         *,
-        stable_target: int = 8,
-        detect_threshold: float = 0.42,
-        lock_threshold: float = 0.76,
+        stable_target: int = 4,
+        detect_threshold: float = 0.32,
+        lock_threshold: float = 0.48,
         unlock_threshold: float = 0.44,
         smoothing: float = 0.28,
-        missing_tolerance: int = 3,
-        movement_soft_limit: float = 0.016,
-        movement_hard_limit: float = 0.050,
+        missing_tolerance: int = 6,
+        movement_soft_limit: float = 0.035,
+        movement_hard_limit: float = 0.075,
     ) -> None:
         self.stable_target = int(stable_target)
         self.detect_threshold = float(detect_threshold)
@@ -838,7 +838,7 @@ class ConfidenceLockTracker:
         if (
             visible
             and movement < self.movement_soft_limit
-            and self.lock_confidence >= 0.48
+            and self.lock_confidence >= 0.18
         ):
             self.stable_frames = min(
                 self.stable_target,
@@ -868,7 +868,7 @@ class ConfidenceLockTracker:
 
 
 class VisionService:
-    STABLE_TARGET = 8
+    STABLE_TARGET = 4
     MIN_CARD_AREA_FRACTION = 0.015
     MIN_ENVELOPE_ASPECT_SCORE = 0.70
     MIN_ENVELOPE_SUPPORTED_SIDES = 3
@@ -2955,3 +2955,8 @@ class VisionService:
                     "payload": self.status(),
                 }
             )
+
+
+
+
+

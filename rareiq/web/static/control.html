@@ -26,10 +26,153 @@
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.4.15-ui4structural">
 <link rel="stylesheet" href="/static/studiox_update15.css?v=6.4.15-carddata1">
-<script defer src="/static/studiox.js?v=6.4.15-carddata1"></script>
+<script defer src="/static/studiox.js?v=6.4.15-ocrname1"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
-    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"></head>
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><style id="ui4-unified-card-stage-overrides">
+body.studiox-ui4 .ui4-unified-card-stage {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+body.studiox-ui4 #inspectorEmpty {
+  padding: 10px 12px 12px;
+}
+
+body.studiox-ui4 #inspectorEmpty .ui4-waiting-card-state {
+  display: grid;
+  gap: 10px;
+}
+
+body.studiox-ui4 #cardPlaceholder {
+  position: relative;
+  width: 100%;
+  min-height: 235px;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid rgba(92, 210, 255, 0.22);
+  border-radius: 14px;
+  box-shadow: none;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(87, 82, 255, 0.17), transparent 48%),
+    linear-gradient(180deg, rgba(8, 20, 33, 0.94), rgba(5, 14, 24, 0.98));
+}
+
+body.studiox-ui4 #cardPlaceholder::before {
+  content: "";
+  position: absolute;
+  inset: 14px;
+  border: 1px solid rgba(92, 210, 255, 0.1);
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+body.studiox-ui4 #cardPlaceholder .ui4-card-placeholder-glow {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at center,
+    rgba(91, 84, 255, 0.22),
+    transparent 56%
+  );
+  pointer-events: none;
+}
+
+body.studiox-ui4 #cardPlaceholder .ui4-card-placeholder-logo {
+  position: relative;
+  z-index: 2;
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+}
+
+body.studiox-ui4 #cardPlaceholder .ui4-card-placeholder-copy {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 20px;
+  z-index: 3;
+  display: grid;
+  gap: 5px;
+  text-align: center;
+}
+
+body.studiox-ui4 #cardPlaceholder .ui4-card-placeholder-copy strong {
+  font-size: 14px;
+}
+
+body.studiox-ui4 #cardPlaceholder .ui4-card-placeholder-copy span {
+  font-size: 11px;
+  opacity: 0.72;
+}
+
+body.studiox-ui4 #cardPlaceholder .ui4-card-placeholder-scan {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 16%;
+  height: 1px;
+  z-index: 2;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(94, 230, 255, 0.92),
+    transparent
+  );
+}
+
+body.studiox-ui4 #cardPlaceholder.state-searching .ui4-card-placeholder-scan,
+body.studiox-ui4 #cardPlaceholder.state-matched .ui4-card-placeholder-scan {
+  opacity: 1;
+  animation: ui4UnifiedCardScan 1.8s linear infinite;
+}
+
+body.studiox-ui4 #inspectorMain {
+  padding: 10px 12px 12px;
+}
+
+body.studiox-ui4 #inspectorMain .card-showcase,
+body.studiox-ui4 #inspectorMain .card-art {
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+body.studiox-ui4 #inspectorMain .card-art {
+  min-height: 235px;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(87, 82, 255, 0.14), transparent 52%),
+    linear-gradient(180deg, rgba(8, 20, 33, 0.94), rgba(5, 14, 24, 0.98));
+}
+
+@keyframes ui4UnifiedCardScan {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+
+  12% {
+    opacity: 1;
+  }
+
+  88% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(165px);
+    opacity: 0;
+  }
+}
+</style>
+</head>
 <body class="studiox-ui4" data-ui4-region="application-shell">
 <div class="instant-splash" id="instantSplash">
   <img src="/static/brand/rareiq_full_transparent.png" alt="RareIQ">
@@ -222,7 +365,7 @@
           <strong id="recognitionStateLabel">IDLE</strong>
           <span id="recognitionStateDetail">Waiting for a card</span>
         </div>
-        <div class="inspector-empty" id="inspectorEmpty">
+        <div class="inspector-empty ui4-unified-card-stage" id="inspectorEmpty">
           <div class="ui4-waiting-card-state">
             <div class="ui4-card-placeholder" id="cardPlaceholder">
               <div class="ui4-card-placeholder-glow"></div>
@@ -302,7 +445,7 @@
             <span class="copilot-chip">Operator recommendations</span>
           </div>
         </div>
-        <div class="inspector-main" id="inspectorMain" style="display:none">
+        <div class="inspector-main ui4-unified-card-stage" id="inspectorMain" style="display:none">
           <div class="ui4-card-identity-layout">
             <div class="card-showcase">
               <div class="card-art" id="cardArt">
@@ -818,4 +961,7 @@
 <div class="operator-toast" id="operatorToast"></div>
 </body>
 </html>
+
+
+
 

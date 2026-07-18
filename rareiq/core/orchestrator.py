@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 import asyncio
 import time
 import cv2
@@ -309,17 +309,24 @@ class RareIQOrchestrator:
         state: str,
         *,
         frame_id: int | None = None,
-        present: bool = False,
+        present: bool | None = None,
         clear: bool = False,
     ) -> None:
         previous = self._continuous_state
         self._continuous_state = state
         self._continuous_state_at = time.time()
+
+        effective_present = (
+            bool(present)
+            if present is not None
+            else state not in {"EMPTY", "LOST"}
+        )
+
         self.recognition_state.set_continuous_state(
             state,
             generation=self._recognition_generation,
             frame_id=frame_id,
-            card_present=present,
+            card_present=effective_present,
             clear_result=clear,
         )
         self._append_diagnostic(
@@ -399,7 +406,7 @@ class RareIQOrchestrator:
             and int(payload.get("changed_frames") or 0) >= 6
             and (primary_identity_change or artwork_identity_change)
         )
-        if self._continuous_state == "RECOGNIZING" and not decisive:
+        if self._continuous_state == "RECOGNIZING":
             self._deferred_change_evidence = {
                 **payload,
                 "deferred_at": time.time(),
@@ -1068,5 +1075,7 @@ class RareIQOrchestrator:
         s, removed = self.sessions.undo(); await self.publish("session_updated", {"session": s, "removed": removed}); return s
     async def close_session(self):
         s = self.sessions.close(); await self.publish("session_closed", {"session": s}); return s
+
+
 
 

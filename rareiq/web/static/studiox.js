@@ -1,4 +1,4 @@
-
+﻿
 const $ = id => document.getElementById(id);
 let selectedCamera = null;
 let cameraStreamStarted = false;
@@ -1526,46 +1526,76 @@ async function loadRecognition(){
       snapshot?.verification_state ||
       "IDLE"
     ).toUpperCase();
-
-    const clearInspector = ["EMPTY", "CHANGING"].includes(phase) ||
+    const clearInspector =
+      ["EMPTY", "CHANGING"].includes(phase) ||
       (phase === "LOST" && !snapshot?.card_present);
-    if(clearInspector){
-      snapshot.primary_candidate=null;
-      snapshot.provisional_candidate=null;
-      candidates.length=0;
-      card=null;
+
+    const hadVisibleCard = Boolean(
+      previousCardId &&
+      $("inspectorMain")?.style.display !== "none"
+    );
+
+    
+    const missingCurrentCard =
+      !card &&
+      !candidates.length;
+
+    if(
+      hadVisibleCard &&
+      (
+        clearInspector ||
+        missingCurrentCard
+      )
+    ){
+      return;
+    }
+
+    if (clearInspector) {
+      snapshot.primary_candidate = null;
+      snapshot.provisional_candidate = null;
+      candidates.length = 0;
+      card = null;
+
       resetRecognitionPresentation("backend_empty");
+      setRecognitionState("idle", "Waiting for a card.");
+
+      setCopilot(
+        "STANDBY",
+        "Place a card in the scan zone. RareIQ will identify, verify, and explain what it finds."
+      );
+
+      return;
     }
 
     const confidence = normalize(
-      card?.fused_score ??
-      card?.score ??
-      card?.confidence ??
-      (
-        card === snapshot?.primary_candidate
-          ? snapshot?.overall_confidence ?? snapshot?.confidence
-          : 0
-      ) ??
-      raw?.fused_score ??
-      raw?.confidence ??
-      0
-    );
+        card?.fused_score ??
+        card?.score ??
+        card?.confidence ??
+        (
+          card === snapshot?.primary_candidate
+            ? snapshot?.overall_confidence ?? snapshot?.confidence
+            : 0
+        ) ??
+        raw?.fused_score ??
+        raw?.confidence ??
+        0
+      );
 
-    const locked = Boolean(
-      snapshot?.recognition_locked ||
-      raw?.recognition_locked
-    );
+      const locked = Boolean(
+        snapshot?.recognition_locked ||
+        raw?.recognition_locked
+      );
 
-    const hasCandidate = Boolean(
-      card ||
-      snapshot?.provisional_candidate ||
-      candidates.length
-    );
+      const hasCandidate = Boolean(
+        card ||
+        snapshot?.provisional_candidate ||
+        candidates.length
+      );
 
-    const verified = Boolean(
-      realIdentityCandidate ||
-      verifiedVisualCandidate
-    );
+      const verified = Boolean(
+        realIdentityCandidate ||
+        verifiedVisualCandidate
+      );
 
     $("aiState").textContent = verified
       ? "VERIFIED"
@@ -1896,7 +1926,7 @@ async function loadRecognition(){
       updateConfidenceRing(0);
     }
 
-      if(verified){
+      if(cardId){
         previousCardId = cardId;
       }
     }else{
@@ -2664,4 +2694,10 @@ function resetExtendedCardData(){
   setCardText("overlaySoundValue","Default scan");
   setCardText("overlayTrackingValue","Waiting for lock");
 }
+
+
+
+
+
+
 
