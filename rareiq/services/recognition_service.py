@@ -876,13 +876,42 @@ class RecognitionService:
                 {
                     "id": item.get("id"),
                     "name": (
-                        item.get("name")
+                        item.get("english_name")
+                        or item.get("canonical_name")
+                        or item.get("pokemon_name")
+                        or item.get("name")
+                        or item.get("printed_name")
+                        or "Visual match"
+                    ),
+                    "display_name": (
+                        item.get("english_name")
+                        or item.get("canonical_name")
+                        or item.get("pokemon_name")
+                        or item.get("display_name")
+                        or item.get("name")
                         or item.get("printed_name")
                         or "Visual match"
                     ),
                     "printed_name": item.get("printed_name"),
+                    "english_name": item.get("english_name"),
+                    "canonical_name": item.get("canonical_name"),
+                    "pokemon_name": item.get("pokemon_name"),
+                    "pricing_lookup_name": item.get(
+                        "pricing_lookup_name"
+                    ),
+                    "identity_override_key": item.get(
+                        "identity_override_key"
+                    ),
+                    "category": item.get("category"),
+                    "hp": item.get("hp"),
+                    "types": item.get("types"),
+                    "energy_type": item.get("energy_type"),
                     "collector_number": item.get("collector_number"),
                     "language": item.get("language"),
+                    "language_code": (
+                        item.get("language_code")
+                        or item.get("language")
+                    ),
                     "score": float(item.get("score", 0.0)),
                     "source": item.get("source") or "global_visual_index",
                     "distance": item.get("distance"),
