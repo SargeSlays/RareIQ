@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 import asyncio
 import time
 import cv2
@@ -719,6 +719,44 @@ class RareIQOrchestrator:
             self._last_trigger_result = "recognition_failed"
             return
 
+        # Start catalog enrichment after every usable recognition result.
+        # Prefer OCR identity, but borrow missing metadata from the strongest
+        # non-provisional visual candidate.
+        catalog_request = dict(payload)
+
+        visual_candidate = next(
+            (
+                candidate
+                for candidate in candidates
+                if isinstance(candidate, dict)
+                and candidate.get("source") != "ocr_provisional"
+            ),
+            None,
+        )
+
+        if visual_candidate:
+            for key in (
+                "collector_number",
+                "language",
+                "printed_name",
+                "name",
+                "set_id",
+                "set_name",
+            ):
+                if not catalog_request.get(key):
+                    value = visual_candidate.get(key)
+                    if value not in (None, ""):
+                        catalog_request[key] = value
+
+        if not catalog_request.get("name_candidate"):
+            catalog_request["name_candidate"] = (
+                catalog_request.get("printed_name")
+                or catalog_request.get("name")
+                or name
+            )
+
+        self.catalog.submit(catalog_request)
+
         if name or number:
             evidence = " / ".join(
                 str(value)
@@ -906,6 +944,16 @@ class RareIQOrchestrator:
             else unified.get("overall_confidence")
             or 0.0
         )
+        pricing = dict(candidate.get("pricing") or {})
+
+        market_value = candidate.get("market_price")
+        if market_value is None:
+            market_value = candidate.get("raw_market")
+        if market_value is None:
+            market_value = candidate.get("raw_value")
+        if market_value is None:
+            market_value = pricing.get("market")
+
         signature = "|".join(
             str(value or "").strip().lower()
             for value in (
@@ -920,15 +968,43 @@ class RareIQOrchestrator:
             "collector_number": number,
             "language": language,
             "set_name": set_name,
+            "set_id": candidate.get("set_id"),
             "rarity": candidate.get("rarity") or "UNKNOWN",
+            "category": candidate.get("category"),
+            "hp": candidate.get("hp"),
+            "types": candidate.get("types"),
+            "energy_type": candidate.get("energy_type"),
             "source": candidate.get("source") or "unified_recognition",
+            "pricing": pricing,
+            "market_price": float(market_value or 0.0),
+            "raw_market": float(market_value or 0.0),
+            "raw_low": pricing.get("low"),
+            "raw_high": pricing.get("high"),
+            "price_source": (
+                candidate.get("price_source")
+                or pricing.get("source")
+            ),
+            "pricing_source": (
+                candidate.get("pricing_source")
+                or pricing.get("source")
+            ),
+            "currency": (
+                candidate.get("currency")
+                or pricing.get("currency")
+                or pricing.get("unit")
+                or "USD"
+            ),
+            "price_updated_at": (
+                candidate.get("price_updated_at")
+                or pricing.get("updated_at")
+            ),
             "reference_image_url": (
                 candidate.get("reference_image_url")
                 or candidate.get("image_url")
                 or candidate.get("image")
                 or "/api/camera/crop.jpg"
             ),
-            "raw_value": float(candidate.get("market_price") or 0.0),
+            "raw_value": float(market_value or 0.0),
             "confidence": confidence,
             "recognition_signature": signature,
             "recognition_revision": unified.get("revision"),

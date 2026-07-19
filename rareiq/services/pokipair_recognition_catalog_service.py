@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -286,6 +287,28 @@ class PokiPairRecognitionCatalogService:
                 "",
             )
         ).strip()
+
+        # PokiPair records frequently omit structured collector metadata,
+        # while the card-list position is embedded at the end of the label,
+        # URL, or local filename.
+        if not collector_number:
+            number_sources = (
+                label,
+                source_url,
+                local_path,
+            )
+
+            for number_source in number_sources:
+                number_match = re.search(
+                    r"(?:^|[-_])(\d{1,3})(?:\.[A-Za-z0-9]+)?$",
+                    str(number_source or "").strip(),
+                )
+
+                if number_match:
+                    collector_number = (
+                        number_match.group(1).zfill(3)
+                    )
+                    break
 
         record_id = self._stable_id(
             set_id=set_id,

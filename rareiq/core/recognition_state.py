@@ -254,6 +254,173 @@ class RecognitionStateStore:
             candidates.append(item)
 
         primary = candidates[0] if candidates else None
+
+        # A provisional OCR guess must not outrank a real visual database
+        # candidate that has matched reference artwork. OCR remains supporting
+        # evidence for the printed name, language, and collector number.
+        visual_primary = next(
+            (
+                candidate
+                for candidate in candidates
+                if isinstance(candidate, dict)
+                and candidate.get("source") != "ocr_provisional"
+                and (
+                    candidate.get("reference_image_url")
+                    or candidate.get("reference_image")
+                    or candidate.get("local_image")
+                    or candidate.get("image_path")
+                )
+            ),
+            None,
+        )
+
+        if visual_primary is not None:
+            primary = copy.deepcopy(visual_primary)
+
+            if printed and not primary.get("printed_name"):
+                primary["printed_name"] = printed
+
+            if number and not primary.get("collector_number"):
+                primary["collector_number"] = number
+
+            if raw.get("language") and not primary.get("language"):
+                primary["language"] = raw.get("language")
+
+            candidates = [
+                primary,
+                *[
+                    candidate
+                    for candidate in candidates
+                    if self._candidate_key(candidate)
+                    != self._candidate_key(visual_primary)
+                ],
+            ]
+
+        # Enrich the strongest visual candidate with catalog identity and
+        # pricing. Recognition and catalog lookup are independent pipelines,
+        # so the winning artwork candidate may not contain the metadata that
+        # already exists on the matching catalog record.
+        if primary:
+            wanted_number = str(
+                primary.get("collector_number")
+                or number
+                or ""
+            ).strip()
+
+            catalog_partner = None
+
+            if isinstance(catalog.get("match"), dict):
+                catalog_partner = catalog.get("match")
+
+            if catalog_partner is None and wanted_number:
+                catalog_partner = next(
+                    (
+                        item
+                        for item in catalog_items
+                        if isinstance(item, dict)
+                        and str(
+                            item.get("collector_number") or ""
+                        ).strip() == wanted_number
+                    ),
+                    None,
+                )
+
+            if catalog_partner is None and len(catalog_items) == 1:
+                only_item = catalog_items[0]
+                if isinstance(only_item, dict):
+                    catalog_partner = only_item
+
+            if catalog_partner is not None:
+                enriched = copy.deepcopy(primary)
+
+                for key in (
+                    "english_name",
+                    "canonical_name",
+                    "collector_number",
+                    "local_id",
+                    "set_id",
+                    "set_name",
+                    "set_total",
+                    "set_official",
+                    "rarity",
+                    "category",
+                    "hp",
+                    "types",
+                    "energy_type",
+                    "language",
+                    "language_code",
+                    "reference_image",
+                    "reference_image_url",
+                    "english_image_url",
+                    "image_url",
+                    "pricing",
+                ):
+                    value = catalog_partner.get(key)
+                    if value not in (None, "", [], {}):
+                        if enriched.get(key) in (None, "", [], {}):
+                            enriched[key] = copy.deepcopy(value)
+
+                partner_name = str(
+                    catalog_partner.get("name")
+                    or catalog_partner.get("printed_name")
+                    or ""
+                ).strip()
+
+                partner_language = str(
+                    catalog_partner.get("language_code")
+                    or catalog_partner.get("language")
+                    or ""
+                ).lower()
+
+                if (
+                    partner_name
+                    and partner_language in {"en", "english"}
+                    and not enriched.get("english_name")
+                ):
+                    enriched["english_name"] = partner_name
+
+                current_name = str(
+                    enriched.get("printed_name")
+                    or enriched.get("name")
+                    or ""
+                ).strip()
+
+                looks_like_filename = (
+                    len(current_name) > 70
+                    or "-set-list-" in current_name.lower()
+                    or "-pokemon-" in current_name.lower()
+                    or "-pokipair-" in current_name.lower()
+                    or current_name.lower().endswith(
+                        (".jpg", ".jpeg", ".png", ".webp", ".avif")
+                    )
+                )
+
+                if printed and (
+                    not enriched.get("printed_name")
+                    or looks_like_filename
+                ):
+                    enriched["printed_name"] = printed
+
+                pricing = dict(enriched.get("pricing") or {})
+                if pricing:
+                    enriched["market_price"] = pricing.get("market")
+                    enriched["raw_market"] = pricing.get("market")
+                    enriched["raw_value"] = pricing.get("market")
+                    enriched["raw_low"] = pricing.get("low")
+                    enriched["raw_high"] = pricing.get("high")
+                    enriched["price_source"] = pricing.get("source")
+                    enriched["pricing_source"] = pricing.get("source")
+                    enriched["price_updated_at"] = pricing.get("updated_at")
+                    enriched["pricing_updated_at"] = pricing.get("updated_at")
+                    enriched["currency"] = (
+                        pricing.get("currency")
+                        or pricing.get("unit")
+                        or "USD"
+                    )
+
+                primary = enriched
+                candidates[0] = primary
+
         english_name = None
 
         if primary:

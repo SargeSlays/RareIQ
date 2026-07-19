@@ -188,8 +188,11 @@ class CandidateRankerService:
                     if (
                         collector_number
                         and number
-                        and collector_number
-                        == number
+                        and (
+                            collector_number == number
+                            or collector_number.split("/", 1)[0].lstrip("0")
+                            == number.split("/", 1)[0].lstrip("0")
+                        )
                     )
                     else 0.0
                 ),

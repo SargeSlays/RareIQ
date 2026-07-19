@@ -43,28 +43,54 @@ class CatalogService:
             return dict(self._status)
 
     def submit(self, recognition: dict[str, Any]) -> None:
-        number = recognition.get("collector_number") or recognition.get("ocr_collector_number")
-        if not number or "/" not in str(number):
+        number = (
+            recognition.get("collector_number")
+            or recognition.get("ocr_collector_number")
+        )
+        name = (
+            recognition.get("name_candidate")
+            or recognition.get("printed_name")
+            or recognition.get("name")
+        )
+
+        number_text = str(number or "").strip()
+        name_text = str(name or "").strip()
+
+        has_number = bool(number_text and "/" in number_text)
+        has_name = bool(name_text)
+
+        if not has_number and not has_name:
             return
 
-        language = str(recognition.get("language") or "Unknown")
-        name = recognition.get("name_candidate")
-        key = f"{language}|{number}|{name or ''}"
+        language = str(
+            recognition.get("language") or "Unknown"
+        )
+
+        key = f"{language}|{number_text}|{name_text}"
 
         with self._lock:
             if self._busy or key == self._last_key:
                 return
+
             self._busy = True
             self._last_key = key
             self._status.update({
                 "busy": True,
-                "query": {"language": language, "number": number, "name": name},
+                "query": {
+                    "language": language,
+                    "number": number_text or None,
+                    "name": name_text or None,
+                },
                 "error": None,
             })
 
         threading.Thread(
             target=self._lookup_worker,
-            args=(language, str(number), name),
+            args=(
+                language,
+                number_text,
+                name_text or None,
+            ),
             daemon=True,
         ).start()
 
@@ -125,6 +151,7 @@ class CatalogService:
                         "low": low,
                         "high": high,
                         "unit": tcgplayer.get("unit", "USD"),
+                        "updated_at": time.time(),
                     }
 
         cardmarket = pricing.get("cardmarket") or {}
@@ -136,6 +163,7 @@ class CatalogService:
                 "low": cardmarket.get("low"),
                 "high": None,
                 "unit": cardmarket.get("unit", "EUR"),
+                "updated_at": time.time(),
             }
         return None
 
@@ -225,6 +253,62 @@ class CatalogService:
         self._write_cache(language_code, number, payload)
         return payload
 
+    def _lookup_name(
+        self,
+        language_code: str,
+        name: str,
+    ) -> dict[str, Any]:
+        query = urllib.parse.urlencode({
+            "name": f"eq:{name}",
+        })
+
+        cards_url = (
+            f"{self.API_BASE}/{language_code}/cards?{query}"
+        )
+
+        briefs = self._http_json(cards_url)
+
+        if not isinstance(briefs, list):
+            briefs = []
+
+        details: list[dict[str, Any]] = []
+
+        with ThreadPoolExecutor(max_workers=6) as executor:
+            futures = {
+                executor.submit(
+                    self._http_json,
+                    (
+                        f"{self.API_BASE}/{language_code}/cards/"
+                        f"{brief.get('id')}"
+                    ),
+                ): brief
+                for brief in briefs[:30]
+                if brief.get("id")
+            }
+
+            for future in as_completed(futures):
+                try:
+                    card = future.result()
+                except Exception:
+                    continue
+
+                if not isinstance(card, dict):
+                    continue
+
+                details.append(
+                    self._normalize_card(
+                        card,
+                        language_code,
+                    )
+                )
+
+        return {
+            "source": "tcgdex",
+            "language_code": language_code,
+            "name": name,
+            "candidates": details,
+        }
+
     def _lookup_worker(self, language: str, number: str, name: str | None) -> None:
         started = time.perf_counter()
         try:
@@ -235,9 +319,23 @@ class CatalogService:
 
             for code in language_codes:
                 try:
-                    result = self._lookup_language(code, number)
+                    if number and "/" in number:
+                        result = self._lookup_language(
+                            code,
+                            number,
+                        )
+                    elif name:
+                        result = self._lookup_name(
+                            code,
+                            name,
+                        )
+                    else:
+                        continue
+
                     source = result.get("source") or source
-                    all_candidates.extend(result.get("candidates") or [])
+                    all_candidates.extend(
+                        result.get("candidates") or []
+                    )
                 except Exception as exc:
                     notes.append(f"{code}: {exc}")
 
