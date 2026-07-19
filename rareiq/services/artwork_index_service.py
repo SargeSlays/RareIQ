@@ -669,6 +669,156 @@ class ArtworkIndexService:
                             )
                             member["variant_resolved"] = True
 
+        # Exact-print marker comparison must run independently
+        # of artwork-family expansion. Chinese printings can share the
+        # same artwork while differing mainly in their lower card regions.
+        marker_candidates = [
+            item
+            for item in shortlist
+            if (
+                str(
+                    item.get("source")
+                    or ""
+                ).lower() == "pokipair"
+                and bool(
+                    item.get(
+                        "verification_strong"
+                    )
+                )
+                and bool(
+                    item.get(
+                        "artwork_verification_strong"
+                    )
+                )
+                and item.get(
+                    "image_path"
+                )
+            )
+        ]
+
+        for member in marker_candidates:
+            marker_image_path = member.get(
+                "image_path"
+            )
+
+            marker_image = (
+                cv2.imread(
+                    str(
+                        marker_image_path
+                    )
+                )
+                if (
+                    marker_image_path
+                    and Path(
+                        str(
+                            marker_image_path
+                        )
+                    ).is_file()
+                )
+                else None
+            )
+
+            if marker_image is None:
+                member[
+                    "variant_marker_error"
+                ] = "reference_unreadable"
+                continue
+
+            member.update(
+                self._marker_evidence(
+                    artwork,
+                    marker_image,
+                )
+            )
+
+            member[
+                "variant_marker_evaluated"
+            ] = True
+
+        evaluated_markers = [
+            item
+            for item in marker_candidates
+            if item.get(
+                "variant_marker_evaluated"
+            )
+        ]
+
+        if len(evaluated_markers) >= 2:
+            best_marker = max(
+                float(
+                    item.get(
+                        "variant_marker_score"
+                    )
+                    or 0.0
+                )
+                for item in evaluated_markers
+            )
+
+            worst_marker = min(
+                float(
+                    item.get(
+                        "variant_marker_score"
+                    )
+                    or 0.0
+                )
+                for item in evaluated_markers
+            )
+
+            marker_gap = (
+                best_marker
+                - worst_marker
+            )
+
+            for member in evaluated_markers:
+                member[
+                    "variant_marker_gap"
+                ] = round(
+                    marker_gap,
+                    4,
+                )
+
+            if (
+                best_marker >= 0.20
+                and marker_gap >= 0.005
+            ):
+                family_base = max(
+                    float(
+                        item.get(
+                            "score"
+                        )
+                        or 0.0
+                    )
+                    for item in evaluated_markers
+                )
+
+                for member in evaluated_markers:
+                    marker = float(
+                        member.get(
+                            "variant_marker_score"
+                        )
+                        or 0.0
+                    )
+
+                    member["score"] = round(
+                        family_base
+                        - 0.70
+                        * (
+                            best_marker
+                            - marker
+                        ),
+                        4,
+                    )
+
+                    member[
+                        "variant_resolved"
+                    ] = True
+
+                    member[
+                        "variant_resolution_source"
+                    ] = (
+                        "independent_marker_comparison"
+                    )
+
         shortlist.sort(key=lambda row: (
             -float(row["score"]),
             int(row["first_stage_rank"]),

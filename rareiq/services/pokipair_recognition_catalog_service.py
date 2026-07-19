@@ -60,6 +60,23 @@ class PokiPairRecognitionCatalogService:
             / "master_cards.json"
         )
 
+        self.identity_overrides_path = (
+            self.project_root
+            / "catalog_master"
+            / "pokipair_identity_overrides.json"
+        )
+
+        loaded_overrides = self._read_json(
+            self.identity_overrides_path,
+            {},
+        )
+
+        self.identity_overrides = (
+            loaded_overrides
+            if isinstance(loaded_overrides, dict)
+            else {}
+        )
+
     @staticmethod
     def _now() -> str:
         return datetime.now(
@@ -316,6 +333,43 @@ class PokiPairRecognitionCatalogService:
             local_path=local_path,
         )
 
+        normalized_number = str(
+            collector_number or ""
+        ).strip().zfill(3)
+
+        override_key = (
+            f"{set_id.upper()}:{normalized_number}"
+        )
+
+        identity_override = self.identity_overrides.get(
+            override_key,
+            {},
+        )
+
+        if not isinstance(identity_override, dict):
+            identity_override = {}
+
+        english_name = (
+            identity_override.get("english_name")
+            or identity_override.get("canonical_name")
+            or identity_override.get("pokemon_name")
+        )
+
+        canonical_name = (
+            identity_override.get("canonical_name")
+            or english_name
+        )
+
+        pokemon_name = (
+            identity_override.get("pokemon_name")
+            or canonical_name
+            or english_name
+        )
+
+        printed_name = identity_override.get(
+            "printed_name"
+        )
+
         return {
             "id": record_id,
             "source": "pokipair",
@@ -325,11 +379,50 @@ class PokiPairRecognitionCatalogService:
             "collector_number": (
                 collector_number
             ),
-            "name": label,
-            "display_name": label,
-            "variant": None,
-            "rarity": None,
-            "category": "card",
+            "name": (
+                printed_name
+                or english_name
+                or label
+            ),
+            "display_name": (
+                english_name
+                or printed_name
+                or label
+            ),
+            "printed_name": printed_name,
+            "english_name": english_name,
+            "canonical_name": canonical_name,
+            "pokemon_name": pokemon_name,
+            "pricing_lookup_name": (
+                identity_override.get(
+                    "pricing_lookup_name"
+                )
+                or english_name
+            ),
+            "identity_override_key": (
+                override_key
+                if identity_override
+                else None
+            ),
+            "variant": identity_override.get(
+                "variant"
+            ),
+            "rarity": identity_override.get(
+                "rarity"
+            ),
+            "category": identity_override.get(
+                "category",
+                "card",
+            ),
+            "hp": identity_override.get(
+                "hp"
+            ),
+            "types": identity_override.get(
+                "types"
+            ),
+            "energy_type": identity_override.get(
+                "energy_type"
+            ),
             "reference_image": local_path,
             "reference_images": [
                 local_path
@@ -598,8 +691,77 @@ class PokiPairRecognitionCatalogService:
                         )
                     ),
                     "name": record.get(
+
                         "name"
+
                     ),
+
+                    "display_name": record.get(
+
+                        "display_name"
+
+                    ),
+
+                    "printed_name": record.get(
+
+                        "printed_name"
+
+                    ),
+
+                    "english_name": record.get(
+
+                        "english_name"
+
+                    ),
+
+                    "canonical_name": record.get(
+
+                        "canonical_name"
+
+                    ),
+
+                    "pokemon_name": record.get(
+
+                        "pokemon_name"
+
+                    ),
+
+                    "pricing_lookup_name": record.get(
+
+                        "pricing_lookup_name"
+
+                    ),
+
+                    "identity_override_key": record.get(
+
+                        "identity_override_key"
+
+                    ),
+
+                    "category": record.get(
+
+                        "category"
+
+                    ),
+
+                    "hp": record.get(
+
+                        "hp"
+
+                    ),
+
+                    "types": record.get(
+
+                        "types"
+
+                    ),
+
+                    "energy_type": record.get(
+
+                        "energy_type"
+
+                    ),
+
                     "language": "zh-cn",
                     "image_path": (
                         record[

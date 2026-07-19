@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import threading
 import time
@@ -2686,6 +2686,7 @@ class VisionService:
                                 detection_confidence=result.confidence,
                                 acquisition_epoch=self._acquisition_epoch,
                                 captured_at=time.time(),
+                                provenance=self._capture_provenance(),
                             )
                             self._auto_capture_armed = True
                             self._best_lock_crop = result.crop.copy()

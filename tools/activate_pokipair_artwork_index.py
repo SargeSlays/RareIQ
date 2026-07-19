@@ -203,14 +203,38 @@ def activate(
                 )
                 or card_id
             ),
+            "display_name": reference.get(
+                "display_name"
+            ),
             "printed_name": reference.get(
                 "printed_name"
+            ),
+            "english_name": reference.get(
+                "english_name"
+            ),
+            "canonical_name": reference.get(
+                "canonical_name"
+            ),
+            "pokemon_name": reference.get(
+                "pokemon_name"
+            ),
+            "pricing_lookup_name": reference.get(
+                "pricing_lookup_name"
             ),
             "collector_number": reference.get(
                 "collector_number"
             ),
             "language": (
                 reference.get(
+                    "language"
+                )
+                or "zh-cn"
+            ),
+            "language_code": (
+                reference.get(
+                    "language_code"
+                )
+                or reference.get(
                     "language"
                 )
                 or "zh-cn"
@@ -224,12 +248,39 @@ def activate(
             "rarity": reference.get(
                 "rarity"
             ),
+            "variant": reference.get(
+                "variant"
+            ),
+            "category": reference.get(
+                "category"
+            ),
+            "hp": reference.get(
+                "hp"
+            ),
+            "types": reference.get(
+                "types"
+            ),
+            "energy_type": reference.get(
+                "energy_type"
+            ),
             "image_path": str(
                 image_path
             ),
             "fingerprint": (
                 ArtworkIndexService
                 .fingerprint(
+                    image
+                )
+            ),
+            "artwork_fingerprint": (
+                ArtworkIndexService
+                .artwork_fingerprint(
+                    image
+                )
+            ),
+            "variant_marker_fingerprint": (
+                ArtworkIndexService
+                .variant_marker_fingerprint(
                     image
                 )
             ),
