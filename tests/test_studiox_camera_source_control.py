@@ -98,9 +98,9 @@ def test_restart_requires_an_explicit_selected_camera() -> None:
 
 
 def test_cache_is_advanced_and_ids_remain_unique() -> None:
-    assert "/static/studiox_ui4_tokens.css?v=6.4.15-shellbay29" in HTML
-    assert "/static/studiox_update15.css?v=6.4.15-shellbay29" in HTML
-    assert "/static/studiox.js?v=6.4.15-shellbay29" in HTML
+    assert "/static/studiox_ui4_tokens.css?v=6.4.15-shellbay31" in HTML
+    assert "/static/studiox_update15.css?v=6.4.15-shellbay31" in HTML
+    assert "/static/studiox.js?v=6.4.15-shellbay31" in HTML
     ids = re.findall(r'\bid="([^"]+)"', HTML)
     assert len(ids) == len(set(ids))
     assert ".camera-source-compact-menu" in CSS

@@ -2034,6 +2034,13 @@ body.studiox-premium :is(button,select,summary):focus-visible{
   }
 }
 
+/* Multi-camera Phase 1: real staging media uses the approved tile surface. */
+body.studiox-ui4.studiox-premium :is(.secondary-bay-content,.camera-workspace-staging-surface){position:relative}
+body.studiox-ui4.studiox-premium .camera-slot-preview,
+body.studiox-ui4.studiox-premium .studiox-secondary-bay[data-bay-mode="camera-2"] #secondaryBayImage{
+  position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#02070b;border:0
+}
+
 /* Camera-workspace visual system: one toolbar, one tile-header language. */
 body.studiox-ui4.studiox-premium .camera-workspace{
   --camera-toolbar-height:60px;

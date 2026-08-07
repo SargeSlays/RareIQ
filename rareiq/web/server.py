@@ -48,6 +48,23 @@ event_bus = EventBus()
 orchestrator = RareIQOrchestrator(event_bus, CAPTURE_DIR)
 
 
+def _clear_recognition_after_camera_switch(payload: dict[str, Any]) -> None:
+    status = orchestrator.camera_manager.status().get("vision") or {}
+    orchestrator._emit_from_thread({
+        "type": "card_removed",
+        "payload": {
+            "frame_id": status.get("frame_id"),
+            "reason": "active_camera_changed",
+            "camera_switch": payload,
+        },
+    })
+
+
+orchestrator.camera_manager.set_active_change_hook(
+    _clear_recognition_after_camera_switch
+)
+
+
 class SessionStartRequest(BaseModel):
     customer: str = Field(min_length=1, max_length=100)
     order_number: str = Field(min_length=1, max_length=100)
@@ -59,6 +76,11 @@ class SessionStartRequest(BaseModel):
 class CameraStartRequest(BaseModel):
     camera_index: int
     camera_backend: int
+
+
+class CameraSlotSourceRequest(BaseModel):
+    source_id: str | None = None
+    side: str | None = None
 
 class AutoCaptureRequest(BaseModel):
     enabled: bool
@@ -174,7 +196,8 @@ async def startup():
     asyncio.create_task(boot_in_background())
 
 @app.on_event("shutdown")
-async def shutdown(): orchestrator.vision.stop()
+async def shutdown():
+    await asyncio.to_thread(orchestrator.camera_manager.shutdown)
 
 @app.get("/")
 async def root():
@@ -259,7 +282,82 @@ async def list_cameras(force: bool = False):
         "cameras": cameras,
         "selected_camera": orchestrator.camera_manager.selected_camera(),
         "manager": orchestrator.camera_manager.status()["manager"],
+        "slots": orchestrator.camera_manager.camera_slots(),
     }
+
+
+@app.get("/api/camera-slots")
+async def camera_slots():
+    return {
+        "ok": True,
+        "active_slot": orchestrator.camera_manager.active_slot_id(),
+        "slots": orchestrator.camera_manager.camera_slots(),
+        "sessions": orchestrator.camera_manager.session_statuses(),
+    }
+
+
+@app.post("/api/camera-slots/{slot_id}/source")
+@app.put("/api/camera-slots/{slot_id}/source")
+async def assign_camera_slot(slot_id: int, req: CameraSlotSourceRequest):
+    try:
+        slot = await asyncio.to_thread(
+            orchestrator.camera_manager.assign_slot,
+            slot_id,
+            req.source_id,
+            req.side,
+        )
+    except ValueError as exc:
+        return JSONResponse(
+            status_code=400,
+            content={"ok": False, "error": "invalid_assignment", "message": str(exc)},
+        )
+    return {"ok": True, "slot": slot}
+
+
+@app.post("/api/camera-slots/{slot_id}/activate")
+async def activate_camera_slot(slot_id: int):
+    try:
+        return await asyncio.to_thread(
+            orchestrator.camera_manager.activate_slot, slot_id
+        )
+    except ValueError as exc:
+        return JSONResponse(
+            status_code=400,
+            content={"ok": False, "error": "invalid_activation", "message": str(exc)},
+        )
+    except RuntimeError as exc:
+        return JSONResponse(
+            status_code=503,
+            content={"ok": False, "error": "activation_failed", "message": str(exc)},
+        )
+
+
+@app.post("/api/cameras/{source_id}/reconnect")
+async def reconnect_camera_source(source_id: str):
+    try:
+        status = await asyncio.to_thread(
+            orchestrator.camera_manager.reconnect_source, source_id
+        )
+    except ValueError as exc:
+        return JSONResponse(
+            status_code=404,
+            content={"ok": False, "error": "source_not_found", "message": str(exc)},
+        )
+    return {"ok": True, "source": status}
+
+
+@app.post("/api/cameras/{source_id}/restart")
+async def restart_camera_source(source_id: str):
+    try:
+        status = await asyncio.to_thread(
+            orchestrator.camera_manager.restart_source, source_id
+        )
+    except ValueError as exc:
+        return JSONResponse(
+            status_code=404,
+            content={"ok": False, "error": "source_not_found", "message": str(exc)},
+        )
+    return {"ok": True, "source": status}
 
 @app.post("/api/camera/start")
 async def camera_start(req: CameraStartRequest):
@@ -1397,6 +1495,44 @@ async def camera_stream():
                 yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"+jpg+b"\r\n"
             await asyncio.sleep(0.04)
     return StreamingResponse(frames(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+
+@app.get("/api/camera-slots/{slot_id}/stream")
+async def camera_slot_stream(slot_id: int):
+    if slot_id not in {1, 2, 3, 4}:
+        return JSONResponse(
+            status_code=404,
+            content={"ok": False, "error": "invalid_slot", "message": "Camera slot must be between 1 and 4."},
+        )
+    slot = orchestrator.camera_manager.camera_slots()[slot_id - 1]
+    if not slot.get("source_id"):
+        return JSONResponse(
+            status_code=409,
+            content={"ok": False, "error": "unassigned", "message": "Camera slot is not assigned."},
+        )
+
+    async def frames():
+        orchestrator.camera_manager.subscribe_slot(slot_id)
+        try:
+            while True:
+                jpg = orchestrator.camera_manager.slot_jpeg(slot_id)
+                if jpg:
+                    yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + jpg + b"\r\n"
+                await asyncio.sleep(0.04)
+        except (asyncio.CancelledError, GeneratorExit, BrokenPipeError, ConnectionResetError):
+            return
+        finally:
+            orchestrator.camera_manager.unsubscribe_slot(slot_id)
+
+    return StreamingResponse(
+        frames(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={
+            "Cache-Control": "no-store, max-age=0",
+            "Pragma": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 @app.post("/api/session/start")
 async def start_session(req: SessionStartRequest): return {"ok":True,"session":await orchestrator.start_session(**req.model_dump())}

@@ -136,8 +136,8 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
     html = read("control.html")
     styles = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
     assert styles[-2:] == [
-        "/static/studiox_ui4_tokens.css?v=6.4.15-shellbay29",
-        "/static/studiox_update15.css?v=6.4.15-shellbay29",
+        "/static/studiox_ui4_tokens.css?v=6.4.15-shellbay31",
+        "/static/studiox_update15.css?v=6.4.15-shellbay31",
     ]
     assert len(styles) == 19
 

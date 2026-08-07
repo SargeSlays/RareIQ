@@ -71,6 +71,7 @@ let cameraWorkspacePreferences={
   sources:{"1":null,"2":null,"3":null,"4":null},
   sides:{"1":"unassigned","2":"unassigned","3":"unassigned","4":"unassigned"},
 };
+let cameraWorkspaceSlotStates={};
 
 
 
@@ -1060,11 +1061,17 @@ async function loadCameraList(options={}){
         select.appendChild(promptOption);
         appendCameraGroup(select,"Physical Cameras",cameras.filter(camera=>!isVirtualCamera(camera)));
         appendCameraGroup(select,"Virtual Cameras",cameras.filter(isVirtualCamera));
-        const savedAvailable=Boolean(
-          saved&&[...select.options].some(option=>option.value===saved)
-        );
+        const savedMatch=saved&&[...select.options].find(option=>{
+          if(option.value===saved) return true;
+          const candidate=decodeCameraValue(option.value);
+          return candidate&&savedCamera&&
+            Number(candidate.index)===Number(savedCamera.index)&&
+            Number(candidate.backend)===Number(savedCamera.backend);
+        });
+        const savedAvailable=Boolean(savedMatch);
         if(savedAvailable&&!savedVirtual){
-          select.value=saved;
+          select.value=savedMatch.value;
+          localStorage.setItem("rareiq.selectedCamera",savedMatch.value);
           readSelectedCamera();
           updateActiveCameraName(selectedCamera,"selected");
         }else{
@@ -1075,6 +1082,7 @@ async function loadCameraList(options={}){
         syncSecondarySourceOptions(cameras);
         syncCameraWorkspaceSourceOptions();
         renderCameraWorkspace();
+        await refreshCameraSlotState();
         return cameras;
       }
     }catch{}
@@ -1115,10 +1123,15 @@ function decodeCameraValue(value){
 
 function cameraOptionValue(camera,index=0){
   return encodeURIComponent(JSON.stringify({
+    source_id:camera?.source_id||null,
     index:Number(camera?.index??index),
     backend:Number(camera?.backend??700),
     name:camera?.name||`Camera ${index+1}`
   }));
+}
+
+function sourceIdFromCameraValue(value){
+  return decodeCameraValue(value)?.source_id||null;
 }
 
 function sortCameraDevices(cameras=[]){
@@ -1766,6 +1779,33 @@ function saveCameraWorkspacePreferences(){
   try{localStorage.setItem(CAMERA_WORKSPACE_KEY,JSON.stringify(cameraWorkspacePreferences));}catch{}
 }
 
+async function refreshCameraSlotState(){
+  try{
+    const result=await api("/api/camera-slots");
+    (result.slots||[]).forEach(slot=>{
+      const id=String(slot.slot_id);
+      cameraWorkspaceSlotStates[id]=slot;
+      cameraWorkspacePreferences.sources[id]=slot.source
+        ?cameraOptionValue(slot.source,slot.slot_id-1)
+        :null;
+      cameraWorkspacePreferences.sides[id]=slot.side||"unassigned";
+      if(slot.role==="active"){
+        cameraWorkspacePreferences.activeSlot=slot.slot_id;
+        const active=$("cameraSelect");
+        const value=cameraWorkspacePreferences.sources[id];
+        if(active&&value&&[...active.options].some(option=>option.value===value)) active.value=value;
+      }
+      if(slot.slot_id===2) secondaryBayPreferences.stagingSource=cameraWorkspacePreferences.sources[id];
+    });
+    saveSecondaryBayPreferences();
+    saveCameraWorkspacePreferences();
+    renderCameraWorkspace();
+    return result;
+  }catch{
+    return null;
+  }
+}
+
 function cameraWorkspaceVisibleSlots(layout=cameraWorkspacePreferences.layout){
   return layout==="single"?[1]:layout==="dual-side"?[1,2]:layout==="triple"?[1,2,3]:[1,2,3,4];
 }
@@ -1833,15 +1873,46 @@ function renderCameraWorkspace(){
     if(tile) tile.hidden=!visible.has(slot);
     if($(`cameraSlot${slot}Side`)) $(`cameraSlot${slot}Side`).value=cameraWorkspacePreferences.sides[String(slot)];
     if($(`promoteCameraSlot${slot}`)) $(`promoteCameraSlot${slot}`).disabled=!source;
-    if($(`cameraSlot${slot}Connection`)) $(`cameraSlot${slot}Connection`).textContent=source?"PREVIEW UNAVAILABLE":"NOT CONNECTED";
+    const connectionState=cameraWorkspaceSlotStates[String(slot)]?.connection_state;
+    if($(`cameraSlot${slot}Connection`)) $(`cameraSlot${slot}Connection`).textContent=source
+      ?String(connectionState||"connecting").toUpperCase()
+      :"NOT CONNECTED";
+    const preview=$(`cameraSlot${slot}Preview`);
+    if(preview){
+      if(source){
+        preview.hidden=false;
+        preview.onload=()=>{
+          if($(`cameraSlot${slot}Connection`)) $(`cameraSlot${slot}Connection`).textContent="CONNECTED";
+          const detail=tile?.querySelector(".camera-workspace-staging-surface span");
+          if(detail) detail.hidden=true;
+        };
+        preview.onerror=()=>{
+          preview.hidden=true;
+          if($(`cameraSlot${slot}Connection`)) $(`cameraSlot${slot}Connection`).textContent="DISCONNECTED";
+          const detail=tile?.querySelector(".camera-workspace-staging-surface span");
+          if(detail){
+            detail.hidden=false;
+            detail.textContent="Camera disconnected";
+          }
+        };
+        const url=`/api/camera-slots/${slot}/stream`;
+        if(preview.getAttribute("src")!==url) preview.src=url;
+      }else{
+        preview.hidden=true;
+        preview.removeAttribute("src");
+      }
+    }
     const detail=tile?.querySelector(".camera-workspace-staging-surface span");
-    if(detail) detail.innerHTML=source
-      ?"Secondary preview connection not available"
-      :"No camera selected<br>Choose a source from Manage Cameras";
+    if(detail&&!source){
+      detail.hidden=false;
+      detail.innerHTML="No camera selected<br>Choose a source from Manage Cameras";
+    }
   });
   const bay=$("secondaryWorkspaceBay");
   if(bay) bay.hidden=!visible.has(2);
-  if($("cameraSlot2Connection")) $("cameraSlot2Connection").textContent=cameraWorkspacePreferences.sources["2"]?"PREVIEW UNAVAILABLE":"NOT CONNECTED";
+  if($("cameraSlot2Connection")) $("cameraSlot2Connection").textContent=cameraWorkspacePreferences.sources["2"]
+    ?String(cameraWorkspaceSlotStates["2"]?.connection_state||"connecting").toUpperCase()
+    :"NOT CONNECTED";
   syncCameraWorkspaceSourceOptions();
 }
 
@@ -1852,7 +1923,7 @@ function setCameraWorkspaceLayout(layout){
   alignScanZone(window.__rareiqVisionTelemetry||{});
 }
 
-function setCameraWorkspaceSource(slot,value){
+async function setCameraWorkspaceSource(slot,value){
   if(slot===1) return;
   const owner=[1,2,3,4].find(other=>other!==slot&&cameraWorkspacePreferences.sources[String(other)]===value);
   if(value&&owner){
@@ -1865,30 +1936,55 @@ function setCameraWorkspaceSource(slot,value){
     saveSecondaryBayPreferences();
   }
   saveCameraWorkspacePreferences();
+  try{
+    await api(`/api/camera-slots/${slot}/source`,{
+      method:"PUT",
+      body:JSON.stringify({
+        source_id:sourceIdFromCameraValue(value),
+        side:cameraWorkspacePreferences.sides[String(slot)]
+      })
+    });
+  }catch(error){
+    cameraWorkspacePreferences.sources[String(slot)]=null;
+    showToast(error.message||"Could not assign camera.");
+  }
   renderCameraWorkspace();
 }
 
-function setCameraWorkspaceSide(slot,value){
+async function setCameraWorkspaceSide(slot,value){
   cameraWorkspacePreferences.sides[String(slot)]=["player-1","player-2"].includes(value)?value:"unassigned";
   saveCameraWorkspacePreferences();
+  const source=cameraWorkspacePreferences.sources[String(slot)];
+  if(source){
+    try{
+      await api(`/api/camera-slots/${slot}/source`,{
+        method:"PUT",
+        body:JSON.stringify({
+          source_id:sourceIdFromCameraValue(source),
+          side:cameraWorkspacePreferences.sides[String(slot)]
+        })
+      });
+    }catch(error){
+      showToast(error.message||"Could not update camera side.");
+    }
+  }
 }
 
 async function promoteCameraWorkspaceSlot(slot){
   const active=$("cameraSelect");
   const source=cameraWorkspacePreferences.sources[String(slot)];
   if(!active||!source||source===active.value) return;
-  const previous=active.value||null;
-  active.value=source;
-  cameraWorkspacePreferences.sources["1"]=source;
-  cameraWorkspacePreferences.sources[String(slot)]=previous;
-  if(slot===2){
-    secondaryBayPreferences.stagingSource=previous;
-    saveSecondaryBayPreferences();
+  try{
+    await api(`/api/camera-slots/${slot}/activate`,{method:"POST"});
+    cameraWorkspacePreferences.activeSlot=slot;
+    active.value=source;
+    saveCameraWorkspacePreferences();
+    await refreshCameraSlotState();
+    cameraStreamStarted=false;
+    startCameraStream();
+  }catch(error){
+    showToast(error.message||"Could not activate camera.");
   }
-  cameraWorkspacePreferences.activeSlot=1;
-  saveCameraWorkspacePreferences();
-  await selectCamera();
-  renderCameraWorkspace();
 }
 
 async function setActiveCameraWorkspaceSource(value){
@@ -2066,12 +2162,27 @@ function renderSecondaryWorkspaceBay(context=window.__rareiqCardContext||null){
     $("secondaryBayBadge").textContent=mode==="camera-2"?"STAGING":"ACTIVE";
   }
   if(mode==="camera-2"){
-    setSecondaryBayUnavailable(
-      "CAMERA 2",
-      secondaryBayPreferences.stagingSource
-        ?"Secondary preview connection not available"
-        :"No camera selected\nChoose a source from Manage Cameras"
-    );
+    const image=$("secondaryBayImage");
+    if(secondaryBayPreferences.stagingSource){
+      $("secondaryBayUnavailable").hidden=true;
+      image.hidden=false;
+      image.onload=()=>{
+        if($("cameraSlot2Connection")) $("cameraSlot2Connection").textContent="CONNECTED";
+      };
+      image.onerror=()=>{
+        if($("cameraSlot2Connection")) $("cameraSlot2Connection").textContent="DISCONNECTED";
+        setSecondaryBayUnavailable("CAMERA 2","Camera disconnected");
+      };
+      const source="/api/camera-slots/2/stream";
+      if(image.getAttribute("src")!==source) image.src=source;
+      image.style.objectPosition="50% 50%";
+      image.style.transform="none";
+    }else{
+      setSecondaryBayUnavailable(
+        "CAMERA 2",
+        "No camera selected\nChoose a source from Manage Cameras"
+      );
+    }
   }else if(mode==="card-focus"){
     const geometry=smoothedCardFocusGeometry(
       normalizedCardFocusGeometry(window.__rareiqVisionTelemetry||{}),

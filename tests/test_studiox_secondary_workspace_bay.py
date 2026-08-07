@@ -51,11 +51,12 @@ def test_staging_is_independent_and_source_pair_is_safe():
     assert 'resetRecognitionPresentation("active_source_changed")' in active
 
 
-def test_unsupported_and_truthful_media_states_never_fabricate_content():
-    assert "Secondary preview connection not available" in JS
+def test_camera_two_uses_its_own_truthful_stream_and_safe_empty_states():
     assert 'No camera selected\\nChoose a source from Manage Cameras' in JS
     camera_two = JS[JS.index('if(mode==="camera-2")'):JS.index('}else if(mode==="card-focus")')]
-    assert ".src=" not in camera_two
+    assert 'const source="/api/camera-slots/2/stream"' in camera_two
+    assert 'image.onerror=' in camera_two
+    assert 'setSecondaryBayUnavailable("CAMERA 2","Camera disconnected")' in camera_two
     assert "reference_image_url" not in JS[JS.index("function truthfulLockedCapture"):JS.index("function setSecondaryBayUnavailable")]
     assert "No locked capture" in JS
     assert "No recent capture frames" in JS
@@ -82,7 +83,7 @@ def test_camera_two_is_the_truthful_permanent_default():
     assert 'mode:"camera-2"' in JS
     assert 'visible:true' in JS
     camera_two = JS[JS.index('if(mode==="camera-2")'):JS.index('}else if(mode==="card-focus")')]
-    assert ".src=" not in camera_two
+    assert 'const source="/api/camera-slots/2/stream"' in camera_two
     assert '#collapseSecondaryBay{display:none}' in CSS
 
 

@@ -40,9 +40,9 @@ def test_staging_tiles_never_fabricate_camera_one_media() -> None:
         tile = HTML[HTML.index(f'id="cameraWorkspaceSlot{slot}"'):]
         tile = tile[:tile.index("</section>")]
         assert "cameraFeed" not in tile
-        assert "<img" not in tile
+        assert tile.count(f'id="cameraSlot{slot}Preview"') == 1
         assert "<iframe" not in tile
-    assert "Secondary preview connection not available" in JS
+        assert f'`/api/camera-slots/${{slot}}/stream`' in JS
 
 
 def test_staging_changes_are_presentation_only_and_promotion_is_explicit() -> None:
@@ -50,8 +50,8 @@ def test_staging_changes_are_presentation_only_and_promotion_is_explicit() -> No
     assert "selectCamera()" not in staging
     assert "resetRecognitionPresentation" not in staging
     promote = section("async function promoteCameraWorkspaceSlot", "function normalizeSecondaryBayPreferences")
-    assert "await selectCamera()" in promote
-    assert 'cameraWorkspacePreferences.activeSlot=1' in promote
+    assert 'await api(`/api/camera-slots/${slot}/activate`,{method:"POST"})' in promote
+    assert 'cameraWorkspacePreferences.activeSlot=slot' in promote
     assert "resetRecognitionPresentation" not in promote
 
 
@@ -159,7 +159,7 @@ def test_source_ownership_and_explicit_activation_use_safe_paths() -> None:
 
 
 def test_live_build_marker_matches_cache_version() -> None:
-    version = "6.4.15-shellbay29"
+    version = "6.4.15-shellbay31"
     assert f'data-studiox-build="{version}"' in HTML
     assert f'/static/studiox.js?v={version}' in HTML
     assert f'/static/studiox_update15.css?v={version}' in HTML

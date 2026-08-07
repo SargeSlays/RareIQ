@@ -4,8 +4,12 @@ import json
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
+from rareiq.services.camera_source_session import (
+    CameraSourceSession,
+    enrich_camera_source,
+)
 from rareiq.services.vision_service import VisionService
 
 
@@ -21,7 +25,12 @@ class CameraManagerService:
     FIRST_FRAME_TIMEOUT_SECONDS = 12.0
     FRAME_STALL_TIMEOUT_SECONDS = 2.0
 
-    def __init__(self, vision: VisionService, state_path: Path) -> None:
+    def __init__(
+        self,
+        vision: VisionService,
+        state_path: Path,
+        session_factory: Callable[[dict[str, Any]], CameraSourceSession] | None = None,
+    ) -> None:
         self.vision = vision
         self.state_path = state_path
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -39,6 +48,11 @@ class CameraManagerService:
         self._last_observed_frame_timestamp: float | None = None
         self._last_progress_at: float | None = None
         self._selected = self._load_selected()
+        self._slots = self._load_slots()
+        self._sessions: dict[str, CameraSourceSession] = {}
+        self._sources: dict[str, dict[str, Any]] = {}
+        self._session_factory = session_factory or CameraSourceSession
+        self._active_change_hook: Callable[[dict[str, Any]], None] | None = None
         self._recovery_count = 0
         self._last_stream_session_id: int | None = None
         self._last_device_sequence_id: int | None = None
@@ -57,18 +71,56 @@ class CameraManagerService:
         except Exception:
             return None
 
+    def _load_slots(self) -> dict[int, dict[str, Any]]:
+        slots = {
+            slot: {
+                "slot_id": slot,
+                "source_id": None,
+                "role": "active" if slot == 1 else "staging",
+                "side": "unassigned",
+            }
+            for slot in range(1, 5)
+        }
+        try:
+            payload = json.loads(self.state_path.read_text(encoding="utf-8"))
+            saved = payload.get("camera_slots") or {}
+            for slot in range(1, 5):
+                item = saved.get(str(slot)) or saved.get(slot) or {}
+                if isinstance(item, dict):
+                    slots[slot]["source_id"] = item.get("source_id") or None
+                    side = str(item.get("side") or "unassigned")
+                    slots[slot]["side"] = (
+                        side if side in {"unassigned", "player-1", "player-2"}
+                        else "unassigned"
+                    )
+                    if item.get("role") == "active":
+                        for other in slots.values():
+                            other["role"] = "staging"
+                        slots[slot]["role"] = "active"
+        except Exception:
+            pass
+        return slots
+
+    def _save_state(self) -> None:
+        payload = {
+            "selected_camera": self._selected,
+            "camera_slots": {
+                str(slot): dict(value) for slot, value in self._slots.items()
+            },
+        }
+        temp = self.state_path.with_suffix(".tmp")
+        temp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        temp.replace(self.state_path)
+
     def _save_selected(self, camera: dict[str, Any]) -> None:
         self._selected = {
             "index": int(camera["index"]),
             "backend": int(camera["backend"]),
             "name": str(camera.get("name") or f"Camera {camera['index']}"),
         }
-        temp = self.state_path.with_suffix(".tmp")
-        temp.write_text(
-            json.dumps({"selected_camera": self._selected}, indent=2),
-            encoding="utf-8",
-        )
-        temp.replace(self.state_path)
+        if camera.get("source_id"):
+            self._selected["source_id"] = str(camera["source_id"])
+        self._save_state()
 
     def _set_state(
         self,
@@ -187,7 +239,33 @@ class CameraManagerService:
 
         with self._operation_lock:
             self._set_state("discovering", "Scanning Windows camera devices.")
-            devices = self.vision.list_cameras()
+            raw_devices = self.vision.list_cameras()
+            devices = [enrich_camera_source(item) for item in raw_devices]
+            previous_sources = dict(self._sources)
+            self._sources = {item["source_id"]: dict(item) for item in devices}
+            for source_id, previous in previous_sources.items():
+                if source_id not in self._sources:
+                    missing = dict(previous)
+                    missing.update({
+                        "available": False,
+                        "availability": "missing",
+                    })
+                    self._sources[source_id] = missing
+
+            if self._selected and not self._selected.get("source_id"):
+                match = next((
+                    item for item in devices
+                    if int(item["index"]) == int(self._selected["index"])
+                    and int(item["backend"]) == int(self._selected["backend"])
+                ), None)
+                if match:
+                    self._selected = {
+                        **self._selected, "source_id": match["source_id"]
+                    }
+                    active = self.active_slot_id()
+                    if self._slots[active]["source_id"] is None:
+                        self._slots[active]["source_id"] = match["source_id"]
+                    self._save_state()
 
             with self._cache_lock:
                 self._devices = [dict(item) for item in devices]
@@ -229,6 +307,9 @@ class CameraManagerService:
             },
         )
         self._save_selected(selected)
+        active = self.active_slot_id()
+        self._slots[active]["source_id"] = self._selected.get("source_id")
+        self._save_state()
         self._set_state("selected", f"Selected {selected['name']}.")
         return dict(selected)
 
@@ -257,6 +338,10 @@ class CameraManagerService:
                     int(devices[0]["index"]),
                     int(devices[0]["backend"]),
                 )
+
+            source_id = selected.get("source_id")
+            if source_id:
+                self._stop_preview_session(str(source_id))
 
             current = self.vision.status()
             health = self._observe_frame_progress(current)
@@ -344,6 +429,246 @@ class CameraManagerService:
             self._set_state("stopped", "Camera stopped.")
             return self.status()
 
+    def set_active_change_hook(
+        self, hook: Callable[[dict[str, Any]], None] | None
+    ) -> None:
+        self._active_change_hook = hook
+
+    def active_slot_id(self) -> int:
+        return next(
+            (slot for slot, value in self._slots.items() if value["role"] == "active"),
+            1,
+        )
+
+    def camera_slots(self) -> list[dict[str, Any]]:
+        with self._operation_lock:
+            active_slot = self.active_slot_id()
+            output = []
+            for slot in range(1, 5):
+                assignment = dict(self._slots[slot])
+                source_id = assignment.get("source_id")
+                source = self._sources.get(str(source_id)) if source_id else None
+                if slot == active_slot:
+                    vision = self.vision.status()
+                    session_state = {
+                        "connected": bool(vision.get("running") and not vision.get("error")),
+                        "state": "connected" if vision.get("running") and not vision.get("error") else "disconnected",
+                        "last_frame_at": vision.get("frame_timestamp"),
+                        "error": vision.get("error"),
+                    }
+                elif source_id and source_id in self._sessions:
+                    session_state = self._sessions[source_id].status()
+                elif source_id:
+                    session_state = {
+                        "connected": False,
+                        "state": "unavailable" if not source or not source.get("available", True) else "disconnected",
+                        "last_frame_at": None,
+                        "error": None,
+                    }
+                else:
+                    session_state = {
+                        "connected": False,
+                        "state": "unassigned",
+                        "last_frame_at": None,
+                        "error": None,
+                    }
+                output.append({
+                    **assignment,
+                    "source": None if source is None else dict(source),
+                    "display_name": None if source is None else source["display_name"],
+                    "connection_state": session_state["state"],
+                    "connected": session_state["connected"],
+                    "preview_capability": bool(source_id),
+                    "last_frame_at": session_state.get("last_frame_at"),
+                    "error": session_state.get("error"),
+                })
+            return output
+
+    def assign_slot(
+        self, slot_id: int, source_id: str | None, side: str | None = None
+    ) -> dict[str, Any]:
+        slot_id = self._validate_slot(slot_id)
+        with self._operation_lock:
+            if source_id:
+                source_id = str(source_id)
+                source = self._sources.get(source_id)
+                if source is None:
+                    self.discover(force=True)
+                    source = self._sources.get(source_id)
+                if source is None or not source.get("available", True):
+                    raise ValueError("Unknown camera source.")
+                owner = next((
+                    slot for slot, value in self._slots.items()
+                    if slot != slot_id
+                    and value.get("source_id")
+                    and self._sources.get(str(value["source_id"]), {}).get("device_key")
+                    == source.get("device_key")
+                ), None)
+                if owner is not None:
+                    raise ValueError(f"Camera device is already assigned to slot {owner}.")
+            previous = self._slots[slot_id].get("source_id")
+            active_slot = self.active_slot_id()
+            previous_source = self._sources.get(str(previous)) if previous else None
+            if source_id and slot_id == active_slot and previous != source_id:
+                self._stop_preview_session(source_id)
+                result = self.start(int(source["index"]), int(source["backend"]), True)
+                if result.get("error") or result.get("manager", {}).get("state") == "error":
+                    if previous_source is not None:
+                        self.start(
+                            int(previous_source["index"]),
+                            int(previous_source["backend"]),
+                            True,
+                        )
+                    raise RuntimeError(str(result.get("error") or "Camera activation failed."))
+            if previous and previous != source_id and slot_id != self.active_slot_id():
+                self._stop_preview_session(str(previous))
+            self._slots[slot_id]["source_id"] = source_id or None
+            if side is not None:
+                self._slots[slot_id]["side"] = self._validate_side(side)
+            self._save_state()
+            if source_id and slot_id != self.active_slot_id():
+                self._ensure_preview_session(source_id)
+            if source_id and slot_id == active_slot and previous != source_id:
+                self._save_selected(source)
+                if self._active_change_hook is not None:
+                    self._active_change_hook({
+                        "old_active_slot": active_slot,
+                        "active_slot": active_slot,
+                        "source_id": source_id,
+                    })
+            return self.camera_slots()[slot_id - 1]
+
+    def activate_slot(self, slot_id: int) -> dict[str, Any]:
+        slot_id = self._validate_slot(slot_id)
+        with self._operation_lock:
+            old_active = self.active_slot_id()
+            if slot_id == old_active:
+                return {"ok": True, "already_active": True, "slots": self.camera_slots()}
+            source_id = self._slots[slot_id].get("source_id")
+            source = self._sources.get(str(source_id)) if source_id else None
+            if not source_id or source is None or not source.get("available", True):
+                raise ValueError("The requested slot has no available camera source.")
+            self._stop_preview_session(str(source_id))
+            previous_source_id = self._slots[old_active].get("source_id")
+            previous_roles = {slot: value["role"] for slot, value in self._slots.items()}
+            self._slots[old_active]["role"] = "staging"
+            self._slots[slot_id]["role"] = "active"
+            self._save_selected(source)
+            result = self.start(int(source["index"]), int(source["backend"]), True)
+            if result.get("error") or result.get("manager", {}).get("state") == "error":
+                for slot, role in previous_roles.items():
+                    self._slots[slot]["role"] = role
+                self._save_state()
+                if source_id:
+                    self._ensure_preview_session(str(source_id))
+                if previous_source_id:
+                    previous_source = self._sources.get(str(previous_source_id))
+                    if previous_source is not None:
+                        self.start(
+                            int(previous_source["index"]),
+                            int(previous_source["backend"]),
+                            True,
+                        )
+                raise RuntimeError(str(result.get("error") or "Camera activation failed."))
+            self._save_state()
+            if previous_source_id:
+                self._ensure_preview_session(str(previous_source_id))
+            payload = {
+                "old_active_slot": old_active,
+                "active_slot": slot_id,
+                "source_id": source_id,
+            }
+            if self._active_change_hook is not None:
+                self._active_change_hook(dict(payload))
+            return {"ok": True, **payload, "slots": self.camera_slots()}
+
+    def reconnect_source(self, source_id: str) -> dict[str, Any]:
+        with self._operation_lock:
+            owner = self._slot_for_source(source_id)
+            if owner == self.active_slot_id():
+                return self.recover()
+            session = self._ensure_preview_session(source_id, start=False)
+            return session.reconnect()
+
+    def restart_source(self, source_id: str) -> dict[str, Any]:
+        return self.reconnect_source(source_id)
+
+    def slot_jpeg(self, slot_id: int) -> bytes | None:
+        slot_id = self._validate_slot(slot_id)
+        with self._operation_lock:
+            source_id = self._slots[slot_id].get("source_id")
+            if not source_id:
+                return None
+            if slot_id == self.active_slot_id():
+                return self.vision.latest_jpeg()
+            session = self._sessions.get(str(source_id))
+            return None if session is None else session.latest_jpeg()
+
+    def subscribe_slot(self, slot_id: int) -> None:
+        slot_id = self._validate_slot(slot_id)
+        source_id = self._slots[slot_id].get("source_id")
+        if source_id and slot_id != self.active_slot_id():
+            self._ensure_preview_session(str(source_id)).subscribe()
+
+    def unsubscribe_slot(self, slot_id: int) -> None:
+        slot_id = self._validate_slot(slot_id)
+        source_id = self._slots[slot_id].get("source_id")
+        session = self._sessions.get(str(source_id)) if source_id else None
+        if session is not None:
+            session.unsubscribe()
+
+    def shutdown(self) -> None:
+        with self._operation_lock:
+            sessions = list(self._sessions.values())
+            self._sessions.clear()
+            self.vision.stop()
+        for session in sessions:
+            session.stop()
+
+    def session_statuses(self) -> dict[str, dict[str, Any]]:
+        return {source_id: session.status() for source_id, session in self._sessions.items()}
+
+    def _ensure_preview_session(
+        self, source_id: str, *, start: bool = True
+    ) -> CameraSourceSession:
+        source = self._sources.get(str(source_id))
+        if source is None or not source.get("available", True):
+            raise ValueError("Unknown camera source.")
+        session = self._sessions.get(str(source_id))
+        created = session is None
+        if session is None:
+            session = self._session_factory(dict(source))
+            self._sessions[str(source_id)] = session
+        state = session.status().get("state")
+        if start and (created or state not in {"connecting", "connected", "degraded"}):
+            session.start()
+        return session
+
+    def _stop_preview_session(self, source_id: str) -> None:
+        session = self._sessions.pop(str(source_id), None)
+        if session is not None:
+            session.stop()
+
+    def _slot_for_source(self, source_id: str) -> int | None:
+        return next((
+            slot for slot, value in self._slots.items()
+            if value.get("source_id") == str(source_id)
+        ), None)
+
+    @staticmethod
+    def _validate_slot(slot_id: int) -> int:
+        value = int(slot_id)
+        if value not in {1, 2, 3, 4}:
+            raise ValueError("Camera slot must be between 1 and 4.")
+        return value
+
+    @staticmethod
+    def _validate_side(side: str) -> str:
+        value = str(side or "unassigned")
+        if value not in {"unassigned", "player-1", "player-2"}:
+            raise ValueError("Invalid camera side.")
+        return value
+
     def recover(self) -> dict[str, Any]:
         with self._operation_lock:
             self._recovery_count += 1
@@ -422,6 +747,9 @@ class CameraManagerService:
                 ),
             },
             "vision": vision,
+            "active_slot": self.active_slot_id(),
+            "camera_slots": self.camera_slots(),
+            "camera_sessions": self.session_statuses(),
             # Compatibility fields for existing frontends.
             **vision,
         }

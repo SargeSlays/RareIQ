@@ -101,5 +101,5 @@ def test_cache_version_and_widget_contract() -> None:
     assert html.count('data-studiox-widget="auto-screenshot"') == 1
     assert 'data-widget-visibility="auto-screenshot"' in html
     assert '"auto-screenshot":"Auto Screenshot"' in script
-    assert "/static/studiox.js?v=6.4.15-shellbay29" in html
-    assert "/static/studiox_update15.css?v=6.4.15-shellbay29" in html
+    assert "/static/studiox.js?v=6.4.15-shellbay31" in html
+    assert "/static/studiox_update15.css?v=6.4.15-shellbay31" in html
