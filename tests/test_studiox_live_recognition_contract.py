@@ -50,9 +50,9 @@ def test_empty_and_server_change_remove_previous_artwork_contract() -> None:
     reset_end = script.index("async function loadRecognition", reset_start)
     reset = script[reset_start:reset_end]
     assert '$("cardArt").innerHTML=""' in reset
-    assert '$("cardName").textContent="Waiting for card"' in reset
+    assert '$("cardName").textContent="Ready to Scan"' in reset
     assert '$("confidence").textContent="0%"' in reset
-    assert '$("cardStatus").textContent="SEARCHING"' in reset
+    assert '$("cardStatus").textContent="READY"' in reset
     assert 'renderPipeline([],false)' in reset
 
 
@@ -68,10 +68,10 @@ def test_control_html_busts_studiox_cache() -> None:
         encoding="utf-8"
     )
 
-    assert "/static/studiox.js?v=6.4.15-carddata1" in html
+    assert "/static/studiox.js?v=6.4.15-shellbay29" in html
     assert "/static/studiox.css?v=6.4.12" in html
-    assert "/static/studiox_ui4_tokens.css?v=6.4.15-ui4structural" in html
-    assert "/static/studiox_update15.css?v=6.4.15-carddata1" in html
+    assert "/static/studiox_ui4_tokens.css?v=6.4.15-shellbay29" in html
+    assert "/static/studiox_update15.css?v=6.4.15-shellbay29" in html
     assert html.index("studiox_ui4_tokens.css") < html.index("studiox_update15.css")
     assert html.index("studiox_update15.css") < html.index("studiox.js?v=6.4.15")
     assert 'http-equiv="Cache-Control"' in html

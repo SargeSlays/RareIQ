@@ -8,9 +8,22 @@ let captureBannerTimer = null;
 let newestRecognitionGeneration = -1;
 let newestRecognitionRevision = -1;
 let currentServerSessionId = null;
+let studioXExactMatchMomentKey = null;
+let studioXExactMatchMomentTimer = null;
 let activityItems = [];
 let cameraFitMode = "adaptive";
 let cardZoomEnabled = false;
+const STUDIOX_PREFERENCES_KEY="rareiq.studiox.workspacePreferences.v1";
+const STUDIOX_SECONDARY_BAY_KEY="rareiq.studiox.secondaryBayPreferences.v1";
+const CAMERA_WORKSPACE_KEY="rareiq.studiox.cameraWorkspace.v1";
+const CAMERA_WORKSPACE_LAYOUTS=["single","dual-side","triple","quad"];
+const CAMERA_RECOVER_ENDPOINT="/api/camera/recover";
+let studioXPreferences={
+  version:1,
+  layoutPreset:"intelligence",
+  viewerMode:"auto",
+  previewZoom:1,
+};
 let sessionStartedAt = Date.now();
 let sessionCards = 0;
 let sessionHits = 0;
@@ -24,6 +37,8 @@ let cameraDiscoveryTimer = null;
 let cameraStatusPollTimer = null;
 let cameraAutostartComplete = false;
 let cameraStartInFlight = false;
+let cameraConnectionAvailable = null;
+let cameraConnectionFailure = null;
 let viewerBridgeTimer = null;
 let viewerBridgeConnected = false;
 let viewerBridgeGeneration = 0;
@@ -35,6 +50,27 @@ let ui4InspectorTab = "details";
 let ui4InspectorView = "current";
 let ui4RecentScans = [];
 let cardPlaceholderResetTimer = null;
+let secondaryFocusGeometry = null;
+let lastValidCardFocusGeometry = null;
+let lastValidCardFocusAt = 0;
+let lastCardFocusGeometryReason = "unavailable";
+const CARD_FOCUS_LAST_VALID_MS = 1800;
+let secondaryBayPreferences={
+  version:1,
+  mode:"camera-2",
+  visible:true,
+  size:"standard",
+  activeSource:null,
+  stagingSource:null,
+  manualPinned:false,
+};
+let cameraWorkspacePreferences={
+  version:1,
+  layout:"single",
+  activeSlot:1,
+  sources:{"1":null,"2":null,"3":null,"4":null},
+  sides:{"1":"unassigned","2":"unassigned","3":"unassigned","4":"unassigned"},
+};
 
 
 
@@ -228,15 +264,16 @@ function updateResolutionBadge(vision={}){
 
 function alignScanZone(vision={}){
   const workspace=document.querySelector(".camera-workspace");
+  const stage=workspace?.querySelector(".camera-stage-inner");
   const feed=$("cameraFeed");
   const zone=$("scanZone");
-  if(!workspace||!feed||!zone) return;
+  if(!workspace||!stage||!feed||!zone) return;
 
   const actual=vision.actual_resolution||[];
   const sourceWidth=Number(feed.naturalWidth||actual[0]||0);
   const sourceHeight=Number(feed.naturalHeight||actual[1]||0);
-  const workspaceWidth=workspace.clientWidth;
-  const workspaceHeight=workspace.clientHeight;
+  const workspaceWidth=stage.clientWidth;
+  const workspaceHeight=stage.clientHeight;
   if(!sourceWidth||!sourceHeight||!workspaceWidth||!workspaceHeight) return;
 
   const zoneValues=vision.scan_zone||{
@@ -248,8 +285,10 @@ function alignScanZone(vision={}){
     : Math.min(workspaceWidth/sourceWidth,workspaceHeight/sourceHeight);
   const renderedWidth=sourceWidth*scale;
   const renderedHeight=sourceHeight*scale;
-  const offsetX=(workspaceWidth-renderedWidth)/2;
-  const offsetY=(workspaceHeight-renderedHeight)/2;
+  const offsetX=stage.offsetLeft+(workspaceWidth-renderedWidth)/2;
+  const offsetY=stage.offsetTop+(workspaceHeight-renderedHeight)/2;
+  workspace.style.setProperty("--camera-render-left",`${offsetX}px`);
+  workspace.style.setProperty("--camera-render-top",`${offsetY}px`);
 
   zone.style.left=`${offsetX+renderedWidth*Number(zoneValues.left)}px`;
   zone.style.top=`${offsetY+renderedHeight*Number(zoneValues.top)}px`;
@@ -257,6 +296,10 @@ function alignScanZone(vision={}){
   zone.style.height=`${renderedHeight*(Number(zoneValues.bottom)-Number(zoneValues.top))}px`;
   zone.style.right="auto";
   zone.style.bottom="auto";
+  applyStudioXViewerPresentation(
+    window.__rareiqCardContext||null,
+    vision
+  );
 }
 
 function applyCameraFit(mode){
@@ -309,84 +352,103 @@ function setStateChip(id,state,label){
   if(value) value.textContent=label;
 }
 
-function setRecognitionState(state,detail=""){
+function applyRecognitionPresentation(presentation){
   const panel=$("recognitionStatePanel");
   const label=$("recognitionStateLabel");
-  const placeholder = $("cardPlaceholder");
-  const placeholderTitle = $("cardPlaceholderTitle");
-  const placeholderDetail = $("cardPlaceholderDetail");
-
-  function applyPlaceholderState(placeholderState) {
-    if (!placeholder) return;
-
-    placeholder.classList.remove(
-      "state-waiting",
-      "state-searching",
-      "state-matched",
-      "state-error"
-    );
-
-    placeholder.classList.add(`state-${placeholderState}`);
-
-    if (placeholderTitle) {
-      placeholderTitle.textContent =
-        placeholderState === "searching"
-          ? "Analyzing Card..."
-          : placeholderState === "matched"
-          ? "Match Found"
-          : placeholderState === "error"
-          ? "Recognition Paused"
-          : "Waiting for Card";
-    }
-
-    if (placeholderDetail) {
-      placeholderDetail.textContent =
-        placeholderState === "searching"
-          ? "RareIQ is identifying and verifying this card"
-          : placeholderState === "matched"
-          ? "Card intelligence is ready"
-          : placeholderState === "error"
-          ? "Adjust the card and try again"
-          : "Place a card inside the scan zone";
-    }
-  }
-
+  const placeholder=$("cardPlaceholder");
+  const key=presentation?.key||"ready";
+  const title=presentation?.title||"READY";
+  const detail=presentation?.detail||"";
+  const confidence=normalize(presentation?.confidence||0);
+  const legacyState=
+    key==="exact-match" ? "matched" :
+    key==="error" ? "error" :
+    key==="ready" ? "idle" :
+    "searching";
   clearTimeout(cardPlaceholderResetTimer);
-
-  if (state === "searching" || state === "captured") {
-    applyPlaceholderState("searching");
-  } else if (state === "matched") {
-    applyPlaceholderState("matched");
-  } else if (state === "error") {
-    cardPlaceholderResetTimer = setTimeout(() => {
-      applyPlaceholderState("error");
-    }, 1200);
-  } else {
-    cardPlaceholderResetTimer = setTimeout(() => {
-      applyPlaceholderState("waiting");
-    }, 1500);
+  if(placeholder){
+    placeholder.classList.remove(
+      "state-waiting","state-searching","state-matched","state-error"
+    );
+    placeholder.classList.add(
+      key==="exact-match" ? "state-matched" :
+      key==="error" ? "state-error" :
+      key==="ready" ? "state-waiting" :
+      "state-searching"
+    );
+    placeholder.dataset.recognitionState=key;
   }
-
+  if($("cardPlaceholderTitle")){
+    $("cardPlaceholderTitle").textContent=presentation?.placeholderTitle||title;
+  }
+  if($("cardPlaceholderDetail")){
+    $("cardPlaceholderDetail").textContent=presentation?.placeholderDetail||detail;
+  }
+  if($("aiState")) $("aiState").textContent=title;
+  if($("aiDetail")) $("aiDetail").textContent=detail;
+  if($("confidence")) $("confidence").textContent=`${Math.round(confidence*100)}%`;
+  if($("cardStatus")) $("cardStatus").textContent=title;
+  if($("cameraFeedStateLabel")) $("cameraFeedStateLabel").textContent=title;
+  if($("unifiedScanStatus")){
+    $("unifiedScanStatus").dataset.state=key;
+    $("unifiedScanStatus").dataset.presentation=key;
+  }
+  const progressIndex={
+    ready:0,
+    detecting:1,
+    scanning:1,
+    "candidate-found":2,
+    verifying:2,
+    "review-needed":2,
+    "exact-match":3,
+    error:0,
+  }[key]??0;
+  document.querySelectorAll("[data-recognition-stage]").forEach((stage,index)=>{
+    stage.classList.toggle("complete",index<progressIndex);
+    stage.classList.toggle("current",index===progressIndex);
+    if(index===progressIndex){
+      stage.setAttribute("aria-current","step");
+    }else{
+      stage.removeAttribute("aria-current");
+    }
+  });
   const detailNode=$("recognitionStateDetail");
   if(panel){
     panel.classList.remove("idle","searching","matched","captured","error");
-    panel.classList.add(state);
+    panel.classList.add(legacyState);
   }
   const cameraWorkspace=document.querySelector(".camera-workspace");
   if(cameraWorkspace){
     cameraWorkspace.classList.remove(
       "state-idle","state-searching","state-matched","state-captured","state-error"
     );
-    cameraWorkspace.classList.add(`state-${state}`);
+    cameraWorkspace.classList.add(`state-${legacyState}`);
+    cameraWorkspace.dataset.recognitionState=key;
   }
-  if(label) label.textContent=String(state||"idle").toUpperCase();
-  if(detailNode) detailNode.textContent=detail||"";
+  if(label) label.textContent=title;
+  if(detailNode) detailNode.textContent=detail;
   const aiChipState =
-    state==="searching" ? "working" :
-    state==="matched" || state==="captured" ? "on" :
-    state==="error" ? "error" : "";
-  setStateChip("aiStateChip",aiChipState,String(state||"idle").toUpperCase());
-  updateAiPulse(state);
+    legacyState==="searching" ? "working" :
+    legacyState==="matched" ? "on" :
+    legacyState==="error" ? "error" : "";
+  setStateChip("aiStateChip",aiChipState,title);
+  updateAiPulse(legacyState);
+  setCoreState(key);
+}
+
+function setRecognitionState(state,detail=""){
+  const legacyPresentations={
+    idle:{key:"ready",title:"READY",placeholderTitle:"Ready for Card"},
+    searching:{key:"scanning",title:"SCANNING",placeholderTitle:"Scanning Card"},
+    captured:{key:"verifying",title:"VERIFYING",placeholderTitle:"Verifying Card"},
+    matched:{key:"exact-match",title:"EXACT MATCH",placeholderTitle:"Exact Match"},
+    error:{key:"error",title:"ERROR",placeholderTitle:"Recognition Unavailable"},
+  };
+  applyRecognitionPresentation({
+    ...(legacyPresentations[state]||legacyPresentations.idle),
+    detail,
+    confidence:0,
+  });
 }
 
 function showCaptureBanner(success,title,detail){
@@ -633,15 +695,8 @@ async function attemptCameraAutostart(){
       }
     }
 
-    let camera=readSelectedCamera();
-    if(!camera){
-      const first=cameras[0];
-      camera={
-        index:Number(first.index),
-        backend:Number(first.backend),
-        name:first.name||"Camera"
-      };
-    }
+    const camera=readSelectedCamera();
+    if(!camera) throw new Error("Select a camera source.");
 
     const startResult=await api("/api/camera/start",{
       method:"POST",
@@ -693,6 +748,13 @@ async function attemptCameraAutostart(){
 }
 
 async function restartFeed(){
+  const camera=readSelectedCamera();
+  if(!camera){
+    setCameraStatus("SELECT A CAMERA","var(--gold)");
+    updateActiveCameraName(null,"select");
+    showOperatorToast("Select a camera before restarting it.","error");
+    return;
+  }
   cameraAutoStartDone=false;
   cameraAutoStartAttempts=0;
   cameraAutoStartInFlight=false;
@@ -710,7 +772,7 @@ async function restartFeed(){
   await delay(300);
 
   connectMainViewer(true);
-  attemptCameraAutostart();
+  await ensureCameraStarted(true);
 }
 
 async function startBackgroundInitialization(){
@@ -925,6 +987,10 @@ async function ensureCameraStarted(force=false){
 
     if(ready){
       cameraAutostartComplete=true;
+      cameraConnectionAvailable=true;
+      cameraConnectionFailure=null;
+      setCameraActionAvailability(true);
+      updateActiveCameraName(camera,"active");
       setCameraRecovery(
         "Camera online",
         ready.message||camera.name||"Live preview connected.",
@@ -937,13 +1003,7 @@ async function ensureCameraStarted(force=false){
     throw new Error("The camera manager did not receive a live frame.");
   }catch(error){
     cameraAutostartComplete=false;
-    setCameraStatus("CAMERA START FAILED","var(--red)");
-    setStateChip("cameraStateChip","error","FAILED");
-    setCameraRecovery(
-      "Camera connection failed",
-      error?.message||"Use Reconnect to retry.",
-      "error"
-    );
+    setCameraDisconnectedPresentation(camera,error?.message||`Could not open ${camera.name||"selected camera"}`);
     return false;
   }finally{
     cameraStartInFlight=false;
@@ -963,7 +1023,9 @@ function scheduleCameraDiscovery(){
     });
 
     if(cameras.length){
-      await ensureCameraStarted();
+      const camera=readSelectedCamera();
+      if(camera) await ensureCameraStarted();
+      else return;
     }
 
     if(!cameraAutostartComplete){
@@ -974,29 +1036,45 @@ function scheduleCameraDiscovery(){
 
 async function loadCameraList(options={}){
   const {retries=5,delay=650,silent=false}=options;
+  const force=options.force??!silent;
   const select=$("cameraSelect");
   if(!silent) select.innerHTML=`<option value="">Scanning cameras...</option>`;
 
   for(let attempt=0;attempt<=retries;attempt+=1){
     try{
-      const result=await api("/api/cameras");
-      const cameras=result.cameras||[];
+      const result=await api(`/api/cameras?force=${force?"true":"false"}`);
+      const cameras=sortCameraDevices(result.cameras||[]);
       if(cameras.length){
-        select.innerHTML=cameras.map((camera,index)=>{
-          const payload=encodeURIComponent(JSON.stringify({
-            index:Number(camera.index??index),
-            backend:Number(camera.backend??700),
-            name:camera.name||`Camera ${index+1}`
-          }));
-          const backendName=camera.backend_name?`  |  ${camera.backend_name}`:"";
-          return `<option value="${payload}">${camera.name||`Camera ${index+1}`}${backendName}</option>`;
-        }).join("");
-
         const saved=localStorage.getItem("rareiq.selectedCamera");
-        if(saved&&[...select.options].some(option=>option.value===saved)){
+        const savedCamera=decodeCameraValue(saved);
+        const savedVirtual=isVirtualCamera(savedCamera);
+        const prompt=savedVirtual
+          ?"Saved virtual camera requires confirmation"
+          :saved
+          ?"Saved camera unavailable -- select a camera"
+          :"Select a camera";
+        select.replaceChildren();
+        const promptOption=document.createElement("option");
+        promptOption.value="";
+        promptOption.textContent=prompt;
+        select.appendChild(promptOption);
+        appendCameraGroup(select,"Physical Cameras",cameras.filter(camera=>!isVirtualCamera(camera)));
+        appendCameraGroup(select,"Virtual Cameras",cameras.filter(isVirtualCamera));
+        const savedAvailable=Boolean(
+          saved&&[...select.options].some(option=>option.value===saved)
+        );
+        if(savedAvailable&&!savedVirtual){
           select.value=saved;
+          readSelectedCamera();
+          updateActiveCameraName(selectedCamera,"selected");
+        }else{
+          select.value="";
+          selectedCamera=null;
+          updateActiveCameraName(savedVirtual?savedCamera:null,savedVirtual?"virtual":"select");
         }
-        readSelectedCamera();
+        syncSecondarySourceOptions(cameras);
+        syncCameraWorkspaceSourceOptions();
+        renderCameraWorkspace();
         return cameras;
       }
     }catch{}
@@ -1007,9 +1085,188 @@ async function loadCameraList(options={}){
     }
   }
 
-  select.innerHTML=`<option value="">No cameras detected -- Refresh to retry</option>`;
+  select.innerHTML=`<option value="">No cameras detected</option>`;
   selectedCamera=null;
+  updateActiveCameraName(null,"none");
+  syncSecondarySourceOptions([]);
+  syncCameraWorkspaceSourceOptions();
+  renderCameraWorkspace();
   return [];
+}
+
+const VIRTUAL_CAMERA_TERMS=[
+  "virtual","obs","streamlabs","manycam","snap camera","ndi","intcast",
+  "bytecast","xsplit","iriun","epoccam","droidcam"
+];
+
+function isVirtualCamera(camera){
+  const name=String(camera?.name||"").trim().toLowerCase();
+  return Boolean(name&&VIRTUAL_CAMERA_TERMS.some(term=>name.includes(term)));
+}
+
+function decodeCameraValue(value){
+  if(!value) return null;
+  try{
+    return JSON.parse(decodeURIComponent(value));
+  }catch{
+    return null;
+  }
+}
+
+function cameraOptionValue(camera,index=0){
+  return encodeURIComponent(JSON.stringify({
+    index:Number(camera?.index??index),
+    backend:Number(camera?.backend??700),
+    name:camera?.name||`Camera ${index+1}`
+  }));
+}
+
+function sortCameraDevices(cameras=[]){
+  return [...cameras].sort((left,right)=>{
+    const virtualOrder=Number(isVirtualCamera(left))-Number(isVirtualCamera(right));
+    if(virtualOrder) return virtualOrder;
+    const instaOrder=Number(!/insta360/i.test(left?.name||""))-Number(!/insta360/i.test(right?.name||""));
+    if(instaOrder) return instaOrder;
+    const nameOrder=String(left?.name||"").localeCompare(String(right?.name||""));
+    if(nameOrder) return nameOrder;
+    return Number(left?.backend||0)-Number(right?.backend||0);
+  });
+}
+
+function appendCameraGroup(select,label,cameras){
+  if(!cameras.length) return;
+  const group=document.createElement("optgroup");
+  group.label=label;
+  cameras.forEach((camera,index)=>{
+    const option=document.createElement("option");
+    option.value=cameraOptionValue(camera,index);
+    option.textContent=`${camera.name||`Camera ${index+1}`}${camera.backend_name?`  |  ${camera.backend_name}`:""}`;
+    option.dataset.cameraKind=isVirtualCamera(camera)?"virtual":"physical";
+    group.appendChild(option);
+  });
+  select.appendChild(group);
+}
+
+async function runCameraSourceAction(select){
+  const action=select?.value||"";
+  if(select) select.value="";
+  if(action==="refresh") await loadCameraList({force:true});
+  else if(action==="reconnect") await reconnectCamera();
+  else if(action==="restart") await restartFeed();
+}
+
+function arrangeCameraToolbar(){
+  const toolbar=document.querySelector(".toolbar");
+  if(!toolbar) return;
+  const menu=toolbar.querySelector(".premium-more-menu");
+  const popover=toolbar.querySelector(".premium-more-popover");
+  const actions=toolbar.querySelector(".premium-actions-row");
+  const compact=window.matchMedia("(max-width: 1180px)").matches;
+  const secondary=[
+    document.querySelector('[data-ui4-action="diagnostics"]'),
+    document.querySelector('[data-ui4-action="health"]'),
+  ].filter(Boolean);
+  if(compact&&popover){
+    secondary.forEach(node=>popover.appendChild(node));
+  }else if(actions){
+    secondary.forEach(node=>actions.appendChild(node));
+  }
+  if(menu?.open&&compact){
+    menu.open=false;
+  }
+}
+
+function updateActiveCameraName(camera,state="active"){
+  const output=$("activeCameraName");
+  if(!output) return;
+  if(!camera){
+    output.textContent=state==="none"?"No cameras detected":"Select a camera";
+    output.dataset.state=state;
+    return;
+  }
+  const label=camera.name||`Camera ${Number(camera.index)+1}`;
+  const select=$("cameraSelect");
+  const matchingOption=[...(select?.options||[])].find(option=>{
+    const candidate=decodeCameraValue(option.value);
+    return candidate&&(
+      (Number(candidate.index)===Number(camera.index)&&Number(candidate.backend)===Number(camera.backend))||
+      String(candidate.name||"").trim()===String(camera.name||"").trim()
+    );
+  });
+  if(select&&matchingOption) select.value=matchingOption.value;
+  output.textContent=
+    state==="virtual"?`${label} -- confirmation required`:
+    state==="disconnected"?`${label} -- disconnected`:
+    `Active: ${label}`;
+  output.dataset.state=state;
+  updateViewerInspectionHeader();
+}
+
+function updateViewerInspectionHeader(
+  context=window.__rareiqCardContext||null
+){
+  const source=$("viewerInspectionSource");
+  const mode=$("viewerInspectionMode");
+  const cardState=$("viewerInspectionCardState");
+  const recognition=$("viewerInspectionRecognitionMode");
+  const activeLabel=$("activeCameraName")?.textContent?.trim()||"Select a camera";
+  if(source){
+    source.textContent=activeLabel.replace(/^Active:\s*/i,"");
+  }
+  if(mode){
+    mode.textContent=$("viewerModeStatus")?.textContent?.trim()||"Auto · full frame";
+  }
+  if(cardState){
+    cardState.textContent=context?.presentation?.title||"READY";
+  }
+  if(recognition){
+    recognition.textContent=
+      context?.verified===true
+        ?"Verified identity"
+        :context?.card
+        ?"Candidate review"
+        :"Live recognition";
+  }
+}
+
+function setCameraActionAvailability(connected){
+  document.body.classList.toggle("camera-disconnected",!connected);
+  const capture=document.querySelector('[onclick="captureCamera()"]');
+  const auto=$("autoCaptureToggle");
+  if(capture) capture.disabled=!connected;
+  if(auto) auto.disabled=!connected;
+}
+
+function setCameraDisconnectedPresentation(camera,error=""){
+  cameraConnectionAvailable=false;
+  cameraConnectionFailure={camera,error:String(error||"")};
+  markViewerOffline();
+  setCameraActionAvailability(false);
+  const name=camera?.name||"Selected camera";
+  const failure=String(error||"").trim();
+  const failedSource=failure.toLowerCase().includes(name.toLowerCase())
+    ?failure
+    :`Could not open ${name}`;
+  const detail=`${failedSource.replace(/[.\s]+$/g,"")}. Select a physical camera or refresh devices`;
+  setCameraStatus("CAMERA DISCONNECTED","var(--red)");
+  setStateChip("cameraStateChip","error","DISCONNECTED");
+  updateActiveCameraName(camera,"disconnected");
+  applyRecognitionPresentation({
+    key:"error",
+    state:"error",
+    title:"DISCONNECTED",
+    detail,
+    placeholderTitle:"Camera Disconnected",
+    placeholderDetail:"Select a physical camera or refresh devices",
+    confidence:0,
+  });
+  const recovery=$("cameraRecovery");
+  if(recovery){
+    recovery.classList.remove("suppressed","success");
+    recovery.classList.add("visible","error");
+  }
+  if($("cameraRecoveryTitle")) $("cameraRecoveryTitle").textContent=`Could not open ${name}`;
+  if($("cameraRecoveryDetail")) $("cameraRecoveryDetail").textContent="Select a physical camera or refresh devices";
 }
 
 function readSelectedCamera(){
@@ -1029,9 +1286,29 @@ function readSelectedCamera(){
 }
 
 async function selectCamera(){
+  resetRecognitionPresentation("active_source_changed");
   readSelectedCamera();
+  secondaryBayPreferences.activeSource=$("cameraSelect")?.value||null;
+  cameraWorkspacePreferences.sources["1"]=$("cameraSelect")?.value||null;
+  [2,3,4].forEach(slot=>{
+    if(cameraWorkspacePreferences.sources[String(slot)]===cameraWorkspacePreferences.sources["1"]){
+      cameraWorkspacePreferences.sources[String(slot)]=null;
+      if(slot===2) secondaryBayPreferences.stagingSource=null;
+    }
+  });
+  normalizeSecondarySourcePair();
+  saveSecondaryBayPreferences();
+  saveCameraWorkspacePreferences();
+  renderSecondaryWorkspaceBay();
+  renderCameraWorkspace();
   cameraAutostartComplete=false;
-  ensureCameraStarted(true);
+  if(!selectedCamera){
+    updateActiveCameraName(null,"select");
+    return;
+  }
+  updateActiveCameraName(selectedCamera,"selected");
+  const started=await ensureCameraStarted(true);
+  if(started) updateActiveCameraName(selectedCamera,"active");
 }
 
 async function startSelectedCamera(){
@@ -1059,44 +1336,29 @@ async function stopCamera(){
 }
 
 async function reconnectCamera(){
+  const camera=readSelectedCamera();
+  if(!camera){
+    setCameraDisconnectedPresentation(
+      null,
+      "Select a physical camera or refresh devices"
+    );
+    return;
+  }
   cameraAutostartComplete=false;
   cameraStreamStarted=false;
   cameraStreamFailures=0;
 
   setCameraRecovery(
-    "Recovering camera...",
-    "The backend Camera Manager is reopening the saved device."
+    `Reconnecting ${camera.name||"camera"}...`,
+    "RareIQ is reopening the exact selected source."
   );
 
   try{
-    const result=await api("/api/camera/recover",{
-      method:"POST",
-      body:"{}"
-    });
-
-    if(result?.ok===false){
-      throw new Error(
-        result?.manager?.last_error ||
-        result?.manager?.message ||
-        "Recovery failed."
-      );
-    }
-
-    startCameraStream(true);
-    const ready=await waitForCameraReady();
-
-    if(!ready){
-      throw new Error("No frame arrived after recovery.");
-    }
-
-    cameraAutostartComplete=true;
-    hideCameraRecovery(500);
+    const connected=await ensureCameraStarted(true);
+    if(!connected) throw new Error(`Could not open ${camera.name||"selected camera"}`);
+    updateActiveCameraName(camera,"active");
   }catch(error){
-    setCameraRecovery(
-      "Recovery failed",
-      error?.message||"Camera Manager could not restore the feed.",
-      "error"
-    );
+    setCameraDisconnectedPresentation(camera,error?.message);
   }
 }
 
@@ -1203,7 +1465,7 @@ async function bootstrapCamera(){
 
     if(!cameras.length){
       setCameraStatus("CAMERA NOT FOUND","var(--gold)");
-      setStateChip("cameraStateChip","warning","SEARCHING");
+      setStateChip("cameraStateChip","warning","DISCOVERING");
       setCameraRecovery(
         "Waiting for camera...",
         "RareIQ will continue checking automatically."
@@ -1229,6 +1491,15 @@ async function loadCameraStatus(options={}){
     const manager=status.manager||{};
     const vision=status.vision||status;
     const online=cameraStatusOnline(status);
+    cameraConnectionAvailable=online;
+    cameraConnectionFailure=online?null:{
+      camera:manager.selected_camera||selectedCamera,
+      error:manager.last_error||manager.message||"Camera is disconnected",
+    };
+    updateActiveCameraName(
+      manager.selected_camera||selectedCamera,
+      online?"active":"disconnected"
+    );
     const stalled=Boolean(
       manager.stalled ||
       manager.state==="stalled" ||
@@ -1259,6 +1530,15 @@ async function loadCameraStatus(options={}){
       }
     }else if(!cameraStartInFlight){
       setStateChip("cameraStateChip","warning","STARTING");
+    }
+
+    if(online){
+      setCameraActionAvailability(true);
+    }else{
+      setCameraDisconnectedPresentation(
+        cameraConnectionFailure.camera,
+        cameraConnectionFailure.error
+      );
     }
 
     if(vision.fps){
@@ -1385,31 +1665,34 @@ function setCoreState(state){
   if(!orb || !label) return;
   orb.classList.remove("scanning","matched","complete");
   const normalized = String(state||"idle").toLowerCase();
-  if(normalized==="scanning" || normalized==="processing"){
+  if(["detecting","scanning","candidate-found","verifying","review-needed"].includes(normalized)){
     orb.classList.add("scanning");
-    label.textContent="SCANNING";
-  }else if(normalized==="matched" || normalized==="verified"){
+    label.textContent=normalized.replaceAll("-"," ").toUpperCase();
+  }else if(["matched","verified","exact-match"].includes(normalized)){
     orb.classList.add("matched");
-    label.textContent="MATCH FOUND";
+    label.textContent="EXACT MATCH";
   }else if(normalized==="complete"){
     orb.classList.add("complete");
     label.textContent="COMPLETE";
+  }else if(normalized==="error"){
+    label.textContent="ERROR";
   }else{
-    label.textContent="IDLE";
+    label.textContent="READY";
   }
 }
 
 function resetRecognitionPresentation(reason="reset"){
+  clearCardFocusGeometry();
   resetUI4PresentationSurfaces();
   previousCardId=null;
   const empty=$("inspectorEmpty");
   const main=$("inspectorMain");
-  if(empty) empty.style.display="grid";
-  if(main) main.style.display="none";
+  if(empty) empty.style.display="none";
+  if(main) main.style.display="grid";
   if($("cardArt")) $("cardArt").innerHTML="";
-  if($("cardName")) $("cardName").textContent="Waiting for card";
+  if($("cardName")) $("cardName").textContent="Ready to Scan";
   if($("cardMeta")) $("cardMeta").textContent="";
-  if($("cardStatus")) $("cardStatus").textContent="SEARCHING";
+  if($("cardStatus")) $("cardStatus").textContent="READY";
   if($("confidence")) $("confidence").textContent="0%";
   updateConfidenceRing(0);
   setSignal("vision",0);
@@ -1417,6 +1700,7 @@ function resetRecognitionPresentation(reason="reset"){
   setSignal("collector",0);
   setSignal("fusion",0);
   renderPipeline([],false);
+  resetExtendedCardData();
   setCoreState("idle");
   window.__rareiqRecognitionPoll={
     revision:null,
@@ -1427,6 +1711,821 @@ function resetRecognitionPresentation(reason="reset"){
     resetReason:reason,
     updatedAt:Date.now(),
   };
+  updateSharedCardContext(
+    deriveSharedCardContext(
+      deriveRecognitionPresentation({phase:"IDLE"},null,[]),
+      null,
+      {phase:"IDLE"},
+      []
+    )
+  );
+}
+
+function normalizeStudioXPreferences(value){
+  const layouts=["intelligence","balanced","monitor"];
+  const viewerModes=["auto","full-frame","card-focus"];
+  const zoom=Number(value?.previewZoom);
+  return {
+    version:1,
+    layoutPreset:layouts.includes(value?.layoutPreset)
+      ? value.layoutPreset
+      : "intelligence",
+    viewerMode:viewerModes.includes(value?.viewerMode)
+      ? value.viewerMode
+      : "auto",
+    previewZoom:Number.isFinite(zoom)
+      ? Math.max(.8,Math.min(2.5,zoom))
+      : 1,
+  };
+}
+
+function normalizeCameraWorkspacePreferences(value){
+  const source=value?.sources&&typeof value.sources==="object"?value.sources:{};
+  const sides=value?.sides&&typeof value.sides==="object"?value.sides:{};
+  const normalizeSource=slot=>typeof source[String(slot)]==="string"&&source[String(slot)]?source[String(slot)]:null;
+  const normalizeSide=slot=>["unassigned","player-1","player-2"].includes(sides[String(slot)])?sides[String(slot)]:"unassigned";
+  const savedLayout=value?.layout==="dual-stack"?"dual-side":value?.layout;
+  return {
+    version:1,
+    layout:CAMERA_WORKSPACE_LAYOUTS.includes(savedLayout)?savedLayout:"single",
+    activeSlot:[1,2,3,4].includes(Number(value?.activeSlot))?Number(value.activeSlot):1,
+    sources:{"1":normalizeSource(1),"2":normalizeSource(2),"3":normalizeSource(3),"4":normalizeSource(4)},
+    sides:{"1":normalizeSide(1),"2":normalizeSide(2),"3":normalizeSide(3),"4":normalizeSide(4)},
+  };
+}
+
+function loadCameraWorkspacePreferences(){
+  try{
+    return normalizeCameraWorkspacePreferences(JSON.parse(localStorage.getItem(CAMERA_WORKSPACE_KEY)||"null"));
+  }catch{
+    return normalizeCameraWorkspacePreferences(null);
+  }
+}
+
+function saveCameraWorkspacePreferences(){
+  try{localStorage.setItem(CAMERA_WORKSPACE_KEY,JSON.stringify(cameraWorkspacePreferences));}catch{}
+}
+
+function cameraWorkspaceVisibleSlots(layout=cameraWorkspacePreferences.layout){
+  return layout==="single"?[1]:layout==="dual-side"?[1,2]:layout==="triple"?[1,2,3]:[1,2,3,4];
+}
+
+function syncCameraWorkspaceSourceOptions(){
+  const active=$("cameraSelect");
+  if(!active) return;
+  const selectForSlot=slot=>slot===1?$("cameraSlot1Source"):slot===2?$("stagingSourceSelect"):$(`cameraSlot${slot}Source`);
+  [1,2,3,4].forEach(slot=>{
+    const select=selectForSlot(slot);
+    if(!select) return;
+    const current=slot===1?active.value:cameraWorkspacePreferences.sources[String(slot)];
+    select.replaceChildren();
+    const prompt=document.createElement("option");
+    prompt.value="";
+    prompt.textContent=slot===1?"Select a camera":"No camera selected";
+    select.appendChild(prompt);
+    [...active.children].forEach(child=>{
+      const target=child.tagName==="OPTGROUP"?document.createElement("optgroup"):select;
+      if(child.tagName==="OPTGROUP") target.label=child.label;
+      const options=child.tagName==="OPTGROUP"?[...child.children]:[child];
+      options.filter(option=>option.value).forEach(option=>{
+        const clone=option.cloneNode(true);
+        const owner=[1,2,3,4].find(other=>other!==slot&&cameraWorkspacePreferences.sources[String(other)]===clone.value);
+        if(owner){
+          clone.disabled=true;
+          clone.textContent=`${clone.textContent} — Camera ${owner}`;
+        }
+        target.appendChild(clone);
+      });
+      if(child.tagName==="OPTGROUP"&&target.children.length) select.appendChild(target);
+    });
+    const available=[...select.options].some(option=>option.value===current);
+    if(current&&!available){
+      const missing=document.createElement("option");
+      const decoded=decodeCameraValue(current);
+      missing.value=current;
+      missing.textContent=`${decoded?.name||"Saved camera"} — missing`;
+      missing.disabled=true;
+      select.appendChild(missing);
+    }
+    select.value=current||"";
+  });
+}
+
+function renderCameraWorkspace(){
+  const workspace=document.querySelector(".camera-workspace");
+  if(!workspace) return;
+  const layout=cameraWorkspacePreferences.layout;
+  const visible=new Set(cameraWorkspaceVisibleSlots(layout));
+  workspace.dataset.cameraLayout=layout;
+  workspace.dataset.activeSlot=String(cameraWorkspacePreferences.activeSlot);
+  workspace.classList.toggle("has-secondary-bay",visible.has(2));
+  document.querySelectorAll("[data-camera-layout-option]").forEach(button=>{
+    const selected=button.dataset.cameraLayoutOption===layout;
+    button.classList.toggle("is-selected",selected);
+    button.setAttribute("aria-pressed",String(selected));
+  });
+  if($("cameraSlot1Side")) $("cameraSlot1Side").value=cameraWorkspacePreferences.sides["1"];
+  if($("cameraSlot1Connection")) $("cameraSlot1Connection").textContent=cameraConnectionAvailable===true?"CONNECTED":cameraConnectionAvailable===false?"DISCONNECTED":"CONNECTING";
+  if($("cameraSlot2Side")) $("cameraSlot2Side").value=cameraWorkspacePreferences.sides["2"];
+  [3,4].forEach(slot=>{
+    const tile=$(`cameraWorkspaceSlot${slot}`);
+    const source=cameraWorkspacePreferences.sources[String(slot)];
+    if(tile) tile.hidden=!visible.has(slot);
+    if($(`cameraSlot${slot}Side`)) $(`cameraSlot${slot}Side`).value=cameraWorkspacePreferences.sides[String(slot)];
+    if($(`promoteCameraSlot${slot}`)) $(`promoteCameraSlot${slot}`).disabled=!source;
+    if($(`cameraSlot${slot}Connection`)) $(`cameraSlot${slot}Connection`).textContent=source?"PREVIEW UNAVAILABLE":"NOT CONNECTED";
+    const detail=tile?.querySelector(".camera-workspace-staging-surface span");
+    if(detail) detail.innerHTML=source
+      ?"Secondary preview connection not available"
+      :"No camera selected<br>Choose a source from Manage Cameras";
+  });
+  const bay=$("secondaryWorkspaceBay");
+  if(bay) bay.hidden=!visible.has(2);
+  if($("cameraSlot2Connection")) $("cameraSlot2Connection").textContent=cameraWorkspacePreferences.sources["2"]?"PREVIEW UNAVAILABLE":"NOT CONNECTED";
+  syncCameraWorkspaceSourceOptions();
+}
+
+function setCameraWorkspaceLayout(layout){
+  cameraWorkspacePreferences=normalizeCameraWorkspacePreferences({...cameraWorkspacePreferences,layout});
+  saveCameraWorkspacePreferences();
+  renderCameraWorkspace();
+  alignScanZone(window.__rareiqVisionTelemetry||{});
+}
+
+function setCameraWorkspaceSource(slot,value){
+  if(slot===1) return;
+  const owner=[1,2,3,4].find(other=>other!==slot&&cameraWorkspacePreferences.sources[String(other)]===value);
+  if(value&&owner){
+    renderCameraWorkspace();
+    return;
+  }
+  cameraWorkspacePreferences.sources[String(slot)]=value||null;
+  if(slot===2){
+    secondaryBayPreferences.stagingSource=value||null;
+    saveSecondaryBayPreferences();
+  }
+  saveCameraWorkspacePreferences();
+  renderCameraWorkspace();
+}
+
+function setCameraWorkspaceSide(slot,value){
+  cameraWorkspacePreferences.sides[String(slot)]=["player-1","player-2"].includes(value)?value:"unassigned";
+  saveCameraWorkspacePreferences();
+}
+
+async function promoteCameraWorkspaceSlot(slot){
+  const active=$("cameraSelect");
+  const source=cameraWorkspacePreferences.sources[String(slot)];
+  if(!active||!source||source===active.value) return;
+  const previous=active.value||null;
+  active.value=source;
+  cameraWorkspacePreferences.sources["1"]=source;
+  cameraWorkspacePreferences.sources[String(slot)]=previous;
+  if(slot===2){
+    secondaryBayPreferences.stagingSource=previous;
+    saveSecondaryBayPreferences();
+  }
+  cameraWorkspacePreferences.activeSlot=1;
+  saveCameraWorkspacePreferences();
+  await selectCamera();
+  renderCameraWorkspace();
+}
+
+async function setActiveCameraWorkspaceSource(value){
+  const active=$("cameraSelect");
+  if(!active||active.value===value) return;
+  active.value=value||"";
+  await selectCamera();
+}
+
+function normalizeSecondaryBayPreferences(value){
+  const modes=["hidden","camera-2","card-focus","locked-capture","broadcast-preview","recent-captures"];
+  const sizes=["compact","standard","large"];
+  const firstRun=!value||typeof value!=="object";
+  const requestedMode=modes.includes(value?.mode)?value.mode:"camera-2";
+  const mode=(
+    requestedMode==="hidden"||
+    (requestedMode==="card-focus"&&value?.manualPinned!==true)
+  )?"camera-2":requestedMode;
+  return {
+    version:1,
+    mode,
+    visible:true,
+    size:sizes.includes(value?.size)?value.size:"standard",
+    activeSource:typeof value?.activeSource==="string"&&value.activeSource?value.activeSource:null,
+    stagingSource:typeof value?.stagingSource==="string"&&value.stagingSource?value.stagingSource:null,
+    manualPinned:typeof value?.manualPinned==="boolean"
+      ? value.manualPinned
+      : !firstRun,
+  };
+}
+
+function deriveAutoSecondaryBayPresentation(context=null){
+  const manual={
+    mode:secondaryBayPreferences.mode,
+    visible:secondaryBayPreferences.visible,
+    size:secondaryBayPreferences.size,
+    automatic:false,
+  };
+  if(
+    secondaryBayPreferences.mode==="hidden"||
+    secondaryBayPreferences.manualPinned||
+    secondaryBayPreferences.mode!=="card-focus"
+  ) return manual;
+  const key=context?.presentation?.key||"ready";
+  const geometry=normalizedCardFocusGeometry(window.__rareiqVisionTelemetry||{});
+  if(key==="verifying"&&geometry){
+    return {mode:"card-focus",visible:true,size:"standard",automatic:true};
+  }
+  if(key==="exact-match"&&geometry){
+    return {mode:"card-focus",visible:true,size:"standard",automatic:true};
+  }
+  if(["detecting","scanning","candidate-found"].includes(key)&&geometry){
+    return {mode:"card-focus",visible:true,size:"compact",automatic:true};
+  }
+  return {mode:"card-focus",visible:false,size:"compact",automatic:true};
+}
+
+function loadSecondaryBayPreferences(){
+  try{
+    return normalizeSecondaryBayPreferences(
+      JSON.parse(localStorage.getItem(STUDIOX_SECONDARY_BAY_KEY)||"null")
+    );
+  }catch{
+    return normalizeSecondaryBayPreferences(null);
+  }
+}
+
+function saveSecondaryBayPreferences(){
+  try{
+    localStorage.setItem(
+      STUDIOX_SECONDARY_BAY_KEY,
+      JSON.stringify(secondaryBayPreferences)
+    );
+  }catch{}
+}
+
+function normalizeSecondarySourcePair(){
+  const active=$("cameraSelect")?.value||secondaryBayPreferences.activeSource||null;
+  const available=new Set(
+    [...($("cameraSelect")?.options||[])].map(option=>option.value).filter(Boolean)
+  );
+  secondaryBayPreferences.activeSource=available.has(active)?active:null;
+  if(
+    !available.has(secondaryBayPreferences.stagingSource)||
+    secondaryBayPreferences.stagingSource===secondaryBayPreferences.activeSource
+  ){
+    secondaryBayPreferences.stagingSource=null;
+  }
+  if($("stagingSourceSelect")){
+    $("stagingSourceSelect").value=secondaryBayPreferences.stagingSource||"";
+  }
+}
+
+function syncSecondarySourceOptions(){
+  const activeSelect=$("cameraSelect");
+  const staging=$("stagingSourceSelect");
+  if(!activeSelect||!staging) return;
+  const current=secondaryBayPreferences.stagingSource;
+  staging.innerHTML='<option value="">No staging camera</option>';
+  [...activeSelect.options].filter(option=>option.value).forEach(option=>{
+    const clone=document.createElement("option");
+    clone.value=option.value;
+    clone.textContent=option.textContent;
+    staging.appendChild(clone);
+  });
+  secondaryBayPreferences.stagingSource=current;
+  normalizeSecondarySourcePair();
+  saveSecondaryBayPreferences();
+  renderSecondaryWorkspaceBay();
+}
+
+function truthfulLockedCapture(context){
+  const snapshot=context?.snapshot||{};
+  const card=context?.card||{};
+  const url=
+    snapshot.locked_capture_url||
+    snapshot.stable_capture_url||
+    snapshot.capture_url||
+    card.locked_capture_url||
+    card.capture_url||
+    null;
+  return url?{
+    url,
+    capturedAt:snapshot.captured_at||card.captured_at||null,
+  }:null;
+}
+
+function setSecondaryBayUnavailable(title,detail){
+  const image=$("secondaryBayImage");
+  const broadcast=$("secondaryBroadcastPreview");
+  if(image){
+    image.hidden=true;
+    image.removeAttribute("src");
+  }
+  if(broadcast){
+    broadcast.hidden=true;
+    broadcast.removeAttribute("src");
+  }
+  if($("secondaryBayUnavailable")) $("secondaryBayUnavailable").hidden=false;
+  if($("secondaryBayStateTitle")) $("secondaryBayStateTitle").textContent=title;
+  if($("secondaryBayStateDetail")) $("secondaryBayStateDetail").textContent=detail;
+}
+
+function renderSecondaryWorkspaceBay(context=window.__rareiqCardContext||null){
+  const bay=$("secondaryWorkspaceBay");
+  const workspace=document.querySelector(".camera-workspace");
+  if(!bay) return;
+  normalizeSecondarySourcePair();
+  const effective=deriveAutoSecondaryBayPresentation(context);
+  const mode=effective.mode;
+  const visible=effective.visible&&mode!=="hidden";
+  bay.hidden=!visible;
+  bay.dataset.bayMode=mode;
+  bay.dataset.baySize=effective.size;
+  bay.dataset.bayControl=effective.automatic?"automatic":"manual";
+  workspace?.classList.toggle("has-secondary-bay",visible);
+  const heights={
+    compact:"var(--secondary-bay-compact)",
+    standard:"var(--secondary-bay-standard)",
+    large:"var(--secondary-bay-large)",
+  };
+  workspace?.style.setProperty("--secondary-bay-height",heights[effective.size]);
+  if($("secondaryBayMode")) $("secondaryBayMode").value=mode;
+  if($("secondaryBaySize")) $("secondaryBaySize").value=secondaryBayPreferences.size;
+  const twoSources=Boolean(
+    secondaryBayPreferences.activeSource&&
+    secondaryBayPreferences.stagingSource&&
+    secondaryBayPreferences.activeSource!==secondaryBayPreferences.stagingSource
+  );
+  ["swapSourcesButton","promoteStagingButton"].forEach(id=>{
+    if($(id)) $(id).disabled=!twoSources;
+  });
+  if(!visible) return;
+  if($("secondaryBayBadge")){
+    $("secondaryBayBadge").textContent=mode==="camera-2"?"STAGING":"ACTIVE";
+  }
+  if(mode==="camera-2"){
+    setSecondaryBayUnavailable(
+      "CAMERA 2",
+      secondaryBayPreferences.stagingSource
+        ?"Secondary preview connection not available"
+        :"No camera selected\nChoose a source from Manage Cameras"
+    );
+  }else if(mode==="card-focus"){
+    const geometry=smoothedCardFocusGeometry(
+      normalizedCardFocusGeometry(window.__rareiqVisionTelemetry||{}),
+      context?.verified===true
+    );
+    if(!geometry){
+      secondaryFocusGeometry=null;
+      setSecondaryBayUnavailable(
+        "Card focus unavailable — unstable card geometry",
+        "RareIQ is retaining the full frame until a conservative card-shaped polygon is stable."
+      );
+    }else{
+      const image=$("secondaryBayImage");
+      const lockedCapture=context?.verified?truthfulLockedCapture(context):null;
+      $("secondaryBayUnavailable").hidden=true;
+      image.hidden=false;
+      const source=lockedCapture?.url||"/api/camera/stream?viewer=secondary-card-focus";
+      if(image.getAttribute("src")!==source) image.src=source;
+      image.dataset.frameState=lockedCapture?"locked-capture":"live-active-source";
+      applySecondaryCardFocusGeometry(image,geometry);
+    }
+  }else if(mode==="locked-capture"){
+    const capture=truthfulLockedCapture(context);
+    if(!capture){
+      setSecondaryBayUnavailable("No locked capture","A stable captured frame has not been supplied by the current session.");
+    }else{
+      const image=$("secondaryBayImage");
+      $("secondaryBayUnavailable").hidden=true;
+      image.hidden=false;
+      if(image.src!==new URL(capture.url,location.href).href) image.src=capture.url;
+      if($("secondaryBayStateDetail")) $("secondaryBayStateDetail").textContent=capture.capturedAt?`Captured ${capture.capturedAt}`:"Captured frame";
+    }
+  }else if(mode==="broadcast-preview"){
+    const frame=$("secondaryBroadcastPreview");
+    $("secondaryBayUnavailable").hidden=true;
+    frame.hidden=false;
+    if(!frame.getAttribute("src")) frame.src="/program?embedded=1";
+  }else if(mode==="recent-captures"){
+    setSecondaryBayUnavailable("No recent capture frames","Recent scan identities are available, but no truthful captured-frame feed is present.");
+  }
+  renderCameraWorkspace();
+}
+
+function setSecondaryBayMode(mode){
+  secondaryBayPreferences=normalizeSecondaryBayPreferences({
+    ...secondaryBayPreferences,
+    mode,
+    visible:mode!=="hidden",
+    manualPinned:mode!=="hidden",
+  });
+  saveSecondaryBayPreferences();
+  renderSecondaryWorkspaceBay();
+  alignScanZone(window.__rareiqVisionTelemetry||{});
+}
+
+function setSecondaryStagingSource(value){
+  secondaryBayPreferences.stagingSource=value||null;
+  cameraWorkspacePreferences.sources["2"]=value||null;
+  normalizeSecondarySourcePair();
+  saveSecondaryBayPreferences();
+  saveCameraWorkspacePreferences();
+  renderSecondaryWorkspaceBay();
+  renderCameraWorkspace();
+}
+
+async function promoteSecondaryStagingSource(){
+  const active=$("cameraSelect");
+  const staging=secondaryBayPreferences.stagingSource;
+  if(!active||!staging||staging===active.value) return;
+  const previous=active.value;
+  active.value=staging;
+  secondaryBayPreferences.stagingSource=previous||null;
+  cameraWorkspacePreferences.sources["1"]=staging;
+  cameraWorkspacePreferences.sources["2"]=previous||null;
+  saveCameraWorkspacePreferences();
+  await selectCamera();
+}
+
+function loadStudioXPreferences(){
+  try{
+    return normalizeStudioXPreferences(
+      JSON.parse(localStorage.getItem(STUDIOX_PREFERENCES_KEY)||"null")
+    );
+  }catch{
+    return normalizeStudioXPreferences(null);
+  }
+}
+
+function saveStudioXPreferences(){
+  try{
+    localStorage.setItem(
+      STUDIOX_PREFERENCES_KEY,
+      JSON.stringify(studioXPreferences)
+    );
+  }catch{}
+}
+
+function applyWorkspaceLayoutPreset(preset,{persist=true}={}){
+  studioXPreferences=normalizeStudioXPreferences({
+    ...studioXPreferences,
+    layoutPreset:preset,
+  });
+  document.body.dataset.workspacePreset=studioXPreferences.layoutPreset;
+  if($("workspaceLayoutPreset")){
+    $("workspaceLayoutPreset").value=studioXPreferences.layoutPreset;
+  }
+  if(persist) saveStudioXPreferences();
+}
+
+function normalizedCardFocusPoints(value){
+  const source=Array.isArray(value)
+    ? value
+    : Array.isArray(value?.points)
+    ? value.points
+    : [];
+  if(source.length!==4) return null;
+  const points=source.map(point=>({
+    x:Number(Array.isArray(point)?point[0]:point?.x),
+    y:Number(Array.isArray(point)?point[1]:point?.y),
+  }));
+  if(!points.every(point=>Number.isFinite(point.x)&&Number.isFinite(point.y))) return null;
+  const normalized=points.every(
+    point=>point.x>=-.08&&point.x<=1.08&&point.y>=-.08&&point.y<=1.08
+  );
+  const frame=visionFrameDimensions(window.__rareiqVisionTelemetry||{});
+  if(!normalized&&(!frame.width||!frame.height)) return null;
+  const mapped=points.map(point=>({
+    x:normalized?Math.max(0,Math.min(1,point.x)):point.x/frame.width,
+    y:normalized?Math.max(0,Math.min(1,point.y)):point.y/frame.height,
+  }));
+  return mapped.every(point=>point.x>=0&&point.x<=1&&point.y>=0&&point.y<=1)
+    ? mapped
+    : null;
+}
+
+function cardFocusSegmentsIntersect(a,b,c,d){
+  const orientation=(p,q,r)=>
+    (q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x);
+  const abC=orientation(a,b,c);
+  const abD=orientation(a,b,d);
+  const cdA=orientation(c,d,a);
+  const cdB=orientation(c,d,b);
+  return abC*abD<0&&cdA*cdB<0;
+}
+
+function cardFocusGeometryQuality(points,vision={}){
+  /*
+   * Frontend-only focus gate. Trading cards are portrait rectangles, so the
+   * accepted polygon is deliberately conservative: width/height .58-.84,
+   * bounds no wider than 56% or taller than 90% of frame, and polygon area no
+   * larger than 56% of the configured scan zone. Recognition still receives
+   * the untouched backend geometry.
+   */
+  if(!Array.isArray(points)||points.length!==4){
+    return {valid:false,reason:"missing-corners"};
+  }
+  if(
+    cardFocusSegmentsIntersect(points[0],points[1],points[2],points[3])||
+    cardFocusSegmentsIntersect(points[1],points[2],points[3],points[0])
+  ){
+    return {valid:false,reason:"self-intersecting"};
+  }
+  const cross=points.map((point,index)=>{
+    const next=points[(index+1)%4];
+    const after=points[(index+2)%4];
+    return (next.x-point.x)*(after.y-next.y)-(next.y-point.y)*(after.x-next.x);
+  });
+  if(cross.some(value=>Math.abs(value)<.0005)||!(cross.every(value=>value>0)||cross.every(value=>value<0))){
+    return {valid:false,reason:"corner-order"};
+  }
+  const distance=(left,right)=>Math.hypot(right.x-left.x,right.y-left.y);
+  const width=(distance(points[0],points[1])+distance(points[3],points[2]))/2;
+  const height=(distance(points[1],points[2])+distance(points[0],points[3]))/2;
+  const aspect=height?width/height:0;
+  const left=Math.min(...points.map(point=>point.x));
+  const right=Math.max(...points.map(point=>point.x));
+  const top=Math.min(...points.map(point=>point.y));
+  const bottom=Math.max(...points.map(point=>point.y));
+  const boundsWidth=right-left;
+  const boundsHeight=bottom-top;
+  const area=Math.abs(points.reduce((sum,point,index)=>{
+    const next=points[(index+1)%4];
+    return sum+point.x*next.y-next.x*point.y;
+  },0)/2);
+  const scan=vision?.scan_zone;
+  const scanArea=scan
+    ? Math.max(.0001,(Number(scan.right)-Number(scan.left))*(Number(scan.bottom)-Number(scan.top)))
+    : 1;
+  if(aspect<.58||aspect>.84) return {valid:false,reason:"implausible-aspect",aspect};
+  if(boundsWidth>.56||boundsHeight>.9) return {valid:false,reason:"implausible-bounds",aspect};
+  if(area<.025||area/scanArea>.56) return {valid:false,reason:"implausible-area",aspect};
+  return {valid:true,reason:"valid",aspect,area,boundsWidth,boundsHeight};
+}
+
+function clearCardFocusGeometry(){
+  secondaryFocusGeometry=null;
+  lastValidCardFocusGeometry=null;
+  lastValidCardFocusAt=0;
+  lastCardFocusGeometryReason="unavailable";
+}
+
+function visionFrameDimensions(vision={}){
+  const actual=vision?.actual_resolution||vision?.frame_shape||[];
+  return {
+    width:Number(actual[0]||$("cameraFeed")?.naturalWidth||0),
+    height:Number(actual[1]||$("cameraFeed")?.naturalHeight||0),
+  };
+}
+
+function normalizedCardFocusGeometry(vision={}){
+  const cornerSource=
+    normalizedCardFocusPoints(vision?.card_corners)||
+    normalizedCardFocusPoints(vision?.perspective_corners)||
+    normalizedCardFocusPoints(vision?.polygon);
+  const quality=cornerSource
+    ? cardFocusGeometryQuality(cornerSource,vision)
+    : {valid:false,reason:"missing-corners"};
+  const perspective=quality.valid?cornerSource:null;
+  if(cornerSource&&!quality.valid){
+    lastCardFocusGeometryReason=quality.reason;
+    return null;
+  }
+  let zone=null;
+  if(perspective?.length===4){
+    zone={
+      left:Math.min(...perspective.map(point=>point.x)),
+      top:Math.min(...perspective.map(point=>point.y)),
+      right:Math.max(...perspective.map(point=>point.x)),
+      bottom:Math.max(...perspective.map(point=>point.y)),
+    };
+  }else if(vision?.stable===true){
+    zone=vision?.detected_card_bounds||vision?.card_bounds||null;
+  }
+  if(!zone) return null;
+  const left=Number(zone.left);
+  const top=Number(zone.top);
+  const right=Number(zone.right);
+  const bottom=Number(zone.bottom);
+  if(
+    ![left,top,right,bottom].every(Number.isFinite)||
+    right<=left||bottom<=top||
+    left<0||top<0||right>1||bottom>1
+  ) return null;
+  const geometry={
+    left,top,right,bottom,
+    centerX:(left+right)/2,
+    centerY:(top+bottom)/2,
+    width:right-left,
+    height:bottom-top,
+    perspective,
+  };
+  lastValidCardFocusGeometry={...geometry};
+  lastValidCardFocusAt=Date.now();
+  lastCardFocusGeometryReason="valid";
+  return geometry;
+}
+
+function smoothedCardFocusGeometry(next,locked=false){
+  if(!next){
+    if(
+      lastValidCardFocusGeometry&&
+      Date.now()-lastValidCardFocusAt<=CARD_FOCUS_LAST_VALID_MS
+    ){
+      return {...lastValidCardFocusGeometry,retained:true};
+    }
+    return null;
+  }
+  if(!secondaryFocusGeometry||locked){
+    secondaryFocusGeometry={...next};
+    return secondaryFocusGeometry;
+  }
+  const blend=.24;
+  secondaryFocusGeometry={
+    ...next,
+    left:secondaryFocusGeometry.left+(next.left-secondaryFocusGeometry.left)*blend,
+    top:secondaryFocusGeometry.top+(next.top-secondaryFocusGeometry.top)*blend,
+    right:secondaryFocusGeometry.right+(next.right-secondaryFocusGeometry.right)*blend,
+    bottom:secondaryFocusGeometry.bottom+(next.bottom-secondaryFocusGeometry.bottom)*blend,
+    centerX:secondaryFocusGeometry.centerX+(next.centerX-secondaryFocusGeometry.centerX)*blend,
+    centerY:secondaryFocusGeometry.centerY+(next.centerY-secondaryFocusGeometry.centerY)*blend,
+    width:secondaryFocusGeometry.width+(next.width-secondaryFocusGeometry.width)*blend,
+    height:secondaryFocusGeometry.height+(next.height-secondaryFocusGeometry.height)*blend,
+  };
+  return secondaryFocusGeometry;
+}
+
+function applySecondaryCardFocusGeometry(image,geometry){
+  const content=image?.parentElement;
+  const frame=visionFrameDimensions(window.__rareiqVisionTelemetry||{});
+  if(!image||!content||!geometry||!frame.width||!frame.height) return false;
+  const bayWidth=content.clientWidth;
+  const bayHeight=content.clientHeight;
+  if(!bayWidth||!bayHeight) return false;
+  const containScale=Math.min(bayWidth/frame.width,bayHeight/frame.height);
+  const renderedWidth=frame.width*containScale;
+  const renderedHeight=frame.height*containScale;
+  const letterboxX=(bayWidth-renderedWidth)/2;
+  const letterboxY=(bayHeight-renderedHeight)/2;
+  const cropWidth=renderedWidth*geometry.width;
+  const cropHeight=renderedHeight*geometry.height;
+  const cropCenterX=letterboxX+renderedWidth*geometry.centerX;
+  const cropCenterY=letterboxY+renderedHeight*geometry.centerY;
+  const focusScale=Math.max(1,Math.min(8,Math.min(
+    bayWidth*.92/cropWidth,
+    bayHeight*.92/cropHeight
+  )));
+  const translateX=bayWidth/2-cropCenterX*focusScale;
+  const translateY=bayHeight/2-cropCenterY*focusScale;
+  image.style.setProperty("--secondary-focus-scale",String(focusScale));
+  image.style.setProperty("--secondary-focus-translate-x",`${translateX}px`);
+  image.style.setProperty("--secondary-focus-translate-y",`${translateY}px`);
+  const polygon=(geometry.perspective||[
+    {x:geometry.left,y:geometry.top},{x:geometry.right,y:geometry.top},
+    {x:geometry.right,y:geometry.bottom},{x:geometry.left,y:geometry.bottom},
+  ]).map(point=>`${letterboxX+point.x*renderedWidth}px ${letterboxY+point.y*renderedHeight}px`).join(",");
+  image.style.clipPath=`polygon(${polygon})`;
+  image.dataset.focusPresentation="tight-card-crop";
+  image.dataset.perspectiveCorrection=geometry.perspective?"polygon":"bounds";
+  return true;
+}
+
+function applyStudioXViewerPresentation(
+  context=window.__rareiqCardContext||null,
+  vision=window.__rareiqVisionTelemetry||{}
+){
+  const workspace=document.querySelector(".camera-workspace");
+  const feed=$("cameraFeed");
+  if(!workspace||!feed) return;
+  const geometry=smoothedCardFocusGeometry(
+    normalizedCardFocusGeometry(vision),
+    context?.verified===true
+  );
+  const requested=studioXPreferences.viewerMode;
+  const stableLock=Boolean(
+    context?.verified&&
+    context?.presentation?.key==="exact-match"
+  );
+  const wantsFocus=
+    requested==="card-focus"||
+    (requested==="auto"&&stableLock);
+  const focusAvailable=Boolean(wantsFocus&&geometry);
+  const effectiveMode=focusAvailable?"card-focus":"full-frame";
+  const focusScale=focusAvailable
+    ? Math.max(1,Math.min(3,Math.min(.88/geometry.width,.88/geometry.height)))
+    : 1;
+  const combinedScale=Math.max(
+    .8,
+    Math.min(4,focusScale*studioXPreferences.previewZoom)
+  );
+  const originX=focusAvailable?geometry.centerX*100:50;
+  const originY=focusAvailable?geometry.centerY*100:50;
+  workspace.dataset.viewerMode=requested;
+  workspace.dataset.viewerEffectiveMode=effectiveMode;
+  workspace.dataset.focusGeometry=geometry?"available":"unavailable";
+  workspace.dataset.perspectiveGeometry=geometry?.perspective?"available":"unavailable";
+  workspace.style.setProperty("--studiox-preview-scale",String(combinedScale));
+  workspace.style.setProperty("--studiox-preview-origin-x",`${originX}%`);
+  workspace.style.setProperty("--studiox-preview-origin-y",`${originY}%`);
+  if($("viewerModeSelect")) $("viewerModeSelect").value=requested;
+  if($("viewerZoomValue")){
+    $("viewerZoomValue").textContent=`${Math.round(studioXPreferences.previewZoom*100)}%`;
+  }
+  if($("viewerModeStatus")){
+    $("viewerModeStatus").textContent=
+      requested==="card-focus"&&!geometry
+        ? "Card focus unavailable — showing full frame"
+        : requested==="auto"
+        ? stableLock&&geometry
+          ? "Auto · card focus"
+          : "Auto · full frame"
+        : effectiveMode==="card-focus"
+        ? "Card focus"
+        : "Full frame";
+  }
+  updateViewerInspectionHeader(context);
+}
+
+function setStudioXViewerMode(mode){
+  studioXPreferences=normalizeStudioXPreferences({
+    ...studioXPreferences,
+    viewerMode:mode,
+  });
+  saveStudioXPreferences();
+  applyStudioXViewerPresentation();
+}
+
+function setStudioXPreviewZoom(value){
+  studioXPreferences=normalizeStudioXPreferences({
+    ...studioXPreferences,
+    previewZoom:value,
+  });
+  saveStudioXPreferences();
+  applyStudioXViewerPresentation();
+}
+
+function adjustStudioXPreviewZoom(delta){
+  setStudioXPreviewZoom(studioXPreferences.previewZoom+delta);
+}
+
+function resetStudioXPreviewZoom(){
+  setStudioXPreviewZoom(1);
+}
+
+function deriveRecognitionPresentation(snapshot={},card=null,candidates=[]){
+  const phase=String(
+    snapshot?.continuous_state||
+    snapshot?.phase||
+    snapshot?.status||
+    snapshot?.verification_state||
+    "IDLE"
+  ).toUpperCase();
+  const confidence=normalize(
+    card?.fused_score??card?.score??card?.confidence??
+    snapshot?.overall_confidence??snapshot?.confidence??0
+  );
+  const verified=Boolean(
+    card&&(
+      card.verification_strong===true||
+      ["database","live_catalog","catalog"].includes(
+        String(card.source||"").toLowerCase()
+      )
+    )
+  );
+  const hasCandidate=Boolean(card||candidates.length);
+  const cardDetected=Boolean(
+    snapshot?.card_present===true||
+    snapshot?.vision?.visible===true||
+    snapshot?.vision?.vision?.visible===true
+  );
+  if(["ERROR","FAILED"].includes(phase)){
+    return {key:"error",state:"error",title:"ERROR",detail:"Recognition is temporarily unavailable.",placeholderTitle:"Recognition Unavailable",confidence};
+  }
+  if(verified){
+    return {key:"exact-match",state:"matched",title:"EXACT MATCH",detail:"Identity verified against the active catalog.",placeholderTitle:"Exact Match",confidence};
+  }
+  if(
+    hasCandidate&&
+    ["REVIEW","REVIEW_NEEDED","LOW_CONFIDENCE"].includes(phase)
+  ){
+    return {key:"review-needed",state:"searching",title:"REVIEW NEEDED",detail:"Candidate evidence needs operator review.",placeholderTitle:"Review Needed",confidence};
+  }
+  if(["VERIFYING","VERIFICATION","RECOGNIZING"].includes(phase)){
+    return {key:"verifying",state:"searching",title:"VERIFYING",detail:"Confirming the strongest identity across recognition signals.",placeholderTitle:"Verifying Card",confidence};
+  }
+  if(candidates.length){
+    return {key:"candidate-found",state:"searching",title:"CANDIDATE FOUND",detail:"RareIQ found reference evidence and is selecting the strongest identity.",placeholderTitle:"Candidate Found",confidence};
+  }
+  if(["DETECTING","CARD_DETECTED","ACQUIRING"].includes(phase)&&cardDetected){
+    return {key:"detecting",state:"searching",title:"DETECTING",detail:"Card geometry is being stabilized inside the scan zone.",placeholderTitle:"Detecting Card",confidence};
+  }
+  if(cardDetected||!["IDLE","EMPTY","LOST"].includes(phase)){
+    return {key:"scanning",state:"searching",title:"SCANNING",detail:"Analyzing artwork, text, and collector data.",placeholderTitle:"Scanning Card",confidence};
+  }
+  return {key:"ready",state:"idle",title:"READY",detail:"Place a card inside the scan zone.",placeholderTitle:"Ready for Card",confidence:0};
 }
 
 async function loadRecognition(){
@@ -1468,6 +2567,14 @@ async function loadRecognition(){
     }
     newestRecognitionGeneration=Math.max(newestRecognitionGeneration,generation);
     newestRecognitionRevision=revision;
+
+    if(cameraConnectionAvailable===false){
+      setCameraDisconnectedPresentation(
+        cameraConnectionFailure?.camera||selectedCamera,
+        cameraConnectionFailure?.error||"Camera is disconnected"
+      );
+      return;
+    }
 
     const raw =
       snapshot?.raw_recognition ||
@@ -1517,7 +2624,7 @@ async function loadRecognition(){
       verifiedVisualCandidate ||
       snapshot.primary_candidate ||
       snapshot.provisional_candidate ||
-      {};
+      null;
 
     const phase = String(
       snapshot?.continuous_state ||
@@ -1535,7 +2642,7 @@ async function loadRecognition(){
       $("inspectorMain")?.style.display !== "none"
     );
 
-    
+
     const missingCurrentCard =
       !card &&
       !candidates.length;
@@ -1597,34 +2704,35 @@ async function loadRecognition(){
         verifiedVisualCandidate
       );
 
-    $("aiState").textContent = verified
-      ? "VERIFIED"
-      : hasCandidate
-      ? "CANDIDATE"
-      : phase === "IDLE"
-      ? "WATCHING"
-      : phase;
+      const provisionalName=String(
+        card?.english_name||card?.printed_name||card?.name||""
+      );
+      const provisionalLooksUnidentified=
+        !verified&&(
+          !provisionalName||
+          provisionalName.length>70||
+          provisionalName.includes("-Set-List-")||
+          provisionalName.includes("-Pokemon-")||
+          provisionalName.includes("-Pokipair-")||
+          /\.(jpg|jpeg|png|webp|avif)$/i.test(provisionalName)
+        );
+      if(hadVisibleCard&&provisionalLooksUnidentified){
+        return;
+      }
 
-    setCoreState(
-      verified
-        ? "matched"
-        : phase === "IDLE"
-        ? "idle"
-        : "scanning"
+    const presentation=deriveRecognitionPresentation(
+      {...snapshot,status:phase},
+      card,
+      candidates
     );
 
+    applyRecognitionPresentation(presentation);
+
     if(phase === "CHANGING"){
-      setRecognitionState("searching","Card change detected. Acquiring the new card.");
       setCopilot("CHANGING","RareIQ invalidated the previous result and is acquiring the replacement card.");
     }else if(phase === "RECOGNIZING"){
-      setRecognitionState("searching","Recognizing the current card.");
       setCopilot("RECOGNIZING","RareIQ is processing the newest card generation.");
     }else if(verified && card){
-      setRecognitionState(
-        "matched",
-        "Database match verified."
-      );
-
       setCopilot(
         "VERIFIED",
         `RareIQ verified <b>${
@@ -1635,37 +2743,16 @@ async function loadRecognition(){
         }</b> at ${Math.round(confidence*100)}% confidence.`
       );
     }else if(hasCandidate){
-      setRecognitionState(
-        "searching",
-        `${phase.replaceAll("_"," ")}  |  ${
-          candidates.length || snapshot?.candidate_count || 1
-        } candidate${(
-          candidates.length ||
-          snapshot?.candidate_count ||
-          1
-        ) === 1 ? "" : "s"}`
-      );
-
       setCopilot(
         "ANALYZING",
         `RareIQ found reference evidence and is verifying the strongest candidate.`
       );
     }else if(phase !== "IDLE"){
-      setRecognitionState(
-        "searching",
-        phase.replaceAll("_"," ")
-      );
-
       setCopilot(
         "ANALYZING",
         `RareIQ is <b>${phase.replaceAll("_"," ").toLowerCase()}</b>. Visual, OCR, and database signals are being fused.`
       );
     }else{
-      setRecognitionState(
-        "idle",
-        "Waiting for a card."
-      );
-
       updateConfidenceRing(0);
 
       setCopilot(
@@ -1673,19 +2760,6 @@ async function loadRecognition(){
         "Place a card in the scan zone. RareIQ will identify, verify, and explain what it finds."
       );
     }
-
-    $("aiDetail").textContent = verified
-      ? "Card verified against the active artwork index."
-      : hasCandidate
-      ? `${candidates.length || snapshot?.candidate_count || 1} candidate result${
-          (candidates.length || snapshot?.candidate_count || 1) === 1
-            ? ""
-            : "s"
-        } available.`
-      : "Place a card inside the scan zone.";
-
-    $("confidence").textContent =
-      `${Math.round(confidence*100)}%`;
 
     const uiPayload = {
       ...raw,
@@ -1796,11 +2870,9 @@ async function loadRecognition(){
           snapshot?.collector_number,
         card.language ||
           snapshot?.language,
-        card.rarity,
-        verified
-          ? "VERIFIED"
-          : "PROVISIONAL"
+        card.rarity
       ].filter(Boolean).join("  |  ");
+      renderIdentityVerdictBadge(presentation,verified);
 
       const rawValue = Number(
         card.market_price ||
@@ -1839,11 +2911,7 @@ async function loadRecognition(){
           ? String(population)
           : "--";
 
-      $("cardStatus").textContent = verified
-        ? "VERIFIED DATABASE MATCH"
-        : confidence >= .68
-        ? "CANDIDATE MATCH"
-        : "REVIEW REQUIRED";
+      $("cardStatus").textContent=presentation.title;
 
       renderExtendedCardData(card,snapshot,confidence,verified);
 
@@ -1917,9 +2985,9 @@ async function loadRecognition(){
           triggerHit();
       }
     }else if(clearInspector){
-      if(empty) empty.style.display="grid";
-      if(main) main.style.display="none";
-      $("cardName").textContent="Waiting for card";
+      if(empty) empty.style.display="none";
+      if(main) main.style.display="grid";
+      $("cardName").textContent="Ready to Scan";
       $("cardMeta").textContent="";
       $("cardArt").innerHTML="";
       resetExtendedCardData();
@@ -1930,13 +2998,22 @@ async function loadRecognition(){
         previousCardId = cardId;
       }
     }else{
-      if(empty) empty.style.display="grid";
-      if(main) main.style.display="none";
+      if(empty) empty.style.display="none";
+      if(main) main.style.display="grid";
     }
 
     renderPipeline(
       uiPayload.pipeline_stages,
       verified
+    );
+
+    updateSharedCardContext(
+      deriveSharedCardContext(
+        presentation,
+        card,
+        snapshot,
+        candidates
+      )
     );
 
     $("latencyValue").textContent =
@@ -2232,7 +3309,924 @@ function setUI4InspectorView(name,loadHistory=true){
   if(ui4InspectorView==="recent"&&loadHistory) loadUI4RecentScans();
 }
 
+const STUDIOX_WIDGET_LAYOUT_KEY="rareiq.studiox.widgetLayout.v2";
+const STUDIOX_WIDGET_LAYOUT_LEGACY_KEY="rareiq.studiox.widgetLayout.v1";
+const STUDIOX_WIDGET_IDS=[
+  "identify","ai-grade","market","candidates","details","diagnostics",
+  "auto-screenshot"
+];
+const STUDIOX_WIDGET_TITLES={
+  identify:"Identify",
+  "ai-grade":"AI Grade",
+  market:"Market",
+  candidates:"Candidates",
+  details:"Details",
+  diagnostics:"Diagnostics",
+  "auto-screenshot":"Auto Screenshot",
+};
+const STUDIOX_DEFAULT_WIDGET_LAYOUT={
+  version:2,
+  order:[...STUDIOX_WIDGET_IDS],
+  hidden:[],
+  collapsed:["details","diagnostics"],
+  pinned:["identify"],
+  sizes:{
+    identify:"wide",
+    "ai-grade":"standard",
+    market:"standard",
+    candidates:"compact",
+    details:"compact",
+    diagnostics:"compact",
+    "auto-screenshot":"wide",
+  },
+};
+let studioXWidgetLayout=null;
+
+const AUTO_SCREENSHOT_CONFIG_KEY="rareiq.studiox.autoScreenshot.v1";
+const AUTO_SCREENSHOT_BACKEND_AVAILABLE=false;
+const AUTO_SCREENSHOT_WORKFLOWS=[
+  "single-card-sales","pack-ripping","pack-battle"
+];
+const AUTO_SCREENSHOT_TRIGGERS=[
+  "manual","exact-match","rarity-threshold","value-threshold","qualifying-hit"
+];
+
+function defaultAutoScreenshotConfig(){
+  return {
+    version:1,
+    enabled:false,
+    workflowMode:"single-card-sales",
+    triggerReason:"manual",
+    captureTypes:{fullFrame:true,cardFocus:false,evidenceView:false},
+    customerId:null,
+    vendorId:null,
+    packNumber:null,
+    turnNumber:null,
+    playerSide:null,
+    includeTimestamp:true,
+    includeRecognitionEvidence:true,
+    minimumConfidence:.9,
+    oneCapturePerCard:true,
+  };
+}
+
+function normalizedOptionalText(value){
+  const text=String(value??"").trim();
+  return text?text.slice(0,120):null;
+}
+
+function normalizedPositiveInteger(value){
+  const number=Number(value);
+  return Number.isInteger(number)&&number>0?number:null;
+}
+
+function normalizeAutoScreenshotConfig(value={}){
+  const defaults=defaultAutoScreenshotConfig();
+  const workflowMode=AUTO_SCREENSHOT_WORKFLOWS.includes(value.workflowMode)
+    ?value.workflowMode
+    :defaults.workflowMode;
+  const triggerReason=AUTO_SCREENSHOT_TRIGGERS.includes(value.triggerReason)
+    ?value.triggerReason
+    :defaults.triggerReason;
+  const minimum=Number(value.minimumConfidence);
+  return {
+    ...defaults,
+    enabled:AUTO_SCREENSHOT_BACKEND_AVAILABLE&&value.enabled===true,
+    workflowMode,
+    triggerReason,
+    captureTypes:{
+      fullFrame:value.captureTypes?.fullFrame!==false,
+      cardFocus:value.captureTypes?.cardFocus===true,
+      evidenceView:value.captureTypes?.evidenceView===true,
+    },
+    customerId:normalizedOptionalText(value.customerId),
+    vendorId:normalizedOptionalText(value.vendorId),
+    packNumber:normalizedPositiveInteger(value.packNumber),
+    turnNumber:normalizedPositiveInteger(value.turnNumber),
+    playerSide:workflowMode==="pack-battle"&&["player-1","player-2"].includes(value.playerSide)
+      ?value.playerSide
+      :null,
+    includeTimestamp:value.includeTimestamp!==false,
+    includeRecognitionEvidence:value.includeRecognitionEvidence!==false,
+    minimumConfidence:Number.isFinite(minimum)
+      ?Math.min(1,Math.max(0,minimum))
+      :defaults.minimumConfidence,
+    oneCapturePerCard:true,
+  };
+}
+
+function loadAutoScreenshotConfig(){
+  try{
+    return normalizeAutoScreenshotConfig(
+      JSON.parse(localStorage.getItem(AUTO_SCREENSHOT_CONFIG_KEY)||"null")||{}
+    );
+  }catch{
+    return defaultAutoScreenshotConfig();
+  }
+}
+
+function saveAutoScreenshotConfig(config){
+  const normalized=normalizeAutoScreenshotConfig(config);
+  try{
+    localStorage.setItem(AUTO_SCREENSHOT_CONFIG_KEY,JSON.stringify(normalized));
+  }catch{}
+  return normalized;
+}
+
+function autoScreenshotIdentityVerdict(context={}){
+  const key=String(context?.presentation?.key||"");
+  if(key==="exact-match"&&context.verified===true) return "exact-match";
+  if(key==="review-needed") return "review-needed";
+  if(["candidate-found","verifying"].includes(key)) return "provisional";
+  return "unknown";
+}
+
+function autoScreenshotTriggerQualifies(config,context={},options={}){
+  const value=normalizeAutoScreenshotConfig(config);
+  if(!AUTO_SCREENSHOT_BACKEND_AVAILABLE||!value.enabled) return false;
+  const verdict=autoScreenshotIdentityVerdict(context);
+  const confidence=Number(context.visualConfidence);
+  if(!Number.isFinite(confidence)||confidence<value.minimumConfidence) return false;
+  if(value.triggerReason==="manual") return options.manual===true;
+  if(value.triggerReason==="exact-match") return verdict==="exact-match";
+  if(value.triggerReason==="rarity-threshold"){
+    return verdict==="exact-match"&&Boolean(options.truthfulRarity);
+  }
+  if(value.triggerReason==="value-threshold"){
+    return verdict==="exact-match"&&Number.isFinite(options.truthfulMarketValue);
+  }
+  return verdict==="exact-match"&&options.qualifyingHit===true;
+}
+
+function buildAutoScreenshotProvenanceEvent(confirmation,context,config){
+  if(!confirmation?.ok||!confirmation.eventId||!confirmation.capturedAt){
+    throw new Error("Backend confirmation is required for screenshot provenance.");
+  }
+  const value=normalizeAutoScreenshotConfig(config);
+  const card=context?.card||{};
+  return Object.freeze({
+    version:1,
+    eventId:String(confirmation.eventId),
+    sessionId:normalizedOptionalText(confirmation.sessionId),
+    customerId:value.customerId,
+    vendorId:value.vendorId,
+    workflowMode:value.workflowMode,
+    packNumber:value.packNumber,
+    turnNumber:value.turnNumber,
+    playerSide:value.playerSide,
+    cardContextId:String(confirmation.cardContextId||context?.identityKey||""),
+    cardIdentity:{
+      cardId:normalizedOptionalText(card.id),
+      englishName:normalizedOptionalText(card.english_name||card.canonical_name),
+      printedName:normalizedOptionalText(card.printed_name||card.name),
+      set:normalizedOptionalText(card.set_name||card.set_id),
+      localCardId:normalizedOptionalText(card.collector_number),
+      officialNumber:normalizedOptionalText(context?.officialCollectorNumber),
+      identityVerdict:autoScreenshotIdentityVerdict(context),
+      visualConfidence:Number.isFinite(Number(context?.visualConfidence))
+        ?Number(context.visualConfidence)
+        :null,
+    },
+    triggerReason:value.triggerReason,
+    capturedAt:String(confirmation.capturedAt),
+    cameraSource:normalizedOptionalText(confirmation.cameraSource),
+    assets:{
+      fullFrame:normalizedOptionalText(confirmation.assets?.fullFrame),
+      cardFocus:normalizedOptionalText(confirmation.assets?.cardFocus),
+      evidenceView:normalizedOptionalText(confirmation.assets?.evidenceView),
+      clipId:normalizedOptionalText(confirmation.assets?.clipId),
+    },
+  });
+}
+
+function createAutoScreenshotCorrectionRevision(originalEvent,confirmation,cardIdentity){
+  if(!originalEvent?.eventId||!confirmation?.ok||!confirmation?.revisionId){
+    throw new Error("Confirmed revision metadata is required.");
+  }
+  return Object.freeze({
+    originalEventId:String(originalEvent.eventId),
+    revisionId:String(confirmation.revisionId),
+    revisedAt:String(confirmation.revisedAt||""),
+    cardIdentity:{...cardIdentity},
+  });
+}
+
+function readAutoScreenshotForm(){
+  return normalizeAutoScreenshotConfig({
+    enabled:$("autoScreenshotEnabled")?.checked===true,
+    workflowMode:$("autoScreenshotWorkflow")?.value,
+    triggerReason:$("autoScreenshotTrigger")?.value,
+    captureTypes:{
+      fullFrame:$("autoScreenshotFullFrame")?.checked===true,
+      cardFocus:$("autoScreenshotCardFocus")?.checked===true,
+      evidenceView:$("autoScreenshotEvidenceView")?.checked===true,
+    },
+    customerId:$("autoScreenshotCustomerId")?.value,
+    vendorId:$("autoScreenshotVendorId")?.value,
+    packNumber:$("autoScreenshotPackNumber")?.value,
+    turnNumber:$("autoScreenshotTurnNumber")?.value,
+    playerSide:$("autoScreenshotPlayerSide")?.value,
+    includeTimestamp:$("autoScreenshotTimestamp")?.checked===true,
+    includeRecognitionEvidence:$("autoScreenshotEvidence")?.checked===true,
+    minimumConfidence:Number($("autoScreenshotMinimumConfidence")?.value)/100,
+  });
+}
+
+function renderAutoScreenshotConfig(config=loadAutoScreenshotConfig()){
+  const value=normalizeAutoScreenshotConfig(config);
+  const assignments={
+    autoScreenshotWorkflow:value.workflowMode,
+    autoScreenshotTrigger:value.triggerReason,
+    autoScreenshotCustomerId:value.customerId||"",
+    autoScreenshotVendorId:value.vendorId||"",
+    autoScreenshotPackNumber:value.packNumber||"",
+    autoScreenshotTurnNumber:value.turnNumber||"",
+    autoScreenshotPlayerSide:value.playerSide||"",
+    autoScreenshotMinimumConfidence:Math.round(value.minimumConfidence*100),
+  };
+  Object.entries(assignments).forEach(([id,fieldValue])=>{
+    if($(id)) $(id).value=fieldValue;
+  });
+  if($("autoScreenshotEnabled")) $("autoScreenshotEnabled").checked=false;
+  if($("autoScreenshotFullFrame")) $("autoScreenshotFullFrame").checked=value.captureTypes.fullFrame;
+  if($("autoScreenshotCardFocus")) $("autoScreenshotCardFocus").checked=value.captureTypes.cardFocus;
+  if($("autoScreenshotEvidenceView")) $("autoScreenshotEvidenceView").checked=value.captureTypes.evidenceView;
+  if($("autoScreenshotTimestamp")) $("autoScreenshotTimestamp").checked=value.includeTimestamp;
+  if($("autoScreenshotEvidence")) $("autoScreenshotEvidence").checked=value.includeRecognitionEvidence;
+  if($("autoScreenshotState")) $("autoScreenshotState").textContent="Unavailable";
+  if($("autoScreenshotStatus")) $("autoScreenshotStatus").textContent="Screenshot capture engine not connected";
+  setStudioXWidgetState("auto-screenshot","unavailable");
+  return value;
+}
+
+function initializeAutoScreenshotConfiguration(){
+  const form=$("autoScreenshotForm");
+  if(!form) return;
+  renderAutoScreenshotConfig();
+  form.addEventListener("change",()=>{
+    renderAutoScreenshotConfig(saveAutoScreenshotConfig(readAutoScreenshotForm()));
+  });
+}
+
+function defaultStudioXWidgetLayout(){
+  return {
+    version:STUDIOX_DEFAULT_WIDGET_LAYOUT.version,
+    order:[...STUDIOX_DEFAULT_WIDGET_LAYOUT.order],
+    hidden:[...STUDIOX_DEFAULT_WIDGET_LAYOUT.hidden],
+    collapsed:[...STUDIOX_DEFAULT_WIDGET_LAYOUT.collapsed],
+    pinned:[...STUDIOX_DEFAULT_WIDGET_LAYOUT.pinned],
+    sizes:{...STUDIOX_DEFAULT_WIDGET_LAYOUT.sizes},
+  };
+}
+
+function normalizeStudioXWidgetLayout(value){
+  if(!value||![1,2].includes(value.version)) return defaultStudioXWidgetLayout();
+  const validList=list=>Array.isArray(list)
+    ? [...new Set(list.filter(id=>STUDIOX_WIDGET_IDS.includes(id)))]
+    : [];
+  const savedOrder=validList(value.order);
+  const validSizes=["compact","standard","wide"];
+  const sizes={...STUDIOX_DEFAULT_WIDGET_LAYOUT.sizes};
+  if(value.version===2&&value.sizes&&typeof value.sizes==="object"){
+    STUDIOX_WIDGET_IDS.forEach(id=>{
+      if(validSizes.includes(value.sizes[id])) sizes[id]=value.sizes[id];
+    });
+  }
+  return {
+    version:2,
+    order:[
+      ...savedOrder,
+      ...STUDIOX_WIDGET_IDS.filter(id=>!savedOrder.includes(id)),
+    ],
+    hidden:validList(value.hidden),
+    collapsed:validList(value.collapsed),
+    pinned:validList(value.pinned),
+    sizes,
+  };
+}
+
+function loadStudioXWidgetLayout(){
+  try{
+    const savedV2=localStorage.getItem(STUDIOX_WIDGET_LAYOUT_KEY);
+    const savedV1=localStorage.getItem(STUDIOX_WIDGET_LAYOUT_LEGACY_KEY);
+    return normalizeStudioXWidgetLayout(
+      JSON.parse(savedV2||savedV1||"null")
+    );
+  }catch{
+    return defaultStudioXWidgetLayout();
+  }
+}
+
+function saveStudioXWidgetLayout(){
+  try{
+    localStorage.setItem(
+      STUDIOX_WIDGET_LAYOUT_KEY,
+      JSON.stringify(studioXWidgetLayout)
+    );
+  }catch{}
+}
+
+function widgetStateLabel(widget){
+  return String(widget?.dataset.widgetState||"empty")
+    .replaceAll("-"," ");
+}
+
+function ensureStudioXWidgetChrome(widget){
+  if(widget.querySelector(":scope > .studiox-widget-header")) return;
+  const id=widget.dataset.studioxWidget;
+  const header=document.createElement("header");
+  header.className="studiox-widget-header";
+  header.innerHTML=`
+    <button class="studiox-widget-focus" type="button" data-widget-focus="${id}">
+      <span>${STUDIOX_WIDGET_TITLES[id]||id}</span>
+      <small data-widget-status>${widgetStateLabel(widget)}</small>
+    </button>
+    <div class="studiox-widget-controls">
+      <button type="button" data-widget-action="pin" aria-label="Pin ${STUDIOX_WIDGET_TITLES[id]}">Pin</button>
+      <button type="button" data-widget-action="up" aria-label="Move ${STUDIOX_WIDGET_TITLES[id]} up">↑</button>
+      <button type="button" data-widget-action="down" aria-label="Move ${STUDIOX_WIDGET_TITLES[id]} down">↓</button>
+      <button type="button" data-widget-action="size" aria-label="Change ${STUDIOX_WIDGET_TITLES[id]} size">Size</button>
+      <button type="button" data-widget-action="collapse" aria-label="Collapse ${STUDIOX_WIDGET_TITLES[id]}">Collapse</button>
+    </div>
+  `;
+  widget.prepend(header);
+}
+
+function applyStudioXWidgetLayout({persist=false}={}){
+  const workspace=$("widgetWorkspace");
+  if(!workspace) return;
+  studioXWidgetLayout=normalizeStudioXWidgetLayout(
+    studioXWidgetLayout||loadStudioXWidgetLayout()
+  );
+  const pinned=studioXWidgetLayout.order.filter(
+    id=>studioXWidgetLayout.pinned.includes(id)
+  );
+  const unpinned=studioXWidgetLayout.order.filter(
+    id=>!studioXWidgetLayout.pinned.includes(id)
+  );
+  studioXWidgetLayout.order=[...pinned,...unpinned];
+  studioXWidgetLayout.order.forEach(id=>{
+    const widget=workspace.querySelector(`[data-studiox-widget="${id}"]`);
+    if(!widget) return;
+    ensureStudioXWidgetChrome(widget);
+    workspace.appendChild(widget);
+    widget.hidden=studioXWidgetLayout.hidden.includes(id);
+    widget.classList.toggle(
+      "is-collapsed",
+      studioXWidgetLayout.collapsed.includes(id)
+    );
+    widget.classList.toggle(
+      "is-pinned",
+      studioXWidgetLayout.pinned.includes(id)
+    );
+    widget.dataset.widgetSize=studioXWidgetLayout.sizes[id];
+    const collapse=widget.querySelector('[data-widget-action="collapse"]');
+    if(collapse){
+      const collapsed=widget.classList.contains("is-collapsed");
+      collapse.textContent=collapsed?"Expand":"Collapse";
+      collapse.setAttribute("aria-expanded",collapsed?"false":"true");
+    }
+    const pin=widget.querySelector('[data-widget-action="pin"]');
+    if(pin){
+      const isPinned=widget.classList.contains("is-pinned");
+      pin.textContent=isPinned?"Unpin":"Pin";
+      pin.setAttribute("aria-pressed",isPinned?"true":"false");
+    }
+    const size=widget.querySelector('[data-widget-action="size"]');
+    if(size) size.textContent=studioXWidgetLayout.sizes[id];
+  });
+  document.querySelectorAll("[data-widget-visibility]").forEach(input=>{
+    input.checked=!studioXWidgetLayout.hidden.includes(
+      input.dataset.widgetVisibility
+    );
+  });
+  if(persist) saveStudioXWidgetLayout();
+}
+
+function updateStudioXWidgetLayout(id,action,value=null){
+  if(!STUDIOX_WIDGET_IDS.includes(id)) return;
+  studioXWidgetLayout=normalizeStudioXWidgetLayout(
+    studioXWidgetLayout||loadStudioXWidgetLayout()
+  );
+  if(action==="visibility"){
+    studioXWidgetLayout.hidden=studioXWidgetLayout.hidden.filter(item=>item!==id);
+    if(value===false) studioXWidgetLayout.hidden.push(id);
+  }else if(action==="collapse"){
+    const collapsed=studioXWidgetLayout.collapsed.includes(id);
+    studioXWidgetLayout.collapsed=studioXWidgetLayout.collapsed.filter(item=>item!==id);
+    if(!collapsed) studioXWidgetLayout.collapsed.push(id);
+  }else if(action==="pin"){
+    const pinned=studioXWidgetLayout.pinned.includes(id);
+    studioXWidgetLayout.pinned=studioXWidgetLayout.pinned.filter(item=>item!==id);
+    if(!pinned) studioXWidgetLayout.pinned.push(id);
+  }else if(action==="size"){
+    const sizes=["compact","standard","wide"];
+    const current=sizes.indexOf(studioXWidgetLayout.sizes[id]);
+    studioXWidgetLayout.sizes[id]=sizes[(current+1)%sizes.length];
+  }else if(action==="up"||action==="down"){
+    const index=studioXWidgetLayout.order.indexOf(id);
+    const target=index+(action==="up"?-1:1);
+    if(index>=0&&target>=0&&target<studioXWidgetLayout.order.length){
+      [
+        studioXWidgetLayout.order[index],
+        studioXWidgetLayout.order[target],
+      ]=[
+        studioXWidgetLayout.order[target],
+        studioXWidgetLayout.order[index],
+      ];
+    }
+  }
+  applyStudioXWidgetLayout({persist:true});
+}
+
+function resetStudioXWidgetLayout(){
+  studioXWidgetLayout=defaultStudioXWidgetLayout();
+  applyStudioXWidgetLayout({persist:true});
+}
+
+function setPremiumIntelligenceTab(name="identify"){
+  const widget=document.querySelector(`[data-studiox-widget="${name}"]`);
+  if(!widget) return;
+  document.querySelectorAll("[data-studiox-widget]").forEach(node=>{
+    node.classList.toggle("is-focused",node===widget);
+  });
+  widget.querySelector(".studiox-widget-focus")?.focus({preventScroll:true});
+}
+
+function deriveSharedCardContext(presentation,card=null,snapshot={},candidates=[]){
+  const grading=
+    snapshot?.ai_grade||
+    snapshot?.grading||
+    card?.ai_grade||
+    card?.grading||
+    null;
+  const allowedGradeStates=[
+    "unavailable","waiting-for-stable-capture","front-analysis-ready",
+    "back-image-required","analyzing","error"
+  ];
+  let gradeState=String(grading?.state||"").toLowerCase();
+  if(!allowedGradeStates.includes(gradeState)){
+    gradeState=["detecting","scanning","candidate-found","verifying"].includes(presentation.key)
+      ? "waiting-for-stable-capture"
+      : "unavailable";
+  }
+  const verified=presentation.key==="exact-match";
+  return {
+    revision:Number(snapshot?.revision||0),
+    identityKey:String(
+      card?.identity_override_key||
+      card?.id||
+      `${card?.set_id||""}:${card?.collector_number||""}`
+    ),
+    presentation:{...presentation},
+    card:card||null,
+    candidates:Array.isArray(candidates)?[...candidates]:[],
+    verified,
+    visualConfidence:normalize(
+      card?.visual_score??
+      card?.artwork_score??
+      presentation?.confidence??
+      0
+    ),
+    officialCollectorNumber:
+      card?.official_collector_number||
+      snapshot?.official_collector_number||
+      null,
+    market:deriveMarketPresentation(card||{}),
+    snapshot:{...snapshot},
+    grading,
+    gradeState,
+  };
+}
+
+function setStudioXWidgetState(id,state){
+  const widget=document.querySelector(`[data-studiox-widget="${id}"]`);
+  if(!widget) return;
+  widget.dataset.widgetState=state;
+  const status=widget.querySelector("[data-widget-status]");
+  if(status) status.textContent=String(state).replaceAll("-"," ");
+}
+
+function deriveLiveAnalysisSteps(context){
+  const snapshot=context.snapshot||{};
+  const vision=snapshot?.vision?.vision||snapshot?.vision||{};
+  const presentation=context.presentation.key;
+  const active=!["ready","exact-match"].includes(presentation);
+  const detected=Boolean(
+    snapshot.card_present===true||
+    vision.visible===true||
+    context.card||
+    context.candidates.length
+  );
+  const geometryStable=Boolean(
+    vision.stable===true||
+    Number(vision.stable_frames||0)>=Number(vision.stable_target||Infinity)
+  );
+  const artworkEvidence=Boolean(
+    context.candidates.length||
+    context.card?.visual_score||
+    context.card?.artwork_score||
+    snapshot?.artwork_index?.score
+  );
+  const collectorEvidence=Boolean(
+    snapshot.collector_number||
+    context.card?.collector_number
+  );
+  const error=presentation==="error";
+  return {
+    detection:error?"error":detected?"complete":active?"active":"pending",
+    geometry:error?"error":geometryStable?"complete":detected?"active":"pending",
+    artwork:error?"error":artworkEvidence?"complete":detected&&["scanning","candidate-found","verifying","review-needed"].includes(presentation)?"active":"pending",
+    collector:error?"error":collectorEvidence?"complete":artworkEvidence&&["scanning","candidate-found","verifying","review-needed"].includes(presentation)?"active":"pending",
+    catalog:error?"error":context.verified?"complete":["candidate-found","verifying","review-needed"].includes(presentation)?"active":"pending",
+  };
+}
+
+function hasTruthfulRecognizedIdentity(context){
+  const card=context?.card;
+  if(!card) return false;
+  const name=firstCardValue(card,["english_name","canonical_name","printed_name","name"]);
+  const locator=firstCardValue(card,["collector_number","official_collector_number","set_id","set_name"]);
+  return Boolean(
+    name&&locator&&
+    ["candidate-found","review-needed","exact-match"].includes(context.presentation.key)
+  );
+}
+
+function renderLiveAnalysisTimeline(context){
+  const timeline=$("liveAnalysisTimeline");
+  const header=$("cardContextHeader");
+  const pending=$("identityPendingPlaceholder");
+  if(!timeline||!header||!pending) return;
+  const recognized=context.verified||hasTruthfulRecognizedIdentity(context);
+  const scanning=!recognized&&!["ready","exact-match"].includes(context.presentation.key);
+  const state=context.presentation.key;
+  const currentView=document.querySelector(".ui4-current-card-view");
+  const inspectorMain=$("inspectorMain");
+  if(currentView) currentView.dataset.presentationState=state;
+  if(inspectorMain) inspectorMain.dataset.presentationState=state;
+  timeline.hidden=!scanning;
+  pending.hidden=recognized;
+  header.hidden=!recognized;
+  header.inert=!recognized;
+  if($("liveAnalysisTitle")){
+    $("liveAnalysisTitle").textContent=context.presentation.placeholderTitle;
+  }
+  if($("liveAnalysisState")){
+    $("liveAnalysisState").textContent=context.presentation.title;
+  }
+  if($("liveAnalysisDetail")){
+    $("liveAnalysisDetail").textContent=context.presentation.detail;
+  }
+  if($("identityPendingTitle")) $("identityPendingTitle").textContent="IDENTITY PENDING";
+  if($("identityPendingDetail")){
+    $("identityPendingDetail").textContent=
+      context.presentation.key==="ready"
+        ?"Waiting for card"
+        : context.presentation.key==="review-needed"
+        ?"Waiting for operator confirmation"
+        :"Waiting for catalog confirmation";
+  }
+  const labels={
+    pending:"Pending",
+    active:"In progress",
+    complete:"Complete",
+    unavailable:"Unavailable",
+    error:"Error",
+  };
+  const steps=deriveLiveAnalysisSteps(context);
+  Object.entries(steps).forEach(([name,state])=>{
+    const row=timeline.querySelector(`[data-analysis-step="${name}"]`);
+    if(!row) return;
+    row.dataset.stepState=state;
+    const label=row.querySelector("b");
+    if(label) label.textContent=labels[state];
+  });
+}
+
+function renderAuthoritativeCardContextHeader(context){
+  renderLiveAnalysisTimeline(context);
+  renderIdentityVerdictBadge(context.presentation,context.verified);
+  if(context.verified||hasTruthfulRecognizedIdentity(context)) return;
+  const presentation=context.presentation;
+  if($("resultEyebrow")) $("resultEyebrow").textContent="Live Recognition";
+  if($("cardName")){
+    $("cardName").textContent=
+      presentation.key==="ready"
+        ? "Ready for card"
+        : presentation.placeholderTitle;
+  }
+  if($("cardMeta")) $("cardMeta").textContent=presentation.detail;
+  if($("cardStatus")) $("cardStatus").textContent=presentation.title;
+  if($("cardValue")) $("cardValue").textContent="Waiting for confirmed identity";
+  if($("cardArt")) $("cardArt").replaceChildren();
+  resetExtendedCardData();
+}
+
+function renderIdentityVerdictBadge(presentation={},verified=false){
+  const badge=$("identityVerdictBadge");
+  if(!badge) return;
+  const provisional=!verified&&[
+    "candidate-found","verifying","review-needed"
+  ].includes(presentation.key);
+  badge.hidden=!(verified||provisional);
+  badge.dataset.verdict=verified?"exact-match":"provisional";
+  badge.textContent=verified?"EXACT MATCH":"PROVISIONAL";
+}
+
+function renderIdentifyWidget(context){
+  const scanning=!context.verified&&!["ready","error"].includes(context.presentation.key);
+  setCardText(
+    "identifyCatalogStatus",
+    context.verified
+      ?"Exact"
+      : scanning
+      ? context.presentation.key==="verifying"
+        ?"Catalog verification in progress"
+        :"Recognition evidence gathering"
+      :"Waiting for card"
+  );
+  setCardText(
+    "identifyVisualConfidence",
+    `${Math.round(context.visualConfidence*100)}%`
+  );
+  setCardText(
+    "identifyAcceptanceEvidence",
+    !context.card
+      ? scanning
+        ? "Waiting for stronger evidence"
+        : "Not available"
+      : context.verified
+      ? "Verified catalog identity"
+      : "Operator review required"
+  );
+  const identifyWidget=document.querySelector('[data-studiox-widget="identify"]');
+  if(identifyWidget){
+    identifyWidget.dataset.identityVerdict=
+      context.verified?"verified":scanning?"pending":context.card?"provisional":"empty";
+  }
+  const evidence=$("identifyEvidence");
+  if(evidence){
+    const card=context.card||{};
+    const artworkScore=firstCardValue(card,["visual_score","artwork_score"]);
+    const rows=[
+      [
+        "Artwork match",
+        artworkScore!==null
+          ? `${context.verified?"Strong · ":""}${Math.round(normalize(artworkScore)*100)}% visual confidence`
+          : null,
+      ],
+      ["Collector number",firstCardValue(card,["collector_number","card_number"])?(context.verified?"Confirmed":firstCardValue(card,["collector_number","card_number"])):null],
+      ["Set confirmation",firstCardValue(card,["set_name","set","set_code","set_id"])?(context.verified?"Confirmed":firstCardValue(card,["set_name","set","set_code","set_id"])):null],
+      ["Language",firstCardValue(card,["language","language_name","language_code"])?(context.verified?"Confirmed":firstCardValue(card,["language","language_name","language_code"])):null],
+      ["Variant",firstCardValue(card,["variant","variant_name","rarity_variant"])],
+    ].filter(([,value])=>value!==null&&value!==undefined&&String(value).trim());
+    evidence.dataset.summaryLabel=context.verified?"Identity verified":"Identity evidence";
+    evidence.replaceChildren();
+    rows.forEach(([label,value])=>{
+      const row=document.createElement("div");
+      const name=document.createElement("span");
+      const detail=document.createElement("b");
+      name.textContent=label;
+      detail.textContent=String(value);
+      row.append(name,detail);
+      evidence.appendChild(row);
+    });
+    evidence.hidden=!rows.length;
+  }
+  setStudioXWidgetState(
+    "identify",
+    context.verified
+      ?"available"
+      : scanning
+      ?"verification-in-progress"
+      : context.card
+      ?"review-needed"
+      :"empty"
+  );
+}
+
+function renderAIGradeWidget(context){
+  const grading=context.grading||{};
+  const values={
+    aiGradeCentering:grading.centering,
+    aiGradeCorners:grading.corners,
+    aiGradeEdges:grading.edges,
+    aiGradeSurface:grading.surface,
+    aiGradeRange:grading.estimated_range,
+    aiGradeConfidence:grading.confidence,
+  };
+  setCardText(
+    "aiGradeState",
+    context.gradeState==="waiting-for-stable-capture"
+      ?"Waiting for a stable card capture"
+      : context.gradeState==="unavailable"
+      ?"Unavailable"
+      : context.gradeState.replaceAll("-"," "),
+    "Unavailable"
+  );
+  Object.entries(values).forEach(([id,value])=>{
+    setCardText(id,value,"Pending");
+  });
+  const gradeMetrics=$("aiGradeMetrics");
+  if(gradeMetrics){
+    gradeMetrics.hidden=!Object.values(values).some(
+      value=>value!==undefined&&value!==null&&value!==""
+    );
+  }
+  const emptyDetail=$("aiGradeEmptyDetail");
+  if(emptyDetail){
+    const hasMetrics=Object.values(values).some(
+      value=>value!==undefined&&value!==null&&value!==""
+    );
+    emptyDetail.hidden=hasMetrics;
+    emptyDetail.textContent=
+      context.gradeState==="waiting-for-stable-capture"
+        ?"Waiting for a stable card capture."
+        :"AI Grade is unavailable because no grading provider is connected.";
+  }
+  setStudioXWidgetState("ai-grade",context.gradeState);
+}
+
+function renderMarketWidget(context){
+  const scanning=!context.verified&&!["ready","error"].includes(context.presentation.key);
+  const state=context.card&&context.verified?context.market.key:"identity-pending";
+  const hasMetrics=state==="available";
+  const messages={
+    pending:"Retrieving market intelligence",
+    available:"Current public market data",
+    "no-data":"No verified market data is available for this card.",
+    "provider-error":"Market provider unavailable.",
+    "identity-pending":"Waiting for confirmed identity",
+  };
+  setCardText("marketWidgetState",messages[state],"No public market data.");
+  const marketWidget=document.querySelector('[data-studiox-widget="market"]');
+  marketWidget?.querySelectorAll(".ui4-price-primary,.ui4-price-grid").forEach(node=>{
+    node.hidden=!hasMetrics;
+  });
+  const footnote=marketWidget?.querySelector(".ui4-price-footnote");
+  if(footnote){
+    footnote.hidden=!["available","pending"].includes(state);
+  }
+  if($("cardValue")){
+    $("cardValue").textContent=
+      state==="identity-pending"
+        ?"Waiting for confirmed identity"
+        : state==="pending"
+        ?"Retrieving market intelligence"
+        : state==="no-data"&&context.verified
+        ?"No public market data"
+        : state==="provider-error"
+        ?"Market provider unavailable"
+        : $("cardValue").textContent;
+  }
+  setStudioXWidgetState(
+    "market",
+    state==="pending"
+      ? "fetching"
+      : state==="provider-error"
+      ? "provider-unavailable"
+      : state
+  );
+}
+
+function renderCandidatesWidget(context){
+  const count=context.candidates.length;
+  const searching=!context.verified&&["detecting","scanning","candidate-found","verifying"].includes(context.presentation.key);
+  setCardText(
+    "candidateWidgetSummary",
+    count
+      ? `${count} alternative candidate${count===1?"":"s"} available for review.`
+      : searching
+      ? "Searching catalog candidates"
+      : context.verified
+      ? "Exact identity verified. No alternative candidates require review."
+      : context.presentation.key==="review-needed"
+      ? "No verified candidates found"
+      : "No alternative candidates are available."
+  );
+  setStudioXWidgetState(
+    "candidates",
+    context.presentation.key==="error"
+      ? "error"
+      : context.presentation.key==="review-needed"
+      ? "review-needed"
+      : count
+      ? "alternatives-available"
+      : searching
+      ? "searching"
+      : context.verified
+      ? "verified"
+      : "no-candidates"
+  );
+  const reviewButton=$("candidateReviewButton");
+  if(reviewButton){
+    reviewButton.hidden=!(count>0&&context.presentation.key==="review-needed");
+  }
+}
+
+function renderDetailsWidget(context){
+  const widget=document.querySelector('[data-studiox-widget="details"]');
+  const available=context.verified&&context.card;
+  if(widget&&!available) widget.dataset.widgetSize="compact";
+  setStudioXWidgetState("details",available?"available":"empty");
+}
+
+function renderDiagnosticsWidget(context){
+  setCardText("diagnosticRecognitionState",context.presentation.title);
+  setCardText(
+    "diagnosticVisualConfidence",
+    `${Math.round(context.visualConfidence*100)}%`
+  );
+  setCardText(
+    "diagnosticCatalogVerification",
+    context.verified?"Verified":"Not verified"
+  );
+  setCardText(
+    "diagnosticPipelineState",
+    context.presentation.key.replaceAll("-"," ")
+  );
+  setStudioXWidgetState(
+    "diagnostics",
+    context.presentation.key==="error"?"error":"available"
+  );
+}
+
+function renderAutoScreenshotWidget(){
+  if($("autoScreenshotState")) $("autoScreenshotState").textContent="Unavailable";
+  if($("autoScreenshotStatus")) $("autoScreenshotStatus").textContent="Screenshot capture engine not connected";
+  setStudioXWidgetState("auto-screenshot","unavailable");
+}
+
+const STUDIOX_WIDGET_RENDERERS={
+  identify:renderIdentifyWidget,
+  "ai-grade":renderAIGradeWidget,
+  market:renderMarketWidget,
+  candidates:renderCandidatesWidget,
+  details:renderDetailsWidget,
+  diagnostics:renderDiagnosticsWidget,
+  "auto-screenshot":renderAutoScreenshotWidget,
+};
+
+function updateSharedCardContext(context){
+  window.__rareiqCardContext=context;
+  document.body.dataset.presentationState=context.presentation.key;
+  applyStudioXExactMatchMoment(context);
+  updateViewerInspectionHeader(context);
+  applyRecognitionPresentation(context.presentation);
+  renderAuthoritativeCardContextHeader(context);
+  applyStudioXViewerPresentation(
+    context,
+    window.__rareiqVisionTelemetry||{}
+  );
+  renderSecondaryWorkspaceBay(context);
+  const actionable=context.verified||hasTruthfulRecognizedIdentity(context);
+  ["approveButton","rejectButton","detailsButton"].forEach(id=>{
+    const button=$(id);
+    if(button) button.disabled=!actionable;
+  });
+  if($("nextClearButton")) $("nextClearButton").disabled=false;
+  Object.entries(STUDIOX_WIDGET_RENDERERS).forEach(([id,renderer])=>{
+    try{
+      renderer(context);
+    }catch(error){
+      console.warn(`Studio X widget ${id} failed`,error);
+      setStudioXWidgetState(id,"error");
+    }
+  });
+  document.dispatchEvent(
+    new CustomEvent("rareiq:card-context",{detail:context})
+  );
+}
+
+function applyStudioXExactMatchMoment(context={}){
+  const exact=context?.presentation?.key==="exact-match"&&context?.verified===true;
+  if(!exact){
+    document.body.classList.remove("studiox-exact-match-moment");
+    if(["ready","detecting","scanning"].includes(context?.presentation?.key)){
+      studioXExactMatchMomentKey=null;
+    }
+    return;
+  }
+  const key=[
+    currentServerSessionId||"server",
+    context?.snapshot?.generation??"generation",
+    context?.identityKey||"card",
+  ].join(":");
+  if(key===studioXExactMatchMomentKey) return;
+  studioXExactMatchMomentKey=key;
+  clearTimeout(studioXExactMatchMomentTimer);
+  document.body.classList.remove("studiox-exact-match-moment");
+  requestAnimationFrame(()=>{
+    document.body.classList.add("studiox-exact-match-moment");
+    studioXExactMatchMomentTimer=setTimeout(()=>{
+      document.body.classList.remove("studiox-exact-match-moment");
+    },720);
+  });
+}
+
 function initializeStudioXUI4(){
+  if(document.body.dataset.ui4Initialized==="true") return;
   const camera=document.querySelector(".camera-workspace");
   const inspector=document.querySelector(".inspector");
   const inspectorMount=document.querySelector(".ui4-inspector-column");
@@ -2241,12 +4235,13 @@ function initializeStudioXUI4(){
   const toolbar=document.querySelector(".toolbar");
   const appbar=document.querySelector(".appbar");
   if(!camera||!inspector||!inspectorMount||!pipeline||!dock||!toolbar||!appbar) return;
+  document.body.dataset.ui4Initialized="true";
 
-  inspectorMount.appendChild(inspector);
-  camera.appendChild(pipeline);
+  if(inspector.parentElement!==inspectorMount) inspectorMount.appendChild(inspector);
+  if(pipeline.parentElement!==camera) camera.appendChild(pipeline);
   dock.classList.add("ui4-diagnostics-drawer");
   dock.setAttribute("aria-hidden","true");
-  camera.appendChild(dock);
+  if(dock.parentElement!==camera) camera.appendChild(dock);
 
   const rail=document.querySelector(".ui4-navigation-rail");
   if(rail && !rail.querySelector('[data-ui4-action="rail"]')){
@@ -2261,7 +4256,7 @@ function initializeStudioXUI4(){
   }
 
   const recovery=toolbar.querySelector('[onclick="reconnectCamera()"]');
-  if(recovery) recovery.textContent="Reconnect";
+  if(recovery) recovery.textContent="Reconnect Camera";
   const manual=toolbar.querySelector('[onclick="captureCamera()"]');
   if(manual) manual.textContent="Capture";
 
@@ -2280,14 +4275,13 @@ function initializeStudioXUI4(){
   diagnosticsButton.textContent="Diagnostics";
   diagnosticsButton.setAttribute("aria-expanded","false");
   diagnosticsButton.addEventListener("click",()=>setUI4DiagnosticsOpen(!ui4DiagnosticsOpen));
-  toolbar.append(diagnosticsButton,healthButton);
+  const actionsRow=toolbar.querySelector(".premium-actions-row")||toolbar;
+  actionsRow.append(diagnosticsButton,healthButton);
 
   const healthPopover=document.createElement("div");
   healthPopover.className="ui4-health-popover";
   healthPopover.setAttribute("aria-hidden","true");
   const lowFrequency=[
-    toolbar.querySelector('[onclick="loadCameraList()"]'),
-    toolbar.querySelector('[onclick="reconnectCamera()"]'),
     toolbar.querySelector('[onclick="startSelectedCamera()"]'),
     toolbar.querySelector('[onclick="stopCamera()"]'),
     toolbar.querySelector('[onclick="openCameraPopout()"]'),
@@ -2297,6 +4291,8 @@ function initializeStudioXUI4(){
   ].filter(Boolean);
   lowFrequency.forEach(node=>healthPopover.appendChild(node));
   document.querySelector(".ui4-command-bar")?.appendChild(healthPopover);
+  arrangeCameraToolbar();
+  window.addEventListener("resize",arrangeCameraToolbar,{passive:true});
 
   const primaryTabs=inspector.querySelector(".ui4-inspector-primary-tabs");
   const currentView=document.createElement("div");
@@ -2307,47 +4303,125 @@ function initializeStudioXUI4(){
   [...inspector.children].forEach(child=>{
     if(child!==primaryTabs&&!child.classList.contains("inspector-head")) currentView.appendChild(child);
   });
+  const stickyActions=currentView.querySelector(".inspector-actions");
+  if(stickyActions) currentView.appendChild(stickyActions);
   inspector.append(currentView,recentView);
+  if($("inspectorEmpty")) $("inspectorEmpty").style.display="none";
+  if($("inspectorMain")) $("inspectorMain").style.display="grid";
   primaryTabs?.querySelectorAll("[data-inspector-view]").forEach(button=>{
     button.addEventListener("click",()=>setUI4InspectorView(button.dataset.inspectorView));
   });
 
-  const tabs=document.createElement("div");
-  tabs.className="ui4-inspector-tabs";
-  tabs.setAttribute("role","tablist");
-  const panels=document.createElement("div");
-  panels.className="ui4-inspector-panels";
-  const tabDefinitions=[
-    ["details","Details",null],
-    ["market","Market",document.querySelector(".market-grid")],
-    ["copilot","Copilot",document.querySelector(".copilot-card")],
-    ["signals","Signals",document.querySelector(".signal-list")],
-    ["session","Session",document.querySelector(".session-strip")],
-  ];
-  tabDefinitions.forEach(([key,label,content])=>{
-    const button=document.createElement("button");
-    button.type="button";
-    button.dataset.inspectorTab=key;
-    button.setAttribute("role","tab");
-    button.textContent=label;
-    button.addEventListener("click",()=>setUI4InspectorTab(key));
-    tabs.appendChild(button);
-    const panel=document.createElement("section");
-    panel.dataset.inspectorPanel=key;
-    panel.setAttribute("role","tabpanel");
-    if(content) panel.appendChild(content);
-    else panel.innerHTML='<p class="ui4-panel-note">Candidate identity and recognition status remain visible above.</p>';
-    panels.appendChild(panel);
+  const widgetWorkspace=$("widgetWorkspace");
+  if(widgetWorkspace){
+    widgetWorkspace.addEventListener("click",event=>{
+      const actionButton=event.target.closest("[data-widget-action]");
+      const widget=event.target.closest("[data-studiox-widget]");
+      if(actionButton&&widget){
+        updateStudioXWidgetLayout(
+          widget.dataset.studioxWidget,
+          actionButton.dataset.widgetAction
+        );
+        return;
+      }
+      const focusButton=event.target.closest("[data-widget-focus]");
+      if(focusButton){
+        setPremiumIntelligenceTab(focusButton.dataset.widgetFocus);
+      }
+    });
+  }
+  document.querySelectorAll("[data-widget-visibility]").forEach(input=>{
+    input.addEventListener("change",()=>{
+      updateStudioXWidgetLayout(
+        input.dataset.widgetVisibility,
+        "visibility",
+        input.checked
+      );
+    });
   });
-  currentView.append(tabs,panels);
+  document.querySelector("[data-widget-reset]")?.addEventListener(
+    "click",
+    resetStudioXWidgetLayout
+  );
+  studioXPreferences=loadStudioXPreferences();
+  secondaryBayPreferences=loadSecondaryBayPreferences();
+  cameraWorkspacePreferences=loadCameraWorkspacePreferences();
+  applyWorkspaceLayoutPreset(
+    studioXPreferences.layoutPreset,
+    {persist:false}
+  );
+  $("workspaceLayoutPreset")?.addEventListener("change",event=>{
+    applyWorkspaceLayoutPreset(event.target.value);
+  });
+  $("viewerModeSelect")?.addEventListener("change",event=>{
+    setStudioXViewerMode(event.target.value);
+  });
+  $("viewerZoomOut")?.addEventListener("click",()=>{
+    adjustStudioXPreviewZoom(-.1);
+  });
+  $("viewerZoomReset")?.addEventListener("click",resetStudioXPreviewZoom);
+  $("viewerZoomIn")?.addEventListener("click",()=>{
+    adjustStudioXPreviewZoom(.1);
+  });
+  $("secondaryBayMode")?.addEventListener("change",event=>setSecondaryBayMode(event.target.value));
+  $("secondaryBaySize")?.addEventListener("change",event=>{
+    secondaryBayPreferences=normalizeSecondaryBayPreferences({...secondaryBayPreferences,size:event.target.value});
+    saveSecondaryBayPreferences();
+    renderSecondaryWorkspaceBay();
+  });
+  $("cameraSlot1Source")?.addEventListener("change",event=>setActiveCameraWorkspaceSource(event.target.value));
+  $("stagingSourceSelect")?.addEventListener("change",event=>setCameraWorkspaceSource(2,event.target.value));
+  $("swapSourcesButton")?.addEventListener("click",promoteSecondaryStagingSource);
+  $("promoteStagingButton")?.addEventListener("click",()=>promoteCameraWorkspaceSlot(2));
+  $("collapseSecondaryBay")?.addEventListener("click",()=>setSecondaryBayMode("hidden"));
+  $("cameraWorkspaceLayout")?.addEventListener("click",event=>{
+    const button=event.target.closest("[data-camera-layout-option]");
+    if(button) setCameraWorkspaceLayout(button.dataset.cameraLayoutOption);
+  });
+  $("manageCamerasButton")?.addEventListener("click",()=>{
+    const actions=document.querySelector(".camera-source-compact-menu");
+    actions?.focus();
+    actions?.scrollIntoView({block:"nearest",inline:"nearest"});
+  });
+  $("cameraSlot1Side")?.addEventListener("change",event=>setCameraWorkspaceSide(1,event.target.value));
+  $("cameraSlot2Side")?.addEventListener("change",event=>setCameraWorkspaceSide(2,event.target.value));
+  [3,4].forEach(slot=>{
+    $(`cameraSlot${slot}Source`)?.addEventListener("change",event=>setCameraWorkspaceSource(slot,event.target.value));
+    $(`cameraSlot${slot}Side`)?.addEventListener("change",event=>setCameraWorkspaceSide(slot,event.target.value));
+    $(`promoteCameraSlot${slot}`)?.addEventListener("click",()=>promoteCameraWorkspaceSlot(slot));
+  });
+  if(secondaryBayPreferences.activeSource&&$("cameraSelect")){
+    const savedActive=secondaryBayPreferences.activeSource;
+    if([...$("cameraSelect").options].some(option=>option.value===savedActive)){
+      $("cameraSelect").value=savedActive;
+    }
+  }
+  renderSecondaryWorkspaceBay();
+  cameraWorkspacePreferences.sources["1"]=$("cameraSelect")?.value||cameraWorkspacePreferences.sources["1"];
+  cameraWorkspacePreferences.sources["2"]=secondaryBayPreferences.stagingSource||cameraWorkspacePreferences.sources["2"];
+  saveCameraWorkspacePreferences();
+  renderCameraWorkspace();
+  studioXWidgetLayout=loadStudioXWidgetLayout();
+  initializeAutoScreenshotConfiguration();
+  applyStudioXWidgetLayout();
+  updateSharedCardContext(
+    deriveSharedCardContext(
+      deriveRecognitionPresentation({phase:"IDLE"},null,[]),
+      null,
+      {phase:"IDLE"},
+      []
+    )
+  );
 
   const actions=document.querySelector(".inspector-actions");
-  const reaction=actions?[...actions.querySelectorAll("button")].find(button=>button.textContent.trim()==="Reaction"):null;
+  const reaction=actions?[...actions.querySelectorAll("button")].find(
+    button=>["Reaction","Next Card","Next / Clear"].includes(button.textContent.trim())
+  ):null;
   if(reaction){
     reaction.textContent="Next / Clear";
     reaction.addEventListener("click",()=>resetRecognitionPresentation("operator_clear"));
   }
-  setUI4InspectorTab("details");
+  setPremiumIntelligenceTab("identify");
   setUI4InspectorView("current",false);
   setUI4DiagnosticsOpen(false);
   setUI4HealthOpen(false);
@@ -2423,6 +4497,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   updateResolutionBadge();
   window.addEventListener("resize",()=>{
     alignScanZone(window.__rareiqVisionTelemetry||{});
+    renderSecondaryWorkspaceBay();
   });
   applyAutoCaptureState(true);
   setStateChip("databaseStateChip","on","READY");
@@ -2526,6 +4601,26 @@ function normalizeCardPricing(card={}){
   };
 }
 
+function deriveMarketPresentation(card={},pricing=normalizeCardPricing(card)){
+  const providerError=Boolean(
+    card?.pricing_error||
+    card?.provider_error||
+    pricing?.status==="error"
+  );
+  const pending=Boolean(
+    card?.pricing_pending||
+    pricing?.status==="pending"
+  );
+  const hasValue=[
+    pricing.rawMarket,pricing.rawLow,pricing.rawHigh,
+    pricing.psa10,pricing.psa9,pricing.psa8
+  ].some(value=>nullableCardNumber(value)!==null);
+  if(providerError) return {key:"provider-error",label:"Provider unavailable"};
+  if(pending) return {key:"pending",label:"Fetching market data"};
+  if(hasValue) return {key:"available",label:cardMoney(pricing.rawMarket)};
+  return {key:"no-data",label:"No public market data"};
+}
+
 function rarityEventTier(card={}){
   const rarity=String(
     card.rarity_tier||
@@ -2587,6 +4682,19 @@ function readablePriceTimestamp(value){
     : date.toLocaleString();
 }
 
+function syncCardMetadataVisibility(){
+  [
+    "cardSetName","cardSetCode","cardCollectorNumber","cardOfficialNumber",
+    "cardLanguage","cardRarity","cardVariant","cardFinish","cardReleaseYear",
+  ].forEach(id=>{
+    const value=$(id);
+    const field=value?.closest(".ui4-identity-grid>div");
+    if(!value||!field) return;
+    const text=String(value.textContent||"").trim().toLowerCase();
+    field.hidden=!text||text==="--"||text==="null"||text==="undefined";
+  });
+}
+
 function renderExtendedCardData(card={},snapshot={},confidence=0,verified=false){
   const printedName=firstCardValue(card,[
     "printed_name","localized_name","name"
@@ -2595,6 +4703,7 @@ function renderExtendedCardData(card={},snapshot={},confidence=0,verified=false)
     "english_name","translated_name","canonical_name"
   ]);
   const pricing=normalizeCardPricing(card);
+  const marketPresentation=deriveMarketPresentation(card,pricing);
   const tier=rarityEventTier(card);
 
   setCardText("cardPrintedName",printedName);
@@ -2612,6 +4721,12 @@ function renderExtendedCardData(card={},snapshot={},confidence=0,verified=false)
   setCardText("cardCollectorNumber",firstCardValue(card,[
     "collector_number","card_number"
   ])||snapshot?.collector_number);
+  const officialNumber=firstCardValue(card,[
+    "official_collector_number"
+  ])||snapshot?.official_collector_number;
+  setCardText("cardOfficialNumber",officialNumber);
+  const officialField=$("officialNumberField");
+  if(officialField) officialField.hidden=!officialNumber;
   setCardText("cardLanguage",firstCardValue(card,[
     "language","language_name","language_code"
   ])||snapshot?.language);
@@ -2645,6 +4760,9 @@ function renderExtendedCardData(card={},snapshot={},confidence=0,verified=false)
   setCardText("salesVolumeValue",pricing.salesVolume30d);
   setCardText("pricingSource",pricing.provider,"No provider connected");
   setCardText("pricingUpdatedAt",readablePriceTimestamp(pricing.updatedAt));
+  const priceSummary=document.querySelector(".ui4-price-summary");
+  if(priceSummary) priceSummary.dataset.marketState=marketPresentation.key;
+  setCardText("cardValue",marketPresentation.label);
 
   setCardText("rarityTierValue",tier);
   setCardText("overlayAnimationValue",rarityAnimationName(tier));
@@ -2657,6 +4775,7 @@ function renderExtendedCardData(card={},snapshot={},confidence=0,verified=false)
       ? "Candidate tracking"
       : "Waiting for lock"
   );
+  syncCardMetadataVisibility();
 }
 
 function resetExtendedCardData(){
@@ -2689,6 +4808,11 @@ function resetExtendedCardData(){
   setCardText("psaValue",null,"No public data");
   setCardText("populationValue",null);
   setCardText("pricingSource",null,"No provider connected");
+  const officialField=$("officialNumberField");
+  if(officialField) officialField.hidden=true;
+  syncCardMetadataVisibility();
+  const priceSummary=document.querySelector(".ui4-price-summary");
+  if(priceSummary) priceSummary.dataset.marketState="pending";
   setCardText("rarityTierValue","Standard");
   setCardText("overlayAnimationValue","Standard reveal");
   setCardText("overlaySoundValue","Default scan");

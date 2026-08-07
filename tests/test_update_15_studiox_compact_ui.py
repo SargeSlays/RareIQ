@@ -89,9 +89,9 @@ def test_warning_failed_and_skipped_have_non_color_indicators() -> None:
 def test_update15_stylesheet_is_last_and_cache_busted() -> None:
     html = read("control.html")
     links = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
-    assert links[-2] == "/static/studiox_ui4_tokens.css?v=6.4.15-ui4structural"
-    assert links[-1] == "/static/studiox_update15.css?v=6.4.15-carddata1"
-    assert '/static/studiox.js?v=6.4.15-carddata1' in html
+    assert links[-2] == "/static/studiox_ui4_tokens.css?v=6.4.15-shellbay29"
+    assert links[-1] == "/static/studiox_update15.css?v=6.4.15-shellbay29"
+    assert '/static/studiox.js?v=6.4.15-shellbay29' in html
 
 
 def test_compact_controls_and_primary_breakpoints_are_contractual() -> None:
@@ -122,13 +122,15 @@ def test_existing_control_ids_and_handlers_are_preserved() -> None:
     for element_id in ids:
         assert f'id="{element_id}"' in html
     handlers = {
-        "selectCamera()", "loadCameraList()", "reconnectCamera()", "restartFeed()",
+        "selectCamera()",
         "startSelectedCamera()", "stopCamera()", "captureCamera()",
         "toggleAutoCapture()", "openCameraPopout()", "cycleCameraFit()",
         "toggleCardZoom()", "toggleDock()",
     }
     for handler in handlers:
         assert handler in html
+    for handler in ("loadCameraList", "reconnectCamera", "restartFeed"):
+        assert handler in read("studiox.js")
 
 
 def test_camera_and_recognition_contracts_remain_present() -> None:

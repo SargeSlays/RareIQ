@@ -24,9 +24,9 @@
 <link rel="stylesheet" href="/static/studiox_604.css?v=6.1">
 <link rel="stylesheet" href="/static/studiox_61.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
-<link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.4.15-ui4structural">
-<link rel="stylesheet" href="/static/studiox_update15.css?v=6.4.15-carddata1">
-<script defer src="/static/studiox.js?v=6.4.15-ocrname1"></script>
+<link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.4.15-shellbay29">
+<link rel="stylesheet" href="/static/studiox_update15.css?v=6.4.15-shellbay29">
+<script defer src="/static/studiox.js?v=6.4.15-shellbay29"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><style id="ui4-unified-card-stage-overrides">
@@ -173,7 +173,7 @@ body.studiox-ui4 #inspectorMain .card-art {
 }
 </style>
 </head>
-<body class="studiox-ui4" data-ui4-region="application-shell">
+<body class="studiox-ui4 studiox-premium" data-ui4-region="application-shell" data-studiox-build="6.4.15-shellbay29">
 <div class="instant-splash" id="instantSplash">
   <img src="/static/brand/rareiq_full_transparent.png" alt="RareIQ">
 </div>
@@ -227,51 +227,68 @@ body.studiox-ui4 #inspectorMain .card-art {
   </div>
 </header>
 
-<div class="toolbar ui4-control-region" data-ui4-region="controls" aria-label="Studio X controls">
-  <div class="command-group">
-    <span class="command-group-label">Camera</span>
-    <select id="cameraSelect" onchange="selectCamera()">
-      <option>Loading camerasÃ¢â‚¬Â¦</option>
+<div class="toolbar premium-command-bar ui4-control-region" data-ui4-region="controls" aria-label="Studio X controls">
+  <div class="command-group premium-source-control">
+    <span class="command-group-label">Source</span>
+    <div class="camera-source-picker">
+      <select id="cameraSelect" aria-label="Active camera source" onchange="selectCamera()">
+        <option value="">Loading camerasÃ¢â‚¬Â¦</option>
+      </select>
+      <output id="activeCameraName" class="active-camera-name" aria-live="polite">No active camera</output>
+    </div>
+    <select class="camera-source-compact-menu" aria-label="Camera actions" onchange="runCameraSourceAction(this)">
+      <option value="">Camera actions</option>
+      <option value="refresh">Refresh Cameras</option>
+      <option value="reconnect">Reconnect Camera</option>
+      <option id="restartFeedBtn" value="restart">Restart Camera</option>
     </select>
-    <button class="tool-button" onclick="loadCameraList()">Refresh</button>
-    <button class="tool-button" onclick="reconnectCamera()">Reconnect</button>
-<button class="restart-feed-btn" id="restartFeedBtn" onclick="restartFeed()">Restart Feed</button>
-    <button class="tool-button" onclick="startSelectedCamera()">Start</button>
-    <button class="tool-button" onclick="stopCamera()">Stop</button>
   </div>
 
-  <div class="command-group">
-    <span class="command-group-label">Capture</span>
-    <button class="tool-button" onclick="captureCamera()">Capture</button>
-    <button class="auto-toggle on" id="autoCaptureToggle" onclick="toggleAutoCapture()">
-      <strong>AUTO</strong>
-      <span class="toggle-track"><i class="toggle-knob"></i></span>
-      <em id="autoCaptureLabel">ON</em>
-    </button>
+  <div class="command-group studiox-layout-control">
+    <span class="command-group-label">Workspace</span>
+    <select id="workspaceLayoutPreset" aria-label="Workspace layout preset">
+      <option value="intelligence">Intelligence</option>
+      <option value="balanced">Balanced</option>
+      <option value="monitor">Monitor</option>
+    </select>
   </div>
 
-  <div class="command-group">
-    <span class="command-group-label">View</span>
-    <button class="camera-fit-toggle" onclick="openCameraPopout()">
-      <i></i><strong>POP OUT</strong>
-    </button>
-    <button class="camera-fit-toggle active" id="cameraFitToggle" onclick="cycleCameraFit()">
-      <i></i><strong id="cameraFitLabel">ADAPTIVE</strong>
-    </button>
-    <button class="camera-fit-toggle" id="cameraZoomToggle" onclick="toggleCardZoom()">
-      <i></i><strong>ZOOM CARD</strong>
-    </button>
+  <div class="command-group premium-view-control">
+    <span class="command-group-label">Viewer</span>
+    <div class="studiox-viewer-controls" aria-label="Viewer controls">
+      <select id="viewerModeSelect" aria-label="Viewer mode">
+        <option value="auto">Auto</option>
+        <option value="full-frame">Full Frame</option>
+        <option value="card-focus">Card Focus</option>
+      </select>
+      <button type="button" id="viewerZoomOut" title="Zoom out Studio X preview" aria-label="Zoom out preview">−</button>
+      <button type="button" id="viewerZoomReset" title="Reset Studio X preview zoom" aria-label="Reset preview zoom">Fit</button>
+      <button type="button" id="viewerZoomIn" title="Zoom in Studio X preview" aria-label="Zoom in preview">+</button>
+      <output id="viewerZoomValue" aria-live="polite">100%</output>
+      <span id="viewerModeStatus">Full frame</span>
+    </div>
   </div>
 
-  <div class="command-group ui4-program-actions" aria-label="Program and broadcast actions">
-    <span class="command-group-label">Program</span>
-    <button class="riq-button" onclick="openProgram()">Program View</button>
-    <button class="riq-button primary">Next Pack</button>
+  <div class="command-group premium-actions-control">
+    <span class="command-group-label">Actions</span>
+    <div class="premium-actions-row">
+      <button class="riq-button primary premium-capture-action" onclick="captureCamera()">Capture</button>
+      <details class="premium-more-menu">
+        <summary>More</summary>
+        <div class="premium-more-popover">
+          <button class="auto-toggle on" id="autoCaptureToggle" onclick="toggleAutoCapture()"><strong>AUTO</strong><span class="toggle-track"><i class="toggle-knob"></i></span><em id="autoCaptureLabel">ON</em></button>
+          <button class="camera-fit-toggle active" id="cameraFitToggle" onclick="cycleCameraFit()"><i></i><strong id="cameraFitLabel">ADAPTIVE</strong></button>
+          <button class="camera-fit-toggle" id="cameraZoomToggle" onclick="toggleCardZoom()"><i></i><strong>ZOOM CARD</strong></button>
+          <button class="tool-button" onclick="startSelectedCamera()">Start Camera</button>
+          <button class="tool-button" onclick="stopCamera()">Stop Camera</button>
+          <button class="camera-fit-toggle" onclick="openCameraPopout()"><strong>Pop Out</strong></button>
+          <button class="riq-button" onclick="openProgram()">Program View</button>
+          <button class="riq-button">Next Pack</button>
+          <span class="riq-pill" id="resolutionBadge">CAMERA --</span>
+        </div>
+      </details>
+    </div>
   </div>
-
-  <div class="toolbar-spacer"></div>
-  <span class="riq-pill" id="resolutionBadge">CAMERA --</span>
-  <span class="riq-pill">Recognition Active</span>
   <div class="ui4-mobile-action-region" data-ui4-region="mobile-actions" aria-hidden="true"></div>
 </div>
 </div>
@@ -282,6 +299,24 @@ body.studiox-ui4 #inspectorMain .card-art {
     <div class="live-shell">
 
       <article class="riq-surface camera-workspace ui4-camera-region" data-ui4-region="camera" aria-label="Camera workspace">
+        <div class="camera-workspace-layout-control camera-workspace-toolbar" aria-label="Camera workspace controls">
+          <div id="cameraWorkspaceLayout" class="camera-layout-buttons" role="group" aria-label="Camera workspace layout">
+            <button type="button" data-camera-layout-option="single" aria-label="Single camera layout" title="Single" aria-pressed="true"><span class="camera-layout-diagram" aria-hidden="true"><i></i></span></button>
+            <button type="button" data-camera-layout-option="dual-side" aria-label="Dual side-by-side camera layout" title="Dual Side-by-Side" aria-pressed="false"><span class="camera-layout-diagram" aria-hidden="true"><i></i><i></i></span></button>
+            <button type="button" data-camera-layout-option="triple" aria-label="Triple camera layout" title="Triple" aria-pressed="false"><span class="camera-layout-diagram" aria-hidden="true"><i></i><i></i><i></i></span></button>
+            <button type="button" data-camera-layout-option="quad" aria-label="Quad camera layout" title="Quad" aria-pressed="false"><span class="camera-layout-diagram" aria-hidden="true"><i></i><i></i><i></i><i></i></span></button>
+          </div>
+          <button type="button" id="manageCamerasButton">Manage Cameras</button>
+        </div>
+        <div class="viewer-inspection-header camera-tile-header" id="viewerInspectionHeader" aria-label="Current viewer context">
+          <div class="camera-tile-heading camera-tile-identity"><b>CAMERA 1</b><span class="camera-slot-badge">ACTIVE</span><em id="cameraSlot1Connection" class="camera-tile-status">CONNECTING</em></div>
+          <i class="rareiq-orb-signature" aria-hidden="true"></i>
+          <label class="camera-tile-control camera-tile-source-control camera-source-control"><span>Source</span><select id="cameraSlot1Source" aria-label="Camera 1 source"><option value="">Select a camera</option></select></label>
+          <label class="camera-tile-control camera-tile-side-control camera-side-control"><span>Side</span><select id="cameraSlot1Side" aria-label="Camera 1 player side"><option value="unassigned">Unassigned</option><option value="player-1">Player 1</option><option value="player-2">Player 2</option></select></label>
+          <div><span>View</span><b id="viewerInspectionMode">Auto · full frame</b></div>
+          <div><span>Card</span><b id="viewerInspectionCardState">Ready</b></div>
+          <div><span>Recognition</span><b id="viewerInspectionRecognitionMode">Live recognition</b></div>
+        </div>
         <div class="camera-stage-inner">
           <div class="viewer-bridge-state connecting" id="viewerBridgeState"><i></i><span id="viewerBridgeLabel">CONNECTING VIEWER</span></div>
           <div class="camera-placeholder" id="cameraPlaceholder">Waiting for camera feed</div>
@@ -291,6 +326,10 @@ body.studiox-ui4 #inspectorMain .card-art {
             <div class="camera-recovery-progress"><i></i></div>
           </div>
           <img id="cameraFeed" class="camera-feed" alt="">
+          <div class="camera-feed-state-shield" id="cameraFeedStateShield" aria-hidden="true">
+            <span>RareIQ Vision</span>
+            <b id="cameraFeedStateLabel">READY</b>
+          </div>
         </div>
 
         <div id="scanZone" class="scan-zone">
@@ -300,13 +339,73 @@ body.studiox-ui4 #inspectorMain .card-art {
         </div>
         <img class="brand-watermark" src="/static/brand/rareiq_icon_transparent.png" alt="">
 
+        <section id="secondaryWorkspaceBay" class="studiox-secondary-bay" data-bay-mode="camera-2" data-bay-size="standard" aria-label="Secondary workspace bay">
+          <header class="secondary-bay-header camera-tile-header">
+            <div class="secondary-bay-title camera-tile-identity">
+              <span>Camera 2</span>
+              <b id="secondaryBayBadge">STAGING</b>
+              <em id="cameraSlot2Connection" class="camera-tile-status">NOT CONNECTED</em>
+            </div>
+            <label class="secondary-bay-control secondary-source-control camera-tile-control camera-source-control">
+              <span>Source</span>
+              <select id="stagingSourceSelect" aria-label="Staging camera source">
+                <option value="">No staging camera</option>
+              </select>
+            </label>
+            <label class="secondary-bay-control camera-slot-side-control camera-tile-control camera-side-control">
+              <span>Side</span>
+              <select id="cameraSlot2Side" aria-label="Camera 2 player side">
+                <option value="unassigned">Unassigned</option>
+                <option value="player-1">Player 1</option>
+                <option value="player-2">Player 2</option>
+              </select>
+            </label>
+            <button type="button" id="promoteStagingButton" class="camera-activate-control" data-promote-camera-slot="2" title="Activate staging camera for recognition" disabled>Activate</button>
+          </header>
+          <div class="secondary-bay-content">
+            <img id="secondaryBayImage" alt="" hidden>
+            <iframe id="secondaryBroadcastPreview" title="Broadcast preview" hidden></iframe>
+            <div id="secondaryBayUnavailable" class="secondary-bay-unavailable" role="status">
+              <strong id="secondaryBayStateTitle">CAMERA 2</strong>
+              <span id="secondaryBayStateDetail">No camera selected
+Choose a source from Manage Cameras</span>
+            </div>
+          </div>
+          <div class="camera-workspace-legacy-controls" hidden>
+            <select id="secondaryBayMode" aria-label="Secondary bay mode"><option value="hidden">Hidden</option><option value="camera-2">Camera 2</option><option value="card-focus">Card Focus</option><option value="locked-capture">Locked Capture</option><option value="broadcast-preview">Broadcast Preview</option><option value="recent-captures">Recent Captures</option></select>
+            <select id="secondaryBaySize" aria-label="Secondary bay size"><option value="compact">Compact</option><option value="standard">Standard</option><option value="large">Large</option></select>
+            <button type="button" id="swapSourcesButton" disabled>Swap Sources</button>
+            <button type="button" id="collapseSecondaryBay">Collapse</button>
+          </div>
+        </section>
+
+        <section id="cameraWorkspaceSlot3" class="camera-workspace-staging-tile" data-camera-slot="3" aria-label="Camera 3 staging tile" hidden>
+          <header class="camera-tile-header">
+            <div class="camera-tile-identity"><b>CAMERA 3</b><span class="camera-slot-badge">STAGING</span><em id="cameraSlot3Connection" class="camera-tile-status">NOT CONNECTED</em></div>
+            <label class="camera-tile-control camera-source-control"><span>Source</span><select id="cameraSlot3Source" aria-label="Camera 3 source"><option value="">No camera selected</option></select></label>
+            <label class="camera-tile-control camera-side-control"><span>Side</span><select id="cameraSlot3Side" aria-label="Camera 3 player side"><option value="unassigned">Unassigned</option><option value="player-1">Player 1</option><option value="player-2">Player 2</option></select></label>
+            <button type="button" id="promoteCameraSlot3" class="camera-activate-control" data-promote-camera-slot="3" disabled>Activate</button>
+          </header>
+          <div class="camera-workspace-staging-surface" role="status"><i class="rareiq-orb-signature" aria-hidden="true"></i><strong>CAMERA 3</strong><span>No camera selected<br>Choose a source from Manage Cameras</span></div>
+        </section>
+
+        <section id="cameraWorkspaceSlot4" class="camera-workspace-staging-tile" data-camera-slot="4" aria-label="Camera 4 staging tile" hidden>
+          <header class="camera-tile-header">
+            <div class="camera-tile-identity"><b>CAMERA 4</b><span class="camera-slot-badge">STAGING</span><em id="cameraSlot4Connection" class="camera-tile-status">NOT CONNECTED</em></div>
+            <label class="camera-tile-control camera-source-control"><span>Source</span><select id="cameraSlot4Source" aria-label="Camera 4 source"><option value="">No camera selected</option></select></label>
+            <label class="camera-tile-control camera-side-control"><span>Side</span><select id="cameraSlot4Side" aria-label="Camera 4 player side"><option value="unassigned">Unassigned</option><option value="player-1">Player 1</option><option value="player-2">Player 2</option></select></label>
+            <button type="button" id="promoteCameraSlot4" class="camera-activate-control" data-promote-camera-slot="4" disabled>Activate</button>
+          </header>
+          <div class="camera-workspace-staging-surface" role="status"><i class="rareiq-orb-signature" aria-hidden="true"></i><strong>CAMERA 4</strong><span>No camera selected<br>Choose a source from Manage Cameras</span></div>
+        </section>
+
         <div class="camera-top-hud">
           <div class="camera-title">
             <div class="core-indicator">
               <span class="core-orb" id="coreOrb"></span>
               <div>
                 <strong>RAREIQ CORE</strong>
-                <span class="brand-tag" id="coreLabel">IDLE</span>
+                <span class="brand-tag" id="coreLabel">READY</span>
               </div>
             </div>
           </div>
@@ -335,12 +434,13 @@ body.studiox-ui4 #inspectorMain .card-art {
           </div>
         </div>
 
-        <div class="camera-bottom-hud">
+        <div class="camera-bottom-hud premium-scan-status" id="unifiedScanStatus" role="status" aria-live="polite">
+          <i class="premium-scan-status-dot" aria-hidden="true"></i>
           <div>
-            <strong id="aiState">WATCHING</strong>
+            <strong id="aiState">READY</strong>
             <span id="aiDetail">Place a card inside the scan zone.</span>
           </div>
-          <div class="camera-confidence" id="confidence">0%</div>
+          <div class="camera-confidence"><span>Recognition confidence</span><b id="confidence">0%</b></div>
         </div>
       </article>
 
@@ -379,12 +479,19 @@ body.studiox-ui4 #inspectorMain .card-art {
               <div class="ui4-card-placeholder-scan"></div>
 
               <div class="ui4-card-placeholder-copy">
-                <strong id="cardPlaceholderTitle">Waiting for Card</strong>
+                <strong id="cardPlaceholderTitle">Ready for Card</strong>
                 <span id="cardPlaceholderDetail">
                   Place a card inside the scan zone
                 </span>
               </div>
             </div>
+
+            <ol class="premium-recognition-progress" id="recognitionProgress" aria-label="Recognition progression">
+              <li data-recognition-stage="ready"><i></i><span>Ready</span></li>
+              <li data-recognition-stage="scanning"><i></i><span>Scan</span></li>
+              <li data-recognition-stage="verifying"><i></i><span>Verify</span></li>
+              <li data-recognition-stage="exact-match"><i></i><span>Result</span></li>
+            </ol>
 
             <div class="ui4-waiting-values">
               <div>
@@ -446,7 +553,28 @@ body.studiox-ui4 #inspectorMain .card-art {
           </div>
         </div>
         <div class="inspector-main ui4-unified-card-stage" id="inspectorMain" style="display:none">
-          <div class="ui4-card-identity-layout">
+          <section class="studiox-live-analysis" id="liveAnalysisTimeline" aria-label="Live recognition analysis" hidden>
+            <div class="studiox-live-analysis-head">
+              <div>
+                <span>Live Analysis</span>
+                <strong id="liveAnalysisTitle">Scanning card</strong>
+              </div>
+              <b id="liveAnalysisState">SCANNING</b>
+            </div>
+            <p id="liveAnalysisDetail">RareIQ is gathering recognition evidence.</p>
+            <ol>
+              <li data-analysis-step="detection" data-step-state="pending"><i></i><span>Card detected</span><b>Pending</b></li>
+              <li data-analysis-step="geometry" data-step-state="pending"><i></i><span>Geometry stabilized</span><b>Pending</b></li>
+              <li data-analysis-step="artwork" data-step-state="pending"><i></i><span>Artwork analysis</span><b>Pending</b></li>
+              <li data-analysis-step="collector" data-step-state="pending"><i></i><span>Collector number</span><b>Pending</b></li>
+              <li data-analysis-step="catalog" data-step-state="pending"><i></i><span>Catalog verification</span><b>Pending</b></li>
+            </ol>
+          </section>
+          <div class="studiox-identity-pending" id="identityPendingPlaceholder" hidden>
+            <span id="identityPendingTitle">IDENTITY PENDING</span>
+            <strong id="identityPendingDetail">Waiting for catalog confirmation</strong>
+          </div>
+          <div class="ui4-card-identity-layout premium-card-context-header" id="cardContextHeader">
             <div class="card-showcase">
               <div class="card-art" id="cardArt">
                 <span>Database artwork will appear here</span>
@@ -454,7 +582,7 @@ body.studiox-ui4 #inspectorMain .card-art {
             </div>
 
             <div class="card-info">
-              <div class="eyebrow">Verified Candidate</div>
+              <div class="eyebrow" id="resultEyebrow">Card Intelligence</div>
 
               <h3 id="cardName">Ready to Scan</h3>
 
@@ -467,6 +595,7 @@ body.studiox-ui4 #inspectorMain .card-art {
               </div>
 
               <p id="cardMeta">Set  |  Number  |  Language  |  Rarity</p>
+              <span class="identity-verdict-badge" id="identityVerdictBadge" hidden></span>
 
               <div class="ui4-identity-grid">
                 <div>
@@ -478,8 +607,12 @@ body.studiox-ui4 #inspectorMain .card-art {
                   <b id="cardSetCode">--</b>
                 </div>
                 <div>
-                  <span>Collector No.</span>
+                  <span>Local Card ID</span>
                   <b id="cardCollectorNumber">--</b>
+                </div>
+                <div id="officialNumberField" hidden>
+                  <span>Official Number</span>
+                  <b id="cardOfficialNumber">--</b>
                 </div>
                 <div>
                   <span>Language</span>
@@ -508,7 +641,58 @@ body.studiox-ui4 #inspectorMain .card-art {
             </div>
           </div>
 
-          <section class="ui4-price-summary" aria-label="Current card value">
+          <div class="studiox-widget-toolbar">
+            <div>
+              <span>Live card workspace</span>
+              <strong>Intelligence Tools</strong>
+            </div>
+            <details class="studiox-widget-manager" id="widgetManager">
+              <summary aria-controls="widgetManagerPanel">Tools</summary>
+              <div class="studiox-widget-manager-panel" id="widgetManagerPanel">
+                <strong>Visible tools</strong>
+                <label><input type="checkbox" data-widget-visibility="identify" checked> Identify</label>
+                <label><input type="checkbox" data-widget-visibility="ai-grade" checked> AI Grade</label>
+                <label><input type="checkbox" data-widget-visibility="market" checked> Market</label>
+                <label><input type="checkbox" data-widget-visibility="candidates" checked> Candidates</label>
+                <label><input type="checkbox" data-widget-visibility="details" checked> Details</label>
+                <label><input type="checkbox" data-widget-visibility="diagnostics" checked> Diagnostics</label>
+                <label><input type="checkbox" data-widget-visibility="auto-screenshot" checked> Auto Screenshot</label>
+                <button class="riq-button" type="button" data-widget-reset>Reset Layout</button>
+              </div>
+            </details>
+          </div>
+
+          <div class="studiox-widget-grid" id="widgetWorkspace">
+          <section class="studiox-widget" data-studiox-widget="identify" data-widget-state="empty" aria-label="Identity intelligence">
+            <div class="studiox-widget-content">
+              <div class="studiox-identity-summary">
+                <div><span>Catalog match</span><b id="identifyCatalogStatus">Waiting for card</b></div>
+                <div><span>Visual confidence</span><b id="identifyVisualConfidence">0%</b></div>
+                <div><span>Acceptance evidence</span><b id="identifyAcceptanceEvidence">Not available</b></div>
+              </div>
+              <div class="studiox-identity-evidence" id="identifyEvidence" hidden></div>
+              <button class="riq-button" type="button" onclick="switchDock('candidates');setUI4DiagnosticsOpen(true)">Review or correct identity</button>
+            </div>
+          </section>
+
+          <section class="studiox-widget" data-studiox-widget="ai-grade" data-widget-state="unavailable" aria-label="Estimated AI condition analysis">
+            <div class="studiox-widget-content">
+              <p class="studiox-widget-disclaimer">Estimated AI condition analysis — not an official grading-company grade.</p>
+              <div class="studiox-grade-state"><span>Status</span><b id="aiGradeState">Unavailable</b></div>
+              <p class="studiox-widget-empty-state" id="aiGradeEmptyDetail">AI condition analysis is not connected.</p>
+              <div class="studiox-grade-rows" id="aiGradeMetrics" hidden>
+                <div><span>Centering</span><b id="aiGradeCentering">Pending</b></div>
+                <div><span>Corners</span><b id="aiGradeCorners">Pending</b></div>
+                <div><span>Edges</span><b id="aiGradeEdges">Pending</b></div>
+                <div><span>Surface</span><b id="aiGradeSurface">Pending</b></div>
+                <div><span>Estimated range</span><b id="aiGradeRange">Pending</b></div>
+                <div><span>Confidence</span><b id="aiGradeConfidence">Pending</b></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="studiox-widget premium-intelligence-panel ui4-price-summary" data-studiox-widget="market" data-widget-state="fetching" aria-label="Current card value">
+            <p class="studiox-widget-empty-state" id="marketWidgetState">No public market data.</p>
             <div class="ui4-price-primary">
               <div class="market-card featured">
                 <span>Raw Market</span>
@@ -575,7 +759,7 @@ body.studiox-ui4 #inspectorMain .card-art {
             </div>
           </section>
 
-          <section class="ui4-card-extra-data" aria-label="Card details">
+          <section class="studiox-widget premium-intelligence-panel ui4-card-extra-data" data-studiox-widget="details" data-widget-state="empty" aria-label="Card details">
             <div>
               <span>PokÃ©mon / Character</span>
               <b id="cardPokemonName">--</b>
@@ -594,7 +778,13 @@ body.studiox-ui4 #inspectorMain .card-art {
             </div>
           </section>
 
-          <section class="ui4-live-pull-preview" aria-label="Live Pull Engine placeholders">
+          <section class="studiox-widget premium-intelligence-panel premium-candidates-panel" data-studiox-widget="candidates" data-widget-state="empty" aria-label="Recognition candidates">
+            <div class="ui4-section-heading"><div><span>Identity Review</span><strong>Candidate Intelligence</strong></div></div>
+            <p id="candidateWidgetSummary">No alternative candidates are available.</p>
+            <button class="riq-button" id="candidateReviewButton" type="button" onclick="switchDock('candidates');setUI4DiagnosticsOpen(true)" hidden>Review Candidates</button>
+          </section>
+
+          <section class="studiox-widget premium-intelligence-panel ui4-live-pull-preview" data-studiox-widget="diagnostics" data-widget-state="empty" aria-label="Recognition diagnostics">
             <div class="ui4-section-heading">
               <div>
                 <span>Broadcast Intelligence</span>
@@ -605,23 +795,72 @@ body.studiox-ui4 #inspectorMain .card-art {
 
             <div class="ui4-live-pull-grid">
               <div>
-                <span>Event Tier</span>
-                <b id="rarityTierValue">Standard</b>
+                <span>Recognition state</span>
+                <b id="diagnosticRecognitionState">Ready</b>
               </div>
               <div>
-                <span>Animation</span>
-                <b id="overlayAnimationValue">Standard reveal</b>
+                <span>Visual confidence</span>
+                <b id="diagnosticVisualConfidence">0%</b>
               </div>
               <div>
-                <span>Sound</span>
-                <b id="overlaySoundValue">Default scan</b>
+                <span>Catalog verification</span>
+                <b id="diagnosticCatalogVerification">Not verified</b>
               </div>
               <div>
-                <span>Card Tracking</span>
-                <b id="overlayTrackingValue">Waiting for lock</b>
+                <span>Pipeline</span>
+                <b id="diagnosticPipelineState">Waiting</b>
               </div>
             </div>
           </section>
+
+          <section class="studiox-widget premium-intelligence-panel studiox-auto-screenshot" data-studiox-widget="auto-screenshot" data-widget-state="unavailable" aria-label="Auto Screenshot customer provenance">
+            <div class="auto-screenshot-status" role="status">
+              <b id="autoScreenshotState">Unavailable</b>
+              <span id="autoScreenshotStatus">Screenshot capture engine not connected</span>
+            </div>
+            <p class="studiox-widget-disclaimer">Configure future customer provenance without enabling capture. Auto Screenshot is independent from Auto Clip.</p>
+            <form id="autoScreenshotForm" class="auto-screenshot-form" autocomplete="off">
+              <label class="auto-screenshot-toggle"><input id="autoScreenshotEnabled" type="checkbox" disabled> Enabled</label>
+              <label>Workflow
+                <select id="autoScreenshotWorkflow">
+                  <option value="single-card-sales">Single-card sales</option>
+                  <option value="pack-ripping">Pack ripping</option>
+                  <option value="pack-battle">Pack battle</option>
+                </select>
+              </label>
+              <label>Trigger type
+                <select id="autoScreenshotTrigger">
+                  <option value="manual">Manual</option>
+                  <option value="exact-match">Exact match</option>
+                  <option value="rarity-threshold">Rarity threshold</option>
+                  <option value="value-threshold">Value threshold</option>
+                  <option value="qualifying-hit">Qualifying hit</option>
+                </select>
+              </label>
+              <fieldset class="auto-screenshot-capture-types">
+                <legend>Capture types</legend>
+                <label><input id="autoScreenshotFullFrame" type="checkbox" checked> Full Frame</label>
+                <label><input id="autoScreenshotCardFocus" type="checkbox"> Card Focus</label>
+                <label><input id="autoScreenshotEvidenceView" type="checkbox"> Evidence View</label>
+              </fieldset>
+              <label>Customer / session identifier<input id="autoScreenshotCustomerId" type="text" maxlength="120"></label>
+              <label>Vendor identifier<input id="autoScreenshotVendorId" type="text" maxlength="120"></label>
+              <label>Pack number<input id="autoScreenshotPackNumber" type="number" min="1" step="1"></label>
+              <label>Turn number<input id="autoScreenshotTurnNumber" type="number" min="1" step="1"></label>
+              <label>Player side
+                <select id="autoScreenshotPlayerSide">
+                  <option value="">Not applicable</option>
+                  <option value="player-1">Player 1</option>
+                  <option value="player-2">Player 2</option>
+                </select>
+              </label>
+              <label>Minimum visual confidence<input id="autoScreenshotMinimumConfidence" type="number" min="0" max="100" step="1" value="90"></label>
+              <label class="auto-screenshot-toggle"><input id="autoScreenshotTimestamp" type="checkbox" checked> Include timestamp</label>
+              <label class="auto-screenshot-toggle"><input id="autoScreenshotEvidence" type="checkbox" checked> Include recognition evidence</label>
+              <button id="autoScreenshotManualCapture" class="riq-button" type="button" disabled>Manual Screenshot</button>
+            </form>
+          </section>
+          </div>
         </div>
 
         <div class="inspector-footer">
@@ -652,9 +891,9 @@ body.studiox-ui4 #inspectorMain .card-art {
           </div>
 
           <div class="inspector-actions">
+            <button class="riq-button primary" id="approveButton" onclick="operatorApprove()">Approve Card</button>
             <button class="riq-button danger" id="rejectButton" onclick="operatorReject()">Reject</button>
-            <button class="riq-button primary" id="approveButton" onclick="operatorApprove()">Approve</button>
-            <button class="riq-button">Reaction</button>
+            <button class="riq-button" id="nextClearButton">Next / Clear</button>
             <button class="riq-button" id="detailsButton" onclick="operatorDetails()">Details</button>
             <button class="riq-button" onclick="openProgram()">Program</button>
           </div>
@@ -961,7 +1200,3 @@ body.studiox-ui4 #inspectorMain .card-art {
 <div class="operator-toast" id="operatorToast"></div>
 </body>
 </html>
-
-
-
-

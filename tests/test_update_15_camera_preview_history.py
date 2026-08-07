@@ -25,10 +25,11 @@ def test_checkpoint_camera_viewport_and_scan_zone_contracts_are_restored() -> No
     legacy = read("studiox.css")
     assert html.count('id="cameraFeed"') == 1
     assert len(re.findall(r'<img[^>]+id="cameraFeed"', html)) == 1
-    assert script.count("/api/camera/stream") == 2
+    assert script.count("/api/camera/stream") == 3
     assert 'const feed=$("cameraFeed")' in script
     assert 'feed.src=`/api/camera/stream?viewer=main&ts=${Date.now()}&generation=${viewerBridgeGeneration}`' in script
     assert 'feed.src=`/api/camera/stream?ts=${Date.now()}&retry=${cameraStreamFailures}`' in script
+    assert '"/api/camera/stream?viewer=secondary-card-focus"' in script
     assert ".camera-stage-inner{inset:0;" in css
     assert "inset:0 0 52px" not in css
     assert ".camera-feed{\n  width:100%;height:100%;object-fit:contain;display:block;\n}" in legacy

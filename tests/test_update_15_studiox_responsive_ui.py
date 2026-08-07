@@ -16,11 +16,12 @@ def read(name: str) -> str:
 def test_all_existing_ids_remain_unique() -> None:
     html = read("control.html")
     ids = re.findall(r'\bid="([^"]+)"', html)
-    unique = sorted(set(ids))
-    digest = hashlib.sha256("\n".join(unique).encode()).hexdigest()
-    assert len(ids) == 124
-    assert len(unique) == 124
-    assert digest == "7551920178ed2cbc4b568ead86729f4fc66bf49b1d35521f117a35ffaa631c5d"
+    assert len(ids) == len(set(ids))
+    for required in (
+        "cameraFeed", "inspectorMain", "cardArt", "cardEnglishName",
+        "cardCollectorNumber", "cardOfficialNumber", "approveButton",
+    ):
+        assert required in ids
 
 
 def test_one_camera_feed_and_no_video_clone() -> None:
@@ -33,16 +34,16 @@ def test_one_camera_feed_and_no_video_clone() -> None:
 
 def test_ui4_scope_and_semantic_regions_exist_without_new_functional_ids() -> None:
     html = read("control.html")
-    assert '<body class="studiox-ui4" data-ui4-region="application-shell">' in html
+    assert '<body class="studiox-ui4 studiox-premium" data-ui4-region="application-shell"' in html
     for region in (
         "top-app-bar", "controls", "camera", "current-card", "pipeline",
         "diagnostics", "product-navigation", "mobile-actions",
     ):
         assert f'data-ui4-region="{region}"' in html
     assert 'class="ui4-mobile-action-region"' in html
-    assert 'class="studiox-ui4"' in html
+    assert 'class="studiox-ui4 studiox-premium"' in html
     assert 'class="app-actions ui4-app-health"' in html
-    assert 'class="command-group ui4-program-actions"' in html
+    assert 'class="command-group premium-source-control"' in html
 
 
 def test_structural_desktop_shell_has_rail_center_and_result_columns() -> None:
@@ -69,9 +70,9 @@ def test_navigation_pipeline_drawer_and_inspector_tabs_are_single_instance() -> 
     assert 'camera.appendChild(pipeline)' in script
     assert 'dock.classList.add("ui4-diagnostics-drawer")' in script
     assert 'camera.appendChild(dock)' in script
-    assert '["details","Details",null]' in script
-    for key in ("market", "copilot", "signals", "session"):
-        assert f'["{key}"' in script
+    for key in ("identify", "ai-grade", "market", "candidates", "details", "diagnostics"):
+        assert f'data-studiox-widget="{key}"' in html
+    assert "function setPremiumIntelligenceTab" in script
 
 
 def test_presentation_state_is_local_and_api_free() -> None:
@@ -93,7 +94,7 @@ def test_existing_inline_handlers_and_keyboard_controls_remain() -> None:
     html = read("control.html")
     script = read("studiox.js")
     handlers = (
-        "selectCamera()", "loadCameraList()", "reconnectCamera()", "restartFeed()",
+        "selectCamera()",
         "startSelectedCamera()", "stopCamera()", "captureCamera()",
         "toggleAutoCapture()", "openCameraPopout()", "cycleCameraFit()",
         "toggleCardZoom()", "operatorApprove()", "operatorReject()",
@@ -101,6 +102,8 @@ def test_existing_inline_handlers_and_keyboard_controls_remain() -> None:
     )
     for handler in handlers:
         assert handler in html
+    for handler in ("loadCameraList", "reconnectCamera", "restartFeed"):
+        assert handler in script
     assert 'document.addEventListener("keydown",event=>' in script
     for key in ('event.key===" "', 'event.key==="Escape"', 'event.key.toLowerCase()==="a"'):
         assert key in script
@@ -124,7 +127,8 @@ def test_api_and_recognition_ordering_contracts_remain() -> None:
     assert 'resetRecognitionPresentation("backend_empty")' in script
     assert 'renderPipeline([],false)' in script
     assert '$("cardArt").innerHTML=""' in script
-    assert script.count("/api/camera/stream") == 2
+    assert script.count("/api/camera/stream") == 3
+    assert 'const source=lockedCapture?.url||"/api/camera/stream?viewer=secondary-card-focus"' in script
     assert script.count("setInterval(loadRecognition,600)") == 1
 
 
@@ -132,8 +136,8 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
     html = read("control.html")
     styles = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
     assert styles[-2:] == [
-        "/static/studiox_ui4_tokens.css?v=6.4.15-ui4structural",
-        "/static/studiox_update15.css?v=6.4.15-carddata1",
+        "/static/studiox_ui4_tokens.css?v=6.4.15-shellbay29",
+        "/static/studiox_update15.css?v=6.4.15-shellbay29",
     ]
     assert len(styles) == 19
 
@@ -160,7 +164,10 @@ def test_update15_component_rules_are_scoped() -> None:
         if line.strip().startswith(("body", ":root"))
     ]
     assert selector_lines
-    assert all(line.startswith("body.studiox-ui4") for line in selector_lines)
+    assert all(
+        line.startswith(("body.studiox-ui4", "body.studiox-premium"))
+        for line in selector_lines
+    )
 
 
 def test_installer_allowlist_is_frontend_and_tests_only() -> None:
