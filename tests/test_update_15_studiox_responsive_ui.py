@@ -78,7 +78,7 @@ def test_navigation_pipeline_drawer_and_inspector_tabs_are_single_instance() -> 
 def test_presentation_state_is_local_and_api_free() -> None:
     script = read("studiox.js")
     start = script.index("function setUI4DiagnosticsOpen")
-    end = script.index('document.addEventListener("DOMContentLoaded"', start)
+    end = script.index("const STUDIOX_WIDGET_LAYOUT_KEY", start)
     presentation = script[start:end]
     assert "fetch(" not in presentation
     assert presentation.count("api(") == 1
@@ -136,8 +136,8 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
     html = read("control.html")
     styles = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
     assert styles[-2:] == [
-        "/static/studiox_ui4_tokens.css?v=6.4.15-shellbay31",
-        "/static/studiox_update15.css?v=6.4.15-shellbay31",
+        "/static/studiox_ui4_tokens.css?v=6.4.15-provenance2",
+        "/static/studiox_update15.css?v=6.4.15-provenance2",
     ]
     assert len(styles) == 19
 

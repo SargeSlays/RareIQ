@@ -9,26 +9,43 @@ def read(name: str) -> str:
     return (STATIC / name).read_text(encoding="utf-8")
 
 
-def test_auto_screenshot_is_truthfully_unavailable_by_default() -> None:
+def test_auto_screenshot_defaults_off_and_starts_disabled_until_capability_loads() -> None:
     html = read("control.html")
     script = read("studiox.js")
     assert 'id="autoScreenshotEnabled" type="checkbox" disabled' in html
     assert 'id="autoScreenshotManualCapture"' in html
     assert 'type="button" disabled>Manual Screenshot' in html
     assert "Screenshot capture engine not connected" in html
-    assert "const AUTO_SCREENSHOT_BACKEND_AVAILABLE=false" in script
+    assert "let AUTO_SCREENSHOT_BACKEND_AVAILABLE=false" in script
+    assert "AUTO_SCREENSHOT_BACKEND_AVAILABLE=payload.available===true" in script
     assert "enabled:false" in script
 
 
-def test_configuration_is_local_only_and_cannot_capture() -> None:
+def test_configuration_uses_one_backend_settings_request_and_no_capture_loop() -> None:
     script = read("studiox.js")
     start = script.index("function initializeAutoScreenshotConfiguration")
     section = script[start:script.index("function defaultStudioXWidgetLayout", start)]
-    assert "saveAutoScreenshotConfig(readAutoScreenshotForm())" in section
-    assert "fetch(" not in section
-    assert "api(" not in section
+    assert "persistAutoScreenshotSettings(config)" in section
+    assert 'requestAutoScreenshotBackend("/api/provenance/settings")' in section
+    assert 'requestAutoScreenshotBackend("/api/provenance/capture",{method:"POST"})' in script
     assert "/api/camera/capture" not in section
     assert "setInterval" not in section
+
+
+def test_manual_handler_binds_before_the_large_shell_initializer() -> None:
+    script = read("studiox.js")
+    dom_ready = script.index('document.addEventListener("DOMContentLoaded",()=>{')
+    early_bind = script.index("initializeAutoScreenshotConfiguration();", dom_ready)
+    shell_init = script.index("initializeStudioXUI4();", dom_ready)
+    assert early_bind < shell_init
+    assert "autoScreenshotInitialized" in script
+    initialize = script[
+        script.index("async function initializeAutoScreenshotConfiguration"):
+        script.index("function defaultStudioXWidgetLayout")
+    ]
+    assert initialize.index('addEventListener("click",manualAutoScreenshotCapture)') < initialize.index(
+        'requestAutoScreenshotBackend("/api/provenance/settings")'
+    )
 
 
 def test_trigger_safety_requires_authoritative_evidence() -> None:
@@ -101,5 +118,5 @@ def test_cache_version_and_widget_contract() -> None:
     assert html.count('data-studiox-widget="auto-screenshot"') == 1
     assert 'data-widget-visibility="auto-screenshot"' in html
     assert '"auto-screenshot":"Auto Screenshot"' in script
-    assert "/static/studiox.js?v=6.4.15-shellbay31" in html
-    assert "/static/studiox_update15.css?v=6.4.15-shellbay31" in html
+    assert "/static/studiox.js?v=6.4.15-provenance2" in html
+    assert "/static/studiox_update15.css?v=6.4.15-provenance2" in html

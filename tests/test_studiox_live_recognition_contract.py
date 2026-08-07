@@ -68,10 +68,10 @@ def test_control_html_busts_studiox_cache() -> None:
         encoding="utf-8"
     )
 
-    assert "/static/studiox.js?v=6.4.15-shellbay31" in html
+    assert "/static/studiox.js?v=6.4.15-provenance2" in html
     assert "/static/studiox.css?v=6.4.12" in html
-    assert "/static/studiox_ui4_tokens.css?v=6.4.15-shellbay31" in html
-    assert "/static/studiox_update15.css?v=6.4.15-shellbay31" in html
+    assert "/static/studiox_ui4_tokens.css?v=6.4.15-provenance2" in html
+    assert "/static/studiox_update15.css?v=6.4.15-provenance2" in html
     assert html.index("studiox_ui4_tokens.css") < html.index("studiox_update15.css")
     assert html.index("studiox_update15.css") < html.index("studiox.js?v=6.4.15")
     assert 'http-equiv="Cache-Control"' in html

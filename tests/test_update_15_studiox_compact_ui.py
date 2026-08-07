@@ -89,9 +89,9 @@ def test_warning_failed_and_skipped_have_non_color_indicators() -> None:
 def test_update15_stylesheet_is_last_and_cache_busted() -> None:
     html = read("control.html")
     links = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
-    assert links[-2] == "/static/studiox_ui4_tokens.css?v=6.4.15-shellbay31"
-    assert links[-1] == "/static/studiox_update15.css?v=6.4.15-shellbay31"
-    assert '/static/studiox.js?v=6.4.15-shellbay31' in html
+    assert links[-2] == "/static/studiox_ui4_tokens.css?v=6.4.15-provenance2"
+    assert links[-1] == "/static/studiox_update15.css?v=6.4.15-provenance2"
+    assert '/static/studiox.js?v=6.4.15-provenance2' in html
 
 
 def test_compact_controls_and_primary_breakpoints_are_contractual() -> None:

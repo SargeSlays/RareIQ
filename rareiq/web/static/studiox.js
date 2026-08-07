@@ -2652,6 +2652,12 @@ async function loadRecognition(){
       result ||
       {};
 
+    if(result?.provenance?.available===true){
+      AUTO_SCREENSHOT_BACKEND_AVAILABLE=true;
+      autoScreenshotBackendStatus=result.provenance.status||autoScreenshotBackendStatus;
+      renderAutoScreenshotConfig(result.provenance.settings||loadAutoScreenshotConfig());
+    }
+
     const serverSessionId=String(
       result?.server_session_id ??
       snapshot?.server_session_id ??
@@ -3454,7 +3460,9 @@ const STUDIOX_DEFAULT_WIDGET_LAYOUT={
 let studioXWidgetLayout=null;
 
 const AUTO_SCREENSHOT_CONFIG_KEY="rareiq.studiox.autoScreenshot.v1";
-const AUTO_SCREENSHOT_BACKEND_AVAILABLE=false;
+let AUTO_SCREENSHOT_BACKEND_AVAILABLE=false;
+let autoScreenshotBackendStatus={state:"unavailable",event_id:null,error:null};
+let autoScreenshotInitialized=false;
 const AUTO_SCREENSHOT_WORKFLOWS=[
   "single-card-sales","pack-ripping","pack-battle"
 ];
@@ -3542,6 +3550,19 @@ function saveAutoScreenshotConfig(config){
     localStorage.setItem(AUTO_SCREENSHOT_CONFIG_KEY,JSON.stringify(normalized));
   }catch{}
   return normalized;
+}
+
+async function requestAutoScreenshotBackend(path,options={}){
+  const response=await fetch(path,{
+    cache:"no-store",
+    headers:{"Content-Type":"application/json",...(options.headers||{})},
+    ...options,
+  });
+  const payload=await response.json().catch(()=>({ok:false,error:"invalid_response"}));
+  if(!response.ok||payload.ok===false){
+    throw new Error(payload.message||payload.error||`Request failed (${response.status})`);
+  }
+  return payload;
 }
 
 function autoScreenshotIdentityVerdict(context={}){
@@ -3658,24 +3679,88 @@ function renderAutoScreenshotConfig(config=loadAutoScreenshotConfig()){
   Object.entries(assignments).forEach(([id,fieldValue])=>{
     if($(id)) $(id).value=fieldValue;
   });
-  if($("autoScreenshotEnabled")) $("autoScreenshotEnabled").checked=false;
+  if($("autoScreenshotEnabled")){
+    $("autoScreenshotEnabled").checked=value.enabled;
+    $("autoScreenshotEnabled").disabled=!AUTO_SCREENSHOT_BACKEND_AVAILABLE;
+  }
   if($("autoScreenshotFullFrame")) $("autoScreenshotFullFrame").checked=value.captureTypes.fullFrame;
   if($("autoScreenshotCardFocus")) $("autoScreenshotCardFocus").checked=value.captureTypes.cardFocus;
   if($("autoScreenshotEvidenceView")) $("autoScreenshotEvidenceView").checked=value.captureTypes.evidenceView;
   if($("autoScreenshotTimestamp")) $("autoScreenshotTimestamp").checked=value.includeTimestamp;
   if($("autoScreenshotEvidence")) $("autoScreenshotEvidence").checked=value.includeRecognitionEvidence;
-  if($("autoScreenshotState")) $("autoScreenshotState").textContent="Unavailable";
-  if($("autoScreenshotStatus")) $("autoScreenshotStatus").textContent="Screenshot capture engine not connected";
-  setStudioXWidgetState("auto-screenshot","unavailable");
+  if($("autoScreenshotManualCapture")) $("autoScreenshotManualCapture").disabled=!AUTO_SCREENSHOT_BACKEND_AVAILABLE;
+  const state=AUTO_SCREENSHOT_BACKEND_AVAILABLE
+    ?String(autoScreenshotBackendStatus.state||(value.enabled?"armed":"configured"))
+    :"unavailable";
+  const labels={configured:"Configured",armed:"Armed",capturing:"Capturing",saved:"Saved",error:"Error",unavailable:"Unavailable"};
+  if($("autoScreenshotState")) $("autoScreenshotState").textContent=labels[state]||"Configured";
+  if($("autoScreenshotStatus")){
+    $("autoScreenshotStatus").textContent=!AUTO_SCREENSHOT_BACKEND_AVAILABLE
+      ?"Screenshot capture engine not connected"
+      :autoScreenshotBackendStatus.error
+      ?String(autoScreenshotBackendStatus.error)
+      :autoScreenshotBackendStatus.event_id
+      ?`Saved event ${autoScreenshotBackendStatus.event_id}`
+      :value.enabled
+      ?"Automatic provenance capture armed"
+      :"Manual screenshot available";
+  }
+  setStudioXWidgetState("auto-screenshot",state);
   return value;
 }
 
-function initializeAutoScreenshotConfiguration(){
-  const form=$("autoScreenshotForm");
-  if(!form) return;
+async function persistAutoScreenshotSettings(config){
+  const payload=await requestAutoScreenshotBackend("/api/provenance/settings",{
+    method:"PUT",
+    body:JSON.stringify({settings:config}),
+  });
+  autoScreenshotBackendStatus=payload.status||autoScreenshotBackendStatus;
+  return saveAutoScreenshotConfig(payload.settings||config);
+}
+
+async function manualAutoScreenshotCapture(){
+  const button=$("autoScreenshotManualCapture");
+  if(button) button.disabled=true;
+  autoScreenshotBackendStatus={state:"capturing",event_id:null,error:null};
   renderAutoScreenshotConfig();
-  form.addEventListener("change",()=>{
-    renderAutoScreenshotConfig(saveAutoScreenshotConfig(readAutoScreenshotForm()));
+  try{
+    const result=await requestAutoScreenshotBackend("/api/provenance/capture",{method:"POST"});
+    autoScreenshotBackendStatus={state:"saved",event_id:result.eventId,error:null};
+  }catch(error){
+    autoScreenshotBackendStatus={state:"error",event_id:null,error:String(error?.message||error)};
+  }finally{
+    renderAutoScreenshotConfig();
+  }
+}
+
+async function initializeAutoScreenshotConfiguration(){
+  const form=$("autoScreenshotForm");
+  if(!form||autoScreenshotInitialized) return;
+  autoScreenshotInitialized=true;
+  // Bind the manual action before awaiting capability discovery. The
+  // recognition poll may enable this control independently, so its handler
+  // must not depend on the rest of the Studio X shell initializing cleanly.
+  $("autoScreenshotManualCapture")?.addEventListener("click",manualAutoScreenshotCapture);
+  renderAutoScreenshotConfig();
+  try{
+    const payload=await requestAutoScreenshotBackend("/api/provenance/settings");
+    AUTO_SCREENSHOT_BACKEND_AVAILABLE=payload.available===true;
+    autoScreenshotBackendStatus=payload.status||autoScreenshotBackendStatus;
+    renderAutoScreenshotConfig(saveAutoScreenshotConfig(payload.settings||{}));
+  }catch{
+    AUTO_SCREENSHOT_BACKEND_AVAILABLE=false;
+    renderAutoScreenshotConfig();
+  }
+  form.addEventListener("change",async()=>{
+    const config=saveAutoScreenshotConfig(readAutoScreenshotForm());
+    renderAutoScreenshotConfig(config);
+    if(!AUTO_SCREENSHOT_BACKEND_AVAILABLE) return;
+    try{
+      renderAutoScreenshotConfig(await persistAutoScreenshotSettings(config));
+    }catch(error){
+      autoScreenshotBackendStatus={state:"error",event_id:null,error:String(error?.message||error)};
+      renderAutoScreenshotConfig(config);
+    }
   });
 }
 
@@ -4264,9 +4349,7 @@ function renderDiagnosticsWidget(context){
 }
 
 function renderAutoScreenshotWidget(){
-  if($("autoScreenshotState")) $("autoScreenshotState").textContent="Unavailable";
-  if($("autoScreenshotStatus")) $("autoScreenshotStatus").textContent="Screenshot capture engine not connected";
-  setStudioXWidgetState("auto-screenshot","unavailable");
+  renderAutoScreenshotConfig();
 }
 
 const STUDIOX_WIDGET_RENDERERS={
@@ -4513,7 +4596,6 @@ function initializeStudioXUI4(){
   saveCameraWorkspacePreferences();
   renderCameraWorkspace();
   studioXWidgetLayout=loadStudioXWidgetLayout();
-  initializeAutoScreenshotConfiguration();
   applyStudioXWidgetLayout();
   updateSharedCardContext(
     deriveSharedCardContext(
@@ -4541,6 +4623,7 @@ function initializeStudioXUI4(){
 
 
 document.addEventListener("DOMContentLoaded",()=>{
+  initializeAutoScreenshotConfiguration();
   initializeStudioXUI4();
   setTimeout(()=>verifyAndConnectMainViewer(),120);
   const bridgeFeed=$("cameraFeed");

@@ -50,6 +50,6 @@ def test_frontend_assigns_and_promotes_through_slot_api_without_new_poll_loop() 
 
 
 def test_cache_marker_advanced_for_multi_camera_integration() -> None:
-    version = "6.4.15-shellbay31"
+    version = "6.4.15-provenance2"
     assert f'data-studiox-build="{version}"' in HTML
     assert f'/static/studiox.js?v={version}' in HTML

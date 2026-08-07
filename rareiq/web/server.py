@@ -1,6 +1,7 @@
 from __future__ import annotations
 import asyncio
 import json
+import logging
 import os
 import signal
 import threading
@@ -20,12 +21,14 @@ from pydantic import BaseModel, Field
 from rareiq.core.events import EventBus
 from rareiq.core.orchestrator import RareIQOrchestrator
 from rareiq.core.storage import storage
+from rareiq.services.provenance_capture_service import ProvenanceCaptureService
 from rareiq.version import BUILD_DATE, CODENAME, VERSION, version_payload
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 CAPTURE_DIR = BASE_DIR.parent.parent / "captures"
 SERVER_SESSION_ID = uuid.uuid4().hex
+LOGGER = logging.getLogger(__name__)
 
 app = FastAPI(title=f"RareIQ v{VERSION}")
 
@@ -46,6 +49,54 @@ async def json_api_exception_handler(request: Request, exc: Exception):
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 event_bus = EventBus()
 orchestrator = RareIQOrchestrator(event_bus, CAPTURE_DIR)
+
+
+def _active_camera_provenance_context() -> dict[str, Any]:
+    status = orchestrator.camera_manager.status()
+    active_slot = int(status.get("active_slot") or 1)
+    slot = next(
+        (
+            item
+            for item in status.get("camera_slots") or []
+            if int(item.get("slot_id") or 0) == active_slot
+        ),
+        {},
+    )
+    source = dict(slot.get("source") or {})
+    vision = dict(status.get("vision") or {})
+    return {
+        "slot_id": active_slot,
+        "source_id": slot.get("source_id") or source.get("source_id"),
+        "display_name": slot.get("display_name") or vision.get("camera_name"),
+        "player_side": slot.get("side"),
+        "frame_id": vision.get("frame_id"),
+        "frame_timestamp": vision.get("frame_timestamp"),
+        "card_crop_valid": bool(vision.get("visible") and vision.get("stable")),
+    }
+
+
+provenance_capture = ProvenanceCaptureService(
+    BASE_DIR.parent / "data" / "provenance",
+    server_session_id=SERVER_SESSION_ID,
+    frame_provider=orchestrator.camera_manager.latest_frame,
+    crop_provider=orchestrator.camera_manager.latest_crop,
+    camera_context_provider=_active_camera_provenance_context,
+)
+
+
+async def _evaluate_provenance_event(event: dict[str, Any]) -> None:
+    if str(event.get("type") or "") != "recognition_update":
+        return
+    snapshot = orchestrator.recognition_state.snapshot()
+    if int(snapshot.get("generation") or 0) != int(
+        (event.get("payload") or {}).get("generation") or 0
+    ):
+        return
+    # Disk and PNG work never blocks recognition/event publication.
+    asyncio.create_task(asyncio.to_thread(provenance_capture.evaluate_recognition, snapshot))
+
+
+event_bus.subscribe(_evaluate_provenance_event)
 
 
 def _clear_recognition_after_camera_switch(payload: dict[str, Any]) -> None:
@@ -81,6 +132,27 @@ class CameraStartRequest(BaseModel):
 class CameraSlotSourceRequest(BaseModel):
     source_id: str | None = None
     side: str | None = None
+
+
+class ProvenanceSettingsRequest(BaseModel):
+    settings: dict[str, Any] | None = None
+    enabled: bool | None = None
+    workflowMode: str | None = None
+    triggerReason: str | None = None
+    captureTypes: dict[str, bool] | None = None
+    customerId: str | None = None
+    vendorId: str | None = None
+    packNumber: int | None = None
+    turnNumber: int | None = None
+    playerSide: str | None = None
+    includeTimestamp: bool | None = None
+    includeRecognitionEvidence: bool | None = None
+    minimumConfidence: float | None = None
+
+
+class ProvenanceCorrectionRequest(BaseModel):
+    identity: dict[str, Any]
+    reason: str | None = None
 
 class AutoCaptureRequest(BaseModel):
     enabled: bool
@@ -1097,7 +1169,93 @@ async def recognition_state():
         "ok": True,
         "server_session_id": SERVER_SESSION_ID,
         "recognition_state": orchestrator.recognition_state.snapshot(),
+        "provenance": provenance_capture.capability(),
     }
+
+
+@app.get("/api/provenance/settings")
+async def provenance_settings():
+    return {"ok": True, **provenance_capture.capability()}
+
+
+@app.put("/api/provenance/settings")
+async def update_provenance_settings(req: ProvenanceSettingsRequest):
+    payload = req.settings if req.settings is not None else req.model_dump(exclude_none=True)
+    try:
+        settings = await asyncio.to_thread(provenance_capture.save_settings, payload)
+    except ValueError as exc:
+        return JSONResponse(
+            status_code=422,
+            content={"ok": False, "error": "invalid_settings", "message": str(exc)},
+        )
+    return {"ok": True, "settings": settings, "status": provenance_capture.capability()["status"]}
+
+
+@app.post("/api/provenance/capture")
+async def capture_provenance_screenshot():
+    snapshot = orchestrator.recognition_state.snapshot()
+    result = await asyncio.to_thread(
+        provenance_capture.capture,
+        trigger="manual",
+        snapshot=snapshot,
+    )
+    if not result.get("ok"):
+        LOGGER.error(
+            "provenance_manual_capture_failed reason=%s error=%s",
+            result.get("reason"),
+            result.get("error"),
+        )
+        return JSONResponse(status_code=409, content=result)
+    return result
+
+
+@app.get("/api/provenance/events")
+async def provenance_events(limit: int = 20):
+    return {"ok": True, "events": provenance_capture.list_events(limit)}
+
+
+@app.get("/api/provenance/events/{event_id}")
+async def provenance_event(event_id: str):
+    event = provenance_capture.get_event(event_id)
+    if event is None:
+        return JSONResponse(
+            status_code=404,
+            content={"ok": False, "error": "event_not_found"},
+        )
+    return {"ok": True, "event": event}
+
+
+@app.post("/api/provenance/events/{event_id}/correct")
+async def correct_provenance_event(event_id: str, req: ProvenanceCorrectionRequest):
+    try:
+        revision = await asyncio.to_thread(
+            provenance_capture.correct_event,
+            event_id,
+            req.model_dump(),
+        )
+    except KeyError:
+        return JSONResponse(
+            status_code=404,
+            content={"ok": False, "error": "event_not_found"},
+        )
+    return {"ok": True, "revision": revision}
+
+
+@app.get("/api/provenance/events/{event_id}/assets/{asset_id}")
+async def provenance_asset(event_id: str, asset_id: str):
+    path = provenance_capture.asset_path(event_id, asset_id)
+    if path is None:
+        return JSONResponse(
+            status_code=404,
+            content={"ok": False, "error": "asset_not_found"},
+        )
+    return FileResponse(
+        path,
+        media_type="image/png",
+        filename=path.name,
+        headers={"Cache-Control": "private, no-store"},
+    )
+
 @app.get("/api/reference-image")
 async def reference_image(
     path: str,
