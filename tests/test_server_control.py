@@ -104,6 +104,9 @@ def test_start_is_health_gated_and_persists_exact_process_identity(tmp_path, mon
     assert kwargs["env"]["RAREIQ_HOST"] == "127.0.0.1"
     assert kwargs["env"]["RAREIQ_PORT"] == "8765"
     assert kwargs["stdin"] is control.subprocess.DEVNULL
+    if control.os.name == "nt":
+        assert kwargs["creationflags"] & control.subprocess.CREATE_BREAKAWAY_FROM_JOB
+    assert persisted["windows_job_breakaway"] is (control.os.name == "nt")
 
 
 def test_start_refuses_duplicate_or_unmanaged_server(tmp_path, monkeypatch):

@@ -15,6 +15,9 @@ match its managed state.
 
 `start.bat` installs the pinned runtime requirements and then uses the same
 controller. The server stays running after the launcher window closes.
+On Windows, the managed process also breaks away from the launcher's job
+object so terminal, automation, or parent-process cleanup cannot terminate a
+healthy RareIQ server accidentally.
 
 Development ports are explicit and remain loopback-only:
 

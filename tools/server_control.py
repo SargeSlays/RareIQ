@@ -299,6 +299,7 @@ def start_server(
             subprocess.CREATE_NEW_PROCESS_GROUP
             | subprocess.DETACHED_PROCESS
             | subprocess.CREATE_NO_WINDOW
+            | subprocess.CREATE_BREAKAWAY_FROM_JOB
         )
     else:
         popen_kwargs["start_new_session"] = True
@@ -319,6 +320,7 @@ def start_server(
         "started_at": _utc_now(),
         "stdout_log": str(stdout_path),
         "stderr_log": str(stderr_path),
+        "windows_job_breakaway": os.name == "nt",
     }
     _write_state(state_path, pending)
     deadline = time.monotonic() + timeout
