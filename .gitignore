@@ -1,4 +1,13 @@
-rareiq_secrets.json
+# Local configuration and credentials
+storage_config.json
+rareiq_secrets*.json
+!rareiq_secrets.example.json
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
 updates/
 !updates/
 updates/*
@@ -27,6 +36,7 @@ benchmarks/
 captures/
 catalog_cache/
 grading_captures/
+runtime/
 *.log
 
 # RareIQ generated runtime data

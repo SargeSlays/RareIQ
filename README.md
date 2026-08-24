@@ -23,6 +23,8 @@ start.bat
 
 The launcher creates `.venv` when needed, installs the pinned runtime dependencies, and opens RareIQ at `http://127.0.0.1:8765/control`.
 
+On first launch, `storage_config.json` is created from `storage_config.example.json`. Relative paths are resolved beside the local configuration file; edit the local file to place large runtime data on another drive. Credentials belong only in the ignored `rareiq_secrets.json` file or supported environment variables—never in the example file.
+
 For development and tests:
 
 ```powershell

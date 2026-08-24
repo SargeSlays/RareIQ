@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import secrets
 import threading
 import time
@@ -11,6 +10,8 @@ import cv2
 import httpx
 import numpy as np
 
+from rareiq.core.secrets import SecretsManager
+
 
 class CardGraderService:
     BASE_URL = "https://cardgrader.ai/v1"
@@ -18,6 +19,7 @@ class CardGraderService:
     def __init__(self, project_root: Path | None = None) -> None:
         self.project_root = project_root or Path(__file__).resolve().parents[2]
         self.secrets_path = self.project_root / "rareiq_secrets.json"
+        self._secrets_store = SecretsManager(self.secrets_path)
         self.capture_dir = self.project_root / "grading_captures"
         self.capture_dir.mkdir(parents=True, exist_ok=True)
 
@@ -31,25 +33,18 @@ class CardGraderService:
 
     def _load_secrets(self) -> None:
         try:
-            payload = json.loads(self.secrets_path.read_text(encoding="utf-8"))
-            self._api_key = payload.get("cardgrader_api_key")
-            self._agent = payload.get("cardgrader_agent")
-        except FileNotFoundError:
-            pass
+            self._secrets_store.reload()
+            self._api_key = self._secrets_store.get("cardgrader_api_key")
+            self._agent = self._secrets_store.get("cardgrader_agent")
         except Exception as exc:
             self._error = str(exc)
 
     def _save_secrets(self) -> None:
-        self.secrets_path.write_text(
-            json.dumps(
-                {
-                    "cardgrader_api_key": self._api_key,
-                    "cardgrader_agent": self._agent,
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
+        self._secrets_store.update(
+            {
+                "cardgrader_api_key": self._api_key,
+                "cardgrader_agent": self._agent,
+            }
         )
 
     def status(self) -> dict[str, Any]:
