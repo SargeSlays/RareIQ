@@ -7,11 +7,12 @@ JS = (ROOT / "rareiq/web/static/studiox.js").read_text(encoding="utf-8-sig")
 CSS = (ROOT / "rareiq/web/static/studiox_update15.css").read_text(encoding="utf-8-sig")
 
 
-def test_broadcast_console_has_six_accessible_operator_views() -> None:
+def test_broadcast_console_has_seven_accessible_operator_views() -> None:
     assert HTML.count('id="broadcastWorkspaceTabs"') == 1
     assert 'role="tablist" aria-label="Broadcast workspace views"' in HTML
     for view, label in (
         ("live", "Live Control"),
+        ("destinations", "Destinations"),
         ("show", "Run of Show"),
         ("graphics", "Graphics"),
         ("insights", "Insights"),
@@ -34,6 +35,7 @@ def test_every_existing_broadcast_module_is_assigned_to_one_view() -> None:
         ".rundown-safety", ".rundown-library", ".rundown-preflight",
         ".production-rundown", ".production-switcher-shell", ".production-scenes",
         ".production-graphics", ".production-replay", ".production-screens",
+        ".broadcast-destinations",
     ):
         assert mapping.count(f'"{selector}"') == 1
 
@@ -55,6 +57,6 @@ def test_broadcast_console_is_compact_sticky_and_responsive() -> None:
     assert ".broadcast-workspace-tabs{" in CSS
     assert "position:sticky!important" in CSS
     assert "order:-100!important" in CSS
-    assert "grid-template-columns:repeat(6,minmax(110px,1fr))!important" in CSS
+    assert "grid-template-columns:repeat(7,minmax(104px,1fr))!important" in CSS
     assert "overflow-x:auto!important" in CSS
     assert 'html[data-theme="light"] body.studiox-ui4 .broadcast-workspace-tabs' in CSS

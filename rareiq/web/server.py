@@ -34,6 +34,7 @@ from rareiq.services.instant_replay_service import InstantReplayService
 from rareiq.services.inventory_service import MAX_RECEIPT_DATA_URL_CHARS
 from rareiq.services.recording_service import RecordingService
 from rareiq.services.obs_service import ObsService
+from rareiq.services.broadcast_destination_service import BroadcastDestinationService
 from rareiq.version import BUILD_DATE, CODENAME, VERSION, version_payload
 from rareiq.web.remote_access import (
     REMOTE_ACCESS_COOKIE,
@@ -889,6 +890,7 @@ recording = RecordingService(
     config_path=storage.get_path("config_path") / "recording_settings.json",
 )
 obs = ObsService(BASE_DIR.parent.parent / "obs_settings.json")
+broadcast_destinations = BroadcastDestinationService()
 
 class LearningQueueRequest(BaseModel):
     scan_payload: dict[str, Any]
@@ -1846,6 +1848,15 @@ async def test_recording_settings():
 @app.get("/api/production/obs")
 async def obs_status():
     return {"ok": True, "obs": await asyncio.to_thread(obs.status)}
+
+@app.get("/api/production/destinations")
+async def production_destinations():
+    """Report platform capabilities without inferring unverified live states."""
+    current_obs = await asyncio.to_thread(obs.status)
+    return {
+        "ok": True,
+        **broadcast_destinations.snapshot(obs_status=current_obs),
+    }
 
 @app.post("/api/production/obs/settings")
 async def update_obs_settings(request: ObsSettingsRequest):
