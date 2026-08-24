@@ -10987,6 +10987,25 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
   body.studiox-ui4.studiox-premium[data-mobile-operator-view="card"] .ui4-inspector-column{order:1!important;padding-top:6px!important}
 }
 
+/* Camera-only mobile view owns the usable space above the operator deck.
+   The 16:9 media remains width-driven and centered inside a dark canvas. */
+@media(max-width:959px) and (orientation:portrait){
+  body.studiox-ui4.studiox-premium[data-mobile-operator-view="camera"] .ui4-center-column{
+    height:calc(100svh - 170px)!important;
+    min-height:0!important;
+    overflow:hidden!important;
+    background:#050d13!important;
+  }
+  body.studiox-ui4.studiox-premium[data-mobile-operator-view="camera"] .camera-workspace,
+  body.studiox-ui4.studiox-premium[data-mobile-operator-view="camera"][data-workspace-density] .camera-workspace{
+    grid-template-rows:44px auto!important;
+    background:#050d13!important;
+  }
+  body.studiox-ui4.studiox-premium[data-mobile-operator-view="camera"] .camera-workspace-toolbar{display:none!important}
+  body.studiox-ui4.studiox-premium[data-mobile-operator-view="camera"] :is(.workspace-stage,.workspace[data-workspace="live"],.live-shell){background:#050d13!important}
+  html[data-theme="light"] body.studiox-ui4.studiox-premium[data-mobile-operator-view="camera"] :is(.ui4-center-column,.workspace-stage,.workspace[data-workspace="live"],.live-shell,.camera-workspace){background:#050d13!important}
+}
+
 /* Mobile card inspector density: desktop horizontal flex bases must never
    become oversized vertical rows when the decision strip stacks. */
 @media(max-width:959px){
