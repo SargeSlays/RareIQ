@@ -5895,7 +5895,10 @@ function renderMobileWakeLockState(state="off",detail=""){
   const supported=mobileWakeLockSupported();
   if(toggle){toggle.disabled=!supported;toggle.checked=supported&&mobileWakeLockRequested}
   const defaults={off:"Off · enable for this operator session",active:"Active · screen will remain awake",paused:"Paused while Studio X is hidden",unsupported:"Unavailable in this browser",error:"Could not keep the screen awake"};
-  setCardText("mobileWakeLockStatus",detail||defaults[supported?state:"unsupported"]);
+  const status=detail||defaults[supported?state:"unsupported"];
+  setCardText("mobileWakeLockStatus",status);
+  const deckToggle=$("mobileOperatorWakeLock");
+  if(deckToggle){deckToggle.disabled=!supported;deckToggle.dataset.state=supported?state:"unsupported";deckToggle.setAttribute("aria-pressed",supported&&mobileWakeLockRequested?"true":"false");deckToggle.title=status}
   document.querySelector(".mobile-wake-lock")?.setAttribute("data-state",supported?state:"unsupported");
 }
 
@@ -5932,10 +5935,9 @@ async function requestMobileWakeLock(){
 
 function initializeMobileWakeLock(){
   renderMobileWakeLockState(mobileWakeLockSupported()?"off":"unsupported");
-  $("mobileWakeLockEnabled")?.addEventListener("change",event=>{
-    mobileWakeLockRequested=event.target.checked===true;
-    if(mobileWakeLockRequested)requestMobileWakeLock();else releaseMobileWakeLock();
-  });
+  const setRequested=requested=>{mobileWakeLockRequested=requested===true;if(mobileWakeLockRequested)requestMobileWakeLock();else releaseMobileWakeLock()};
+  $("mobileWakeLockEnabled")?.addEventListener("change",event=>setRequested(event.target.checked===true));
+  $("mobileOperatorWakeLock")?.addEventListener("click",()=>setRequested(!mobileWakeLockRequested));
   document.addEventListener("visibilitychange",()=>{
     if(!mobileWakeLockRequested)return;
     if(document.hidden===true)releaseMobileWakeLock();else requestMobileWakeLock();

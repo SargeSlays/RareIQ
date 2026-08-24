@@ -13,6 +13,7 @@ def test_mobile_operator_deck_has_unique_accessible_controls():
         "mobileOperatorCardName",
         "mobileOperatorConfidence",
         "mobileOperatorConnection",
+        "mobileOperatorWakeLock",
         "mobileOperatorCapture",
         "mobileOperatorApprove",
         "mobileOperatorReject",

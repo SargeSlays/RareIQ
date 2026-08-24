@@ -12,12 +12,15 @@ def test_wake_lock_is_unique_and_off_by_default() -> None:
     assert HTML.count('id="mobileWakeLockStatus"') == 1
     element = HTML.split('id="mobileWakeLockEnabled"', 1)[0].rsplit("<input", 1)[1]
     assert "checked" not in element
+    assert HTML.count('id="mobileOperatorWakeLock"') == 1
+    assert 'id="mobileOperatorWakeLock" aria-label="Keep screen awake" aria-pressed="false"' in HTML
 
 
 def test_wake_lock_requires_an_explicit_toggle_action() -> None:
     init = SCRIPT[SCRIPT.index("function initializeMobileWakeLock") : SCRIPT.index("let mobileAccessUrl")]
     assert 'addEventListener("change"' in init
-    assert "event.target.checked===true" in init
+    assert "setRequested(event.target.checked===true)" in init
+    assert '$("mobileOperatorWakeLock")?.addEventListener("click",()=>setRequested(!mobileWakeLockRequested))' in init
     assert "requestMobileWakeLock()" in init
     assert 'navigator.wakeLock.request("screen")' in SCRIPT
     assert "requestMobileWakeLock();" not in SCRIPT[: SCRIPT.index("function initializeMobileWakeLock")]
@@ -35,3 +38,5 @@ def test_unsupported_and_denied_states_are_truthful() -> None:
     assert 'toggle.disabled=!supported' in SCRIPT
     assert 'unsupported:"Unavailable in this browser"' in SCRIPT
     assert 'notify("Screen Awake Unavailable"' in SCRIPT
+    assert 'deckToggle.disabled=!supported' in SCRIPT
+    assert 'deckToggle.setAttribute("aria-pressed",supported&&mobileWakeLockRequested?"true":"false")' in SCRIPT
