@@ -11019,6 +11019,8 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
    The 16:9 media remains width-driven and centered inside a dark canvas. */
 @media(max-width:959px) and (orientation:portrait){
   body.studiox-ui4.studiox-premium[data-mobile-operator-view="camera"] .ui4-center-column{
+    grid-template-rows:108px minmax(0,1fr)!important;
+    align-content:stretch!important;
     height:calc(100svh - 170px)!important;
     min-height:0!important;
     overflow:hidden!important;

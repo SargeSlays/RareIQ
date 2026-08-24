@@ -16,6 +16,8 @@ def test_camera_only_view_fills_the_space_above_the_operator_deck() -> None:
     contract = camera_canvas_contract()
     assert '[data-mobile-operator-view="camera"] .ui4-center-column' in contract
     assert "height:calc(100svh - 170px)!important" in contract
+    assert "grid-template-rows:108px minmax(0,1fr)!important" in contract
+    assert "align-content:stretch!important" in contract
     assert "overflow:hidden!important" in contract
     assert "background:#050d13!important" in contract
     assert "grid-template-rows:44px auto!important" in contract
