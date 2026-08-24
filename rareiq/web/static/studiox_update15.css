@@ -10452,6 +10452,76 @@ html[data-theme=light] .pack-tuning-history{background:#f7fbfd}
 /* Update 6.8.5 — pack-only workflow chrome. */
 .pack-speed-run[hidden]{display:none!important}
 
+/* Broadcast console: preserve every production module while exposing one
+   operator task group at a time. */
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"].active{
+  display:grid!important;
+  grid-template-columns:repeat(12,minmax(0,1fr))!important;
+  align-content:start!important;
+  gap:10px!important;
+  padding:10px!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>[data-broadcast-panel]{grid-column:1/-1;min-width:0;margin:0!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>[data-broadcast-panel][hidden]{display:none!important}
+body.studiox-ui4.studiox-premium .broadcast-workspace-tabs{
+  position:sticky!important;
+  order:-100!important;
+  z-index:24!important;
+  top:0!important;
+  grid-column:1/-1!important;
+  display:grid!important;
+  grid-template-columns:repeat(6,minmax(110px,1fr))!important;
+  gap:4px!important;
+  min-width:0!important;
+  min-height:46px!important;
+  padding:5px!important;
+  border:1px solid rgba(102,215,244,.18)!important;
+  border-radius:13px!important;
+  background:linear-gradient(135deg,rgba(5,22,32,.98),rgba(10,15,30,.98))!important;
+  box-shadow:0 12px 28px rgba(0,0,0,.24)!important;
+  backdrop-filter:blur(18px)!important;
+}
+body.studiox-ui4.studiox-premium .broadcast-workspace-tabs>button{
+  min-width:0!important;
+  min-height:34px!important;
+  padding:0 10px!important;
+  border:1px solid transparent!important;
+  border-radius:9px!important;
+  background:transparent!important;
+  color:#7895a2!important;
+  font:850 9px/1 inherit!important;
+  letter-spacing:.03em!important;
+  white-space:nowrap!important;
+  cursor:pointer!important;
+}
+body.studiox-ui4.studiox-premium .broadcast-workspace-tabs>button[aria-selected="true"]{border-color:rgba(101,218,244,.34)!important;background:linear-gradient(130deg,rgba(31,151,188,.28),rgba(100,75,209,.25))!important;color:#effcff!important;box-shadow:inset 0 0 0 1px rgba(112,222,247,.08)!important}
+body.studiox-ui4.studiox-premium .broadcast-workspace-tabs>button:focus-visible{outline:2px solid #72e4fa!important;outline-offset:2px!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.workspace-readiness{order:-90!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.operator-health{order:-80!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.production-switcher-shell{order:-70!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.production-session{order:-60!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.show-preflight{order:-60!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.production-session-metadata{order:-50!important}
+@media(min-width:1300px){
+  body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.production-session,
+  body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.show-preflight{grid-column:span 6!important}
+  body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.obs-bootstrap,
+  body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.obs-control,
+  body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.encoder-guide,
+  body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.recording-settings{grid-column:span 6!important}
+}
+@media(max-width:820px){
+  body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"].active{padding:6px!important;gap:7px!important}
+  body.studiox-ui4.studiox-premium .broadcast-workspace-tabs{display:flex!important;min-height:44px!important;overflow-x:auto!important;scrollbar-width:none!important}
+  body.studiox-ui4.studiox-premium .broadcast-workspace-tabs::-webkit-scrollbar{display:none!important}
+  body.studiox-ui4.studiox-premium .broadcast-workspace-tabs>button{flex:0 0 auto!important;min-width:104px!important}
+}
+html[data-theme="light"] body.studiox-ui4 .broadcast-workspace-tabs{border-color:#bfd8e1!important;background:rgba(247,252,254,.98)!important;box-shadow:0 10px 24px rgba(28,67,83,.12)!important}
+html[data-theme="light"] body.studiox-ui4 .broadcast-workspace-tabs>button{color:#52717f!important}
+html[data-theme="light"] body.studiox-ui4 .broadcast-workspace-tabs>button[aria-selected="true"]{border-color:#73c9dc!important;background:linear-gradient(130deg,#dff7fb,#ece8ff)!important;color:#153f50!important}
+
 /* Update 6.8.9 — mobile operator shell foundation.
    Desktop geometry remains authoritative above this breakpoint. */
 body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!important}

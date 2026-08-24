@@ -10,6 +10,7 @@ let newestRecognitionGeneration = -1;
 let newestRecognitionRevision = -1;
 let currentServerSessionId = null;
 const MOBILE_OPERATOR_VIEW_KEY="rareiq.mobileOperatorView";
+const BROADCAST_WORKSPACE_VIEW_KEY="rareiq.broadcastWorkspaceView";
 let studioXExactMatchMomentKey = null;
 let studioXExactMatchMomentTimer = null;
 let recognitionPresentationMemory={key:"ready",presentation:null,changedAt:0};
@@ -2213,6 +2214,58 @@ const WORKSPACE_READINESS={
   library:{path:"/api/master-builder/status",label:"Reference library",describe:payload=>`${payload?.builder?.sets_completed||0} of ${payload?.builder?.sets_discovered||0} sets synced`,state:payload=>payload?.builder?.busy?"working":"ready"},
   settings:{path:"/api/system/health",label:"System settings",describe:()=>"RareIQ services online"}
 };
+
+const BROADCAST_WORKSPACE_PANELS={
+  live:[".workspace-readiness",".production-session-metadata",".production-session",".operator-health",".show-preflight",".production-switcher-shell"],
+  show:[".rundown-safety",".rundown-library",".rundown-preflight",".production-rundown",".production-scenes"],
+  graphics:[".production-graphics",".production-replay",".production-screens"],
+  insights:[".pack-economics",".pack-tracker",".card-show-analytics",".show-analytics"],
+  history:[".break-history-controls",".break-history",".production-report-actions"],
+  setup:[".obs-diagnostic",".obs-bootstrap",".obs-control",".encoder-guide",".recording-settings"],
+};
+
+function setBroadcastWorkspaceView(requested,{persist=true,focus=false,scroll=true}={}){
+  const workspace=document.querySelector('.workspace[data-workspace="broadcast"]');
+  if(!workspace)return "live";
+  const views=Object.keys(BROADCAST_WORKSPACE_PANELS);
+  const view=views.includes(requested)?requested:"live";
+  workspace.dataset.broadcastView=view;
+  workspace.querySelectorAll("[data-broadcast-panel]").forEach(panel=>{panel.hidden=panel.dataset.broadcastPanel!==view});
+  workspace.querySelectorAll("[data-broadcast-view]").forEach(button=>{
+    const selected=button.dataset.broadcastView===view;
+    button.setAttribute("aria-selected",selected?"true":"false");
+    button.tabIndex=selected?0:-1;
+    if(selected&&focus)button.focus();
+  });
+  if(scroll)workspace.scrollTo({top:0,behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});
+  if(persist){try{localStorage.setItem(BROADCAST_WORKSPACE_VIEW_KEY,view)}catch(_error){}}
+  return view;
+}
+
+function initializeBroadcastWorkspace(){
+  const workspace=document.querySelector('.workspace[data-workspace="broadcast"]');
+  const tabs=$("broadcastWorkspaceTabs");
+  if(!workspace||!tabs)return;
+  Object.entries(BROADCAST_WORKSPACE_PANELS).forEach(([view,selectors])=>selectors.forEach(selector=>{
+    const panel=workspace.querySelector(selector);
+    if(panel)panel.dataset.broadcastPanel=view;
+  }));
+  tabs.querySelectorAll("[data-broadcast-view]").forEach(button=>{
+    button.addEventListener("click",()=>setBroadcastWorkspaceView(button.dataset.broadcastView));
+    button.addEventListener("keydown",event=>{
+      const buttons=[...tabs.querySelectorAll("[data-broadcast-view]")];
+      const current=buttons.indexOf(button);
+      const key=event.key;
+      if(!["ArrowLeft","ArrowRight","Home","End"].includes(key))return;
+      event.preventDefault();
+      const next=key==="Home"?0:key==="End"?buttons.length-1:(current+(key==="ArrowRight"?1:-1)+buttons.length)%buttons.length;
+      setBroadcastWorkspaceView(buttons[next].dataset.broadcastView,{focus:true});
+    });
+  });
+  let saved="live";
+  try{saved=localStorage.getItem(BROADCAST_WORKSPACE_VIEW_KEY)||"live"}catch(_error){}
+  setBroadcastWorkspaceView(saved,{persist:false,scroll:false});
+}
 
 function readinessPanel(workspace){
   let panel=workspace?.querySelector(":scope > .workspace-readiness");
@@ -8259,6 +8312,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   initializeMobileWakeLock();
   initializeStudioXInstallPrompt();
   initializeWorkspaceReadiness();
+  initializeBroadcastWorkspace();
   loadTCGGames().then(loadRecognitionSets).catch(()=>loadRecognitionSets());
   $("tcgGameSelect")?.addEventListener("change",updateTCGSelection);
   renderAutoAddVerified();

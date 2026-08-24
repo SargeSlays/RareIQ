@@ -30,9 +30,9 @@
 <link rel="stylesheet" href="/static/studiox_61.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.8.8-provisional-identity">
-<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.9-mobile-shell19">
+<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.9-broadcast-console1">
 <link rel="stylesheet" href="/static/pack_run_coach.css?v=6.8.8-provisional-identity">
-<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.9-mobile-shell19"></script>
+<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.9-broadcast-console1"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><style id="ui4-unified-card-stage-overrides">
@@ -1520,6 +1520,14 @@ Choose a source from Manage Cameras</span>
   </section>
 
   <section class="workspace" data-workspace="broadcast">
+    <nav class="broadcast-workspace-tabs" id="broadcastWorkspaceTabs" role="tablist" aria-label="Broadcast workspace views">
+      <button type="button" role="tab" data-broadcast-view="live" aria-selected="true">Live Control</button>
+      <button type="button" role="tab" data-broadcast-view="show" aria-selected="false" tabindex="-1">Run of Show</button>
+      <button type="button" role="tab" data-broadcast-view="graphics" aria-selected="false" tabindex="-1">Graphics</button>
+      <button type="button" role="tab" data-broadcast-view="insights" aria-selected="false" tabindex="-1">Insights</button>
+      <button type="button" role="tab" data-broadcast-view="history" aria-selected="false" tabindex="-1">History</button>
+      <button type="button" role="tab" data-broadcast-view="setup" aria-selected="false" tabindex="-1">Setup</button>
+    </nav>
     <form class="production-session-metadata" id="productionSessionMetadata"><label><span>Session name</span><input id="productionSessionName" maxlength="80" placeholder="Friday Night Gem Pack Break"></label><label><span>Customer</span><input id="productionSessionCustomer" maxlength="100" placeholder="Customer or channel"></label><label><span>Break ID</span><input id="productionSessionBreakId" maxlength="100" placeholder="Order, show, or break number"></label><label class="wide"><span>Operator notes</span><input id="productionSessionNotes" maxlength="1000" placeholder="Products, goals, special instructions…"></label><button class="riq-button" id="productionSessionMetadataSave" type="submit">Save Details</button></form>
     <div class="break-history-controls"><label><span>Search history</span><input id="breakHistorySearch" type="search" placeholder="Card, set, or session"></label><label><span>Filter</span><select id="breakHistoryFilter"><option value="all">All sessions</option><option value="profitable">Profitable</option><option value="loss">Below cost</option><option value="unresolved">Has unpriced cards</option><option value="complete">Fully priced</option></select></label><label><span>Sort</span><select id="breakHistorySort"><option value="newest">Newest</option><option value="margin">Highest margin</option><option value="return">Highest return</option><option value="cards">Most cards</option></select></label></div>
     <section class="break-history"><header><div><span>Historical Intelligence</span><h3>Break History</h3><b id="breakHistoryStatus">No completed sessions</b></div><button class="riq-button" id="breakHistoryRefresh" type="button">Refresh</button></header><div class="break-history-summary"><article><span>COMPLETED SHOWS</span><strong id="historyCompleted">0</strong></article><article><span>PACKS OPENED</span><strong id="historyPacks">0</strong></article><article><span>CARDS REVEALED</span><strong id="historyCards">0</strong></article><article><span>TOTAL COST</span><strong id="historyCost">$0.00</strong></article><article><span>VERIFIED RETURN</span><strong id="historyReturn">$0.00</strong></article><article><span>VERIFIED MARGIN</span><strong id="historyMargin">$0.00</strong></article><article><span>UNPRICED CARDS</span><strong id="historyUnresolved">0</strong></article></div><div class="break-history-list" id="breakHistoryList"><p>End a production session to create the first durable snapshot.</p></div><footer>Historical margins remain minimum verified values whenever a snapshot contains unpriced cards.</footer></section>
