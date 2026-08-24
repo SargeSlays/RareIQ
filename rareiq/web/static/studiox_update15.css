@@ -9777,7 +9777,20 @@ body.studiox-ui4 .nav-button[data-tool-state] .nav-app-icon:after{content:"";pos
 body.studiox-ui4 .nav-button[data-tool-state=setup] .nav-app-icon:after{background:#f6be4f}body.studiox-ui4 .nav-button[data-tool-state=error] .nav-app-icon:after{background:#ff677e}body.studiox-ui4 .nav-button[data-tool-state=checking] .nav-app-icon:after,body.studiox-ui4 .nav-button[data-tool-state=working] .nav-app-icon:after{background:var(--ui4-cyan)}
 @keyframes tool-readiness-pulse{50%{opacity:.35;transform:scale(.78)}}
 @media(max-width:900px){body.studiox-ui4 .workspace-readiness{position:relative;top:auto;right:auto;margin:10px 10px 0;max-width:none}body.studiox-ui4 .workspace-readiness+*{margin-top:8px}}
-@media(max-width:959px){body.studiox-ui4 .server-connection-banner{top:116px;width:calc(100vw - 12px);min-height:52px}.server-connection-banner span{white-space:normal}.server-connection-banner button{min-height:34px}}
+@media(max-width:959px){
+  body.studiox-ui4 .server-connection-banner{
+    top:auto;
+    right:6px;
+    bottom:calc(62px + env(safe-area-inset-bottom,0px));
+    left:6px;
+    width:auto;
+    min-height:52px;
+    transform:none;
+  }
+  body.studiox-ui4[data-ui4-workspace="live"] .server-connection-banner{bottom:calc(132px + env(safe-area-inset-bottom,0px))}
+  .server-connection-banner span{display:-webkit-box;overflow:hidden;white-space:normal;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+  .server-connection-banner button{min-height:36px}
+}
 @media(prefers-reduced-motion:reduce){body.studiox-ui4 .workspace-readiness>i{animation:none!important}}
 body.studiox-ui4 .spotify-setup-card{display:grid;gap:14px;margin:12px 16px 0;padding:18px;border:1px solid rgba(246,190,79,.34);border-radius:17px;background:linear-gradient(145deg,rgba(56,43,12,.55),rgba(7,24,32,.98));box-shadow:0 18px 52px rgba(0,0,0,.2)}body.studiox-ui4 .spotify-setup-card[hidden]{display:none!important}body.studiox-ui4 .spotify-setup-card>div:first-child{display:grid;gap:4px}body.studiox-ui4 .spotify-setup-card>div:first-child>span{color:#f6be4f;font-size:8px;font-weight:900;letter-spacing:.16em}body.studiox-ui4 .spotify-setup-card h3{margin:0;font-size:18px}body.studiox-ui4 .spotify-setup-card p{max-width:760px;margin:0;color:var(--ui4-muted);font-size:10px;line-height:1.55}body.studiox-ui4 .spotify-setup-card ol{display:grid;grid-template-columns:.7fr 1.4fr 1.2fr;gap:10px;margin:0;padding:0;list-style:none;counter-reset:spotify-step}body.studiox-ui4 .spotify-setup-card li{display:grid;align-content:start;gap:8px;min-width:0;padding:12px;border:1px solid rgba(105,204,232,.14);border-radius:12px;background:rgba(4,17,26,.48);counter-increment:spotify-step}body.studiox-ui4 .spotify-setup-card li:before{content:"STEP " counter(spotify-step);color:#66dff5;font-size:7px;font-weight:900;letter-spacing:.14em}body.studiox-ui4 .spotify-setup-card label{display:grid;gap:7px;color:#8fa6b1;font-size:8px;font-weight:800}body.studiox-ui4 .spotify-setup-card label>div{display:flex;gap:6px}body.studiox-ui4 .spotify-setup-card input{width:100%;min-width:0;height:38px;padding:0 10px;border:1px solid var(--ui4-border);border-radius:9px;background:#061722;color:var(--ui4-text);font:700 9px "JetBrains Mono",monospace}body.studiox-ui4 .spotify-setup-actions{display:flex;align-items:center;gap:12px}body.studiox-ui4 .spotify-setup-actions strong{color:#f6be4f;font-size:9px}html[data-theme=light] body.studiox-ui4 .spotify-setup-card{background:#fff9e9}html[data-theme=light] body.studiox-ui4 .spotify-setup-card li,html[data-theme=light] body.studiox-ui4 .spotify-setup-card input{background:#fff}@media(max-width:900px){body.studiox-ui4 .spotify-setup-card ol{grid-template-columns:1fr}}@media(max-width:620px){body.studiox-ui4 .spotify-setup-card{margin:8px 7px 0;padding:12px}}
 /* ========================================================================== */
