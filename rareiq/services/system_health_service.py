@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from typing import Any
 
 
@@ -29,6 +30,8 @@ class SystemHealthService:
         self._stop = threading.Event()
         self._auto_index_enabled = True
         self._last_auto_index_check = 0.0
+        self._available_local_images: int | None = None
+        self._available_local_images_checked_at: float | None = None
         self._worker = threading.Thread(
             target=self._watch,
             daemon=True,
@@ -38,9 +41,12 @@ class SystemHealthService:
 
     def status(self) -> dict[str, Any]:
         visual = self.visual_index.status()
-        available_images = self.visual_index.available_local_image_count()
         providers = self.provider_diagnostics.status()
         pipeline = self.fast_pipeline.status()
+
+        with self._lock:
+            available_images = self._available_local_images
+            available_images_checked_at = self._available_local_images_checked_at
 
         camera = self.vision.status()
         recognition = self.recognition.status()
@@ -85,9 +91,11 @@ class SystemHealthService:
             "metrics": {
                 "indexed_cards": int(visual.get("records") or 0),
                 "available_local_images": available_images,
-                "unindexed_local_images": max(
-                    0,
-                    available_images - int(visual.get("records") or 0),
+                "available_local_images_checked_at": available_images_checked_at,
+                "unindexed_local_images": (
+                    max(0, available_images - int(visual.get("records") or 0))
+                    if available_images is not None
+                    else None
                 ),
                 "registered_assets": int(assets.get("assets") or 0),
                 "queued_jobs": int(jobs.get("queued") or 0),
@@ -104,7 +112,8 @@ class SystemHealthService:
         }
 
     def set_auto_index(self, enabled: bool) -> dict[str, Any]:
-        self._auto_index_enabled = bool(enabled)
+        with self._lock:
+            self._auto_index_enabled = bool(enabled)
         return {
             "ok": True,
             "auto_index_enabled": self._auto_index_enabled,
@@ -116,28 +125,38 @@ class SystemHealthService:
             self._worker.join(timeout=3.0)
 
     def _watch(self) -> None:
-        while not self._stop.wait(60.0):
-            if not self._auto_index_enabled:
-                continue
-
+        while not self._stop.is_set():
             try:
-                visual = self.visual_index.status()
-                if visual.get("busy"):
-                    continue
-
-                available = self.visual_index.available_local_image_count()
-                indexed = int(visual.get("records") or 0)
-
-                if available > indexed:
-                    queue_status = self.job_queue.status()
-                    current = queue_status.get("current")
-                    if not current:
-                        self.job_queue.submit(
-                            "Incremental Recognition Index",
-                            self.visual_index.incremental_update,
-                        )
+                self._refresh_available_images()
             except Exception:
-                continue
+                pass
+
+            if self._stop.wait(60.0):
+                break
+
+    def _refresh_available_images(self) -> None:
+        visual = self.visual_index.status()
+        if visual.get("busy"):
+            return
+
+        available = self.visual_index.available_local_image_count()
+        checked_at = time.time()
+        indexed = int(visual.get("records") or 0)
+        with self._lock:
+            self._available_local_images = available
+            self._available_local_images_checked_at = checked_at
+            self._last_auto_index_check = checked_at
+            auto_index_enabled = self._auto_index_enabled
+
+        if not auto_index_enabled or available <= indexed:
+            return
+
+        queue_status = self.job_queue.status()
+        if not queue_status.get("current"):
+            self.job_queue.submit(
+                "Incremental Recognition Index",
+                self.visual_index.incremental_update,
+            )
 
     @staticmethod
     def _state(ok: bool, status: str) -> dict[str, Any]:
