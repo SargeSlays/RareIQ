@@ -117,7 +117,8 @@ def test_manual_capture_is_not_suppressed_as_duplicate():
 def test_recognition_update_advances_pipeline():
     obj = make_orchestrator()
     obj._current_recognition_card = lambda: {
-        "card_name": "Suicune ex"
+        "card_name": "Suicune ex",
+        "identity_authoritative": True,
     }
     obj._recognition_generation = 1
 

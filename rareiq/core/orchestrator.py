@@ -574,6 +574,7 @@ class RareIQOrchestrator:
         )
         if (
             not card
+            or card.get("identity_authoritative") is not True
             or generation != self._recognition_generation
             or decision_generation == self._recognition_generation
         ):
@@ -1193,15 +1194,24 @@ class RareIQOrchestrator:
             )
 
         card = self._current_recognition_card()
-        if card:
+        identity_authoritative = bool(
+            card and card.get("identity_authoritative") is True
+        )
+        if identity_authoritative:
             self.pipeline_state.complete(
                 "current_card",
                 f"Current Card: {card.get('card_name')}",
             )
             self._last_trigger_result = "card_ready"
-            if verification_state == "VERIFIED" and not card.get("provisional"):
+            if not card.get("provisional"):
                 self._removal_finalize_card = dict(card)
                 self._removal_finalize_generation = generation
+        elif card:
+            self.pipeline_state.waiting(
+                "current_card",
+                "Candidate requires identity review",
+            )
+            self._last_trigger_result = "identity_review_required"
         else:
             self.pipeline_state.waiting(
                 "current_card",
@@ -1341,6 +1351,17 @@ class RareIQOrchestrator:
             return None
         return (left ^ right).bit_count()
 
+    @staticmethod
+    def _identity_is_authoritative(snapshot: dict[str, Any]) -> bool:
+        return bool(
+            str(snapshot.get("verification_state") or "").upper()
+            == "VERIFIED"
+            and snapshot.get("identity_consistent") is True
+            and snapshot.get("recognition_locked") is True
+            and snapshot.get("result_current") is True
+            and snapshot.get("has_reference_evidence") is True
+        )
+
     def _current_recognition_card(self) -> dict[str, Any] | None:
         unified = self.recognition_state.refresh(
             vision=self.vision.status(),
@@ -1395,6 +1416,7 @@ class RareIQOrchestrator:
                 unified.get("artwork_fingerprint"),
             )
         )
+        identity_authoritative = self._identity_is_authoritative(unified)
         return {
             "card_name": card_name,
             "printed_name": printed,
@@ -1442,6 +1464,14 @@ class RareIQOrchestrator:
             "confidence": confidence,
             "recognition_signature": signature,
             "recognition_revision": unified.get("revision"),
+            "verification_state": unified.get("verification_state"),
+            "identity_consistent": unified.get("identity_consistent"),
+            "recognition_locked": unified.get("recognition_locked") is True,
+            "result_current": unified.get("result_current") is True,
+            "has_reference_evidence": (
+                unified.get("has_reference_evidence") is True
+            ),
+            "identity_authoritative": identity_authoritative,
             "operator_learned": bool(candidate.get("operator_learned")),
             "learned_match_type": candidate.get("learned_match_type"),
             "learned_fingerprint_distance": candidate.get(
@@ -1529,6 +1559,21 @@ class RareIQOrchestrator:
                 "identity_conflicts": list(
                     recognition.get("identity_conflicts") or []
                 ),
+                "confidence": overall,
+            }
+
+        if (
+            automatic
+            and not allow_unverified_test
+            and not RareIQOrchestrator._identity_is_authoritative(recognition)
+        ):
+            return {
+                "ok": False,
+                "error": (
+                    "Auto-add blocked: the current identity is not a locked, "
+                    "verified, current catalog match."
+                ),
+                "reason": "identity_not_authoritative",
                 "confidence": overall,
             }
 

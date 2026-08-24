@@ -123,7 +123,10 @@ def test_wrong_stream_session_capture_is_rejected_without_generation_change():
 
 def test_submission_and_completion_journal_retain_full_attribution():
     obj = coordinator()
-    obj._current_recognition_card = lambda: {"card_name": "Card B"}
+    obj._current_recognition_card = lambda: {
+        "card_name": "Card B",
+        "identity_authoritative": True,
+    }
     payload = capture_payload(obj, frame_id=22)
     payload.update({
         "path": "captures/card-b.jpg",
@@ -164,7 +167,10 @@ def test_empty_acquiring_stable_recognizing_identified():
     assert obj._continuous_state == "STABLE"
     obj._submit_captured_card(capture_payload(obj, frame_id=2))
     assert obj._continuous_state == "RECOGNIZING"
-    obj._current_recognition_card = lambda: {"card_name": "Card"}
+    obj._current_recognition_card = lambda: {
+        "card_name": "Card",
+        "identity_authoritative": True,
+    }
     obj._apply_recognition_pipeline_update({"generation": 1, "frame_id": 2})
     assert obj._continuous_state == "IDENTIFIED"
 
@@ -387,6 +393,7 @@ def test_verified_card_is_finalized_once_when_removed():
         "card_name": "Crocalor",
         "collector_number": "158",
         "recognition_signature": "gem5:158:2303/07",
+        "identity_authoritative": True,
     }
     obj._removal_finalize_generation = obj._recognition_generation
     obj._recognition_decision_generation = None
@@ -453,6 +460,9 @@ def test_verified_unified_state_clears_legacy_candidate_provisional_flag():
         },
         "recognition_locked": True,
         "verification_state": "VERIFIED",
+        "identity_consistent": True,
+        "result_current": True,
+        "has_reference_evidence": True,
         "overall_confidence": 0.92,
         "revision": 3,
     })
@@ -461,6 +471,33 @@ def test_verified_unified_state_clears_legacy_candidate_provisional_flag():
 
     assert card["card_name"] == "Electrike"
     assert card["provisional"] is False
+    assert card["identity_authoritative"] is True
+
+
+def test_review_candidate_is_not_retained_as_current_card() -> None:
+    obj = coordinator()
+    obj._recognition_generation = 1
+    obj._current_recognition_card = lambda: {
+        "card_name": "Disputed candidate",
+        "identity_authoritative": False,
+    }
+
+    obj._apply_recognition_pipeline_update({
+        "generation": 1,
+        "frame_id": 15,
+        "candidates": [{"id": "candidate-a"}],
+        "verification_state": "REVIEW_NEEDED",
+        "identity_consistent": False,
+        "recognition_locked": False,
+    })
+
+    stages = {
+        item["key"]: item
+        for item in obj.pipeline_state.snapshot()["stages"]
+    }
+    assert stages["current_card"]["state"] == "waiting"
+    assert obj._last_trigger_result == "identity_review_required"
+    assert getattr(obj, "_removal_finalize_card", None) is None
 
 
 def test_removed_and_returned_card_starts_fresh_cycle():

@@ -255,6 +255,58 @@ def test_approval_is_blocked_until_conflicting_identity_is_reviewed() -> None:
     assert result["identity_conflicts"] == [conflict]
 
 
+def test_authoritative_identity_requires_every_trust_signal() -> None:
+    safe = {
+        "verification_state": "VERIFIED",
+        "identity_consistent": True,
+        "recognition_locked": True,
+        "result_current": True,
+        "has_reference_evidence": True,
+    }
+    assert RareIQOrchestrator._identity_is_authoritative(safe) is True
+
+    for field in (
+        "identity_consistent",
+        "recognition_locked",
+        "result_current",
+        "has_reference_evidence",
+    ):
+        assert RareIQOrchestrator._identity_is_authoritative({
+            **safe,
+            field: False,
+        }) is False
+    assert RareIQOrchestrator._identity_is_authoritative({
+        **safe,
+        "verification_state": "REVIEW_NEEDED",
+    }) is False
+
+
+def test_automatic_add_rejects_unlocked_candidate() -> None:
+    fake = SimpleNamespace(
+        _decision_recognition_card=lambda: {"card_name": "Candidate"},
+        recognition_state=SimpleNamespace(
+            refresh=lambda **_kwargs: {
+                "verification_state": "VERIFIED",
+                "identity_consistent": True,
+                "recognition_locked": False,
+                "result_current": True,
+                "has_reference_evidence": True,
+                "overall_confidence": 0.93,
+            }
+        ),
+        vision=SimpleNamespace(status=lambda: {}),
+        recognition=SimpleNamespace(status=lambda: {}),
+        catalog=SimpleNamespace(status=lambda: {}),
+    )
+
+    result = asyncio.run(
+        RareIQOrchestrator.confirm_recognition(fake, automatic=True)
+    )
+
+    assert result["ok"] is False
+    assert result["reason"] == "identity_not_authoritative"
+
+
 def test_studiox_routes_identity_conflict_to_review_without_exact_match() -> None:
     assert "function hasIdentityEvidenceConflict" in SCRIPT
     assert "identitySafe&&(canonicalVerified" in SCRIPT
