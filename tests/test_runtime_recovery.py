@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -11,8 +12,10 @@ from tools.runtime_recovery import (
     RecoveryError,
     configured_file_sets,
     create_snapshot,
+    prune_snapshots,
     restore_snapshot,
     verify_snapshot,
+    windows_schedule,
 )
 
 
@@ -186,3 +189,108 @@ def test_configured_profiles_exclude_secrets_and_keep_media_opt_in(tmp_path):
     assert event_dir / "event.json" in critical["provenance_metadata"].files
     assert event_dir / "full-frame.png" not in critical["provenance_metadata"].files
     assert event_dir / "full-frame.png" in media["provenance_media"].files
+
+
+def _set_snapshot_time(snapshot: Path, created_at: str) -> None:
+    manifest_path = snapshot / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["created_at"] = created_at
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    (snapshot / "manifest.sha256").write_text(recovery._sha256(manifest_path) + "\n", encoding="ascii")
+
+
+def test_prune_removes_only_old_fully_verified_snapshots(tmp_path):
+    snapshot_root = tmp_path / "backups"
+    snapshots = []
+    for index in range(3):
+        report = create_snapshot(_sets(tmp_path / f"source-{index}"), snapshot_root, apply=True)
+        snapshot = Path(report["snapshot_path"])
+        _set_snapshot_time(snapshot, f"2026-08-{20 + index:02d}T03:00:00Z")
+        snapshots.append(snapshot)
+    unknown = snapshot_root / "operator-notes"
+    unknown.mkdir()
+    (unknown / "keep.txt").write_text("leave me alone", encoding="utf-8")
+    tampered = snapshot_root / "tampered-snapshot"
+    tampered.mkdir()
+    (tampered / "manifest.json").write_text("{}", encoding="utf-8")
+    (tampered / "manifest.sha256").write_text("0" * 64, encoding="ascii")
+
+    dry_run = prune_snapshots(snapshot_root, keep=2)
+    assert all(snapshot.exists() for snapshot in snapshots)
+    assert dry_run["eligible_for_removal"] == [snapshots[0].name]
+
+    applied = prune_snapshots(snapshot_root, keep=2, apply=True)
+    assert applied["removed"] == [snapshots[0].name]
+    assert snapshots[0].exists() is False
+    assert snapshots[1].exists() and snapshots[2].exists()
+    assert unknown.exists() and tampered.exists()
+    assert {unknown.name, tampered.name}.issubset(applied["untouched"])
+
+
+def test_scheduled_run_discards_snapshot_when_file_set_changes(tmp_path, monkeypatch):
+    project = tmp_path / "RareIQ"
+    project.mkdir()
+    roots = {
+        "database_root": tmp_path / "runtime/database",
+        "config_path": tmp_path / "runtime/config",
+        "cache_path": tmp_path / "runtime/cache",
+        "log_path": tmp_path / "runtime/logs",
+        "capture_path": tmp_path / "runtime/captures",
+        "backup_path": tmp_path / "runtime/backups",
+    }
+    (project / "storage_config.json").write_text(
+        json.dumps({key: str(value) for key, value in roots.items()}), encoding="utf-8"
+    )
+    (project / "rareiq/data").mkdir(parents=True)
+    for root in roots.values():
+        root.mkdir(parents=True, exist_ok=True)
+    (roots["database_root"] / "state.json").write_text("{}", encoding="utf-8")
+    original_create = recovery.create_snapshot
+
+    def create_then_add(*args, **kwargs):
+        result = original_create(*args, **kwargs)
+        (roots["database_root"] / "new-state.json").write_text("{}", encoding="utf-8")
+        return result
+
+    monkeypatch.setattr(recovery, "create_snapshot", create_then_add)
+    with pytest.raises(RecoveryError, match="discarded"):
+        recovery.scheduled_run(project)
+
+    snapshot_root = roots["backup_path"] / "runtime-snapshots"
+    assert not list(snapshot_root.glob("*"))
+
+
+def test_windows_schedule_is_dry_run_first_and_uses_no_shell(tmp_path):
+    project = tmp_path / "RareIQ"
+    python = project / ".venv/Scripts/python.exe"
+    python.parent.mkdir(parents=True)
+    python.write_bytes(b"")
+    (project / "tools").mkdir()
+    (project / "tools/runtime_recovery.py").write_text("", encoding="utf-8")
+    calls = []
+
+    def runner(command, **kwargs):
+        calls.append((command, kwargs))
+        return SimpleNamespace(returncode=0, stdout="SUCCESS", stderr="")
+
+    dry_run = windows_schedule(project, schedule_time="03:00", keep=14, runner=runner)
+    assert dry_run["mode"] == "dry-run"
+    assert calls == []
+
+    applied = windows_schedule(project, schedule_time="03:00", keep=14, apply=True, runner=runner)
+    command, kwargs = calls[0]
+    assert applied["installed"] is True
+    assert command[0] == "schtasks.exe"
+    assert "/RL" in command and "LIMITED" in command
+    assert kwargs == {"check": False, "capture_output": True, "text": True}
+    assert "shell" not in kwargs
+
+
+@pytest.mark.parametrize("schedule_time", ["3:00", "24:00", "03:60", "noon"])
+def test_windows_schedule_rejects_invalid_time(tmp_path, schedule_time):
+    project = tmp_path / "RareIQ"
+    python = project / ".venv/Scripts/python.exe"
+    python.parent.mkdir(parents=True)
+    python.write_bytes(b"")
+    with pytest.raises(RecoveryError, match="HH:MM"):
+        windows_schedule(project, schedule_time=schedule_time)

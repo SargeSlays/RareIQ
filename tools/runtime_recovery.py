@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import shutil
+import subprocess
 import sys
 import time
 import uuid
@@ -18,6 +19,9 @@ BUFFER_SIZE = 4 * 1024 * 1024
 MANIFEST_NAME = "manifest.json"
 MANIFEST_DIGEST_NAME = "manifest.sha256"
 SNAPSHOT_VERSION = 1
+DEFAULT_RETENTION = 14
+DEFAULT_SCHEDULE_TIME = "03:00"
+WINDOWS_TASK_NAME = "RareIQ Runtime Recovery"
 
 
 class RecoveryError(RuntimeError):
@@ -288,6 +292,129 @@ def verify_snapshot(snapshot: Path) -> dict[str, Any]:
     return {"passed": True, "files": len(manifest["files"]), "bytes": total_bytes}
 
 
+def _remove_snapshot(snapshot: Path, snapshot_root: Path) -> None:
+    snapshot_root = Path(snapshot_root).resolve()
+    candidate = Path(snapshot)
+    if _is_link(candidate):
+        raise RecoveryError(f"Refusing to remove linked snapshot path: {candidate}")
+    candidate = candidate.resolve()
+    try:
+        candidate.relative_to(snapshot_root)
+    except ValueError as exc:
+        raise RecoveryError(f"Snapshot path escapes the configured root: {candidate}") from exc
+    if candidate.parent != snapshot_root or not candidate.is_dir():
+        raise RecoveryError(f"Snapshot is not a direct child of the configured root: {candidate}")
+    shutil.rmtree(candidate)
+
+
+def prune_snapshots(
+    snapshot_root: Path,
+    *,
+    keep: int = DEFAULT_RETENTION,
+    apply: bool = False,
+) -> dict[str, Any]:
+    if keep < 1:
+        raise RecoveryError("Snapshot retention must keep at least one verified snapshot.")
+    snapshot_root = Path(snapshot_root).resolve()
+    verified: list[tuple[str, str, Path]] = []
+    untouched: list[str] = []
+    if snapshot_root.is_dir() and not _is_link(snapshot_root):
+        for candidate in sorted(snapshot_root.iterdir(), key=lambda item: item.name):
+            if not candidate.is_dir() or _is_link(candidate) or candidate.name.startswith("."):
+                untouched.append(candidate.name)
+                continue
+            try:
+                verification = verify_snapshot(candidate)
+                manifest = _load_manifest(candidate)
+                if not verification.get("passed"):
+                    raise RecoveryError("Snapshot verification did not pass.")
+                verified.append((str(manifest.get("created_at") or ""), candidate.name, candidate))
+            except (RecoveryError, OSError, ValueError, TypeError):
+                untouched.append(candidate.name)
+    verified.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    removable = verified[keep:]
+    removed: list[str] = []
+    if apply:
+        for _created_at, name, candidate in removable:
+            _remove_snapshot(candidate, snapshot_root)
+            removed.append(name)
+    return {
+        "mode": "apply" if apply else "dry-run",
+        "snapshot_root": str(snapshot_root),
+        "keep": keep,
+        "verified_snapshots": len(verified),
+        "retained": [name for _created_at, name, _candidate in verified[:keep]],
+        "eligible_for_removal": [name for _created_at, name, _candidate in removable],
+        "removed": removed,
+        "untouched": sorted(untouched),
+    }
+
+
+def scheduled_run(project_root: Path, *, keep: int = DEFAULT_RETENTION) -> dict[str, Any]:
+    project_root = Path(project_root).resolve()
+    _destinations, backup_root = configured_destinations(project_root)
+    snapshot_root = backup_root / "runtime-snapshots"
+    before = configured_file_sets(project_root, "critical")
+    before_signature = _source_signature(before)
+    snapshot = create_snapshot(before, snapshot_root, profile="critical", apply=True)
+    try:
+        after_signature = _source_signature(configured_file_sets(project_root, "critical"))
+        if after_signature != before_signature:
+            raise RecoveryError("Runtime state changed during scheduled snapshot; the new snapshot was discarded.")
+    except Exception:
+        _remove_snapshot(Path(snapshot["snapshot_path"]), snapshot_root)
+        raise
+    retention = prune_snapshots(snapshot_root, keep=keep, apply=True)
+    return {"snapshot": snapshot, "retention": retention}
+
+
+def windows_schedule(
+    project_root: Path,
+    *,
+    schedule_time: str = DEFAULT_SCHEDULE_TIME,
+    keep: int = DEFAULT_RETENTION,
+    apply: bool = False,
+    runner=subprocess.run,
+) -> dict[str, Any]:
+    try:
+        hour_text, minute_text = schedule_time.split(":", 1)
+        hour, minute = int(hour_text), int(minute_text)
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise RecoveryError("Schedule time must use 24-hour HH:MM format.") from exc
+    if not (0 <= hour <= 23 and 0 <= minute <= 59) or schedule_time != f"{hour:02d}:{minute:02d}":
+        raise RecoveryError("Schedule time must use 24-hour HH:MM format.")
+    if keep < 1:
+        raise RecoveryError("Snapshot retention must keep at least one verified snapshot.")
+    project_root = Path(project_root).resolve()
+    python = project_root / ".venv" / "Scripts" / "python.exe"
+    script = project_root / "tools" / "runtime_recovery.py"
+    if not python.is_file():
+        raise RecoveryError(f"RareIQ virtual-environment Python was not found: {python}")
+    task_command = f'"{python}" -B "{script}" scheduled-run --keep {keep}'
+    command = [
+        "schtasks.exe", "/Create", "/TN", WINDOWS_TASK_NAME,
+        "/TR", task_command, "/SC", "DAILY", "/ST", schedule_time,
+        "/RL", "LIMITED", "/F",
+    ]
+    report = {
+        "mode": "apply" if apply else "dry-run",
+        "task_name": WINDOWS_TASK_NAME,
+        "schedule": "daily",
+        "time": schedule_time,
+        "keep": keep,
+        "task_command": task_command,
+    }
+    if not apply:
+        return report
+    if os.name != "nt":
+        raise RecoveryError("Windows Task Scheduler is only available on Windows.")
+    completed = runner(command, check=False, capture_output=True, text=True)
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "unknown scheduler error").strip()
+        raise RecoveryError(f"Could not install the scheduled task: {detail}")
+    return {**report, "installed": True, "scheduler_output": completed.stdout.strip()}
+
+
 def _restore_file(source: Path, destination: Path) -> None:
     _copy_verified(source, destination)
 
@@ -377,6 +504,15 @@ def main(argv: list[str] | None = None) -> int:
     restore = subparsers.add_parser("restore")
     restore.add_argument("snapshot", type=Path)
     restore.add_argument("--apply", action="store_true")
+    prune = subparsers.add_parser("prune")
+    prune.add_argument("--keep", type=int, default=DEFAULT_RETENTION)
+    prune.add_argument("--apply", action="store_true")
+    scheduled = subparsers.add_parser("scheduled-run")
+    scheduled.add_argument("--keep", type=int, default=DEFAULT_RETENTION)
+    schedule = subparsers.add_parser("schedule")
+    schedule.add_argument("--time", default=DEFAULT_SCHEDULE_TIME)
+    schedule.add_argument("--keep", type=int, default=DEFAULT_RETENTION)
+    schedule.add_argument("--apply", action="store_true")
     try:
         args = parser.parse_args(argv)
         destinations, backup_root = configured_destinations(project_root)
@@ -389,12 +525,27 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif args.command == "verify":
             result = verify_snapshot(args.snapshot)
-        else:
+        elif args.command == "restore":
             result = restore_snapshot(
                 args.snapshot,
                 destinations,
                 apply=args.apply,
                 rollback_root=backup_root / "restore-rollbacks",
+            )
+        elif args.command == "prune":
+            result = prune_snapshots(
+                backup_root / "runtime-snapshots",
+                keep=args.keep,
+                apply=args.apply,
+            )
+        elif args.command == "scheduled-run":
+            result = scheduled_run(project_root, keep=args.keep)
+        else:
+            result = windows_schedule(
+                project_root,
+                schedule_time=args.time,
+                keep=args.keep,
+                apply=args.apply,
             )
     except RecoveryError as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, indent=2), file=sys.stderr)

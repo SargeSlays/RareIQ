@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,7 @@ import pytest
 from rareiq.core.secrets import SecretsManager
 from rareiq.core.storage import StorageManager
 from rareiq.services.cardgrader_service import CardGraderService
+from tools.runtime_recovery import FileSet, create_snapshot
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -130,3 +132,53 @@ def test_example_config_exposes_large_runtime_media_roots():
     assert payload["provenance_path"].endswith("captures/provenance")
     assert payload["replay_path"].endswith("captures/replays")
     assert payload["recording_path"].endswith("captures/recordings")
+
+
+def test_storage_status_reports_manifest_verified_recovery_health(tmp_path):
+    (tmp_path / "storage_config.json").write_text(json.dumps(_storage_payload()), encoding="utf-8")
+    manager = StorageManager(project_root=tmp_path)
+    manager.initialize()
+    state = manager.get_path("database_root") / "state.json"
+    state.write_text("{}", encoding="utf-8")
+    report = create_snapshot(
+        {"database": FileSet(manager.get_path("database_root"), (state,))},
+        manager.get_path("backup_path") / "runtime-snapshots",
+        apply=True,
+    )
+
+    recovery = manager.status()["recovery"]
+
+    assert recovery["state"] == "healthy"
+    assert recovery["valid_snapshot_count"] == 1
+    assert recovery["invalid_snapshot_count"] == 0
+    assert recovery["latest_snapshot_id"] == report["snapshot_id"]
+    assert recovery["verification_scope"] == "manifest"
+
+
+def test_storage_status_distinguishes_missing_stale_and_invalid_snapshots(tmp_path):
+    (tmp_path / "storage_config.json").write_text(json.dumps(_storage_payload()), encoding="utf-8")
+    manager = StorageManager(project_root=tmp_path)
+    manager.initialize()
+    assert manager.recovery_status()["state"] == "missing"
+
+    state = manager.get_path("database_root") / "state.json"
+    state.write_text("{}", encoding="utf-8")
+    report = create_snapshot(
+        {"database": FileSet(manager.get_path("database_root"), (state,))},
+        manager.get_path("backup_path") / "runtime-snapshots",
+        apply=True,
+    )
+    snapshot = Path(report["snapshot_path"])
+    manifest_path = snapshot / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["created_at"] = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat().replace("+00:00", "Z")
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    import hashlib
+    (snapshot / "manifest.sha256").write_text(hashlib.sha256(manifest_path.read_bytes()).hexdigest() + "\n", encoding="ascii")
+    assert manager.recovery_status()["state"] == "stale"
+
+    (snapshot / "manifest.sha256").write_text("0" * 64, encoding="ascii")
+    invalid = manager.recovery_status()
+    assert invalid["state"] == "invalid"
+    assert invalid["valid_snapshot_count"] == 0
+    assert invalid["invalid_snapshot_count"] == 1

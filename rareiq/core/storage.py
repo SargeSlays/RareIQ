@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 
 class StorageManager:
+    RECOVERY_MAX_AGE_HOURS = 36.0
     REQUIRED_PATHS = (
         "database_root", "catalog_path", "image_path", "embedding_path",
         "index_path", "cache_path", "capture_path", "grading_path",
@@ -95,6 +98,56 @@ class StorageManager:
             "used_bytes": usage.used,
             "free_bytes": usage.free,
             "paths": {k: str(v) for k, v in self.paths.items()},
+            "recovery": self.recovery_status(),
+        }
+
+    def recovery_status(self) -> dict[str, Any]:
+        snapshot_root = self.get_path("backup_path") / "runtime-snapshots"
+        valid: list[tuple[datetime, str, Path]] = []
+        invalid = 0
+        if snapshot_root.is_dir() and not snapshot_root.is_symlink():
+            for candidate in snapshot_root.iterdir():
+                if not candidate.is_dir() or candidate.is_symlink() or candidate.name.startswith("."):
+                    continue
+                manifest_path = candidate / "manifest.json"
+                digest_path = candidate / "manifest.sha256"
+                try:
+                    expected = digest_path.read_text(encoding="ascii").strip().lower()
+                    actual = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+                    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+                    created = datetime.fromisoformat(str(payload["created_at"]).replace("Z", "+00:00"))
+                    if len(expected) != 64 or actual != expected or payload.get("version") != 1:
+                        raise ValueError("invalid recovery manifest")
+                    if created.tzinfo is None:
+                        created = created.replace(tzinfo=timezone.utc)
+                    valid.append((created.astimezone(timezone.utc), candidate.name, candidate))
+                except (OSError, ValueError, TypeError, KeyError):
+                    invalid += 1
+        valid.sort(reverse=True)
+        latest = valid[0] if valid else None
+        age_hours = None
+        state = "missing"
+        if latest:
+            age_hours = max(0.0, (datetime.now(timezone.utc) - latest[0]).total_seconds() / 3600.0)
+            state = "healthy" if age_hours <= self.RECOVERY_MAX_AGE_HOURS else "stale"
+        elif invalid:
+            state = "invalid"
+        database_root = self.get_path("database_root")
+        return {
+            "state": state,
+            "snapshot_root": str(snapshot_root),
+            "valid_snapshot_count": len(valid),
+            "invalid_snapshot_count": invalid,
+            "latest_snapshot_id": latest[1] if latest else None,
+            "latest_snapshot_path": str(latest[2]) if latest else None,
+            "latest_created_at": latest[0].isoformat().replace("+00:00", "Z") if latest else None,
+            "age_hours": round(age_hours, 2) if age_hours is not None else None,
+            "max_age_hours": self.RECOVERY_MAX_AGE_HOURS,
+            "same_volume_as_database": (
+                (snapshot_root.drive or snapshot_root.anchor).casefold()
+                == (database_root.drive or database_root.anchor).casefold()
+            ),
+            "verification_scope": "manifest",
         }
 
 

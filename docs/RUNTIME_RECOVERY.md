@@ -46,3 +46,29 @@ first, write files atomically, retain overwritten files in a timestamped
 rollback directory, and automatically restore originals if any write fails.
 Extra live files are never deleted merely because they are absent from a
 snapshot.
+
+## Daily checkpoints and retention
+
+The scheduled runner creates a verified critical snapshot and then retains
+the newest 14 fully verified snapshots. Unknown directories, partial output,
+linked paths, and snapshots that fail verification are never pruned.
+
+```powershell
+.\.venv\Scripts\python.exe -B tools\runtime_recovery.py scheduled-run --keep 14
+.\.venv\Scripts\python.exe -B tools\runtime_recovery.py prune --keep 14
+.\.venv\Scripts\python.exe -B tools\runtime_recovery.py prune --keep 14 --apply
+```
+
+Install the user-level Windows daily task at 03:00 after reviewing its dry
+run. The task uses the repository virtual environment and does not invoke a
+shell.
+
+```powershell
+.\.venv\Scripts\python.exe -B tools\runtime_recovery.py schedule --time 03:00 --keep 14
+.\.venv\Scripts\python.exe -B tools\runtime_recovery.py schedule --time 03:00 --keep 14 --apply
+```
+
+`/api/storage/status` reports manifest-level checkpoint health and age. Run
+the explicit `verify` command for full payload verification. The default
+same-F-drive schedule protects against application corruption; it does not
+protect against physical loss of the F: drive.
