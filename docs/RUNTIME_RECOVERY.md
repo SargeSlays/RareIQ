@@ -52,6 +52,11 @@ snapshot.
 The scheduled runner creates a verified critical snapshot and then retains
 the newest 14 fully verified snapshots. Unknown directories, partial output,
 linked paths, and snapshots that fail verification are never pruned.
+Scheduled snapshots use online file consistency: each payload file is copied
+and SHA-256 verified as an exact version, but independently changing files may
+represent slightly different instants. This allows a checkpoint while RareIQ
+or a catalog builder is running. Stopped-server manual snapshots continue to
+use strict global consistency.
 
 ```powershell
 .\.venv\Scripts\python.exe -B tools\runtime_recovery.py scheduled-run --keep 14

@@ -186,8 +186,11 @@ def create_snapshot(
     destination_root: Path,
     *,
     profile: str = "critical",
+    consistency: str = "strict",
     apply: bool = False,
 ) -> dict[str, Any]:
+    if consistency not in {"strict", "file"}:
+        raise RecoveryError(f"Unsupported snapshot consistency mode: {consistency}")
     destination_root = Path(destination_root).resolve()
     initial_signature = _source_signature(file_sets)
     total_files = sum(len(item.files) for item in file_sets.values())
@@ -195,6 +198,7 @@ def create_snapshot(
     report = {
         "mode": "apply" if apply else "dry-run",
         "profile": profile,
+        "consistency": consistency,
         "destination_root": str(destination_root),
         "files": total_files,
         "bytes": total_bytes,
@@ -228,16 +232,17 @@ def create_snapshot(
                 entries.append({
                     "scope": scope,
                     "relative_path": relative.as_posix(),
-                    "bytes": source.stat().st_size,
+                    "bytes": destination.stat().st_size,
                     "sha256": digest,
                 })
-        if _source_signature(file_sets) != initial_signature:
+        if consistency == "strict" and _source_signature(file_sets) != initial_signature:
             raise RecoveryError("Runtime state changed during snapshot; stop RareIQ and retry.")
         manifest = {
             "version": SNAPSHOT_VERSION,
             "snapshot_id": snapshot_id,
             "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "profile": profile,
+            "consistency": consistency,
             "files": entries,
             "source_signature": initial_signature,
             "secrets_included": False,
@@ -354,16 +359,13 @@ def scheduled_run(project_root: Path, *, keep: int = DEFAULT_RETENTION) -> dict[
     project_root = Path(project_root).resolve()
     _destinations, backup_root = configured_destinations(project_root)
     snapshot_root = backup_root / "runtime-snapshots"
-    before = configured_file_sets(project_root, "critical")
-    before_signature = _source_signature(before)
-    snapshot = create_snapshot(before, snapshot_root, profile="critical", apply=True)
-    try:
-        after_signature = _source_signature(configured_file_sets(project_root, "critical"))
-        if after_signature != before_signature:
-            raise RecoveryError("Runtime state changed during scheduled snapshot; the new snapshot was discarded.")
-    except Exception:
-        _remove_snapshot(Path(snapshot["snapshot_path"]), snapshot_root)
-        raise
+    snapshot = create_snapshot(
+        configured_file_sets(project_root, "critical"),
+        snapshot_root,
+        profile="critical",
+        consistency="file",
+        apply=True,
+    )
     retention = prune_snapshots(snapshot_root, keep=keep, apply=True)
     return {"snapshot": snapshot, "retention": retention}
 

@@ -227,7 +227,7 @@ def test_prune_removes_only_old_fully_verified_snapshots(tmp_path):
     assert {unknown.name, tampered.name}.issubset(applied["untouched"])
 
 
-def test_scheduled_run_discards_snapshot_when_file_set_changes(tmp_path, monkeypatch):
+def test_scheduled_run_uses_online_file_consistency_and_ignores_later_new_files(tmp_path, monkeypatch):
     project = tmp_path / "RareIQ"
     project.mkdir()
     roots = {
@@ -253,11 +253,40 @@ def test_scheduled_run_discards_snapshot_when_file_set_changes(tmp_path, monkeyp
         return result
 
     monkeypatch.setattr(recovery, "create_snapshot", create_then_add)
-    with pytest.raises(RecoveryError, match="discarded"):
-        recovery.scheduled_run(project)
+    result = recovery.scheduled_run(project)
 
     snapshot_root = roots["backup_path"] / "runtime-snapshots"
-    assert not list(snapshot_root.glob("*"))
+    snapshot = Path(result["snapshot"]["snapshot_path"])
+    manifest = json.loads((snapshot / "manifest.json").read_text(encoding="utf-8"))
+    assert result["snapshot"]["consistency"] == "file"
+    assert manifest["consistency"] == "file"
+    assert verify_snapshot(snapshot)["passed"] is True
+    assert not any(entry["relative_path"] == "new-state.json" for entry in manifest["files"])
+    assert list(snapshot_root.glob("*")) == [snapshot]
+
+
+def test_file_consistency_snapshot_tolerates_independent_source_updates(tmp_path, monkeypatch):
+    file_sets = _sets(tmp_path / "source", ("a.json", "b.json"))
+    source = file_sets["database"].files[0]
+    original_copy = recovery._copy_verified
+
+    def copy_then_update(source_path, destination_path):
+        digest = original_copy(source_path, destination_path)
+        if source_path == source:
+            source.write_text("newer-independent-state", encoding="utf-8")
+        return digest
+
+    monkeypatch.setattr(recovery, "_copy_verified", copy_then_update)
+    report = create_snapshot(
+        file_sets,
+        tmp_path / "backups",
+        consistency="file",
+        apply=True,
+    )
+
+    assert report["verification"]["passed"] is True
+    manifest = json.loads((Path(report["snapshot_path"]) / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["consistency"] == "file"
 
 
 def test_windows_schedule_is_dry_run_first_and_uses_no_shell(tmp_path):
