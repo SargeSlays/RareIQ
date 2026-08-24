@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from rareiq.web.server import _connected_production_camera_count
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVER = (ROOT / "rareiq/web/server.py").read_text(encoding="utf-8")
@@ -21,6 +23,35 @@ def test_operator_health_and_safe_recovery_apis_exist():
     assert 'reveal_sequence.cancel_animation()' in SERVER
     assert '"active_scene_id": "main-card"' in SERVER
     assert '"visible": False' in SERVER
+
+
+def test_active_vision_camera_counts_as_connected_without_preview_session():
+    slots = [
+        {
+            "slot_id": 1,
+            "source_id": "camera-active",
+            "role": "active",
+            "connected": True,
+        },
+        {
+            "slot_id": 2,
+            "source_id": None,
+            "role": "staging",
+            "connected": False,
+        },
+    ]
+
+    assert _connected_production_camera_count(slots) == 1
+
+
+def test_only_configured_connected_slots_count_toward_production_health():
+    slots = [
+        {"slot_id": 1, "source_id": "camera-a", "connected": True},
+        {"slot_id": 2, "source_id": "camera-b", "connected": False},
+        {"slot_id": 3, "source_id": None, "connected": True},
+    ]
+
+    assert _connected_production_camera_count(slots) == 1
 
 
 def test_operator_dashboard_uses_real_health_fields():

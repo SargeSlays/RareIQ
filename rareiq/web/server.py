@@ -1743,6 +1743,16 @@ async def production_scenes_status():
     with PRODUCTION_SWITCHER_LOCK:
         return {"ok": True, "scenes": list(PRODUCTION_SCENES)}
 
+
+def _connected_production_camera_count(slots: list[dict[str, Any]]) -> int:
+    """Count configured cameras from the slot state that owns each source."""
+    return sum(
+        1
+        for slot in slots
+        if slot.get("source_id") and slot.get("connected")
+    )
+
+
 @app.get("/api/production/operator-health")
 async def production_operator_health():
     camera = orchestrator.camera_manager.status()
@@ -1751,7 +1761,7 @@ async def production_operator_health():
     replay = instant_replay.snapshot()
     recognition = orchestrator.recognition_state.snapshot()
     overlay = orchestrator.overlay_state.get()
-    connected = sum(1 for session in sessions if session.get("running") or session.get("connected") or session.get("healthy"))
+    connected = _connected_production_camera_count(slots)
     return {
         "ok": True,
         "timestamp": time.time(),
@@ -1781,7 +1791,7 @@ async def production_preflight():
     record_status = recording.status()
     record_capabilities = recording.capabilities()
     obs_status = await asyncio.to_thread(obs.status)
-    connected = sum(1 for session in sessions if session.get("running") or session.get("connected") or session.get("healthy"))
+    connected = _connected_production_camera_count(slots)
     configured = sum(1 for slot in slots if slot.get("source_id"))
     recognition_state = str(recognition.get("state") or recognition.get("status") or "ready").lower()
     replay_seconds = round(float(replay.get("buffered_frames", 0)) / max(1, float(replay.get("fps", 5))), 1)

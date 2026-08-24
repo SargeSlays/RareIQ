@@ -18,6 +18,7 @@ def test_preflight_api_covers_core_production_systems():
     assert '@app.post("/api/production/show/stop")' in SERVER
     assert 'obs.command, "stop-record"' in SERVER
     assert 'obs.command, "stop-stream"' in SERVER
+    assert SERVER.count("connected = _connected_production_camera_count(slots)") == 2
 
 
 def test_preflight_ui_has_readiness_verdict_and_checks():
