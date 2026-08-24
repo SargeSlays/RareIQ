@@ -10,5 +10,8 @@
   "export_path": "runtime/exports",
   "backup_path": "runtime/backups",
   "log_path": "runtime/logs",
-  "config_path": "runtime/config"
+  "config_path": "runtime/config",
+  "provenance_path": "runtime/captures/provenance",
+  "replay_path": "runtime/captures/replays",
+  "recording_path": "runtime/captures/recordings"
 }

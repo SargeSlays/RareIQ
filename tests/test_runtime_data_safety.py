@@ -32,6 +32,27 @@ def test_storage_manager_seeds_local_config_and_resolves_relative_paths(tmp_path
     for key in StorageManager.REQUIRED_PATHS:
         assert manager.get_path(key) == (tmp_path / "runtime" / key).resolve()
         assert manager.get_path(key).is_dir()
+    capture_root = manager.get_path("capture_path")
+    assert manager.get_path("provenance_path") == capture_root / "provenance"
+    assert manager.get_path("replay_path") == capture_root / "replays"
+    assert manager.get_path("recording_path") == capture_root / "recordings"
+
+
+def test_storage_manager_allows_explicit_runtime_media_roots(tmp_path):
+    payload = _storage_payload()
+    payload.update({
+        "provenance_path": "media/evidence",
+        "replay_path": "media/replays",
+        "recording_path": "media/recordings",
+    })
+    (tmp_path / "storage_config.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    manager = StorageManager(project_root=tmp_path)
+    manager.initialize()
+
+    assert manager.get_path("provenance_path") == (tmp_path / "media/evidence").resolve()
+    assert manager.get_path("replay_path") == (tmp_path / "media/replays").resolve()
+    assert manager.get_path("recording_path") == (tmp_path / "media/recordings").resolve()
 
 
 def test_storage_manager_rejects_non_string_paths(tmp_path):
@@ -101,3 +122,11 @@ def test_local_runtime_and_sensitive_files_have_ignore_rules():
     ):
         assert expected in patterns
     assert "!rareiq_secrets.example.json" in patterns
+
+
+def test_example_config_exposes_large_runtime_media_roots():
+    payload = json.loads((PROJECT_ROOT / "storage_config.example.json").read_text(encoding="utf-8"))
+
+    assert payload["provenance_path"].endswith("captures/provenance")
+    assert payload["replay_path"].endswith("captures/replays")
+    assert payload["recording_path"].endswith("captures/recordings")

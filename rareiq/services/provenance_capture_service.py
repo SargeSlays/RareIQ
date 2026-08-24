@@ -52,6 +52,7 @@ class ProvenanceCaptureService:
         self,
         root: Path,
         *,
+        legacy_roots: tuple[Path, ...] = (),
         server_session_id: str,
         frame_provider: Callable[[], np.ndarray | None],
         crop_provider: Callable[[], np.ndarray | None],
@@ -59,6 +60,11 @@ class ProvenanceCaptureService:
     ) -> None:
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
+        self.legacy_roots = tuple(
+            candidate
+            for candidate in (Path(path).resolve() for path in legacy_roots)
+            if candidate != self.root and candidate.is_dir()
+        )
         self.settings_path = self.root / "settings.json"
         self.index_path = self.root / "events.jsonl"
         self.server_session_id = str(server_session_id)
@@ -70,6 +76,7 @@ class ProvenanceCaptureService:
         self._dedupe: dict[str, str] = {}
         self._pending_dedupe: set[str] = set()
         self._events: dict[str, dict[str, Any]] = {}
+        self._event_roots: dict[str, Path] = {}
         self._last_status: dict[str, Any] = {
             "state": "configured",
             "event_id": None,
@@ -141,13 +148,15 @@ class ProvenanceCaptureService:
         }
 
     def settings(self) -> dict[str, Any]:
-        try:
-            payload = json.loads(self.settings_path.read_text(encoding="utf-8"))
-            return self.normalize_settings(payload)
-        except FileNotFoundError:
-            return self.default_settings()
-        except (json.JSONDecodeError, ValueError, OSError):
-            return self.default_settings()
+        for path in (self.settings_path, *(root / "settings.json" for root in self.legacy_roots)):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                return self.normalize_settings(payload)
+            except FileNotFoundError:
+                continue
+            except (json.JSONDecodeError, ValueError, OSError):
+                continue
+        return self.default_settings()
 
     def save_settings(self, value: dict[str, Any]) -> dict[str, Any]:
         normalized = self.normalize_settings(value)
@@ -164,6 +173,10 @@ class ProvenanceCaptureService:
         settings = self.settings()
         with self._lock:
             status = deepcopy(self._last_status)
+            event_count = len(self._events)
+            legacy_event_count = sum(
+                1 for root in self._event_roots.values() if root != self.root
+            )
         return {
             "available": True,
             "automatic_available": True,
@@ -172,6 +185,12 @@ class ProvenanceCaptureService:
             "unsupported_capture_types": ["evidence_view"],
             "settings": settings,
             "status": status,
+            "storage": {
+                "root": str(self.root),
+                "event_count": event_count,
+                "legacy_event_count": legacy_event_count,
+                "legacy_roots": [str(root) for root in self.legacy_roots],
+            },
         }
 
     def evaluate_recognition(self, snapshot: dict[str, Any]) -> dict[str, Any]:
@@ -344,9 +363,11 @@ class ProvenanceCaptureService:
         asset = next((item for item in event.get("assets") or [] if item.get("asset_id") == asset_id), None)
         if asset is None:
             return None
-        candidate = (self.root / str(asset.get("relative_path") or "")).resolve()
+        with self._lock:
+            event_root = self._event_roots.get(str(event_id), self.root)
+        candidate = (event_root / str(asset.get("relative_path") or "")).resolve()
         try:
-            candidate.relative_to(self.root)
+            candidate.relative_to(event_root)
         except ValueError:
             return None
         return candidate if candidate.is_file() else None
@@ -471,24 +492,27 @@ class ProvenanceCaptureService:
                 handle.flush()
                 os.fsync(handle.fileno())
             self._events[event["event_id"]] = deepcopy(event)
+            self._event_roots[event["event_id"]] = self.root
 
     def _load_index(self) -> None:
-        try:
-            lines = self.index_path.read_text(encoding="utf-8").splitlines()
-        except FileNotFoundError:
-            return
-        for line in lines:
+        for root in (*self.legacy_roots, self.root):
             try:
-                event = json.loads(line)
-                event_id = str(event["event_id"])
-            except (json.JSONDecodeError, KeyError, TypeError):
+                lines = (root / "events.jsonl").read_text(encoding="utf-8").splitlines()
+            except (FileNotFoundError, OSError):
                 continue
-            self._events[event_id] = event
-            if event.get("trigger_reason") != "manual" and not event.get("revision_of"):
-                camera = dict(event.get("camera") or {})
-                identity = dict(event.get("identity") or {})
-                key = self._dedupe_key(int(event.get("recognition_generation") or 0), identity, camera)
-                self._dedupe[key] = event_id
+            for line in lines:
+                try:
+                    event = json.loads(line)
+                    event_id = str(event["event_id"])
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    continue
+                self._events[event_id] = event
+                self._event_roots[event_id] = root
+                if event.get("trigger_reason") != "manual" and not event.get("revision_of"):
+                    camera = dict(event.get("camera") or {})
+                    identity = dict(event.get("identity") or {})
+                    key = self._dedupe_key(int(event.get("recognition_generation") or 0), identity, camera)
+                    self._dedupe[key] = event_id
 
     @staticmethod
     def _atomic_json(path: Path, payload: dict[str, Any]) -> None:

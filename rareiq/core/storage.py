@@ -13,6 +13,11 @@ class StorageManager:
         "index_path", "cache_path", "capture_path", "grading_path",
         "export_path", "backup_path", "log_path", "config_path",
     )
+    OPTIONAL_PATH_DEFAULTS = {
+        "provenance_path": ("capture_path", "provenance"),
+        "replay_path": ("capture_path", "replays"),
+        "recording_path": ("capture_path", "recordings"),
+    }
 
     def __init__(
         self,
@@ -57,6 +62,18 @@ class StorageManager:
             expanded = Path(os.path.expandvars(os.path.expanduser(raw_path)))
             path = expanded if expanded.is_absolute() else self.config_file.parent / expanded
             path = path.resolve()
+            path.mkdir(parents=True, exist_ok=True)
+            self.paths[key] = path
+        for key, (parent_key, directory_name) in self.OPTIONAL_PATH_DEFAULTS.items():
+            raw_path = self.config.get(key)
+            if raw_path is not None and not isinstance(raw_path, str):
+                raise ValueError(f"Storage value must be a path string: {key}")
+            if raw_path:
+                expanded = Path(os.path.expandvars(os.path.expanduser(raw_path)))
+                path = expanded if expanded.is_absolute() else self.config_file.parent / expanded
+                path = path.resolve()
+            else:
+                path = (self.paths[parent_key] / directory_name).resolve()
             path.mkdir(parents=True, exist_ok=True)
             self.paths[key] = path
         self.initialized = True

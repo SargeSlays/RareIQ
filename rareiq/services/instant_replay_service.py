@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import threading
 import time
 import uuid
@@ -10,6 +11,8 @@ from typing import Any, Callable
 
 
 class InstantReplayService:
+    MAX_HIGHLIGHTS = 25
+
     def __init__(self, root: Path, frame_provider: Callable[[int], bytes | None], program_slot_provider: Callable[[], int], *, fps: int = 5, buffer_seconds: int = 20) -> None:
         self.root, self.frame_provider, self.program_slot_provider = root, frame_provider, program_slot_provider
         self.fps, self.buffer_seconds = fps, buffer_seconds
@@ -44,7 +47,13 @@ class InstantReplayService:
         path.mkdir(parents=True, exist_ok=True)
         for index, (_, _, data) in enumerate(frames): (path / f"{index:04d}.jpg").write_bytes(data)
         item = {"id": highlight_id, "name": str(name or "Highlight")[:60], "frames": len(frames), "fps": self.fps, "duration_seconds": round(len(frames) / self.fps, 1), "slot_id": frames[-1][1], "created_at": time.time(), "path": str(path)}
-        with self._lock: self._highlights.insert(0, item); self._highlights = self._highlights[:25]; self._persist()
+        with self._lock:
+            self._highlights.insert(0, item)
+            retired = self._highlights[self.MAX_HIGHLIGHTS:]
+            self._highlights = self._highlights[:self.MAX_HIGHLIGHTS]
+            self._persist()
+        for retired_item in retired:
+            self._remove_highlight_files(retired_item)
         return {"created": True, "highlight": self._public(item)}
 
     def take(self, highlight_id: str, speed: float = 1.0) -> dict[str, Any]:
@@ -73,7 +82,7 @@ class InstantReplayService:
     def _persist(self) -> None:
         self.root.mkdir(parents=True, exist_ok=True); (self.root / "highlights.json").write_text(json.dumps(self._highlights, indent=2), encoding="utf-8")
     def _load(self) -> None:
-        try: self._highlights = [item for item in json.loads((self.root / "highlights.json").read_text(encoding="utf-8")) if isinstance(item, dict) and str(item.get("id") or "") and self._safe_highlight_root(item) is not None][:25]
+        try: self._highlights = [item for item in json.loads((self.root / "highlights.json").read_text(encoding="utf-8")) if isinstance(item, dict) and str(item.get("id") or "") and self._safe_highlight_root(item) is not None][:self.MAX_HIGHLIGHTS]
         except (OSError, ValueError, TypeError): self._highlights = []
 
     def _safe_highlight_root(self, item: dict[str, Any]) -> Path | None:
@@ -84,3 +93,8 @@ class InstantReplayService:
         except (OSError, ValueError):
             return None
         return candidate if candidate != root and candidate.is_dir() else None
+
+    def _remove_highlight_files(self, item: dict[str, Any]) -> None:
+        path = self._safe_highlight_root(item)
+        if path is not None:
+            shutil.rmtree(path, ignore_errors=True)

@@ -220,7 +220,8 @@ def _active_camera_provenance_context() -> dict[str, Any]:
 
 
 provenance_capture = ProvenanceCaptureService(
-    BASE_DIR.parent / "data" / "provenance",
+    storage.get_path("provenance_path"),
+    legacy_roots=(BASE_DIR.parent / "data" / "provenance",),
     server_session_id=SERVER_SESSION_ID,
     frame_provider=orchestrator.camera_manager.latest_frame,
     crop_provider=orchestrator.camera_manager.latest_crop,
@@ -730,8 +731,11 @@ def _production_event(kind: str, title: str, detail: str = "") -> dict[str, Any]
     PRODUCTION_SESSION["events"].append(event); PRODUCTION_SESSION["events"] = PRODUCTION_SESSION["events"][-500:]
     _save_production_session()
     return event
-instant_replay = InstantReplayService(BASE_DIR.parent.parent / "replays", orchestrator.camera_manager.slot_jpeg, lambda: int(PRODUCTION_SWITCHER_STATE["program_slot"]))
-recording = RecordingService(BASE_DIR.parent.parent / "recordings")
+instant_replay = InstantReplayService(storage.get_path("replay_path"), orchestrator.camera_manager.slot_jpeg, lambda: int(PRODUCTION_SWITCHER_STATE["program_slot"]))
+recording = RecordingService(
+    storage.get_path("recording_path"),
+    config_path=storage.get_path("config_path") / "recording_settings.json",
+)
 obs = ObsService(BASE_DIR.parent.parent / "obs_settings.json")
 
 class LearningQueueRequest(BaseModel):

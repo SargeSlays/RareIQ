@@ -297,6 +297,49 @@ def test_restart_reloads_events_and_asset_api_cannot_escape(service):
     assert restarted.asset_path(result["eventId"], "../../settings") is None
 
 
+def test_new_storage_root_keeps_legacy_events_assets_and_settings_visible(tmp_path):
+    legacy_root = tmp_path / "repository" / "rareiq" / "data" / "provenance"
+    legacy = ProvenanceCaptureService(
+        legacy_root,
+        server_session_id="legacy-server",
+        frame_provider=lambda: _frame(),
+        crop_provider=lambda: None,
+        camera_context_provider=lambda: {"slot_id": 1, "source_id": "legacy-camera"},
+    )
+    legacy.save_settings({
+        **legacy.default_settings(),
+        "workflowMode": "pack-ripping",
+        "customerId": "customer-legacy",
+    })
+    old_capture = legacy.capture(trigger="manual", snapshot=_snapshot(40))
+    old_event = old_capture["event"]
+    old_asset = old_event["assets"][0]
+
+    primary_root = tmp_path / "external-drive" / "provenance"
+    current = ProvenanceCaptureService(
+        primary_root,
+        legacy_roots=(legacy_root,),
+        server_session_id="current-server",
+        frame_provider=lambda: _frame(),
+        crop_provider=lambda: None,
+        camera_context_provider=lambda: {"slot_id": 1, "source_id": "current-camera"},
+    )
+
+    assert current.settings()["customerId"] == "customer-legacy"
+    assert current.get_event(old_event["event_id"])["event_id"] == old_event["event_id"]
+    assert current.asset_path(old_event["event_id"], old_asset["asset_id"]).is_file()
+    storage_status = current.capability()["storage"]
+    assert storage_status["root"] == str(primary_root.resolve())
+    assert storage_status["legacy_event_count"] == 1
+
+    new_capture = current.capture(trigger="manual", snapshot=_snapshot(41))
+    new_event = new_capture["event"]
+    new_asset = new_event["assets"][0]
+    assert current.asset_path(new_event["event_id"], new_asset["asset_id"]).is_file()
+    assert (primary_root / "events.jsonl").is_file()
+    assert new_event["event_id"] not in (legacy_root / "events.jsonl").read_text(encoding="utf-8")
+
+
 def test_promoted_active_source_is_recorded_without_staging_capture(tmp_path):
     context = {"slot_id": 1, "source_id": "camera-a", "display_name": "Camera A"}
     service = ProvenanceCaptureService(
