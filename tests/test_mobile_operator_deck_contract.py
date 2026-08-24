@@ -14,6 +14,8 @@ def test_mobile_operator_deck_has_unique_accessible_controls():
         "mobileOperatorConfidence",
         "mobileOperatorConnection",
         "mobileOperatorCapture",
+        "mobileOperatorApprove",
+        "mobileOperatorReject",
         "mobileOperatorNext",
         "mobileOperatorReconnect",
         "mobileOperatorStatus",
@@ -31,6 +33,8 @@ def test_mobile_operator_deck_has_unique_accessible_controls():
 def test_mobile_operator_actions_delegate_to_existing_paths_without_polling():
     initializer = JS[JS.index("function initializeStudioXUI4()") : JS.index("initializeStudioXUI4();")]
     assert '$("mobileOperatorCapture")?.addEventListener("click",()=>Promise.resolve().then(()=>captureRecognitionMode())' in initializer
+    assert '$("mobileOperatorApprove")?.addEventListener("click",()=>$("approveButton")?.click())' in initializer
+    assert '$("mobileOperatorReject")?.addEventListener("click",()=>$("rejectButton")?.click())' in initializer
     assert '$("mobileOperatorNext")?.addEventListener("click",()=>$("nextClearButton")?.click())' in initializer
     assert '$("mobileOperatorReconnect")?.addEventListener("click",()=>Promise.resolve().then(()=>reconnectCamera())' in initializer
     assert '$("mobileOperatorStatus")?.addEventListener("click",()=>setUI4HealthOpen(!ui4HealthOpen))' in initializer
@@ -43,6 +47,18 @@ def test_mobile_summary_reuses_authoritative_recognition_sources():
     for source_id in ("cardName", "confidenceRingValue", "identityVerdictBadge", "recognitionStateLabel", "nextClearButton"):
         assert f'$("{source_id}")' in sync
     assert "syncMobileOperatorDeck();" in JS
+
+
+def test_mobile_deck_switches_to_existing_decision_actions_only_for_a_card():
+    sync = JS[JS.index("function syncMobileOperatorDeck()") : JS.index("function setMobileOperatorView")]
+    assert 'name!=="Waiting for card"' in sync
+    assert '!$("approveButton")?.disabled||!$("rejectButton")?.disabled' in sync
+    assert 'region.dataset.actions=decisionAvailable?"decision":"scan"' in sync
+    assert '$("mobileOperatorApprove").disabled=connectionUnavailable||Boolean($("approveButton")?.disabled)' in sync
+    assert '$("mobileOperatorReject").disabled=connectionUnavailable||Boolean($("rejectButton")?.disabled)' in sync
+    assert '[data-mobile-decision-action]{display:none!important}' in CSS
+    assert '[data-actions="decision"] .mobile-operator-actions>[data-mobile-scan-action]{display:none!important}' in CSS
+    assert '[data-actions="decision"] .mobile-operator-actions>[data-mobile-decision-action]{display:grid!important}' in CSS
 
 
 def test_mobile_deck_reuses_connection_events_and_blocks_unsafe_actions():
