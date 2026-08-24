@@ -1,19 +1,59 @@
 from __future__ import annotations
 from dataclasses import asdict
 from typing import Any
+import json
+import time
+from pathlib import Path
 
 from rareiq.models.session import BreakSession, CardPull
 
 
 class SessionService:
-    def __init__(self) -> None:
-        self.current = BreakSession.create(
+    def __init__(self, archive_dir: Path | None = None) -> None:
+        self.archive_dir = archive_dir
+        if self.archive_dir:
+            self.archive_dir.mkdir(parents=True, exist_ok=True)
+        self.rejected: list[dict[str, Any]] = []
+        self.last_added_signature: str | None = None
+        self.last_added_at = 0.0
+        self.state_path = (
+            self.archive_dir / "active_session.json"
+            if self.archive_dir
+            else None
+        )
+        self.current = self._load_active_session() or BreakSession.create(
             customer="Demo Customer",
             order_number="RIQ-0001",
             product_name="Greninja Jumbo Box",
             boxes_total=1,
             packs_per_box=5,
         )
+        self._persist_active()
+
+    def _load_active_session(self) -> BreakSession | None:
+        if not self.state_path or not self.state_path.exists():
+            return None
+        try:
+            payload = json.loads(
+                self.state_path.read_text(encoding="utf-8")
+            )
+            return BreakSession.from_public(payload)
+        except Exception:
+            return None
+
+    def _persist_active(self) -> None:
+        if not self.state_path:
+            return
+        temp = self.state_path.with_suffix(".tmp")
+        temp.write_text(
+            json.dumps(
+                self.current.public(),
+                indent=2,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        temp.replace(self.state_path)
 
     def start(
         self,
@@ -30,6 +70,7 @@ class SessionService:
             boxes_total=boxes_total,
             packs_per_box=packs_per_box,
         )
+        self._persist_active()
         return self.current.public()
 
     def next_pack(self) -> dict[str, Any]:
@@ -40,6 +81,7 @@ class SessionService:
         elif self.current.active_box_index + 1 < self.current.boxes_total:
             self.current.active_box_index += 1
             self.current.ensure_box()
+        self._persist_active()
         return self.current.public()
 
     def previous_pack(self) -> dict[str, Any]:
@@ -51,37 +93,107 @@ class SessionService:
             previous_box = self.current.active_box
             previous_box.active_pack_index = max(0, previous_box.packs_total - 1)
             previous_box.ensure_pack()
+        self._persist_active()
         return self.current.public()
 
     def next_box(self) -> dict[str, Any]:
         if self.current.active_box_index + 1 < self.current.boxes_total:
             self.current.active_box_index += 1
             self.current.ensure_box()
+        self._persist_active()
         return self.current.public()
 
     def previous_box(self) -> dict[str, Any]:
         if self.current.active_box_index > 0:
             self.current.active_box_index -= 1
+        self._persist_active()
         return self.current.public()
 
     def add_card(self, card: dict[str, Any]) -> dict[str, Any]:
+        signature = str(card.get("recognition_signature") or "")
+        now = time.time()
+        if (
+            signature
+            and signature == self.last_added_signature
+            and now - self.last_added_at < 30.0
+        ):
+            snapshot = self.current.public()
+            snapshot["duplicate_suppressed"] = True
+            return snapshot
+
         pull = CardPull.create(
             card_name=card["card_name"],
-            rarity=card["rarity"],
-            raw_value=float(card["raw_value"]),
+            rarity=card.get("rarity") or "UNKNOWN",
+            raw_value=float(card.get("raw_value") or 0.0),
             confidence=float(card.get("confidence", 1.0)),
+            collector_number=card.get("collector_number"),
+            language=card.get("language"),
+            set_name=card.get("set_name"),
+            source=card.get("source"),
+            reference_image_url=card.get("reference_image_url"),
+            recognition_signature=signature or None,
+            printed_name=card.get("printed_name"),
+            english_name=card.get("english_name"),
         )
         self.current.active_box.active_pack.pulls.append(pull)
-        return self.current.public()
+        self.last_added_signature = signature or None
+        self.last_added_at = now
+        snapshot = self.current.public()
+        snapshot["last_added_card"] = asdict(pull)
+        snapshot["duplicate_suppressed"] = False
+        self._persist_active()
+        return snapshot
+
+    def reject_card(self, card: dict[str, Any]) -> dict[str, Any]:
+        rejected = dict(card)
+        rejected["rejected_at"] = time.time()
+        self.rejected.append(rejected)
+        self._persist_active()
+        return {
+            "session": self.current.public(),
+            "rejected": rejected,
+            "rejected_count": len(self.rejected),
+        }
+
+    def recent_cards(self, limit: int = 8) -> list[dict[str, Any]]:
+        cards: list[dict[str, Any]] = []
+        for box in self.current.boxes:
+            for pack in box.packs:
+                cards.extend(asdict(card) for card in pack.pulls)
+        cards.sort(key=lambda item: item.get("timestamp", 0), reverse=True)
+        return cards[:max(1, int(limit))]
+
+    def export(self) -> dict[str, Any]:
+        payload = self.current.public()
+        payload["recent_cards"] = self.recent_cards(1000)
+        payload["rejected"] = list(self.rejected)
+        return payload
+
+    def archive(self) -> Path | None:
+        if not self.archive_dir:
+            return None
+        payload = self.export()
+        safe_order = "".join(
+            char if char.isalnum() or char in "-_" else "_"
+            for char in (self.current.order_number or "session")
+        )
+        path = self.archive_dir / f"{safe_order}_{int(time.time())}.json"
+        path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        return path
 
     def undo(self) -> tuple[dict[str, Any], dict[str, Any] | None]:
         pulls = self.current.active_box.active_pack.pulls
         removed = asdict(pulls.pop()) if pulls else None
+        self._persist_active()
         return self.current.public(), removed
 
     def close(self) -> dict[str, Any]:
         self.current.closed = True
-        return self.current.public()
+        path = self.archive()
+        snapshot = self.current.public()
+        snapshot["archive_path"] = str(path) if path else None
+        self._persist_active()
+        return snapshot
 
     def snapshot(self) -> dict[str, Any]:
         return self.current.public()

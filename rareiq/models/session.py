@@ -13,9 +13,31 @@ class CardPull:
     raw_value: float
     confidence: float
     timestamp: float
+    collector_number: str | None = None
+    language: str | None = None
+    set_name: str | None = None
+    source: str | None = None
+    reference_image_url: str | None = None
+    recognition_signature: str | None = None
+    printed_name: str | None = None
+    english_name: str | None = None
 
     @classmethod
-    def create(cls, card_name: str, rarity: str, raw_value: float, confidence: float = 1.0) -> "CardPull":
+    def create(
+        cls,
+        card_name: str,
+        rarity: str,
+        raw_value: float,
+        confidence: float = 1.0,
+        collector_number: str | None = None,
+        language: str | None = None,
+        set_name: str | None = None,
+        source: str | None = None,
+        reference_image_url: str | None = None,
+        recognition_signature: str | None = None,
+        printed_name: str | None = None,
+        english_name: str | None = None,
+    ) -> "CardPull":
         return cls(
             id=str(uuid.uuid4()),
             card_name=card_name,
@@ -23,6 +45,14 @@ class CardPull:
             raw_value=float(raw_value),
             confidence=float(confidence),
             timestamp=time.time(),
+            collector_number=collector_number,
+            language=language,
+            set_name=set_name,
+            source=source,
+            reference_image_url=reference_image_url,
+            recognition_signature=recognition_signature,
+            printed_name=printed_name,
+            english_name=english_name,
         )
 
 
@@ -133,6 +163,109 @@ class BreakSession:
     @property
     def hit_count(self) -> int:
         return sum(pack.hit_count for box in self.boxes for pack in box.packs)
+
+
+    @classmethod
+    def from_public(cls, payload: dict[str, Any]) -> "BreakSession":
+        session = cls(
+            id=str(payload.get("id") or uuid.uuid4()),
+            customer=str(payload.get("customer") or "Recovered Session"),
+            order_number=str(payload.get("order_number") or "RIQ-RECOVERED"),
+            product_name=str(payload.get("product_name") or "Recovered Product"),
+            boxes_total=max(1, int(payload.get("boxes_total") or 1)),
+            packs_per_box=max(1, int(payload.get("packs_per_box") or 1)),
+            boxes=[],
+            active_box_index=max(
+                0,
+                int(payload.get("active_box_number") or 1) - 1,
+            ),
+            closed=bool(payload.get("closed")),
+        )
+
+        for box_payload in payload.get("boxes") or []:
+            box = Box(
+                number=int(box_payload.get("number") or len(session.boxes) + 1),
+                packs_total=max(
+                    1,
+                    int(
+                        box_payload.get("packs_total")
+                        or session.packs_per_box
+                    ),
+                ),
+                packs=[],
+                active_pack_index=max(
+                    0,
+                    int(box_payload.get("active_pack_number") or 1) - 1,
+                ),
+            )
+
+            for pack_payload in box_payload.get("packs") or []:
+                pack = Pack(
+                    number=int(
+                        pack_payload.get("number")
+                        or len(box.packs) + 1
+                    ),
+                    pulls=[],
+                )
+
+                for card_payload in pack_payload.get("pulls") or []:
+                    pack.pulls.append(
+                        CardPull(
+                            id=str(
+                                card_payload.get("id")
+                                or uuid.uuid4()
+                            ),
+                            card_name=str(
+                                card_payload.get("card_name")
+                                or "Unknown Card"
+                            ),
+                            rarity=str(
+                                card_payload.get("rarity")
+                                or "UNKNOWN"
+                            ),
+                            raw_value=float(
+                                card_payload.get("raw_value")
+                                or 0.0
+                            ),
+                            confidence=float(
+                                card_payload.get("confidence")
+                                or 0.0
+                            ),
+                            timestamp=float(
+                                card_payload.get("timestamp")
+                                or time.time()
+                            ),
+                            collector_number=card_payload.get(
+                                "collector_number"
+                            ),
+                            language=card_payload.get("language"),
+                            set_name=card_payload.get("set_name"),
+                            source=card_payload.get("source"),
+                            reference_image_url=card_payload.get(
+                                "reference_image_url"
+                            ),
+                            recognition_signature=card_payload.get(
+                                "recognition_signature"
+                            ),
+                            printed_name=card_payload.get(
+                                "printed_name"
+                            ),
+                            english_name=card_payload.get(
+                                "english_name"
+                            ),
+                        )
+                    )
+                box.packs.append(pack)
+
+            session.boxes.append(box)
+
+        session.ensure_box()
+        session.active_box_index = min(
+            session.active_box_index,
+            len(session.boxes) - 1,
+        )
+        session.active_box.ensure_pack()
+        return session
 
     def public(self) -> dict[str, Any]:
         return {

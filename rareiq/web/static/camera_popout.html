@@ -1,0 +1,64 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#02060a">
+<title>RareIQ Camera</title>
+<link rel="stylesheet" href="/static/camera_popout.css">
+<script defer src="/static/camera_popout.js"></script>
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"></head>
+<body>
+<header class="popout-bar">
+  <div class="popout-brand">
+    <img src="/static/brand/rareiq_icon_transparent.png" alt="RareIQ">
+    <div><strong>RareIQ Vision</strong><span>Pop-Out Scanner</span></div>
+  </div>
+  <div class="popout-status">
+    <div class="status-chip" id="cameraChip"><i></i><span>CAMERA</span><b>OFFLINE</b></div>
+    <div class="status-chip" id="autoChip"><i></i><span>AUTO</span><b>ON</b></div>
+    <div class="status-chip" id="aiChip"><i></i><span>AI</span><b>IDLE</b></div>
+  </div>
+</header>
+
+<main class="popout-stage">
+  <div class="popout-placeholder" id="placeholder">Waiting for camera feed</div>
+  <img class="popout-feed" id="cameraFeed" alt="RareIQ camera">
+
+  <div class="popout-scan-zone">
+    <span class="corner-tr"></span>
+    <span class="corner-bl"></span>
+    <span class="scan-sweep"></span>
+  </div>
+
+  <div class="popout-hud-top">
+    <div class="core-card">
+      <span class="core-orb"></span>
+      <div class="core-copy"><strong>RAREIQ CORE</strong><span>VISION ACTIVE</span></div>
+    </div>
+
+    <div class="score-card">
+      <div class="score-row"><span>Vision</span><div class="score-bar"><i id="visionBar"></i></div><b id="visionValue">0%</b></div>
+      <div class="score-row"><span>OCR</span><div class="score-bar"><i id="ocrBar"></i></div><b id="ocrValue">0%</b></div>
+      <div class="score-row"><span>Number</span><div class="score-bar"><i id="collectorBar"></i></div><b id="collectorValue">0%</b></div>
+      <div class="score-row"><span>Fusion</span><div class="score-bar"><i id="fusionBar"></i></div><b id="fusionValue">0%</b></div>
+    </div>
+  </div>
+
+  <div class="popout-hud-bottom">
+    <div><strong id="stateLabel">WATCHING</strong><span id="stateDetail">Place a card inside the scan zone.</span></div>
+    <div class="popout-confidence" id="confidence">0%</div>
+  </div>
+</main>
+
+<footer class="popout-controls">
+  <button class="popout-button active" id="fitButton" onclick="cycleFit()">Adaptive</button>
+  <button class="popout-button" id="fullscreenButton" onclick="toggleFullscreen()">Fullscreen</button>
+  <button class="popout-button" id="wakeButton" onclick="toggleWake()">Keep Awake</button>
+  <button class="popout-button primary" onclick="capture()">Capture</button>
+</footer>
+</body>
+</html>
+

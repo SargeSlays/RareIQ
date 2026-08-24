@@ -1,0 +1,175 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RareIQ Studio 3.1</title>
+<link rel="stylesheet" href="/static/studio31.css">
+<script defer src="/static/studio31.js"></script>
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"></head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">RIQ</div>
+    <div class="title"><h1 id="pageTitle">Live</h1><span id="pageSubtitle">Active ripping and recognition</span></div>
+  </div>
+  <div class="top-actions">
+    <span class="pill" id="cameraState">CAMERA CHECKING</span>
+    <button class="btn" onclick="openProgram()">Program View</button>
+    <button class="btn primary" onclick="nextPack()">Next Pack</button>
+  </div>
+</header>
+
+<main class="stage">
+  <section class="workspace active" data-workspace="live">
+    <div class="live-layout">
+      <article class="panel camera-panel">
+        <div class="panel-head"><b>Live Camera</b><span>AI scan region active</span></div>
+        <div class="camera-view">
+          <div class="camera-placeholder">Waiting for camera feed</div>
+          <img id="cameraFeed" alt="">
+          <div class="scan-box"></div>
+          <div class="ai-strip">
+            <div><strong id="aiState">WATCHING</strong><span id="aiDetail">Place a card inside the scan frame.</span></div>
+            <span>RareIQ Intelligence Core</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel card-panel">
+        <div class="panel-head"><b>Current Card</b><span>Verified reference</span></div>
+        <div class="card-main">
+          <div class="card-art" id="cardArt"><span>Recognized artwork appears here</span></div>
+          <div class="card-copy">
+            <h2 id="cardName">Ready to Scan</h2>
+            <p id="cardMeta">Set â€¢ Number â€¢ Language â€¢ Rarity</p>
+            <div class="value" id="cardValue">WAITING</div>
+          </div>
+        </div>
+        <div class="signals">
+          <div class="signal"><span>Vision</span><div class="bar"><i id="visionBar"></i></div><b id="visionValue">0%</b></div>
+          <div class="signal"><span>OCR</span><div class="bar"><i id="ocrBar"></i></div><b id="ocrValue">0%</b></div>
+          <div class="signal"><span>Number</span><div class="bar"><i id="collectorBar"></i></div><b id="collectorValue">0%</b></div>
+          <div class="signal"><span>Fusion</span><div class="bar"><i id="fusionBar"></i></div><b id="fusionValue">0%</b></div>
+        </div>
+      </article>
+
+      <div class="lower-left">
+        <article class="panel timeline">
+          <h3>RareIQ Thinking</h3>
+          <div class="steps">
+            <div class="step active">Detect</div><div class="step">Crop</div><div class="step">Perspective</div><div class="step">OCR</div><div class="step">Artwork</div><div class="step">Rank</div><div class="step">Verify</div>
+          </div>
+        </article>
+        <article class="panel controls">
+          <h3>Live Controls</h3>
+          <div class="control-grid">
+            <button>Reject</button><button class="capture">Capture</button><button>Approve</button>
+            <button>Reset</button><button>Reaction</button><button onclick="openProgram()">Program</button>
+          </div>
+        </article>
+      </div>
+
+      <article class="panel session-strip">
+        <div class="metric"><span>Pack</span><b id="packNo">1</b></div>
+        <div class="metric"><span>Pack Value</span><b id="packValue">$0.00</b></div>
+        <div class="metric"><span>Box Value</span><b id="boxValue">$0.00</b></div>
+        <div class="metric"><span>Session Value</span><b id="sessionValue">$0.00</b></div>
+        <div class="metric"><span>Last Hit</span><b>WAITING</b></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="workspace" data-workspace="collection">
+    <div class="full-layout">
+      <aside class="panel sidebar"><button class="active">Recent Scans</button><button>Sessions</button><button>Boxes</button><button>Duplicates</button><button>Exports</button></aside>
+      <div class="panel content">
+        <h2>Collection</h2><p>Review scans and sessions without cluttering the live workspace.</p>
+        <div class="grid">
+          <div class="card"><h3>Recent Scans</h3><p>Review the latest recognized cards.</p><button class="btn">Open</button></div>
+          <div class="card"><h3>Sessions</h3><p>Reopen past pack and box sessions.</p><button class="btn">Open</button></div>
+          <div class="card"><h3>Exports</h3><p>Export inventory and session reports.</p><button class="btn">Open</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="workspace" data-workspace="creator">
+    <div class="full-layout">
+      <aside class="panel sidebar"><button class="active">Brand Identity</button><button>Overlays</button><button>Reactions</button><button>Program Output</button><button>Virtual Camera</button></aside>
+      <div class="panel content">
+        <h2>Creator</h2><p>Brand the audience-facing experience while RareIQ keeps its own application identity.</p>
+        <div class="grid">
+          <div class="card">
+            <h3>Creator Identity</h3>
+            <div class="field"><label>Channel Name</label><input data-brand="creator_name"></div>
+            <div class="field"><label>Logo URL or path</label><input data-brand="logo_url"></div>
+            <button class="btn primary" onclick="saveBrand()">Save Brand</button>
+          </div>
+          <div class="card">
+            <h3>Colors</h3>
+            <div class="field"><label>Primary</label><input type="color" data-brand="primary" value="#59d8ff"></div>
+            <div class="field"><label>Secondary</label><input type="color" data-brand="secondary" value="#45e4a0"></div>
+            <div class="field"><label>Intelligence</label><input type="color" data-brand="intelligence" value="#9b78ff"></div>
+            <div class="field"><label>Background</label><input type="color" data-brand="background" value="#061018"></div>
+          </div>
+          <div class="card">
+            <h3>Browser Sources</h3>
+            <p>Use these in OBS or Streamlabs.</p>
+            <div class="field"><label>Landscape</label><input value="http://127.0.0.1:8765/overlay/landscape" readonly></div>
+            <div class="field"><label>Portrait</label><input value="http://127.0.0.1:8765/overlay/portrait" readonly></div>
+          </div>
+        </div>
+        <div class="preview-grid">
+          <div class="card"><h3>Landscape Preview</h3><div class="preview"><iframe src="/overlay/landscape"></iframe></div></div>
+          <div class="card"><h3>Portrait Preview</h3><div class="preview portrait"><iframe src="/overlay/portrait"></iframe></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="workspace" data-workspace="library">
+    <div class="full-layout">
+      <aside class="panel sidebar"><button class="active">Overview</button><button>Metadata</button><button>Artwork</button><button>Indexes</button><button>Providers</button><button>Plugins</button><button>Updates</button></aside>
+      <div class="panel content">
+        <h2>Library</h2><p>Occasional maintenance stays here and never gets in the way of ripping.</p>
+        <div class="grid">
+          <div class="card"><h3>Optimize Library</h3><p>Validate artwork and synchronize indexes.</p><button class="btn" onclick="maintenance('/api/library/optimize','Optimization')">Optimize</button></div>
+          <div class="card"><h3>Index New Artwork</h3><p>Add only new local references.</p><button class="btn" onclick="maintenance('/api/index/incremental','Indexing')">Index</button></div>
+          <div class="card"><h3>Provider Check</h3><p>Test external data sources.</p><button class="btn" onclick="maintenance('/api/providers/check','Provider check')">Run Check</button></div>
+          <div class="card"><h3>Fast Metadata</h3><p>Build lightweight metadata.</p><button class="btn" onclick="maintenance('/api/fast-pipeline/metadata/start','Metadata')">Build</button></div>
+          <div class="card"><h3>HD Artwork</h3><p>Download missing artwork.</p><button class="btn" onclick="maintenance('/api/fast-pipeline/images/start','Artwork')">Download</button></div>
+          <div class="card"><h3>Benchmark</h3><p>Measure recognition performance.</p><button class="btn" onclick="maintenance('/api/intelligence/benchmark','Benchmark')">Run</button></div>
+        </div>
+        <p id="maintenanceStatus">Maintenance center ready.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="workspace" data-workspace="settings">
+    <div class="full-layout">
+      <aside class="panel sidebar"><button class="active">Camera</button><button>Output</button><button>API Keys</button><button>Storage</button><button>Logs</button><button>Developer</button></aside>
+      <div class="panel content">
+        <h2>Settings</h2><p>Advanced configuration and legacy tools.</p>
+        <div class="grid">
+          <div class="card"><h3>Program View</h3><p>Open the clean broadcast output.</p><button class="btn" onclick="openProgram()">Open</button></div>
+          <div class="card"><h3>Current Card Overlay</h3><p>Preview the transparent card source.</p><button class="btn" onclick="window.open('/overlay/current-card')">Preview</button></div>
+          <div class="card"><h3>Legacy Console</h3><p>Open the old engineering dashboard.</p><button class="btn" onclick="window.open('/legacy-control')">Open Legacy</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<nav class="bottom-nav">
+  <button class="nav-btn active" data-target="live"><b>LIVE</b></button>
+  <button class="nav-btn" data-target="collection"><b>COLLECTION</b></button>
+  <button class="nav-btn" data-target="creator"><b>CREATOR</b></button>
+  <button class="nav-btn" data-target="library"><b>LIBRARY</b></button>
+  <button class="nav-btn" data-target="settings"><b>SETTINGS</b></button>
+</nav>
+</body>
+</html>
+

@@ -1,0 +1,40 @@
+
+/* RareIQ Studio X 4.0.2 — Camera Autostart */
+
+.camera-recovery{
+  transition:opacity .2s ease,transform .2s ease;
+}
+
+.camera-recovery.visible{
+  opacity:1;
+}
+
+.camera-recovery.success strong{
+  color:var(--green);
+}
+
+.camera-recovery.error strong{
+  color:var(--red);
+}
+
+.camera-recovery-progress{
+  height:3px;
+  margin-top:9px;
+  overflow:hidden;
+  border-radius:99px;
+  background:rgba(255,255,255,.06);
+}
+
+.camera-recovery-progress i{
+  display:block;
+  width:38%;
+  height:100%;
+  border-radius:99px;
+  background:linear-gradient(90deg,var(--cyan),var(--purple),var(--magenta));
+  animation:cameraRecoverySweep 1.05s ease-in-out infinite;
+}
+
+@keyframes cameraRecoverySweep{
+  from{transform:translateX(-110%)}
+  to{transform:translateX(290%)}
+}

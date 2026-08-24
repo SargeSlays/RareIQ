@@ -1,0 +1,35 @@
+
+:root{--bg:#071019;--panel:#0E1A28;--border:#22364D;--primary:#56D8FF;--success:#41E695;--intel:#9D78FF;--gold:#F8C35D;--danger:#EF5C68;--text:#EAF2F8;--muted:#86A0B8}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;color:var(--text);font-family:Inter,Segoe UI,sans-serif}
+.stage{position:relative;width:100%;height:100%}
+.lower-third{position:absolute;left:4%;bottom:5%;display:grid;grid-template-columns:82px minmax(280px,520px);border:1px solid rgba(86,216,255,.35);background:linear-gradient(90deg,rgba(7,16,25,.94),rgba(14,26,40,.88));backdrop-filter:blur(10px);border-radius:14px;overflow:hidden;box-shadow:0 16px 40px rgba(0,0,0,.35)}
+.card-thumb{background:#03080D;display:grid;place-items:center;min-height:112px}.card-thumb img{width:100%;height:100%;object-fit:cover}.card-thumb span{font-size:9px;color:var(--muted);text-align:center;padding:6px}
+.card-copy{padding:14px}.eyebrow{font-size:10px;letter-spacing:.14em;color:var(--primary);text-transform:uppercase}.card-title{font:700 24px/1.05 "Space Grotesk",Inter,sans-serif;margin:4px 0}.card-meta{font-size:11px;color:var(--muted)}
+.price{font:800 25px/1 "JetBrains Mono",monospace;color:var(--success);margin-top:10px}
+.stats{position:absolute;right:4%;top:5%;display:flex;gap:8px}.stat{min-width:110px;padding:10px 12px;border:1px solid rgba(86,216,255,.24);border-radius:10px;background:rgba(7,16,25,.88);backdrop-filter:blur(10px)}.stat span{display:block;font-size:9px;color:var(--muted)}.stat b{display:block;font:700 17px/1.2 "JetBrains Mono",monospace;margin-top:3px}
+.creator-bug{position:absolute;left:4%;top:5%;display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:9px;background:rgba(7,16,25,.82);border:1px solid rgba(86,216,255,.18)}.creator-bug b{font-size:12px}.creator-bug span{font-size:9px;color:var(--muted)}
+.portrait .lower-third{left:4%;right:4%;bottom:4%;grid-template-columns:92px minmax(0,1fr)}.portrait .stats{top:3%;left:4%;right:4%;justify-content:space-between}.portrait .stat{min-width:0;flex:1}.portrait .creator-bug{top:15%;left:4%}
+
+:root{
+  --primary:#20d8ff;
+  --success:#39e39a;
+  --intel:#7b4dff;
+  --gold:#ffc85c;
+  --danger:#ff6372;
+}
+.lower-third,.stat,.creator-bug{
+  border-color:rgba(76,138,255,.28);
+  box-shadow:0 13px 34px rgba(0,0,0,.34),0 0 18px rgba(89,57,255,.08);
+}
+.lower-third:after{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:2px;
+  background:linear-gradient(90deg,#20d8ff,#347bff,#7b4dff,#d93dff);
+}
+.creator-logo{
+  width:29px;height:29px;object-fit:contain;
+  filter:drop-shadow(0 0 8px rgba(32,216,255,.45));
+}
+.creator-bug{display:flex}
+.card-title,.price{
+  text-shadow:0 0 16px rgba(32,216,255,.10);
+}

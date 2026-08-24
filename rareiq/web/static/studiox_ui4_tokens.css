@@ -1,0 +1,152 @@
+/* RareIQ Studio X UI 4.0 — Phase 1 design-system foundation. */
+
+body.studiox-ui4{
+  /* Dynamic viewport and safe areas */
+  --ui4-viewport-small:100svh;
+  --ui4-viewport-dynamic:100dvh;
+  --ui4-safe-top:env(safe-area-inset-top,0px);
+  --ui4-safe-right:env(safe-area-inset-right,0px);
+  --ui4-safe-bottom:env(safe-area-inset-bottom,0px);
+  --ui4-safe-left:env(safe-area-inset-left,0px);
+
+  /* Spacing */
+  --ui4-space-1:4px;
+  --ui4-space-2:6px;
+  --ui4-space-3:8px;
+  --ui4-space-4:10px;
+  --ui4-space-5:12px;
+  --ui4-space-6:16px;
+  --ui4-space-7:20px;
+  --ui4-space-8:24px;
+
+  /* Typography */
+  --ui4-font-xs:8px;
+  --ui4-font-sm:10px;
+  --ui4-font-md:12px;
+  --ui4-font-lg:14px;
+  --ui4-font-xl:18px;
+  --ui4-font-display:24px;
+  --ui4-line-tight:1.1;
+  --ui4-line-body:1.4;
+
+  /* Controls and touch */
+  --ui4-control-compact:34px;
+  --ui4-control-default:36px;
+  --ui4-control-large:40px;
+  --ui4-touch-target:44px;
+
+  /* Shape */
+  --ui4-radius-xs:5px;
+  --ui4-radius-sm:8px;
+  --ui4-radius-md:12px;
+  --ui4-radius-lg:16px;
+  --ui4-radius-pill:999px;
+
+  /* Restrained surface hierarchy */
+  --ui4-surface-base:#020609;
+  --ui4-surface-1:#060c12;
+  --ui4-surface-2:#0a131d;
+  --ui4-surface-3:#101c28;
+  --ui4-surface-overlay:rgba(6,12,18,.88);
+  --ui4-border-subtle:rgba(118,150,176,.13);
+  --ui4-border-strong:rgba(118,150,176,.26);
+  --ui4-shadow-panel:0 12px 32px rgba(0,0,0,.28);
+  --ui4-shadow-overlay:0 18px 48px rgba(0,0,0,.44);
+
+  /* Status colors are reserved for state and action meaning */
+  --ui4-status-info:#4fd8ff;
+  --ui4-status-ai:#9b76ff;
+  --ui4-status-success:#39e39a;
+  --ui4-status-warning:#ffc85c;
+  --ui4-status-danger:#ff6372;
+  --ui4-status-muted:#7f93a5;
+
+  /* Current Phase 1 layout dimensions */
+  --ui4-inspector-wide:380px;
+  --ui4-inspector-ultrawide:440px;
+  --ui4-inspector-compact:300px;
+  --ui4-dock-wide:84px;
+  --ui4-dock-ultrawide:88px;
+  --ui4-dock-compact:68px;
+
+  /* Focus and motion */
+  --ui4-focus-color:var(--ui4-status-info);
+  --ui4-focus-ring:0 0 0 2px var(--ui4-focus-color);
+  --ui4-transition-fast:120ms;
+  --ui4-transition-default:180ms;
+  --ui4-transition-slow:260ms;
+
+  /* Premium collectible-intelligence system */
+  --premium-bg:#03070b;
+  --premium-panel:#08111a;
+  --premium-panel-raised:#0c1722;
+  --premium-panel-soft:rgba(13,25,37,.78);
+  --premium-text:#f3f7fa;
+  --premium-text-secondary:#9aabb8;
+  --premium-text-tertiary:#657887;
+  --premium-accent:#62d6ff;
+  --premium-accent-violet:#9277ff;
+  --premium-hairline:rgba(151,181,202,.14);
+  --premium-hairline-strong:rgba(151,181,202,.24);
+  --premium-radius-sm:10px;
+  --premium-radius-md:16px;
+  --premium-radius-lg:22px;
+  --premium-space-1:6px;
+  --premium-space-2:10px;
+  --premium-space-3:14px;
+  --premium-space-4:18px;
+  --premium-space-5:24px;
+  --premium-space-6:32px;
+  --premium-result-width:420px;
+  --premium-rail-width:72px;
+  --premium-command-height:64px;
+  --premium-control-height:42px;
+  --premium-shadow:0 24px 70px rgba(0,0,0,.38);
+  --premium-widget-border:var(--premium-hairline);
+  --premium-widget-radius:14px;
+  --premium-widget-padding:14px;
+  --premium-scrollbar-thumb:rgba(126,157,178,.34);
+  --premium-title-size:clamp(24px,1.35vw,34px);
+  --premium-widget-title-size:clamp(13px,.72vw,17px);
+  --premium-label-size:clamp(10px,.56vw,12px);
+  --premium-metric-font:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+  --premium-surface-highlight:rgba(215,241,255,.07);
+  --premium-orb-cyan:#62d6ff;
+  --premium-orb-violet:#9277ff;
+  --premium-orb-lime:#b5ff66;
+  --premium-signature-gradient:linear-gradient(135deg,var(--premium-orb-cyan),var(--premium-orb-violet) 58%,var(--premium-orb-lime));
+  --premium-confirmed-surface:rgba(40,185,137,.075);
+  --sx-space-1:4px;
+  --sx-space-2:8px;
+  --sx-space-3:12px;
+  --sx-space-4:16px;
+  --sx-space-5:20px;
+  --sx-space-6:24px;
+  --sx-space-7:32px;
+  --sx-label-gap:var(--sx-space-1);
+  --sx-row-gap:var(--sx-space-2);
+  --sx-element-gap:var(--sx-space-3);
+  --sx-section-padding:var(--sx-space-4);
+  --sx-panel-padding:var(--sx-space-4);
+  --sx-widget-gap:var(--sx-space-3);
+  --sx-column-gap:var(--sx-space-4);
+  --sx-density-hero-max:420px;
+  --sx-density-identify-max:286px;
+  --sx-density-footer-height:52px;
+  --sx-shell-sidebar-width:148px;
+  --sx-shell-gutter:14px;
+  --secondary-bay-compact:clamp(150px,18vh,280px);
+  --secondary-bay-standard:clamp(230px,29vh,620px);
+  --secondary-bay-large:clamp(320px,39vh,820px);
+
+  min-height:var(--ui4-viewport-small);
+  height:var(--ui4-viewport-dynamic);
+}
+
+@media(prefers-reduced-motion:reduce){
+  body.studiox-ui4{
+    --ui4-transition-fast:0.01ms;
+    --ui4-transition-default:0.01ms;
+    --ui4-transition-slow:0.01ms;
+  }
+}

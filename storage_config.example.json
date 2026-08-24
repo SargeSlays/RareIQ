@@ -1,0 +1,17 @@
+{
+  "database_root": "runtime/database",
+  "catalog_path": "runtime/catalog",
+  "image_path": "runtime/images",
+  "embedding_path": "runtime/embeddings",
+  "index_path": "runtime/indexes",
+  "cache_path": "runtime/cache",
+  "capture_path": "runtime/captures",
+  "grading_path": "runtime/grading",
+  "export_path": "runtime/exports",
+  "backup_path": "runtime/backups",
+  "log_path": "runtime/logs",
+  "config_path": "runtime/config",
+  "provenance_path": "runtime/captures/provenance",
+  "replay_path": "runtime/captures/replays",
+  "recording_path": "runtime/captures/recordings"
+}

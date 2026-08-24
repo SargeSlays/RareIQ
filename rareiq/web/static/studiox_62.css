@@ -1,0 +1,72 @@
+
+/* RareIQ Studio X 6.2 — Operator Upgrade */
+
+.camera-autostart-chip{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-width:118px;
+  padding:6px 9px;
+  border-radius:999px;
+  background:rgba(7,17,26,.78);
+  box-shadow:inset 0 0 0 1px rgba(93,142,180,.14);
+  color:#8ca1b2;
+  font-size:7px;
+  white-space:nowrap;
+}
+
+.camera-autostart-chip i{
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:#667888;
+}
+
+.camera-autostart-chip.searching i,
+.camera-autostart-chip.starting i{
+  background:var(--cyan);
+  box-shadow:0 0 8px rgba(32,216,255,.65);
+}
+
+.camera-autostart-chip.live i{
+  background:var(--green);
+  box-shadow:0 0 8px rgba(57,227,154,.62);
+}
+
+.camera-autostart-chip.error i{
+  background:var(--red);
+  box-shadow:0 0 8px rgba(255,99,114,.58);
+}
+
+.restart-feed-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:86px;
+}
+
+.operator-toast{
+  position:fixed;
+  z-index:9500;
+  right:18px;
+  bottom:18px;
+  max-width:320px;
+  padding:11px 13px;
+  border-radius:10px;
+  color:#dce8ef;
+  background:rgba(5,13,22,.94);
+  box-shadow:0 18px 44px rgba(0,0,0,.42),inset 0 0 0 1px rgba(96,141,176,.15);
+  opacity:0;
+  transform:translateY(8px);
+  pointer-events:none;
+  transition:opacity .2s ease,transform .2s ease;
+  font-size:8px;
+}
+
+.operator-toast.visible{
+  opacity:1;
+  transform:none;
+}
+
+.operator-toast.success{box-shadow:0 18px 44px rgba(0,0,0,.42),inset 0 0 0 1px rgba(57,227,154,.28)}
+.operator-toast.error{box-shadow:0 18px 44px rgba(0,0,0,.42),inset 0 0 0 1px rgba(255,99,114,.28)}

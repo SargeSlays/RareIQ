@@ -1,0 +1,1155 @@
+﻿<!doctype html><html><head><meta charset="utf-8"><title>RareIQ v1.2.0 â€” Command Center</title><style>
+:root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;font-family:Arial;background:#070b12;color:#fff}main{max-width:1450px;margin:auto;padding:22px}.sub{opacity:.6}.grid{display:grid;grid-template-columns:1.35fr .65fr;gap:18px;margin-top:18px}.panel{background:#101725;border:1px solid #273853;border-radius:16px;padding:18px}.camera{position:relative;background:#03060b;border-radius:14px;overflow:hidden;aspect-ratio:16/9;border:1px solid #2d415e}.camera img{width:100%;height:100%;object-fit:contain}.ocr-guide{position:absolute;left:26%;top:9%;width:48%;height:82%;border:2px dashed rgba(105,220,255,.9);border-radius:14px;box-shadow:0 0 18px rgba(105,220,255,.25);pointer-events:none}.ocr-guide:before{content:'LIVE OCR ZONE';position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(5,8,13,.78);padding:4px 8px;border-radius:6px;font-size:10px;font-weight:900;color:#69dcff;letter-spacing:.08em}.vision-hud{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}.hud-card{background:#080d16;border:1px solid #33445f;border-radius:10px;padding:10px}.hud-label{font-size:10px;opacity:.55;font-weight:800;letter-spacing:.08em}.hud-value{display:block;margin-top:4px;font-size:15px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.meter{height:8px;background:#1b2535;border-radius:999px;overflow:hidden;margin-top:7px}.meter>span{display:block;height:100%;width:0%;background:#77e2a3;transition:width .12s ease}.auto-wrap{display:flex;align-items:center;gap:8px;margin:4px 8px;font-size:13px;font-weight:900}.auto-wrap input{width:auto}.recognition-lab{margin-top:14px;background:#080d16;border:1px solid #33445f;border-radius:14px;padding:14px}.recognition-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.recognition-card{background:#101725;border-radius:10px;padding:11px}.recognition-label{display:block;font-size:10px;opacity:.55;font-weight:800;letter-spacing:.08em}.recognition-value{display:block;margin-top:4px;font-size:16px;font-weight:900;overflow:hidden;text-overflow:ellipsis}.region-row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.region-pill{padding:6px 9px;border-radius:999px;background:#1a2230;font-size:11px;font-weight:900}.region-pill.on{background:#173a2b;color:#78e3a4}.catalog-lab{margin-top:12px;background:#0b111c;border:1px solid #3a4f70;border-radius:14px;padding:14px}.catalog-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.catalog-card{background:#101725;border-radius:10px;padding:11px}.catalog-label{display:block;font-size:10px;opacity:.55;font-weight:800;letter-spacing:.08em}.catalog-value{display:block;margin-top:4px;font-size:15px;font-weight:900;overflow:hidden;text-overflow:ellipsis}.candidate-list{margin-top:10px;background:#05080d;border-radius:10px;padding:10px;max-height:170px;overflow:auto;font-size:12px;white-space:pre-wrap}.confidence-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:10px}.confidence-card{background:#080d16;border:1px solid #33445f;border-radius:10px;padding:10px}.confidence-card b{display:block;font-size:10px;opacity:.55;letter-spacing:.08em}.confidence-card span{display:block;margin-top:4px;font-size:15px;font-weight:900}.candidate-list{margin-top:10px;display:grid;gap:7px}.pipeline{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}.pipeline-step{background:#0a101a;border:1px solid #2e3f58;border-radius:10px;padding:10px;font-size:11px;font-weight:800}.pipeline-step.done{border-color:#4de391;color:#7dffb4;box-shadow:0 0 10px rgba(77,227,145,.12)}.pipeline-step.waiting{opacity:.55}.pipeline-step.error{border-color:#ff6b73;color:#ff9da3}.live-import-panel{margin-top:14px;background:#0a101a;border:1px solid #3f5d82;border-radius:14px;padding:14px}.live-import-grid{display:grid;grid-template-columns:1.2fr .8fr .8fr auto;gap:8px;margin-top:10px}.live-import-status{margin-top:10px;background:#080d16;border:1px solid #2d3f5b;border-radius:10px;padding:10px;font-size:12px}.set-panel{margin-top:14px;background:#0a101a;border:1px solid #314661;border-radius:14px;padding:14px}.set-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}.set-card{background:#080d16;border:1px solid #2d3f5b;border-radius:10px;padding:10px}.set-card b{display:block;font-size:10px;opacity:.55;letter-spacing:.08em}.set-card span{display:block;margin-top:4px;font-size:15px;font-weight:900}.reference-panel{margin-top:14px;background:#0a101a;border:1px solid #314661;border-radius:14px;padding:14px}.reference-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}.reference-badge{font-size:11px;font-weight:900;letter-spacing:.08em;color:#7dffb4}.reference-grid{display:grid;grid-template-columns:minmax(180px,280px) 1fr;gap:14px;align-items:start}.reference-image-wrap{background:#05080d;border:1px solid #263951;border-radius:12px;min-height:320px;display:flex;align-items:center;justify-content:center;overflow:hidden}.reference-image-wrap img{width:100%;height:auto;display:block}.reference-empty{padding:20px;text-align:center;opacity:.55;font-size:13px}.reference-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.reference-meta-card{background:#080d16;border:1px solid #2d3f5b;border-radius:10px;padding:10px}.reference-meta-card b{display:block;font-size:10px;opacity:.55;letter-spacing:.08em}.reference-meta-card span{display:block;margin-top:4px;font-size:15px;font-weight:900;word-break:break-word}@media(max-width:900px){.reference-grid{grid-template-columns:1fr}.reference-image-wrap{min-height:220px}}.candidate{background:#0b111d;border:1px solid #2d3f5b;border-radius:10px;padding:10px;display:flex;justify-content:space-between;gap:12px}.candidate.locked{border-color:#5ee7a0;box-shadow:0 0 12px rgba(94,231,160,.16)}.ocr-lines{margin-top:10px;background:#05080d;border-radius:10px;padding:10px;max-height:120px;overflow:auto;font-size:12px}.status{position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,.72);padding:8px 11px;border-radius:9px;font-weight:800}.row{display:flex;gap:8px;align-items:end;flex-wrap:wrap}.field{flex:1;min-width:130px}label{display:block;font-size:11px;opacity:.6;margin-bottom:5px}input,select{width:100%;padding:10px;background:#080d16;color:#fff;border:1px solid #33445f;border-radius:8px}button{border:0;border-radius:9px;padding:11px 13px;margin:4px;cursor:pointer;font-weight:800}.primary{background:#72eaff}.good{background:#77e2a3}.warn{background:#ffc268}.danger{background:#ff727b}.rare{background:#78adff}.double{background:#a88aff}.illustration{background:#ffb45e}.grail{background:#72efff;box-shadow:0 0 18px #5ce9ff66}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:14px 0}.stat{background:#080d16;padding:12px;text-align:center;border-radius:10px}.stat strong{display:block;font-size:25px}.stat span{font-size:10px;opacity:.5}.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.preview{width:100%;aspect-ratio:9/16;border:1px solid #2d415e;border-radius:12px}pre{background:#05080d;padding:10px;border-radius:10px;max-height:250px;overflow:auto}.locked{color:#69ffad}.searching{color:#ffd36b}.offline{color:#ff747c}@media(max-width:1000px){.grid{grid-template-columns:1fr}}
+
+body{min-width:1280px}
+.wrap,.container,main{max-width:1780px!important;width:calc(100% - 36px)!important;margin-left:auto!important;margin-right:auto!important}
+.desktop-workstation{display:grid;grid-template-columns:minmax(620px,1.35fr) minmax(430px,.95fr) minmax(360px,.8fr);gap:16px;align-items:start}
+.desktop-left,.desktop-center,.desktop-right{min-width:0}
+.desktop-right{position:sticky;top:16px;max-height:calc(100vh - 32px);overflow:auto}
+.desktop-bottom{grid-column:1/-1}
+.import-stage-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;margin-top:10px}
+.import-stage{background:#080d16;border:1px solid #2d3f5b;border-radius:9px;padding:9px;font-size:10px;font-weight:800;opacity:.55}
+.import-stage.done{border-color:#4de391;color:#7dffb4;opacity:1}
+.import-stage.error{border-color:#ff6b73;color:#ff9da3;opacity:1}
+.reference-panel{margin-top:0!important}
+.reference-grid{grid-template-columns:1fr!important}
+.reference-image-wrap{min-height:440px!important}
+.reference-image-wrap img{max-height:600px;object-fit:contain}
+@media(max-width:1400px){
+  .desktop-workstation{grid-template-columns:minmax(560px,1.25fr) minmax(400px,.9fr) minmax(330px,.75fr)}
+}
+
+
+.grade-panel{margin-top:14px;background:linear-gradient(180deg,#0c1420,#09101a);border:1px solid #405b7c;border-radius:16px;padding:16px}
+.grade-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:12px}
+.grade-card{background:#080d16;border:1px solid #2d3f5b;border-radius:11px;padding:11px}
+.grade-card b{display:block;font-size:10px;opacity:.55;letter-spacing:.08em}
+.grade-card span{display:block;margin-top:5px;font-size:18px;font-weight:900}
+.grade-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.grade-result{margin-top:12px;background:#060a11;border:1px solid #2a3b55;border-radius:12px;padding:12px;min-height:90px}
+.grade-result pre{white-space:pre-wrap;word-break:break-word;margin:0;font-size:12px}
+
+/* RareIQ Command Center */
+:root{
+  --bg:#06101c;
+  --panel:#0b1828;
+  --panel2:#0e1e31;
+  --line:#203650;
+  --muted:#8092aa;
+  --text:#f4f8ff;
+  --cyan:#54d8ff;
+  --violet:#7565ff;
+  --green:#35e58d;
+  --gold:#ffca58;
+  --red:#ff6375;
+}
+html,body{height:100%}
+body{
+  min-width:1500px!important;
+  overflow-x:auto;
+  background:
+    radial-gradient(circle at 48% -15%,rgba(38,95,150,.16),transparent 34%),
+    linear-gradient(180deg,#071321,#040a12 72%);
+  color:var(--text);
+  font-family:Inter,Segoe UI,Arial,sans-serif;
+}
+main{
+  max-width:none!important;
+  width:auto!important;
+  margin:0!important;
+  padding:0!important;
+}
+body>main>h1,body>main>.sub{display:none!important}
+.command-shell{min-height:100vh;display:grid;grid-template-columns:184px minmax(0,1fr)}
+.command-sidebar{
+  position:sticky;top:0;height:100vh;padding:22px 14px 16px;
+  border-right:1px solid rgba(77,113,153,.22);
+  background:linear-gradient(180deg,rgba(7,23,39,.98),rgba(5,16,28,.98));
+  display:flex;flex-direction:column;z-index:20
+}
+.command-brand{display:flex;align-items:center;gap:10px;font-size:23px;font-weight:900;margin:0 9px 28px}
+.brand-mark{
+  width:31px;height:31px;border-radius:10px;display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--cyan),var(--violet));
+  box-shadow:0 0 24px rgba(92,124,255,.35);font-size:17px
+}
+.command-nav{display:grid;gap:7px}
+.command-nav button{
+  margin:0;padding:13px 14px;text-align:left;color:#91a5bd;background:transparent;
+  border:1px solid transparent;border-radius:10px;font-weight:700
+}
+.command-nav button:hover,.command-nav button.active{
+  color:#dbe7ff;background:linear-gradient(90deg,rgba(76,100,238,.24),rgba(65,102,185,.1));
+  border-color:rgba(108,120,255,.18)
+}
+.sidebar-foot{margin-top:auto;color:var(--muted);font-size:12px;padding:12px}
+.command-main{min-width:0;padding:17px 18px 14px}
+.command-topbar{height:42px;display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.command-title{font-size:22px;font-weight:900;letter-spacing:-.02em}
+.version-chip{font-size:10px;padding:4px 7px;background:#15243b;border:1px solid #29415e;border-radius:7px;color:#bfcae0;margin-left:8px}
+.top-status{display:flex;align-items:center;gap:15px;font-size:12px;color:#a8bad0}
+.live-dot{width:8px;height:8px;background:var(--green);border-radius:50%;box-shadow:0 0 10px var(--green);display:inline-block;margin-right:6px}
+.operator-avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#21344d;font-weight:900}
+.kpi-strip{display:grid;grid-template-columns:1.02fr 1.08fr 1.05fr 1.15fr 1fr .86fr .62fr;gap:10px;margin-bottom:12px}
+.kpi-card{
+  min-height:82px;padding:13px 14px;border-radius:12px;border:1px solid rgba(61,91,126,.44);
+  background:linear-gradient(145deg,rgba(13,31,51,.97),rgba(9,24,41,.96));
+  display:flex;gap:11px;align-items:center;box-shadow:0 10px 30px rgba(0,0,0,.12)
+}
+.kpi-icon{width:37px;height:37px;border-radius:50%;display:grid;place-items:center;background:rgba(44,232,143,.10);color:var(--green);font-size:18px}
+.kpi-label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#8ea0b8}
+.kpi-value{font-size:16px;font-weight:900;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}
+.kpi-sub{font-size:10px;color:#7f92aa;margin-top:4px}
+.new-batch-btn{height:46px;background:linear-gradient(135deg,#6f5cf6,#4d43cd)!important;color:white!important;margin:0!important}
+.hero-grid{display:grid;grid-template-columns:minmax(700px,1.56fr) minmax(510px,.96fr);gap:12px}
+.premium-card{
+  border:1px solid rgba(57,89,126,.48);border-radius:13px;
+  background:linear-gradient(180deg,rgba(12,28,47,.98),rgba(8,22,38,.98));
+  box-shadow:0 12px 38px rgba(0,0,0,.15);overflow:hidden
+}
+.card-head{height:42px;padding:0 13px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(48,76,106,.33)}
+.card-head h2,.card-head h3{font-size:14px;margin:0}
+.live-pill,.verified-pill{padding:5px 9px;border-radius:999px;font-size:10px;font-weight:900}
+.live-pill{background:rgba(46,225,135,.14);color:var(--green)}
+.verified-pill{background:rgba(46,225,135,.16);color:#63ffa8}
+.camera-card{padding:0!important}
+.camera-card .camera{border:0!important;border-radius:0!important;aspect-ratio:16/8.5!important;background:#02060b}
+.camera-card .camera img{object-fit:cover!important}
+.camera-card .vision-hud{display:none!important}
+.camera-controls{
+  display:flex!important;align-items:center;gap:7px;padding:9px 11px;border-top:1px solid rgba(50,78,106,.35);
+  background:#091726
+}
+.camera-controls button{padding:9px 12px!important;font-size:11px!important;margin:0!important}
+.camera-controls select{width:160px!important;padding:8px!important}
+.camera-controls .auto-wrap{margin-left:auto!important;font-size:11px!important}
+.reference-panel{
+  margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;padding:0!important
+}
+.reference-head{display:none!important}
+.reference-grid{display:grid!important;grid-template-columns:150px minmax(0,1fr)!important;gap:12px!important;padding:13px}
+.reference-image-wrap{min-height:230px!important;background:#07101b!important;border-color:#28405d!important}
+.reference-image-wrap img{height:230px!important;object-fit:contain!important}
+.reference-meta{grid-template-columns:repeat(3,minmax(0,1fr))!important;align-content:start}
+.reference-meta-card{padding:10px!important;border-color:#263e5b!important;background:#0b1929!important}
+.reference-meta-card span{font-size:14px!important}
+.match-intelligence{display:grid;grid-template-columns:1.25fr .75fr;gap:12px;padding:0 13px 13px}
+.confidence-box,.price-box{border:1px solid #294360;border-radius:11px;background:#0a1726;padding:13px}
+.confidence-box{display:grid;grid-template-columns:145px 1fr;align-items:center;gap:14px}
+.confidence-ring{
+  --pct:0;
+  width:112px;height:112px;border-radius:50%;margin:auto;display:grid;place-items:center;
+  background:conic-gradient(var(--green) calc(var(--pct)*1%),#15263a 0);
+  position:relative
+}
+.confidence-ring:after{content:"";position:absolute;width:80px;height:80px;background:#0a1726;border-radius:50%}
+.confidence-ring strong{position:relative;z-index:1;font-size:25px}
+.verify-list{display:grid;gap:9px;font-size:11px;color:#94a8bf}
+.verify-row{display:flex;justify-content:space-between}.verify-check{color:var(--green)}
+.price-big{font-size:29px;font-weight:900;margin:8px 0 16px}
+.price-line{display:flex;justify-content:space-between;border-top:1px solid #20364f;padding-top:10px;font-size:12px}
+.match-action{margin:0 13px 13px!important;width:calc(100% - 26px);background:linear-gradient(90deg,#162d68,#293378)!important;color:#c9d0ff!important}
+.tools-grid{display:grid;grid-template-columns:1.05fr 1.06fr 1.38fr 1.28fr;gap:12px;margin-top:12px}
+.tool-card{padding:13px;min-height:270px}
+.tool-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}.tool-title h3{margin:0;font-size:14px}
+.tool-card .live-import-panel,.tool-card .set-panel,.tool-card .recognition-lab,.tool-card .grade-panel{
+  margin:0!important;border:0!important;background:transparent!important;padding:0!important;border-radius:0!important
+}
+.tool-card .live-import-panel>h2,.tool-card .set-panel h2,.tool-card .recognition-lab h3,.tool-card .grade-panel h2{font-size:14px!important}
+.live-import-grid{grid-template-columns:1fr!important}
+.import-stage-grid{grid-template-columns:repeat(3,1fr)!important}
+.set-grid{grid-template-columns:repeat(2,1fr)!important}
+.recognition-grid{grid-template-columns:repeat(2,1fr)!important}
+.confidence-grid{grid-template-columns:repeat(3,1fr)!important}
+.pipeline{grid-template-columns:repeat(2,1fr)!important}
+.grade-panel .grade-actions,.grade-panel .grade-grid,.grade-panel .grade-result{display:none!important}
+.grade-compact{
+  min-height:165px;border:1px dashed #2d4665;border-radius:11px;display:grid;place-items:center;text-align:center;padding:18px;color:#8498b0
+}
+.grade-actions-bar{display:flex;gap:8px;margin-top:10px}
+.grade-actions-bar button{flex:1;margin:0!important;padding:9px!important;font-size:11px}
+.dev-lab{margin-top:12px}
+.dev-lab details{border:1px solid #253d59;border-radius:12px;background:#081522}
+.dev-lab summary{cursor:pointer;padding:14px;font-weight:900;color:#a9bbd1}
+.dev-lab-content{padding:0 14px 14px}
+.portrait-panel{display:none!important}
+.bottom-workflow{display:grid;grid-template-columns:1.2fr 1fr;gap:12px;margin-top:12px}
+.batch-card,.activity-card{padding:14px}
+.batch-card h2,.activity-card h2{font-size:14px;margin:0 0 10px}
+.batch-card .stats{grid-template-columns:repeat(4,1fr)!important}
+.batch-card .two{grid-template-columns:1fr 1fr!important}
+.activity-card pre{height:190px;max-height:190px!important;margin:0;font-size:10px}
+.system-footer{display:flex;justify-content:space-between;color:#71869e;font-size:10px;padding:12px 4px 0}
+@media(max-width:1700px){
+  .kpi-strip{grid-template-columns:repeat(7,minmax(150px,1fr))}
+  .hero-grid{grid-template-columns:minmax(650px,1.45fr) minmax(470px,.95fr)}
+  .tools-grid{grid-template-columns:1fr 1fr 1.25fr 1.15fr}
+}
+
+</style>
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"></head><body><main><h1>RareIQ Operator Dashboard <span style="font-size:.45em;opacity:.72">v1.2.0</span></h1><div class="sub">v1.2.0 â€” Command Center â€¢ Build 2026.07.11 â€¢ Project Digital Jazz â€¢ <a href="/about" style="color:#72eaff">Diagnostics</a></div><div class="grid"><section class="panel">
+<h2>Live card camera</h2><div class="camera"><img id="cameraFeed"><div id="cameraStatus" class="status offline">CAMERA OFFLINE</div></div>
+<div class="vision-hud">
+  <div class="hud-card"><span class="hud-label">CAMERA</span><span id="hudCamera" class="hud-value">OFFLINE</span></div>
+  <div class="hud-card"><span class="hud-label">VISION STATUS</span><span id="hudVision" class="hud-value">OFFLINE</span></div>
+  <div class="hud-card"><span class="hud-label">AUTO CAPTURE</span><span id="hudAuto" class="hud-value">ON</span></div>
+  <div class="hud-card">
+    <span class="hud-label">STABILITY</span>
+    <span id="hudStable" class="hud-value">0 / 8</span>
+    <div class="meter"><span id="stabilityBar"></span></div>
+  </div>
+</div>
+<div class="row" style="margin-top:10px">
+  <div class="field">
+    <label>Camera</label>
+    <select id="cameraSelect"><option>Scanning for camerasâ€¦</option></select>
+  </div>
+  <button class="primary" onclick="loadCameras()">Refresh Cameras</button>
+  <button class="good" onclick="startCamera()">Start Selected Camera</button>
+  <button class="danger" onclick="stopCamera()">Stop Camera</button>
+  <button class="primary" onclick="captureCard()">Capture Corrected Card</button>
+  <label class="auto-wrap">
+    <input id="autoCapture" type="checkbox" checked onchange="toggleAutoCapture()">
+    Auto Capture Enabled
+  </label>
+</div>
+<section class="live-import-panel">
+  <h2 style="margin:0">Live Catalog Import</h2>
+  <div style="font-size:12px;opacity:.65;margin-top:4px">
+    Download a real PokÃ©mon set from TCGdex, cache its official card images, and rebuild the local visual index.
+  </div>
+  <div class="live-import-grid">
+    <input id="liveSetId" placeholder="TCGdex set ID, example: swsh3">
+    <select id="liveSetLanguage">
+      <option>English</option>
+      <option>Japanese</option>
+      <option>French</option>
+      <option>German</option>
+      <option>Italian</option>
+      <option>Spanish</option>
+      <option>Portuguese</option>
+      <option>Chinese</option>
+      <option>Korean</option>
+    </select>
+    <input id="liveSetLimit" type="number" min="1" placeholder="Test limit, blank = all">
+    <button id="liveImportButton" class="good" onclick="importLiveSet()">Import Live Set</button>
+  </div>
+  <div id="importStages" class="import-stage-grid">
+  <div id="stageConnected" class="import-stage">API CONNECT</div>
+  <div id="stageSetLoaded" class="import-stage">SET FOUND</div>
+  <div id="stageMetadata" class="import-stage">METADATA</div>
+  <div id="stageImages" class="import-stage">IMAGES</div>
+  <div id="stageReferences" class="import-stage">REFERENCES</div>
+  <div id="stageIndex" class="import-stage">INDEX READY</div>
+</div>
+<div id="liveImportStatus" class="live-import-status">
+    Ready. Use <strong>swsh3</strong> with English for the first real database test.
+  </div>
+</section>
+<section class="set-panel">
+  <div class="row" style="justify-content:space-between;align-items:center">
+    <div>
+      <h2 style="margin:0">Active Set Mode</h2>
+      <div style="font-size:12px;opacity:.65;margin-top:4px">
+        Limit recognition to the product currently being opened.
+      </div>
+    </div>
+    <div class="row">
+      <select id="activeSetSelect" style="min-width:260px">
+        <option>Loading setsâ€¦</option>
+      </select>
+      <button class="good" onclick="applyActiveSet()">Load Set</button>
+    </div>
+  </div>
+  <div class="set-grid">
+    <div class="set-card"><b>GAME</b><span id="activeSetGame">â€”</span></div>
+    <div class="set-card"><b>LANGUAGE</b><span id="activeSetLanguage">â€”</span></div>
+    <div class="set-card"><b>SET</b><span id="activeSetName">â€”</span></div>
+    <div class="set-card"><b>INDEXED CARDS</b><span id="activeSetCards">0</span></div>
+  </div>
+</section>
+<section id="cardGraderPanel" class="grade-panel">
+  <div class="row" style="justify-content:space-between;align-items:start">
+    <div>
+      <h2 style="margin:0">AI Pre-Grading</h2>
+      <div style="font-size:12px;opacity:.65;margin-top:4px">
+        CardGrader.AI predicts card condition from front and optional back photos.
+      </div>
+    </div>
+    <div id="gradeApiState" style="font-weight:900;color:#ffca66">NOT CONFIGURED</div>
+  </div>
+  <div class="grade-actions">
+    <input id="gradeAgentName" value="RareIQ" placeholder="Agent name">
+    <input id="gradeContactEmail" placeholder="Email for trial credits">
+    <button class="primary" onclick="registerCardGrader()">Register API</button>
+  </div>
+  <div class="grade-actions">
+    <input id="gradeApiKey" type="password" placeholder="Or paste cgk_ API key">
+    <button onclick="saveCardGraderKey()">Save Key</button>
+    <button onclick="refreshCardGraderStatus()">Check Balance</button>
+  </div>
+  <div class="grade-actions">
+    <button class="primary" onclick="captureGradeFront()">Capture Front</button>
+    <button onclick="captureGradeBack()">Capture Back</button>
+    <select id="gradeModule">
+      <option value="grade">Grade</option>
+      <option value="identify">Identify</option>
+      <option value="market">Market</option>
+      <option value="full">Full</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:6px">
+      <input id="gradeIncludeBack" type="checkbox"> Include back
+    </label>
+    <button class="good" onclick="submitGradeScan()">Submit Scan</button>
+  </div>
+  <div class="grade-grid">
+    <div class="grade-card"><b>STATUS</b><span id="gradeStatus">Idle</span></div>
+    <div class="grade-card"><b>CREDITS</b><span id="gradeCredits">â€”</span></div>
+    <div class="grade-card"><b>PREDICTED GRADE</b><span id="gradePredicted">â€”</span></div>
+    <div class="grade-card"><b>PROGRESS</b><span id="gradeProgress">â€”</span></div>
+  </div>
+  <div class="grade-grid">
+    <div class="grade-card"><b>CENTERING</b><span id="gradeCentering">â€”</span></div>
+    <div class="grade-card"><b>CORNERS</b><span id="gradeCorners">â€”</span></div>
+    <div class="grade-card"><b>EDGES</b><span id="gradeEdges">â€”</span></div>
+    <div class="grade-card"><b>SURFACE</b><span id="gradeSurface">â€”</span></div>
+  </div>
+  <div class="grade-result"><pre id="gradeResult">Configure the API, capture the card, then submit a scan.</pre></div>
+</section>
+<div class="recognition-lab">
+  <div class="row" style="justify-content:space-between;align-items:center">
+    <h3 style="margin:0">Recognition Lab â€¢ Command Center</h3>
+    <label class="auto-wrap">
+      <input id="recognitionEnabled" type="checkbox" checked onchange="toggleRecognition()">
+      Live OCR Enabled
+    </label>
+  </div>
+  <div class="recognition-grid"><div class="recognition-card"><span class="recognition-label">MODE</span><span id="recMode" class="recognition-value">CENTER ROI</span></div>
+    <div class="recognition-card"><span class="recognition-label">NAME CANDIDATE</span><span id="recName" class="recognition-value">Waitingâ€¦</span></div><div class="recognition-card"><span class="recognition-label">HP</span><span id="recHp" class="recognition-value">â€”</span></div>
+    <div class="recognition-card"><span class="recognition-label">OCR NUMBER</span><span id="recOcrNumber" class="recognition-value">â€”</span></div><div class="recognition-card"><span class="recognition-label">VALIDATED NUMBER</span><span id="recNumber" class="recognition-value">â€”</span></div><div class="recognition-card"><span class="recognition-label">DATABASE MATCH</span><span id="recDbMatch" class="recognition-value">â€”</span></div>
+    <div class="recognition-card"><span class="recognition-label">LANGUAGE</span><span id="recLanguage" class="recognition-value">â€”</span></div>
+    <div class="recognition-card"><span class="recognition-label">LATENCY / CONFIDENCE</span><span id="recPerf" class="recognition-value">â€”</span></div>
+  </div>
+  <div class="region-row"><span id="regionTop" class="region-pill">TOP</span><span id="regionBottom" class="region-pill">BOTTOM</span><span id="regionArtwork" class="region-pill">ARTWORK</span><span id="regionFull" class="region-pill">FULL FALLBACK</span></div><div class="recognition-card"><span class="recognition-label">ARTWORK FINGERPRINT</span><span id="recFingerprint" class="recognition-value">â€”</span></div><div id="hermesPipeline" class="pipeline">
+  <div class="pipeline-step waiting">Waiting for pipelineâ€¦</div>
+</div>
+<div class="confidence-grid">
+  <div class="confidence-card"><b>OVERALL</b><span id="apolloOverall">0%</span></div>
+  <div class="confidence-card"><b>LOCK</b><span id="apolloLock">SEARCHING</span></div>
+  <div class="confidence-card"><b>OCR</b><span id="apolloOcr">0%</span></div>
+  <div class="confidence-card"><b>DATABASE</b><span id="apolloDb">0%</span></div>
+  <div class="confidence-card"><b>NUMBER</b><span id="apolloNumber">NO</span></div><div class="confidence-card"><b>OCR TIME</b><span id="apolloOcrMs">â€”</span></div><div class="confidence-card"><b>TOTAL TIME</b><span id="artemisTotalMs">â€”</span></div><div class="confidence-card"><b>CANDIDATES</b><span id="artemisCandidates">0</span></div><div class="confidence-card"><b>INDEX CARDS</b><span id="artemisIndexCount">0</span></div><div class="confidence-card"><b>INDEX SEARCH</b><span id="artemisIndexMs">â€”</span></div><div class="confidence-card"><b>TOP ART SCORE</b><span id="artemisTopArt">0%</span></div>
+</div>
+<div class="row" style="margin-top:10px">
+  <button id="rebuildIndexButton" class="primary" onclick="rebuildArtworkIndex()">Rebuild Index</button>
+  <span id="indexBuildStatus" style="font-size:12px;opacity:.7">Reference folder ready</span>
+</div>
+<div id="apolloCandidates" class="candidate-list">
+  <div class="candidate"><span>Waiting for recognition candidatesâ€¦</span><strong>â€”</strong></div>
+</div>
+<div id="ocrLines" class="ocr-lines">Show a card to begin live OCR.</div>
+<div class="catalog-lab">
+  <h3 style="margin:0 0 10px">Catalog Lookup â€¢ TCGdex</h3>
+  <div class="catalog-grid">
+    <div class="catalog-card"><span class="catalog-label">STATUS</span><span id="catStatus" class="catalog-value">Waitingâ€¦</span></div>
+    <div class="catalog-card"><span class="catalog-label">MATCH</span><span id="catMatch" class="catalog-value">â€”</span></div>
+    <div class="catalog-card"><span class="catalog-label">SET / RARITY</span><span id="catSet" class="catalog-value">â€”</span></div>
+    <div class="catalog-card"><span class="catalog-label">LOOKUP TIME</span><span id="catLatency" class="catalog-value">â€”</span></div>
+  </div>
+  <div id="catPrice" class="catalog-card" style="margin-top:9px"><span class="catalog-label">PRICE</span><span class="catalog-value">â€”</span></div>
+  <div id="catCandidates" class="candidate-list">Waiting for a collector numberâ€¦</div>
+</div>
+</div>
+<section id="referencePanel" class="reference-panel">
+  <div class="reference-head">
+    <div>
+      <h2 style="margin:0">Reference Match Preview</h2>
+      <div style="font-size:12px;opacity:.65;margin-top:4px">
+        Visually confirm the indexed card against the live camera.
+      </div>
+    </div>
+    <div id="referenceBadge" class="reference-badge">WAITING</div>
+  </div>
+  <div class="reference-grid">
+    <div class="reference-image-wrap">
+      <img id="referenceImage" alt="Matched reference card" style="display:none">
+      <div id="referenceEmpty" class="reference-empty">
+        No indexed reference image is available yet.
+      </div>
+    </div>
+    <div class="reference-meta">
+      <div class="reference-meta-card"><b>MATCH</b><span id="referenceName">â€”</span></div>
+      <div class="reference-meta-card"><b>CONFIDENCE</b><span id="referenceConfidence">â€”</span></div>
+      <div class="reference-meta-card"><b>COLLECTOR NUMBER</b><span id="referenceNumber">â€”</span></div>
+      <div class="reference-meta-card"><b>LANGUAGE</b><span id="referenceLanguage">â€”</span></div>
+      <div class="reference-meta-card"><b>SET</b><span id="referenceSet">â€”</span></div>
+      <div class="reference-meta-card"><b>SOURCE</b><span id="referenceSource">â€”</span></div>
+    </div>
+  </div>
+</section>
+<h2>Start customer batch</h2><div class="row"><div class="field"><label>Customer</label><input id="customer" value="Demo Customer"></div><div class="field"><label>Order</label><input id="order" value="RIQ-0001"></div><div class="field"><label>Product</label><input id="product" value="Greninja Jumbo Box"></div><div class="field"><label>Boxes</label><input id="boxes" type="number" value="1"></div><div class="field"><label>Packs per box</label><input id="packs" type="number" value="5"></div></div><button class="primary" onclick="startSession()">Start Batch</button>
+<div class="stats"><div class="stat"><strong id="boxStat">1/1</strong><span>BOX</span></div><div class="stat"><strong id="packStat">1/5</strong><span>PACK</span></div><div class="stat"><strong id="cardStat">0</strong><span>CARDS</span></div><div class="stat"><strong id="valueStat">$0</strong><span>VALUE</span></div></div>
+<h2>Pack and box controls</h2><div class="two"><button class="warn" onclick="post('/api/session/previous-pack')">â—€ Previous Pack</button><button class="good" onclick="post('/api/session/next-pack')">Next Pack â–¶</button><button class="warn" onclick="post('/api/session/previous-box')">â—€ Previous Box</button><button class="good" onclick="post('/api/session/next-box')">Next Box â–¶</button></div>
+<h2>Demo card triggers</h2><button onclick="demo('common')">Common</button><button class="rare" onclick="demo('rare')">Rare</button><button class="double" onclick="demo('double_rare')">Double Rare</button><button class="illustration" onclick="demo('illustration_rare')">Illustration Rare</button><button class="grail" onclick="demo('grail')">Grail</button>
+<h2>Session controls</h2><button class="warn" onclick="post('/api/session/undo')">Undo Last Card</button><button class="danger" onclick="post('/api/session/close')">Close Customer</button>
+<h2>Live event feed</h2><pre id="feed">Connectingâ€¦</pre></section><section class="panel"><h2>Portrait data preview</h2><iframe class="preview" src="/overlay/data"></iframe></section></div>
+<footer style="margin-top:18px;text-align:center;opacity:.52;font-size:12px">
+RareIQ Vision v1.2.0 â€” Command Center â€¢ Build 2026.07.11 â€¢ Project Digital Jazz
+</footer>
+</main>
+<script src="/static/common.js"></script><script>
+const $=id=>document.getElementById(id);async function post(url,body){const r=await fetch(url,{method:"POST",headers:body?{"Content-Type":"application/json"}:undefined,body:body?JSON.stringify(body):undefined});return r.json()}
+function renderImportStages(stages,error=false){
+  const map=[
+    ["stageConnected","connected"],
+    ["stageSetLoaded","set_loaded"],
+    ["stageMetadata","metadata_downloaded"],
+    ["stageImages","images_downloaded"],
+    ["stageReferences","references_copied"],
+    ["stageIndex","index_rebuilt"]
+  ];
+  map.forEach(([id,key])=>{
+    const el=$(id);
+    const value=stages?.[key];
+    el.classList.remove("done","error");
+    if(value===true||Number(value)>0)el.classList.add("done");
+    else if(error)el.classList.add("error");
+  });
+}
+
+async function importLiveSet(){
+  const button=$("liveImportButton");
+  const status=$("liveImportStatus");
+  const setId=$("liveSetId").value.trim();
+  const language=$("liveSetLanguage").value;
+  const limitText=$("liveSetLimit").value.trim();
+
+  if(!setId){
+    status.textContent="Enter a TCGdex set ID first.";
+    return;
+  }
+
+  button.disabled=true;
+  renderImportStages({},false);
+  status.textContent="Connecting to TCGdex and importing official card dataâ€¦";
+
+  try{
+    const payload={
+      set_id:setId,
+      language,
+      max_cards:limitText?Number(limitText):null
+    };
+    const result=await post("/api/live-catalog/import-set",payload);
+
+    if(!result.ok){
+      renderImportStages(result.stages||{},true);
+      status.textContent=`Import failed: ${result.error||"Unknown error"}`;
+      return;
+    }
+
+    renderImportStages(result.stages||{},false);
+    status.textContent=
+      `Imported ${result.imported} official cards from ${result.set_name}. `+
+      `Skipped ${result.skipped}. Index now has `+
+      `${result.index_status?.record_count||0} references. `+
+      `Images downloaded: ${result.stages?.images_downloaded||0}.`;
+
+    await loadSets();
+refreshCardGraderStatus();
+  }catch(error){
+    status.textContent=`Import failed: ${error}`;
+  }finally{
+    button.disabled=false;
+  }
+}
+
+let activeGradeScanId=null;
+let gradePollTimer=null;
+
+function renderCardGraderStatus(payload){
+  const data=payload?.cardgrader||payload||{};
+  $("gradeApiState").textContent=data.configured?"CONNECTED":"NOT CONFIGURED";
+  $("gradeApiState").style.color=data.configured?"#7dffb4":"#ffca66";
+  $("gradeCredits").textContent=String(
+    data.agent?.creditsRemaining ?? data.agent?.credits ?? "â€”"
+  );
+}
+
+async function refreshCardGraderStatus(){
+  const response=await fetch("/api/cardgrader/status",{cache:"no-store"});
+  renderCardGraderStatus(await response.json());
+}
+
+async function registerCardGrader(){
+  $("gradeStatus").textContent="Registering";
+  const result=await post("/api/cardgrader/register",{
+    name:$("gradeAgentName").value.trim()||"RareIQ",
+    contact_email:$("gradeContactEmail").value.trim()||null
+  });
+  $("gradeResult").textContent=result.ok
+    ? "API registered and key saved locally."
+    : result.error||"Registration failed.";
+  $("gradeStatus").textContent=result.ok?"Ready":"Error";
+  await refreshCardGraderStatus();
+}
+
+async function saveCardGraderKey(){
+  const key=$("gradeApiKey").value.trim();
+  if(!key)return;
+  const result=await post("/api/cardgrader/key",{api_key:key});
+  $("gradeResult").textContent=result.ok
+    ? "API key saved and verified."
+    : result.error||"Key validation failed.";
+  if(result.ok)$("gradeApiKey").value="";
+  await refreshCardGraderStatus();
+}
+
+async function captureGradeFront(){
+  const result=await post("/api/cardgrader/capture-front");
+  $("gradeResult").textContent=result.ok?`Front captured: ${result.path}`:result.error;
+}
+
+async function captureGradeBack(){
+  const result=await post("/api/cardgrader/capture-back");
+  $("gradeResult").textContent=result.ok?`Back captured: ${result.path}`:result.error;
+}
+
+async function submitGradeScan(){
+  $("gradeStatus").textContent="Submitting";
+  $("gradeProgress").textContent="0%";
+  const result=await post("/api/cardgrader/submit",{
+    module:$("gradeModule").value,
+    include_back:$("gradeIncludeBack").checked
+  });
+  if(!result.ok){
+    $("gradeStatus").textContent="Error";
+    $("gradeResult").textContent=result.error||"Submit failed.";
+    return;
+  }
+  activeGradeScanId=result.scan?.id;
+  $("gradeStatus").textContent=result.scan?.status||"Queued";
+  $("gradeResult").textContent=`Scan ${activeGradeScanId} submitted. Pollingâ€¦`;
+  if(gradePollTimer)clearInterval(gradePollTimer);
+  gradePollTimer=setInterval(pollGradeScan,3000);
+  pollGradeScan();
+}
+
+async function pollGradeScan(){
+  if(!activeGradeScanId)return;
+  const response=await fetch(`/api/cardgrader/scan/${activeGradeScanId}`,{cache:"no-store"});
+  const result=await response.json();
+  if(!result.ok){
+    $("gradeStatus").textContent="Error";
+    $("gradeResult").textContent=result.error||"Polling failed.";
+    clearInterval(gradePollTimer);
+    gradePollTimer=null;
+    return;
+  }
+  const scan=result.scan||{};
+  $("gradeStatus").textContent=scan.status||"Processing";
+  $("gradeProgress").textContent=scan.progressPercent!=null?`${scan.progressPercent}%`:"â€”";
+  if(scan.status==="completed"){
+    clearInterval(gradePollTimer);
+    gradePollTimer=null;
+    const grading=scan.grading||{};
+    const sub=grading.subGrades||{};
+    $("gradePredicted").textContent=String(grading.predictedGrade??grading.grade??"â€”");
+    $("gradeCentering").textContent=String(sub.centering??"â€”");
+    $("gradeCorners").textContent=String(sub.corners??"â€”");
+    $("gradeEdges").textContent=String(sub.edges??"â€”");
+    $("gradeSurface").textContent=String(sub.surface??"â€”");
+    $("gradeResult").textContent=JSON.stringify(scan,null,2);
+    await refreshCardGraderStatus();
+  }else{
+    $("gradeResult").textContent=scan.statusMessage||"CardGrader is processing the scan.";
+  }
+}
+
+function renderActiveSet(setInfo,indexStatus){
+  const active=setInfo||{};
+  $("activeSetGame").textContent=active.game||"â€”";
+  $("activeSetLanguage").textContent=active.language||"â€”";
+  $("activeSetName").textContent=active.name||"â€”";
+  $("activeSetCards").textContent=String(indexStatus?.record_count||0);
+}
+
+async function loadSets(){
+  const select=$("activeSetSelect");
+  try{
+    const response=await fetch("/api/sets",{cache:"no-store"});
+    const result=await response.json();
+    select.innerHTML="";
+    (result.sets||[]).forEach(set=>{
+      const option=document.createElement("option");
+      option.value=set.id;
+      option.textContent=`${set.game} â€¢ ${set.language} â€¢ ${set.name}`;
+      select.appendChild(option);
+    });
+    const activeId=result.status?.active_set_id;
+    if(activeId)select.value=activeId;
+    renderActiveSet(
+      result.status?.active_set,
+      {record_count:0}
+    );
+  }catch(error){
+    select.innerHTML="<option value=''>Set loading failed</option>";
+  }
+}
+
+async function applyActiveSet(){
+  const setId=$("activeSetSelect").value;
+  if(!setId)return;
+  const result=await post("/api/sets/active",{set_id:setId});
+  if(result.ok){
+    renderActiveSet(result.active_set,result.index_status);
+  }
+}
+
+async function loadCameras(){
+  const select=$("cameraSelect");
+  select.innerHTML="<option>Scanning for camerasâ€¦</option>";
+  try{
+    const response=await fetch("/api/cameras");
+    const result=await response.json();
+    select.innerHTML="";
+    if(!result.ok||!result.cameras.length){
+      select.innerHTML="<option value=''>No cameras detected</option>";
+      return;
+    }
+    result.cameras.forEach(camera=>{
+      const option=document.createElement("option");
+      option.value=JSON.stringify({index:camera.index,backend:camera.backend});
+      option.textContent=`${camera.name} (${camera.backend_name})`;
+      select.appendChild(option);
+    });
+    const saved=localStorage.getItem("rareiq.camera");
+    if(saved&&[...select.options].some(option=>option.value===saved)){
+      select.value=saved;
+    }else{
+      const insta=[...select.options].find(option=>option.textContent.toLowerCase().includes("insta360"));
+      if(insta)select.value=insta.value;
+    }
+  }catch(error){
+    select.innerHTML="<option value=''>Camera scan failed</option>";
+  }
+}
+
+async function startCamera(){
+  const raw=$("cameraSelect").value;
+  if(!raw){
+    alert("Select a camera first.");
+    return;
+  }
+  const selected=JSON.parse(raw);
+  localStorage.setItem("rareiq.camera",raw);
+  const r=await post("/api/camera/start",{
+    camera_index:selected.index,
+    camera_backend:selected.backend
+  });
+  if(r.ok)$("cameraFeed").src=`/api/camera/stream?t=${Date.now()}`;
+}
+
+async function toggleAutoCapture(){
+  await post("/api/camera/auto-capture",{
+    enabled:$("autoCapture").checked
+  });
+}
+
+async function toggleRecognition(){
+  await post("/api/recognition/toggle",{
+    enabled:$("recognitionEnabled").checked
+  });
+}
+
+function renderCatalog(c){
+  $("catStatus").textContent=c.busy?"LOOKING UPâ€¦":(c.error?"ERROR":(c.match?"MATCH FOUND":((c.candidates||[]).length?"CANDIDATES":"NO MATCH")));
+  const match=c.match;
+  $("catMatch").textContent=match?`${match.name} â€¢ ${match.collector_number}`:"â€”";
+  $("catSet").textContent=match?`${match.set_name||"Unknown set"} â€¢ ${match.rarity||"Unknown rarity"}`:"â€”";
+  $("catLatency").textContent=c.latency_ms==null?"â€”":`${c.latency_ms} ms`;
+  const price=match&&match.pricing;
+  $("catPrice").querySelector(".catalog-value").textContent=price?`${price.source}: ${price.market??"â€”"} ${price.unit||""} (low ${price.low??"â€”"})`:"No pricing returned";
+  const candidates=c.candidates||[];
+  const lines=[];
+  if(c.note)lines.push(`NOTE: ${c.note}`);
+  if(c.error)lines.push(`ERROR: ${c.error}`);
+  candidates.forEach((card,index)=>lines.push(`${index+1}. ${card.name} â€¢ ${card.collector_number} â€¢ ${card.set_name||"Unknown set"} â€¢ ${card.rarity||"Unknown rarity"} [${card.language_code}]`));
+  $("catCandidates").textContent=lines.length?lines.join("\n"):"No catalog candidates yet.";
+}
+
+let pendingRecognition=null;
+let recognitionRenderTimer=null;
+let lastRecognitionSignature="";
+let lastFeedUpdate=0;
+
+function recognitionSignature(r){
+  return JSON.stringify({
+    name:r.name_candidate,
+    number:r.collector_number,
+    language:r.language,
+    overall:r.overall_confidence,
+    locked:r.recognition_locked,
+    fingerprint:r.artwork_fingerprint,
+    candidates:(r.candidates||[]).map(c=>[
+      c.name,c.collector_number,c.score,c.source
+    ]),
+    error:r.error
+  });
+}
+
+function scheduleRecognitionRender(r){
+  pendingRecognition=r;
+  if(recognitionRenderTimer)return;
+  recognitionRenderTimer=setTimeout(()=>{
+    recognitionRenderTimer=null;
+    const next=pendingRecognition;
+    pendingRecognition=null;
+    const signature=recognitionSignature(next||{});
+    if(signature===lastRecognitionSignature)return;
+    lastRecognitionSignature=signature;
+    renderRecognition(next||{});
+  },200);
+}
+
+async function rebuildArtworkIndex(){
+  const button=$("rebuildIndexButton");
+  const status=$("indexBuildStatus");
+  button.disabled=true;
+  status.textContent="Building indexâ€¦";
+  try{
+    const result=await post("/api/artwork-index/rebuild");
+    const count=result.status?.record_count||0;
+    const skipped=result.skipped?.length||0;
+    status.textContent=`Index ready: ${count} cards â€¢ skipped ${skipped}`;
+  }catch(error){
+    status.textContent=`Index rebuild failed: ${error}`;
+  }finally{
+    button.disabled=false;
+  }
+}
+
+function renderReferenceMatch(r){
+  const candidates=r.candidates||[];
+  const top=candidates.find(c=>c.reference_image_url)||candidates[0]||null;
+  const image=$("referenceImage");
+  const empty=$("referenceEmpty");
+
+  if(!top){
+    $("referenceBadge").textContent="WAITING";
+    $("referenceName").textContent="â€”";
+    $("referenceConfidence").textContent="â€”";
+    $("referenceNumber").textContent="â€”";
+    $("referenceLanguage").textContent="â€”";
+    $("referenceSet").textContent="â€”";
+    $("referenceSource").textContent="â€”";
+    image.style.display="none";
+    image.removeAttribute("src");
+    empty.style.display="block";
+    empty.textContent="No indexed reference image is available yet.";
+    return;
+  }
+
+  const score=Math.round(Number(top.fused_score??top.score??0)*100);
+  $("referenceBadge").textContent=r.verification_state||"MATCH FOUND";
+  $("referenceName").textContent=top.name||top.printed_name||"Unknown card";
+  $("referenceConfidence").textContent=`${score}%`;
+  $("referenceNumber").textContent=top.collector_number||"â€”";
+  $("referenceLanguage").textContent=top.language||"Unknown";
+  $("referenceSet").textContent=top.set_name||"â€”";
+  $("referenceSource").textContent=top.source||"local index";
+
+  if(top.reference_image_url){
+    image.onload=()=>{
+      image.style.display="block";
+      empty.style.display="none";
+    };
+    image.onerror=()=>{
+      image.style.display="none";
+      empty.style.display="block";
+      empty.textContent="The reference record exists, but its image could not be loaded.";
+    };
+    image.src=`${top.reference_image_url}?ts=${Date.now()}`;
+  }else{
+    image.style.display="none";
+    image.removeAttribute("src");
+    empty.style.display="block";
+    empty.textContent="This candidate has no reference image. Add one to the local index.";
+  }
+}
+
+function renderRecognition(r){
+  renderReferenceMatch(r);
+  $("recognitionEnabled").checked=typeof r.enabled==="boolean"?r.enabled:true;
+  $("recMode").textContent=r.mode||"OCR + DB";$("recName").textContent=r.name_candidate||"Waitingâ€¦";$("recHp").textContent=r.hp_candidate||"â€”";
+  $("recOcrNumber").textContent=r.ocr_collector_number||"â€”";$("recNumber").textContent=r.collector_number||"â€”";const match=r.database_match;$("recDbMatch").textContent=match?`${match.english_name||match.printed_name} â€¢ ${Math.round(Number(r.database_confidence||0)*100)}%`:"No match";
+  $("recLanguage").textContent=r.language||"â€”";$("recFingerprint").textContent=r.artwork_fingerprint||"â€”";
+  const overall=Math.round(Number(r.overall_confidence||0)*100);
+  $("apolloOverall").textContent=`${overall}%`;
+  $("apolloOcr").textContent=`${Math.round(Number(r.confidence||0)*100)}%`;
+  $("apolloDb").textContent=`${Math.round(Number(r.database_confidence||0)*100)}%`;
+  $("apolloNumber").textContent=r.collector_number?"YES":"NO";$("apolloOcrMs").textContent=r.stage_timings?.ocr_ms!=null?`${r.stage_timings.ocr_ms} ms`:"â€”";$("artemisTotalMs").textContent=r.stage_timings?.total_ms!=null?`${r.stage_timings.total_ms} ms`:"â€”";$("artemisCandidates").textContent=String(r.candidate_count||0);renderActiveSet(r.active_set?.active_set,r.artwork_index?.status);const idx=r.artwork_index||{};$("artemisIndexCount").textContent=String(idx.status?.record_count||0);$("artemisIndexMs").textContent=idx.search_ms!=null?`${idx.search_ms} ms`:"â€”";$("artemisTopArt").textContent=`${Math.round(Number(idx.top_score||0)*100)}%`;
+  $("apolloLock").textContent=r.verification_state||(
+    r.recognition_locked?"LOCKED":"SEARCHING"
+  );
+  const pipeline=$("hermesPipeline");
+  const stages=r.pipeline_stages||[];
+  pipeline.innerHTML="";
+  if(!stages.length){
+    pipeline.innerHTML='<div class="pipeline-step waiting">Waiting for pipelineâ€¦</div>';
+  }else{
+    stages.forEach(stage=>{
+      const el=document.createElement("div");
+      el.className=`pipeline-step ${stage.state||"waiting"}`;
+      el.textContent=stage.label||stage.key||"Stage";
+      pipeline.appendChild(el);
+    });
+  }
+  $("apolloLock").style.color=r.recognition_locked?"#69ffad":"#ffd36b";
+
+  const list=$("apolloCandidates");
+  const candidates=r.candidates||[];
+  list.innerHTML="";
+  if(!candidates.length){
+    list.innerHTML='<div class="candidate"><span>No candidates yet</span><strong>â€”</strong></div>';
+  }else{
+    candidates.forEach((candidate,index)=>{
+      const row=document.createElement("div");
+      row.className="candidate"+(r.recognition_locked&&index===0?" locked":"");
+      const number=candidate.collector_number||"â€”";
+      const score=Math.round(Number(candidate.fused_score??candidate.score??0)*100);
+      row.innerHTML=`<span><strong>${index+1}. ${candidate.name||"Unknown"}</strong><br><small>${number} â€¢ ${candidate.language||"Unknown"} â€¢ ${candidate.source||"local"}</small></span><strong>${score}%</strong>`;
+      list.appendChild(row);
+    });
+  }
+const regions=r.regions||{};[["regionTop","top"],["regionBottom","bottom"],["regionArtwork","artwork"],["regionFull","full"]].forEach(([id,key])=>{const el=$(id);el.className="region-pill"+(regions[key]?" on":"");});
+  const latency=r.last_latency_ms==null?"â€”":`${r.last_latency_ms} ms`;
+  const confidence=Math.round(Number(r.confidence||0)*100);
+  $("recPerf").textContent=`${latency} â€¢ ${confidence}%`;
+
+  if(r.error){
+    $("ocrLines").textContent=`OCR error: ${r.error}`;
+    return;
+  }
+  const correction=r.correction_applied?`CORRECTED: ${r.ocr_collector_number||"â€”"} â†’ ${r.collector_number||"â€”"}\n`:"";const lines=(r.raw_text||[]).map(
+    item=>`${item.text}  (${Math.round(Number(item.score||0)*100)}%)`
+  );
+  $("ocrLines").textContent=correction+(lines.length?lines.join("\n"):"No readable text yet. Hold the card inside the blue OCR zone.")
+}
+
+async function stopCamera(){await post("/api/camera/stop");$("cameraFeed").removeAttribute("src")}
+async function captureCard(){const r=await post("/api/camera/capture");alert(r.ok?`Saved: ${r.path}`:r.error)}
+async function startSession(){await post("/api/session/start",{customer:$("customer").value,order_number:$("order").value,product_name:$("product").value,boxes_total:Number($("boxes").value),packs_per_box:Number($("packs").value)})}
+async function demo(t){await post(`/api/demo/${t}`)}
+function renderSession(s){$("boxStat").textContent=`${s.active_box_number}/${s.boxes_total}`;$("packStat").textContent=`${s.active_pack_number}/${s.packs_per_box}`;$("cardStat").textContent=s.card_count;$("valueStat").textContent=money(s.total_value)}
+function renderVision(v){
+  const e=$("cameraStatus");
+  const running=!!v.running;
+  const visible=!!v.visible;
+  const stable=!!v.stable;
+  const stableFrames=Number(v.stable_frames||0);
+  const target=Number(v.stable_target||8);
+  const autoEnabled=typeof v.auto_capture_enabled==="boolean"
+    ?v.auto_capture_enabled
+    :true;
+
+  $("autoCapture").checked=autoEnabled;
+  $("hudCamera").textContent=v.camera_name||"OFFLINE";
+  $("hudVision").textContent=!running
+    ?(v.error||"OFFLINE")
+    :(stable?"CARD LOCKED":visible?"CARD DETECTED":"SEARCHING");
+  $("hudAuto").textContent=autoEnabled?"ON":"OFF";
+  $("hudStable").textContent=`${Math.min(stableFrames,target)} / ${target}`;
+  $("stabilityBar").style.width=`${Math.min(100,(stableFrames/target)*100)}%`;
+
+  if(!running){
+    e.textContent=v.error||"CAMERA OFFLINE";
+    e.className="status offline";
+  }else if(stable){
+    e.textContent=autoEnabled
+      ?"CARD LOCKED â€¢ AUTO CAPTURE ARMED"
+      :"CARD LOCKED â€¢ MANUAL MODE";
+    e.className="status locked";
+  }else{
+    e.textContent=visible?"CARD DETECTED":"SEARCHING";
+    e.className="status searching";
+  }
+}
+
+function buildDesktopWorkstation(){
+  const main=document.querySelector("main");
+  if(!main||document.querySelector(".command-shell"))return;
+
+  const originalGrid=main.querySelector(".grid");
+  const panels=originalGrid?[...originalGrid.querySelectorAll(":scope > .panel")]:[];
+  const primary=panels[0];
+  const portrait=panels[1];
+
+  const cameraHeading=[...document.querySelectorAll("h2")].find(el=>el.textContent.includes("Live card camera"));
+  const camera=cameraHeading?.nextElementSibling;
+  const hud=camera?.nextElementSibling;
+  let cameraControls=hud?.nextElementSibling;
+  const liveImport=document.querySelector(".live-import-panel");
+  const setPanel=document.querySelector(".set-panel");
+  const gradePanel=$("cardGraderPanel");
+  const recognition=document.querySelector(".recognition-lab");
+  const reference=$("referencePanel");
+  const batchHeading=[...document.querySelectorAll("h2")].find(el=>el.textContent.includes("Start customer batch"));
+  const feedHeading=[...document.querySelectorAll("h2")].find(el=>el.textContent.includes("Live event feed"));
+
+  if(!primary||!cameraHeading||!camera||!liveImport||!setPanel||!recognition||!reference||!batchHeading)return;
+
+  const shell=document.createElement("div");
+  shell.className="command-shell";
+
+  const sidebar=document.createElement("aside");
+  sidebar.className="command-sidebar";
+  sidebar.innerHTML=`
+    <div class="command-brand"><div class="brand-mark">â—‡</div><span>RareIQ</span></div>
+    <nav class="command-nav">
+      <button class="active" onclick="scrollCommand('dashboardHero')">â—ˆ &nbsp; Dashboard</button>
+      <button onclick="scrollCommand('cameraModule')">â—‰ &nbsp; Live Scan</button>
+      <button onclick="scrollCommand('developerLab')">â™™ &nbsp; Recognition Lab</button>
+      <button onclick="scrollCommand('catalogTool')">â–£ &nbsp; Catalogs</button>
+      <button onclick="scrollCommand('setTool')">â–¤ &nbsp; Active Sets</button>
+      <button onclick="openGradeDrawer()">âŒ &nbsp; AI Grading</button>
+      <button onclick="scrollCommand('batchModule')">â–£ &nbsp; Batches</button>
+      <button>â–¦ &nbsp; Reports</button>
+      <button>âš™ &nbsp; Settings</button>
+    </nav>
+    <div class="sidebar-foot">â€¹ &nbsp; Collapse</div>`;
+
+  const content=document.createElement("section");
+  content.className="command-main";
+  content.innerHTML=`
+    <header class="command-topbar">
+      <div class="command-title">RareIQ Operator Dashboard <span class="version-chip">v${VERSION}</span></div>
+      <div class="top-status">
+        <span><i class="live-dot"></i>Live</span>
+        <span>â—‰ ${CODENAME}</span>
+        <span id="commandClock">--:--:--</span>
+        <span class="operator-avatar">OP</span>
+        <span><b>Operator</b><br><small style="color:#35e58d">â— Online</small></span>
+      </div>
+    </header>
+    <div class="kpi-strip">
+      <div class="kpi-card"><div class="kpi-icon">â–£</div><div><div class="kpi-label">Camera Status</div><div id="kpiCamera" class="kpi-value">Live</div><div id="kpiCameraSub" class="kpi-sub">Insta360 Link</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon" style="color:#54d8ff">â–¤</div><div><div class="kpi-label">Active Set</div><div id="kpiSet" class="kpi-value">All References</div><div id="kpiSetSub" class="kpi-sub">Ready</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon" style="color:#8f7cff">â¬¡</div><div><div class="kpi-label">Indexed Cards</div><div id="kpiIndexed" class="kpi-value">2</div><div class="kpi-sub">Local visual index</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon" style="color:#827cff">âŒ</div><div><div class="kpi-label">Avg Latency</div><div id="kpiLatency" class="kpi-value">â€”</div><div class="kpi-sub">Recognition pipeline</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon">â™¢</div><div><div class="kpi-label">OCR Confidence</div><div id="kpiOcr" class="kpi-value">â€”</div><div id="kpiVerifySub" class="kpi-sub">Searching</div></div></div>
+      <div class="kpi-card"><div class="kpi-icon" style="color:#ff6375;background:rgba(255,99,117,.1)">$</div><div><div class="kpi-label">Batch Total</div><div id="kpiBatch" class="kpi-value">$0.00</div><div id="kpiCards" class="kpi-sub">0 Cards</div></div></div>
+      <div class="kpi-card"><button class="new-batch-btn" onclick="scrollCommand('batchModule')">ï¼‹ New Batch</button></div>
+    </div>`;
+
+  const hero=document.createElement("div");
+  hero.id="dashboardHero";
+  hero.className="hero-grid";
+
+  const cameraCard=document.createElement("section");
+  cameraCard.id="cameraModule";
+  cameraCard.className="premium-card camera-card";
+  cameraCard.innerHTML=`<div class="card-head"><h2>â–£ Live Card Camera</h2><span class="live-pill">â— LIVE</span></div>`;
+  cameraCard.appendChild(camera);
+  if(hud)cameraCard.appendChild(hud);
+  if(cameraControls){
+    cameraControls.classList.add("camera-controls");
+    cameraCard.appendChild(cameraControls);
+  }
+
+  const matchCard=document.createElement("section");
+  matchCard.className="premium-card";
+  matchCard.innerHTML=`<div class="card-head"><h2>â™§ Reference Match Preview</h2><span id="premiumVerified" class="verified-pill">âœ“ Verified</span></div>`;
+  matchCard.appendChild(reference);
+  const intelligence=document.createElement("div");
+  intelligence.className="match-intelligence";
+  intelligence.innerHTML=`
+    <div class="confidence-box">
+      <div class="confidence-ring" id="premiumRing"><strong id="premiumPct">0%</strong></div>
+      <div class="verify-list">
+        <div class="verify-row"><span>Card detected</span><span id="verifyDetect" class="verify-check">â—‹</span></div>
+        <div class="verify-row"><span>OCR complete</span><span id="verifyOcr" class="verify-check">â—‹</span></div>
+        <div class="verify-row"><span>Artwork fingerprint</span><span id="verifyArt" class="verify-check">â—‹</span></div>
+        <div class="verify-row"><span>Index search matched</span><span id="verifyIndex" class="verify-check">â—‹</span></div>
+        <div class="verify-row"><span>Candidate verified</span><span id="verifyFinal" class="verify-check">â—‹</span></div>
+      </div>
+    </div>
+    <div class="price-box">
+      <div class="kpi-label">Price (Est.)</div><div id="premiumPrice" class="price-big">$0.00</div>
+      <div class="price-line"><span>Batch Total<br><small id="premiumCardCount">0 Cards</small></span><strong id="premiumBatch">$0.00</strong></div>
+    </div>`;
+  matchCard.appendChild(intelligence);
+  const action=document.createElement("button");
+  action.className="match-action";
+  action.textContent="View Full Match Details â†—";
+  action.onclick=()=>scrollCommand("developerLab");
+  matchCard.appendChild(action);
+
+  hero.append(cameraCard,matchCard);
+  content.appendChild(hero);
+
+  const tools=document.createElement("div");
+  tools.className="tools-grid";
+
+  function toolWrap(id,title,icon,node){
+    const card=document.createElement("section");
+    card.id=id;card.className="premium-card tool-card";
+    card.innerHTML=`<div class="tool-title"><h3>${icon} ${title}</h3></div>`;
+    card.appendChild(node);
+    return card;
+  }
+
+  tools.appendChild(toolWrap("catalogTool","Catalog Import","â–£",liveImport));
+  tools.appendChild(toolWrap("setTool","Active Set Mode","â–¤",setPanel));
+
+  const recTool=toolWrap("recognitionTool","Recognition Lab","â™™",recognition);
+  tools.appendChild(recTool);
+
+  const gradeTool=document.createElement("section");
+  gradeTool.className="premium-card tool-card";
+  gradeTool.innerHTML=`
+    <div class="tool-title"><h3>âœ£ AI Pre-Grading</h3><span id="compactGradeStatus" style="font-size:10px;color:#ffca58">NOT CONFIGURED</span></div>
+    <div class="grade-compact"><div><div style="font-size:29px;margin-bottom:8px">â™™</div><div>Configure the grading service to estimate condition.</div><button class="primary" onclick="openGradeDrawer()">Configure API</button></div></div>
+    <div class="grade-actions-bar"><button onclick="openGradeDrawer()">â–£ Grade Card</button><button onclick="refreshCardGraderStatus()">â—· Check Balance</button></div>`;
+  tools.appendChild(gradeTool);
+  content.appendChild(tools);
+
+  const dev=document.createElement("div");
+  dev.id="developerLab";dev.className="dev-lab";
+  const details=document.createElement("details");
+  details.innerHTML=`<summary>Advanced Recognition Diagnostics</summary>`;
+  const devContent=document.createElement("div");
+  devContent.className="dev-lab-content";
+  details.appendChild(devContent);
+  dev.appendChild(details);
+  content.appendChild(dev);
+
+  // Move technical-heavy sections from recognition tool into developer drawer.
+  const heavySelectors=[".region-row","#hermesPipeline",".confidence-grid","#apolloCandidates","#ocrLines",".catalog-lab"];
+  heavySelectors.forEach(sel=>{
+    const el=recognition.querySelector(sel);
+    if(el)devContent.appendChild(el);
+  });
+
+  // Grading drawer
+  const drawer=document.createElement("div");
+  drawer.id="gradeDrawer";
+  drawer.style.cssText="position:fixed;right:-560px;top:0;width:540px;height:100vh;background:#081523;border-left:1px solid #2b4665;z-index:100;padding:18px;overflow:auto;transition:right .25s ease;box-shadow:-20px 0 60px rgba(0,0,0,.35)";
+  drawer.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="margin:0">AI Pre-Grading</h2><button onclick="closeGradeDrawer()">âœ•</button></div>`;
+  drawer.appendChild(gradePanel);
+  document.body.appendChild(drawer);
+
+  // Batch and event feed
+  const bottom=document.createElement("div");
+  bottom.className="bottom-workflow";
+  const batch=document.createElement("section");
+  batch.id="batchModule";batch.className="premium-card batch-card";
+  const activity=document.createElement("section");
+  activity.className="premium-card activity-card";
+
+  let node=batchHeading;
+  while(node&&node!==feedHeading){
+    const next=node.nextElementSibling;batch.appendChild(node);node=next;
+  }
+  if(feedHeading){
+    activity.appendChild(feedHeading);
+    let n=feedHeading.nextElementSibling;
+    while(n){const next=n.nextElementSibling;activity.appendChild(n);n=next;}
+  }
+  bottom.append(batch,activity);
+  content.appendChild(bottom);
+
+  const footer=document.createElement("div");
+  footer.className="system-footer";
+  footer.innerHTML=`<span><i class="live-dot"></i>System healthy &nbsp; | &nbsp; All systems operational</span><span>RareIQ Operator Dashboard v${VERSION}</span>`;
+  content.appendChild(footer);
+
+  shell.append(sidebar,content);
+  document.body.insertBefore(shell,main);
+  main.style.display="none";
+
+  if(portrait)portrait.classList.add("portrait-panel");
+
+  syncCommandCenter();
+  setInterval(syncCommandCenter,500);
+  setInterval(()=>{
+    const now=new Date();
+    $("commandClock").textContent=now.toLocaleTimeString();
+  },1000);
+}
+
+function scrollCommand(id){
+  document.getElementById(id)?.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function openGradeDrawer(){const d=$("gradeDrawer");if(d)d.style.right="0"}
+function closeGradeDrawer(){const d=$("gradeDrawer");if(d)d.style.right="-560px"}
+
+function syncCommandCenter(){
+  const text=id=>$(id)?.textContent?.trim()||"";
+  const camera=text("hudCamera")||"Offline";
+  const vision=text("hudVision")||"Searching";
+  $("kpiCamera").textContent=vision.includes("OFFLINE")?"Offline":"Live";
+  $("kpiCameraSub").textContent=camera;
+  $("kpiSet").textContent=text("activeSetName")||"All References";
+  $("kpiSetSub").textContent=`${text("activeSetLanguage")||"Any"} â€¢ ${text("activeSetGame")||"Any"}`;
+  $("kpiIndexed").textContent=text("artemisIndexCount")||text("activeSetCards")||"0";
+  $("kpiLatency").textContent=text("artemisTotalMs")||text("recPerf")||"â€”";
+  $("kpiOcr").textContent=text("apolloOcr")||"â€”";
+  $("kpiVerifySub").textContent=text("apolloLock")||"Searching";
+  $("kpiBatch").textContent=text("valueStat")||"$0.00";
+  $("kpiCards").textContent=`${text("cardStat")||"0"} Cards`;
+  $("premiumBatch").textContent=text("valueStat")||"$0.00";
+  $("premiumCardCount").textContent=`${text("cardStat")||"0"} Cards`;
+  $("premiumPrice").textContent=(text("catPrice").match(/\$[\d,.]+/)||["$0.00"])[0];
+  const pct=parseInt(text("apolloOverall"))||0;
+  $("premiumPct").textContent=`${pct}%`;
+  $("premiumRing").style.setProperty("--pct",pct);
+  const stages=[...document.querySelectorAll("#hermesPipeline .pipeline-step")];
+  const done=label=>stages.some(s=>s.textContent.toLowerCase().includes(label)&&s.classList.contains("done"));
+  $("verifyDetect").textContent=done("card detected")?"âœ“":"â—‹";
+  $("verifyOcr").textContent=done("ocr")?"âœ“":"â—‹";
+  $("verifyArt").textContent=done("artwork fingerprint")?"âœ“":"â—‹";
+  $("verifyIndex").textContent=done("index")?"âœ“":"â—‹";
+  $("verifyFinal").textContent=done("final")?"âœ“":"â—‹";
+  const verified=(text("apolloLock")==="VERIFIED"||text("apolloLock")==="LOCKED");
+  $("premiumVerified").textContent=verified?"âœ“ Verified":"Searching";
+  $("premiumVerified").style.color=verified?"#63ffa8":"#ffca58";
+  $("compactGradeStatus").textContent=$("gradeApiState")?.textContent||"NOT CONFIGURED";
+}
+
+
+buildDesktopWorkstation();
+loadCameras();
+loadSets();
+connectRareIQ(m=>{
+const now=Date.now();
+if(now-lastFeedUpdate>500){
+  $("feed").textContent=JSON.stringify(m,null,2);
+  lastFeedUpdate=now;
+}if(m.payload?.session)renderSession(m.payload.session);if(m.type==="snapshot"&&m.payload?.vision)renderVision(m.payload.vision);if(m.type==="snapshot"&&m.payload?.recognition)scheduleRecognitionRender(m.payload.recognition);if(m.type==="snapshot"&&m.payload?.catalog)renderCatalog(m.payload.catalog);if(m.type==="recognition_update")scheduleRecognitionRender(m.payload);if(m.type==="catalog_update")renderCatalog(m.payload);
+if(m.type==="live_catalog_update"){
+  const result=m.payload||{};
+  $("liveImportStatus").textContent=result.ok
+    ? `Imported ${result.imported} cards from ${result.set_name}.`
+    : `Import failed: ${result.error||"Unknown error"}`;
+}
+if(m.type==="active_set_update"){
+  renderActiveSet(m.payload?.active_set,m.payload?.index_status);
+}
+if(m.type==="artwork_index_update"){
+  $("artemisIndexCount").textContent=String(m.payload?.record_count||0);
+  $("indexBuildStatus").textContent=`Index ready: ${m.payload?.record_count||0} cards`;
+}if(["card_tracking","vision_status"].includes(m.type)){
+  renderVision(m.payload);
+}
+if(m.type==="card_captured"){
+  $("cameraStatus").textContent=`CAPTURED â€¢ ${m.payload.source.toUpperCase()}`;
+  $("cameraStatus").className="status locked";
+  $("hudVision").textContent="CAPTURED";
+  setTimeout(()=>{
+    $("hudVision").textContent="REMOVE CARD TO REARM";
+  },900);
+}})
+</script></body></html>
+

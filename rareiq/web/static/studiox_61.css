@@ -1,0 +1,54 @@
+
+/* RareIQ Studio X 6.1 — Instant Studio */
+
+.instant-splash{
+  position:fixed;
+  inset:0;
+  z-index:8000;
+  display:grid;
+  place-items:center;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at center,rgba(45,51,150,.16),transparent 30%),
+    linear-gradient(135deg,#010409,#040713 58%,#09020d);
+  animation:instantSplashOut 1.15s ease forwards;
+}
+
+.instant-splash img{
+  width:min(320px,42vw);
+  filter:
+    drop-shadow(0 0 24px rgba(32,216,255,.30))
+    drop-shadow(0 0 30px rgba(217,61,255,.22));
+  animation:instantSplashLogo .65s ease both;
+}
+
+@keyframes instantSplashLogo{
+  from{opacity:0;transform:translateY(8px) scale(.97)}
+  to{opacity:1;transform:none}
+}
+
+@keyframes instantSplashOut{
+  0%,58%{opacity:1;visibility:visible}
+  100%{opacity:0;visibility:hidden}
+}
+
+.boot-manager{
+  display:none!important;
+}
+
+.boot-actions,
+.boot-panel,
+.boot-steps,
+.boot-status,
+.boot-progress{
+  display:none!important;
+}
+
+.camera-recovery.suppressed{
+  display:none!important;
+}
+
+.workspace-shell{
+  opacity:1!important;
+  visibility:visible!important;
+}

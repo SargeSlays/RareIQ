@@ -1,4 +1,6 @@
-<!doctype html><html><head><meta charset="utf-8"></head><body style="background:transparent">
+﻿<!doctype html><html><head><meta charset="utf-8">    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"></head><body style="background:transparent">
 <script src="/static/common.js"></script><script>
 let ac;
 function ctx(){return ac||(ac=new (window.AudioContext||window.webkitAudioContext)())}
@@ -24,3 +26,4 @@ connectRareIQ(m=>{
   if(m.type==="card_reveal")play(m.payload.experience.sound);
 });
 </script></body></html>
+

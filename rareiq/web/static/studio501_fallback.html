@@ -1,0 +1,125 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RareIQ Studio 5.0</title>
+<link rel="stylesheet" href="/static/studio50.css">
+<script defer src="/static/studio50.js"></script>
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"></head>
+<body>
+<header class="appbar">
+  <div class="brand"><div class="logo">RIQ</div><div><h1>RareIQ Studio</h1><span>Project Digital Jazz</span></div></div>
+  <div class="app-actions">
+    <span class="riq-pill" id="cameraStatus">CAMERA CHECKING</span>
+    <button class="riq-button" onclick="openProgram()">Program View</button>
+    <button class="riq-button primary">Next Pack</button>
+  </div>
+</header>
+
+<div class="toolbar">
+  <select id="cameraSelect" onchange="selectCamera()"><option>Loading camerasâ€¦</option></select>
+  <button class="tool-button" onclick="loadCameraList()">Refresh</button>
+  <button class="tool-button" onclick="reconnectCamera()">Reconnect</button>
+  <button class="tool-button" onclick="startSelectedCamera()">Start</button>
+  <button class="tool-button" onclick="stopCamera()">Stop</button>
+  <button class="tool-button" onclick="captureCamera()">Capture</button>
+  <button class="tool-button">Auto Capture</button>
+  <div class="toolbar-spacer"></div>
+  <span class="riq-pill">1080p</span>
+  <span class="riq-pill">60 FPS target</span>
+</div>
+
+<main class="workspace-stage">
+  <section class="workspace active" data-workspace="live">
+    <div class="live-shell">
+      <article class="riq-surface camera-workspace">
+        <div class="camera-placeholder">Waiting for camera feed</div>
+        <img id="cameraFeed" class="camera-feed" alt="">
+        <div id="scanZone" class="scan-zone"></div>
+        <div class="camera-hud">
+          <div><strong id="aiState">WATCHING</strong><span id="aiDetail">Place a card inside the scan zone.</span></div>
+          <b id="confidence">0%</b>
+        </div>
+      </article>
+
+      <aside class="riq-surface inspector">
+        <div class="inspector-head"><h2>Current Card</h2><span>Inspector</span></div>
+        <div class="inspector-main">
+          <div class="card-art" id="cardArt"><span>Recognized artwork appears here</span></div>
+          <div class="card-info">
+            <div class="eyebrow">Verified Candidate</div>
+            <h3 id="cardName">Ready to Scan</h3>
+            <p id="cardMeta">Set â€¢ Number â€¢ Language â€¢ Rarity</p>
+            <div class="card-value" id="cardValue">WAITING</div>
+          </div>
+        </div>
+        <div>
+          <div class="signal-list">
+            <div class="signal"><span>Vision</span><div class="bar"><i id="visionBar"></i></div><b id="visionValue">0%</b></div>
+            <div class="signal"><span>OCR</span><div class="bar"><i id="ocrBar"></i></div><b id="ocrValue">0%</b></div>
+            <div class="signal"><span>Number</span><div class="bar"><i id="collectorBar"></i></div><b id="collectorValue">0%</b></div>
+            <div class="signal"><span>Fusion</span><div class="bar"><i id="fusionBar"></i></div><b id="fusionValue">0%</b></div>
+          </div>
+          <div class="inspector-actions">
+            <button class="riq-button danger">Reject</button>
+            <button class="riq-button primary">Approve</button>
+            <button class="riq-button">Reaction</button>
+            <button class="riq-button" onclick="openProgram()">Program</button>
+          </div>
+        </div>
+      </aside>
+
+      <section class="riq-surface dock">
+        <div class="dock-tabs">
+          <button class="dock-tab active" data-dock="thinking">Thinking</button>
+          <button class="dock-tab" data-dock="candidates">Candidates</button>
+          <button class="dock-tab" data-dock="session">Session</button>
+          <button class="dock-tab" data-dock="telemetry">Telemetry</button>
+          <button class="dock-tab" data-dock="logs">Logs</button>
+        </div>
+        <div class="dock-content">
+          <div class="dock-panel active" data-panel="thinking">
+            <div class="pipeline">
+              <div class="process active"><b>Detect Card</b><span>Finding card region</span><i></i></div>
+              <div class="process"><b>Prepare Image</b><span>Crop and perspective</span><i></i></div>
+              <div class="process"><b>Read Details</b><span>OCR and number</span><i></i></div>
+              <div class="process"><b>Match Artwork</b><span>Search local references</span><i></i></div>
+              <div class="process"><b>Verify</b><span>Fuse all signals</span><i></i></div>
+            </div>
+          </div>
+          <div class="dock-panel" data-panel="candidates"><div class="candidate-grid"><div class="dock-card"><span>Candidate 1</span><b>Waiting</b></div><div class="dock-card"><span>Candidate 2</span><b>Waiting</b></div><div class="dock-card"><span>Candidate 3</span><b>Waiting</b></div></div></div>
+          <div class="dock-panel" data-panel="session"><div class="session-grid"><div class="dock-card"><span>Pack</span><b>1</b></div><div class="dock-card"><span>Cards</span><b>0</b></div><div class="dock-card"><span>Hits</span><b>0</b></div><div class="dock-card"><span>Session</span><b>$0.00</b></div><div class="dock-card"><span>Best Pull</span><b>$0.00</b></div></div></div>
+          <div class="dock-panel" data-panel="telemetry"><div class="telemetry-grid"><div class="dock-card"><span>Latency</span><b>Idle</b></div><div class="dock-card"><span>FPS</span><b>â€”</b></div><div class="dock-card"><span>Index</span><b>Ready</b></div><div class="dock-card"><span>OCR</span><b>Ready</b></div><div class="dock-card"><span>Queue</span><b>0</b></div></div></div>
+          <div class="dock-panel" data-panel="logs"><div class="dock-card"><span>Live Log</span><b>Waiting for recognition events</b></div></div>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <section class="workspace" data-workspace="collection"><div class="full-shell"><aside class="riq-surface side-nav"><button class="active">Recent Scans</button><button>Sessions</button><button>Boxes</button><button>Exports</button></aside><div class="riq-surface content"><h2>Collection</h2><p>Inventory, scans, sessions, and exports.</p><div class="grid"><div class="card"><h3>Recent Scans</h3><p>Review recognized cards.</p></div><div class="card"><h3>Sessions</h3><p>Reopen past ripping sessions.</p></div><div class="card"><h3>Exports</h3><p>Export inventory and reports.</p></div></div></div></div></section>
+
+  <section class="workspace" data-workspace="broadcast"><div class="full-shell"><aside class="riq-surface side-nav"><button class="active">Program</button><button>Landscape</button><button>Portrait</button><button>Browser Sources</button><button>Virtual Camera</button></aside><div class="riq-surface content"><h2>Broadcast</h2><p>Preview exactly what viewers see.</p><div class="preview-grid"><div class="card"><h3>Landscape</h3><div class="preview"><iframe src="/overlay/landscape"></iframe></div></div><div class="card"><h3>Portrait</h3><div class="preview portrait"><iframe src="/overlay/portrait"></iframe></div></div></div></div></div></section>
+
+  <section class="workspace" data-workspace="creator"><div class="full-shell"><aside class="riq-surface side-nav"><button class="active">Brand</button><button>Overlays</button><button>Reactions</button><button>Themes</button><button>Sounds</button></aside><div class="riq-surface content"><h2>Creator</h2><p>Branding, reactions, sounds, and themes.</p><div class="grid"><div class="card"><h3>Brand Identity</h3><p>Channel name, logo, fonts, and colors.</p></div><div class="card"><h3>Reaction Rules</h3><p>Assign reactions to cards, groups, rarities, or defaults.</p></div><div class="card"><h3>Theme Engine</h3><p>Switch between official and custom themes.</p></div></div></div></div></section>
+
+  <section class="workspace" data-workspace="ai"><div class="full-shell"><aside class="riq-surface side-nav"><button class="active">Recognition</button><button>OCR</button><button>Embeddings</button><button>Learning Queue</button><button>Benchmarks</button></aside><div class="riq-surface content"><h2>AI Lab</h2><p>Recognition, OCR, candidate search, and model diagnostics.</p><div class="grid"><div class="card"><h3>Recognition Engine</h3><p>Inspect pipeline status and candidate fusion.</p></div><div class="card"><h3>Learning Queue</h3><p>Review rejected and corrected scans.</p></div><div class="card"><h3>Benchmarks</h3><p>Measure live recognition performance.</p></div></div></div></div></section>
+
+  <section class="workspace" data-workspace="library"><div class="full-shell"><aside class="riq-surface side-nav"><button class="active">Overview</button><button>Metadata</button><button>Artwork</button><button>Indexes</button><button>Providers</button><button>Updates</button></aside><div class="riq-surface content"><h2>Library</h2><p>Maintenance stays away from Live.</p><div class="grid"><div class="card"><h3>Optimize Library</h3><p>Validate assets and synchronize indexes.</p><button class="riq-button" onclick="maintenance('/api/library/optimize','Optimization')">Optimize</button></div><div class="card"><h3>Index New Artwork</h3><p>Add only new references.</p><button class="riq-button" onclick="maintenance('/api/index/incremental','Indexing')">Index</button></div><div class="card"><h3>Provider Check</h3><p>Test external sources.</p><button class="riq-button" onclick="maintenance('/api/providers/check','Provider check')">Run</button></div></div><p id="systemStatus">Library ready.</p></div></div></section>
+
+  <section class="workspace" data-workspace="settings"><div class="full-shell"><aside class="riq-surface side-nav"><button class="active">Camera</button><button>Output</button><button>API Keys</button><button>Storage</button><button>Logs</button><button>Developer</button></aside><div class="riq-surface content"><h2>Settings</h2><p>Camera, outputs, storage, and advanced configuration.</p><div class="grid"><div class="card"><h3>Program View</h3><p>Open the clean broadcast output.</p><button class="riq-button" onclick="openProgram()">Open</button></div><div class="card"><h3>Studio 4.0</h3><p>Open the previous UI for comparison.</p><button class="riq-button" onclick="window.open('/studio40')">Open</button></div><div class="card"><h3>Legacy Console</h3><p>Open engineering diagnostics.</p><button class="riq-button" onclick="window.open('/legacy-control')">Open</button></div></div></div></div></section>
+</main>
+
+<nav class="bottom-nav">
+  <button class="nav-button active" data-target="live">LIVE</button>
+  <button class="nav-button" data-target="collection">COLLECTION</button>
+  <button class="nav-button" data-target="broadcast">BROADCAST</button>
+  <button class="nav-button" data-target="creator">CREATOR</button>
+  <button class="nav-button" data-target="ai">AI LAB</button>
+  <button class="nav-button" data-target="library">LIBRARY</button>
+  <button class="nav-button" data-target="settings">SETTINGS</button>
+</nav>
+</body>
+</html>

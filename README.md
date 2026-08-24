@@ -1,23 +1,36 @@
-# RareIQ v0.3 — Vision Foundation
+# RareIQ Studio X 6.4.17 — WAR Build Foundation
 
-New in this build:
+RareIQ is a live trading-card recognition and production workspace. The current development foundation combines:
 
-- Live camera preview in the Operator Dashboard
-- Selectable camera index
-- Start and stop camera controls
-- Trading-card rectangle detection
-- Stable-card indicator
-- Four-corner tracking coordinates
-- Transparent overlay that hugs the detected card
-- Perspective-corrected card capture
-- Existing customer, box, pack, rarity, value, and batch systems retained
+- High-resolution camera capture, normalized ROI detection, and rectified card crops
+- Continuous recognition with generation-safe card replacement and removal handling
+- OCR, artwork verification, variant-family matching, and candidate ranking
+- Multi-camera preview sessions with one explicit active recognition source
+- Studio X camera, intelligence, session, and provenance workflows
+- Deterministic automated coverage for recognition, catalog, inventory, creator, and frontend contracts
 
-## Run
+Runtime catalogs, artwork indexes, captures, provenance events, diagnostics, and secrets are local data and are intentionally excluded from source control.
 
-1. Keep Python 3.13 installed.
-2. Extract this folder.
-3. Double-click `start.bat`.
-4. Open `http://127.0.0.1:8765/control`.
-5. Start with camera index `0`; try `1`, `2`, or `3` if needed.
+Development status and upcoming work are tracked in `docs/ROADMAP.md`.
 
-This version detects and tracks a card, but does not identify the exact card yet.
+## Quick start
+
+RareIQ targets Python 3.13. From a Windows command prompt in the project directory:
+
+```bat
+start.bat
+```
+
+The launcher creates `.venv` when needed, installs the pinned runtime dependencies, and opens RareIQ at `http://127.0.0.1:8765/control`.
+
+On first launch, `storage_config.json` is created from `storage_config.example.json`. Relative paths are resolved beside the local configuration file; edit the local file to place large runtime data on another drive. Credentials belong only in the ignored `rareiq_secrets.json` file or supported environment variables—never in the example file.
+
+For development and tests:
+
+```powershell
+py -3.13 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.venv\Scripts\python.exe -B -m pytest tests
+```
+
+Run the complete release-quality gate with the command documented in [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
