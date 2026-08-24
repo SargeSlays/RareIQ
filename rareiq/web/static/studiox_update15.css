@@ -10477,6 +10477,57 @@ html[data-theme=light] .pack-tuning-history{background:#f7fbfd}
 /* Update 6.8.5 — pack-only workflow chrome. */
 .pack-speed-run[hidden]{display:none!important}
 
+/* Broadcast rundown: repair the light-theme surfaces and keep the empty cue
+   message out of the numbered cue grid. */
+.production-rundown-list li.is-empty{
+  grid-template-columns:1fr;
+  place-items:center;
+  min-height:72px;
+  padding:14px;
+  color:#78909b;
+  cursor:default;
+  text-align:center;
+}
+html[data-theme="light"] .production-rundown-list li{
+  border-color:#d8e5e9;
+  background:#fff;
+  color:#244552;
+}
+html[data-theme="light"] .production-rundown-list li.is-next{
+  border-color:#159bbb;
+  background:#e8f7fa;
+}
+html[data-theme="light"] .production-rundown-list li.is-empty{
+  background:#f8fbfc;
+  color:#627d88;
+}
+html[data-theme="light"] .rundown-safety{
+  border-color:#e7dab8;
+  background:#fffaf0;
+}
+html[data-theme="light"] .rundown-safety label{color:#596f78}
+html[data-theme="light"] .rundown-safety input[type="number"]{
+  border-color:#d4e1e5;
+  background:#fff;
+  color:#183540;
+}
+html[data-theme="light"] .production-scene-card{
+  border-color:#d8e5e9;
+  background:linear-gradient(145deg,#fff,#f3f8fa);
+  color:#183540;
+}
+html[data-theme="light"] .production-scene-card small{color:#627d88}
+html[data-theme="light"] .production-scene-actions button{
+  border-color:#d4e1e5;
+  background:#edf5f7;
+  color:#496570;
+}
+html[data-theme="light"] .production-scene-actions button:first-child{
+  border-color:#9fd8b4;
+  background:#e8f7ed;
+  color:#227744;
+}
+
 /* Broadcast console: preserve every production module while exposing one
    operator task group at a time. */
 body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"].active{

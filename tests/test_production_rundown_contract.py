@@ -76,4 +76,8 @@ def test_templates_import_export_duplicate_and_preflight_exist():
 def test_rundown_is_themed_and_responsive():
     assert '.production-rundown' in CSS
     assert '.production-rundown-list li.is-next' in CSS
+    assert 'className:"is-empty"' in JS
+    assert '.production-rundown-list li.is-empty' in CSS
     assert 'html[data-theme="light"] body.studiox-ui4 .production-rundown' in CSS
+    assert 'html[data-theme="light"] .rundown-safety' in CSS
+    assert 'html[data-theme="light"] .production-scene-card' in CSS
