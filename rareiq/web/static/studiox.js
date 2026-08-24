@@ -1217,6 +1217,7 @@ function switchWorkspace(name){
   if(name==="voice-mod") refreshVoiceModInputs().catch(error=>notify("Microphones Unavailable",error.message||String(error),"error"));
   if(name==="spotify") loadSpotify().catch(error=>renderSpotifyError(error.message||String(error)));
   if(name==="ai") loadAiLab().catch(error=>notify("AI Lab Unavailable",error.message||String(error),"error"));
+  if(name==="library") loadLibraryConsole().catch(error=>notify("Library Status Unavailable",error.message||String(error),"error"));
   if(name==="broadcast") Promise.all([loadProductionSwitcher(),loadProductionScenes(),loadProductionReplay(),loadProductionScreen(),loadOperatorHealth(),loadShowPreflight(),loadProductionSession(),loadRecordingSettings(),loadObsStatus(),loadBroadcastDestinations(),loadShowAnalytics(),loadCardShowAnalytics(),loadPackTracker(),loadPackEconomics(),loadBreakHistory()]).catch(error=>notify("Production Tools Unavailable",error.message||String(error),"error"));
 }
 
@@ -2499,6 +2500,120 @@ function initializeAiLab(){
   let saved="recognition";
   try{saved=localStorage.getItem(AI_LAB_VIEW_KEY)||"recognition"}catch(_error){}
   setAiLabView(saved,{persist:false});
+}
+
+const LIBRARY_VIEW_KEY="rareiq.library.view.v1";
+const LIBRARY_VIEW_COPY={
+  overview:["Library Overview","Reference coverage, active maintenance, and safe operator actions."],
+  metadata:["Metadata Sync","Master catalog progress, current import, failures, and remaining work."],
+  artwork:["Artwork Registry","Registered assets, local reference coverage, and integrity status."],
+  indexes:["Recognition Indexes","Global visual and legacy artwork-index health without implicit rebuilds."],
+  providers:["Reference Providers","Latest connectivity and latency evidence for configured catalog sources."],
+  updates:["Library Updates","RareIQ version, boot readiness, active jobs, and recent library activity."],
+};
+
+function setLibraryView(requested,{persist=true,focus=false}={}){
+  const tabs=$("libraryWorkspaceTabs"),workspace=document.querySelector('.workspace[data-workspace="library"]');
+  if(!tabs||!workspace)return "overview";
+  const view=Object.hasOwn(LIBRARY_VIEW_COPY,requested)?requested:"overview";
+  workspace.dataset.libraryView=view;
+  tabs.querySelectorAll("[data-library-view]").forEach(button=>{
+    const selected=button.dataset.libraryView===view;
+    button.classList.toggle("active",selected);
+    button.setAttribute("aria-selected",selected?"true":"false");
+    button.tabIndex=selected?0:-1;
+    if(selected&&focus)button.focus();
+  });
+  workspace.querySelectorAll(".library-console-panel").forEach(panel=>{panel.hidden=panel.id!==`library${view.charAt(0).toUpperCase()}${view.slice(1)}`});
+  const [title,description]=LIBRARY_VIEW_COPY[view];
+  setCardText("libraryConsoleTitle",title);
+  setCardText("libraryConsoleDescription",description);
+  workspace.querySelector(".full-shell>.content")?.scrollTo({top:0,behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});
+  if(persist){try{localStorage.setItem(LIBRARY_VIEW_KEY,view)}catch(_error){}}
+  return view;
+}
+
+function libraryConsoleRows(hostId,rows=[],empty="No diagnostic data is available."){
+  const host=$(hostId);
+  if(!host)return;
+  host.replaceChildren(...(rows.length?rows.map(([title,detail,state])=>{
+    const row=document.createElement("article"),copy=document.createElement("div"),name=document.createElement("strong"),meta=document.createElement("span"),status=document.createElement("b");
+    name.textContent=title;
+    meta.textContent=detail;
+    copy.append(name,meta);
+    status.textContent=state||"";
+    row.append(copy,status);
+    return row;
+  }):[Object.assign(document.createElement("p"),{textContent:empty})]));
+}
+
+function renderLibraryConsole(payload={}){
+  const builder=payload.builder?.builder||{},assets=payload.assets?.assets||{},globalIndex=payload.intelligence?.visual_index||{},legacyIndex=payload.artwork?.index||{},activation=payload.activation?.activation||{},diagnostics=payload.providers?.diagnostics||{},jobs=payload.jobs?.jobs||{},boot=payload.boot||{},health=payload.health||{},completed=Number(builder.sets_completed||0),discovered=Number(builder.sets_discovered||0),coverage=Number(builder.catalog?.coverage_percent||0),progress=discovered?Math.min(100,completed/discovered*100):0;
+  setCardText("libraryOverviewSets",`${completed.toLocaleString()} / ${discovered.toLocaleString()}`);
+  setCardText("libraryOverviewCards",Number(builder.cards||0).toLocaleString());
+  setCardText("libraryOverviewImages",Number(builder.images||0).toLocaleString());
+  setCardText("libraryOverviewJobs",String(jobs.queued||0));
+  setCardText("libraryMetadataDiscovered",discovered.toLocaleString());
+  setCardText("libraryMetadataCompleted",completed.toLocaleString());
+  setCardText("libraryMetadataFailed",Number(builder.sets_failed||0).toLocaleString());
+  setCardText("libraryMetadataRemaining",Number(builder.queue_remaining||Math.max(0,discovered-completed)).toLocaleString());
+  setCardText("libraryMetadataCurrent",builder.current_set_name||"No active import");
+  setCardText("libraryMetadataPhase",String(builder.phase||"idle").replaceAll("_"," ").toUpperCase());
+  if($("libraryMetadataProgress"))$("libraryMetadataProgress").style.width=`${progress.toFixed(1)}%`;
+  setCardText("libraryMetadataDetail",builder.busy?`${builder.current_provider||"Provider"} · ${builder.current_language||"Language pending"} · ${builder.current_set_processed||0}/${builder.current_set_total||0} cards in the current set.`:`${completed.toLocaleString()} sets are complete. Synchronization is idle.`);
+  setCardText("libraryArtworkAssets",Number(assets.assets||0).toLocaleString());
+  setCardText("libraryArtworkBytes",`${(Number(assets.bytes||0)/1048576).toFixed(1)} MB`);
+  setCardText("libraryArtworkImages",Number(builder.images||0).toLocaleString());
+  setCardText("libraryArtworkCoverage",`${coverage.toFixed(1)}%`);
+  const validAssets=Number(assets.status_counts?.valid||0),assetErrors=Math.max(0,Number(assets.assets||0)-validAssets);
+  setCardText("libraryArtworkState",assetErrors?"ATTENTION":"READY");
+  setCardText("libraryArtworkDetail",assetErrors?`${assetErrors.toLocaleString()} registered assets require review.`:`${validAssets.toLocaleString()} registered assets are valid.`);
+  setCardText("libraryIndexGlobalRecords",Number(globalIndex.records||0).toLocaleString());
+  setCardText("libraryIndexDimensions",String(globalIndex.dimensions||0));
+  setCardText("libraryIndexLegacyRecords",Number(legacyIndex.record_count||0).toLocaleString());
+  setCardText("libraryIndexActivation",String(activation.phase||"idle").replaceAll("_"," ").toUpperCase());
+  setCardText("libraryIndexState",globalIndex.ready&&!globalIndex.error?"READY":"ATTENTION");
+  setCardText("libraryIndexDetail",globalIndex.error||`${Number(globalIndex.records||0).toLocaleString()} global records are active. Legacy compatibility index: ${legacyIndex.loaded?"loaded":"not loaded"}.`);
+  const providerState=Object.keys(diagnostics.providers||{}).length?diagnostics.providers:(builder.provider_health||{});
+  libraryConsoleRows("libraryProviderRows",Object.entries(providerState).map(([name,state])=>[name,`${state.online?"Reachable":"Unavailable"}${Number.isFinite(Number(state.latency_ms))?` · ${Number(state.latency_ms).toFixed(0)} ms`:""}`,state.online?"ONLINE":"CHECK"]),"No provider check has run. Run Provider Check to test configured sources.");
+  setCardText("libraryUpdateVersion",health.version||"Unavailable");
+  setCardText("libraryUpdateBoot",String(boot.state||"unknown").toUpperCase());
+  setCardText("libraryUpdateReleases",Number(builder.new_releases_added||0).toLocaleString());
+  setCardText("libraryUpdateJob",jobs.current?.label||jobs.current?.name||"Idle");
+  setCardText("libraryUpdateProgress",`${Number(boot.progress||0).toFixed(0)}%`);
+  libraryConsoleRows("libraryUpdateActivity",(builder.activity||[]).slice(-8).reverse().map(entry=>[entry,"","RECENT"]),"No library activity has been recorded.");
+}
+
+async function loadLibraryConsole(){
+  const button=$("libraryConsoleRefresh");
+  if(button)button.disabled=true;
+  try{
+    const entries=await Promise.all([
+      api("/api/master-builder/status").catch(()=>({})),api("/api/assets/status").catch(()=>({})),api("/api/intelligence/status").catch(()=>({})),api("/api/artwork-index/status").catch(()=>({})),api("/api/index-activation/status").catch(()=>({})),api("/api/providers/status").catch(()=>({})),api("/api/jobs/status").catch(()=>({})),api("/api/boot/status").catch(()=>({})),api("/api/system/health").catch(()=>({})),
+    ]);
+    const payload={builder:entries[0],assets:entries[1],intelligence:entries[2],artwork:entries[3],activation:entries[4],providers:entries[5],jobs:entries[6],boot:entries[7],health:entries[8]};
+    renderLibraryConsole(payload);
+    return payload;
+  }finally{if(button)button.disabled=false}
+}
+
+function initializeLibraryConsole(){
+  const tabs=$("libraryWorkspaceTabs");
+  if(!tabs)return;
+  tabs.querySelectorAll("[data-library-view]").forEach(button=>{
+    button.addEventListener("click",()=>setLibraryView(button.dataset.libraryView));
+    button.addEventListener("keydown",event=>{
+      const buttons=[...tabs.querySelectorAll("[data-library-view]")],current=buttons.indexOf(button),key=event.key;
+      if(!["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Home","End"].includes(key))return;
+      event.preventDefault();
+      const backwards=key==="ArrowUp"||key==="ArrowLeft",next=key==="Home"?0:key==="End"?buttons.length-1:(current+(backwards?-1:1)+buttons.length)%buttons.length;
+      setLibraryView(buttons[next].dataset.libraryView,{focus:true});
+    });
+  });
+  $("libraryConsoleRefresh")?.addEventListener("click",()=>loadLibraryConsole().catch(error=>notify("Library Status Unavailable",error.message||String(error),"error")));
+  let saved="overview";
+  try{saved=localStorage.getItem(LIBRARY_VIEW_KEY)||"overview"}catch(_error){}
+  setLibraryView(saved,{persist:false});
 }
 
 function setBroadcastWorkspaceView(requested,{persist=true,focus=false,scroll=true}={}){
@@ -8595,6 +8710,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   initializeCollectionWorkspace();
   initializeCreatorWorkspace();
   initializeAiLab();
+  initializeLibraryConsole();
   initializeBroadcastWorkspace();
   loadTCGGames().then(loadRecognitionSets).catch(()=>loadRecognitionSets());
   $("tcgGameSelect")?.addEventListener("change",updateTCGSelection);
