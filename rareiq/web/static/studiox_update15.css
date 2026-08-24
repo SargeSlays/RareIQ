@@ -1375,7 +1375,8 @@ body.studiox-ui4 #inventorySyncJobs nav { display: flex; gap: 6px; }
 .recognition-workflow-prompt button.primary { border-color: rgba(94,217,242,.55); background: linear-gradient(135deg,#1595bb,#7044e9); color: #fff; }
 #setContextSearch { min-width: 145px; }
 html[data-theme="light"] .recognition-workflow-prompt { background: rgba(247,252,254,.99); color: #102630; box-shadow: 0 18px 48px rgba(25,58,72,.2); }
-@media(max-width:900px){.recognition-workflow-prompt{position:fixed;top:74px;left:12px;right:12px;width:auto;grid-template-columns:1fr}.recognition-workflow-prompt button{width:100%}}
+@media(max-width:959px){.recognition-workflow-prompt{position:fixed;z-index:205;top:112px;right:6px;left:6px;grid-template-columns:minmax(0,1fr) auto auto;width:auto;min-height:48px;padding:6px 7px;gap:6px;border-radius:11px}.recognition-workflow-prompt div{display:grid;align-content:center}.recognition-workflow-prompt strong{overflow:hidden;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.recognition-workflow-prompt span{display:none}.recognition-workflow-prompt button{width:auto;min-height:34px;padding:0 10px;font-size:8px;white-space:nowrap}}
+@media(max-width:360px){.recognition-workflow-prompt{grid-template-columns:1fr 1fr}.recognition-workflow-prompt div{grid-column:1/-1}.recognition-workflow-prompt button{width:100%}}
 
 /* Update 6.5.76 — recovery history operator actions. */
 .pack-recovery-history article{grid-template-columns:30px minmax(0,1fr) 66px 50px 70px auto!important}
