@@ -8755,6 +8755,12 @@ body.studiox-ui4 :is(.studiox-sound-pad,.soundboard-app-pad)[draggable="true"]:a
 body.studiox-ui4 :is(.studiox-sound-pad,.soundboard-app-pad).is-dragging{opacity:.35;transform:scale(.94)!important}
 body.studiox-ui4 :is(.studiox-sound-pad,.soundboard-app-pad).is-drag-over{border-color:#6be2fa!important;box-shadow:0 0 0 2px rgba(94,220,248,.22),0 12px 28px rgba(41,180,224,.2)!important}
 body.studiox-ui4 .soundboard-app-pad[draggable="true"]:before{content:"⋮⋮";position:absolute;right:8px;top:6px;color:rgba(174,224,238,.48);font-size:10px;letter-spacing:-2px}
+body.studiox-ui4 .soundboard-app-pad>kbd{position:absolute;right:9px;bottom:8px;display:grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border:1px solid rgba(163,226,243,.28);border-radius:6px;background:rgba(3,13,23,.58);color:#bcebf5;font:800 9px/1 var(--ui4-font,system-ui);box-shadow:none}
+body.studiox-ui4 .soundboard-app-pad:focus-visible{outline:2px solid #6ee4fa;outline-offset:3px}
+html[data-theme="light"] body.studiox-ui4 .soundboard-app-pad{color:#f2fbff!important}
+html[data-theme="light"] body.studiox-ui4 .soundboard-app-pad strong{color:#f2fbff!important}
+html[data-theme="light"] body.studiox-ui4 .soundboard-app-pad small{color:#c3dce6!important}
+html[data-theme="light"] body.studiox-ui4 .soundboard-app-pad>kbd{border-color:rgba(171,232,246,.42);background:rgba(3,18,29,.72);color:#e8fbff}
 html[data-theme="light"] body.studiox-ui4 :is(#soundboardAppPreset,#soundboardToolPreset){background:#fff;color:#183540;border-color:#bfd5de}
 html[data-theme="light"] body.studiox-ui4 .studiox-soundboard-layout-controls{background:#edf5f7;border-color:#c7dce4}
 @media(max-width:1350px){body.studiox-ui4 .soundboard-app-toolbar{display:flex!important;align-items:center!important;flex-wrap:wrap}body.studiox-ui4 .soundboard-app-toolbar>label{flex:1 1 260px}body.studiox-ui4 .soundboard-app-toolbar :is(#soundboardAppRenamePreset,#soundboardAppAddPad){display:inline-flex!important}}

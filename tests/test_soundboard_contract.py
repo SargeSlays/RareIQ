@@ -113,3 +113,33 @@ def test_soundboard_has_dedicated_editable_queue_panels():
     assert "function moveSoundboardQueueItem" in STUDIO
     assert "function clearSoundboardQueue" in STUDIO
     assert ".soundboard-queue-panel" in CSS
+
+
+def test_soundboard_first_ten_pads_have_visible_keyboard_shortcuts():
+    assert "button.dataset.soundboardShortcut=String(index+1)" in STUDIO
+    assert 'shortcut.textContent=index===9?"0":String(index+1)' in STUDIO
+    assert 'button.setAttribute("aria-label",`${pad.label}, keyboard shortcut ${shortcut.textContent}`)' in STUDIO
+    assert ".soundboard-app-pad>kbd" in CSS
+    assert "Keys 1–0 trigger pads · click any pad to play" in CONTROL
+
+
+def test_soundboard_shortcuts_are_workspace_scoped_and_ignore_repeats():
+    assert 'workspace==="soundboard"&&!event.repeat&&!event.altKey&&!event.ctrlKey&&!event.metaKey' in STUDIO
+    assert "data-soundboard-shortcut='${shortcut}'" in STUDIO
+    assert "if(pad){event.preventDefault();pad.click();}" in STUDIO
+    for shortcut in ('event.key===" "', 'event.key.toLowerCase()==="a"', 'event.key.toLowerCase()==="r"'):
+        assert f'workspace==="live"&&{shortcut}' in STUDIO
+
+
+def test_soundboard_pad_content_is_rendered_without_html_injection():
+    renderer = STUDIO[STUDIO.index("function renderSoundboardApp") : STUDIO.index("async function loadSoundboard")]
+    assert "innerHTML" not in renderer
+    assert "name.textContent=pad.label" in renderer
+    assert 'asset.textContent=pad.asset?.name||"Audio"' in renderer
+
+
+def test_soundboard_light_theme_keeps_pad_text_readable():
+    assert 'html[data-theme="light"] body.studiox-ui4 .soundboard-app-pad{color:#f2fbff!important}' in CSS
+    assert 'html[data-theme="light"] body.studiox-ui4 .soundboard-app-pad strong{color:#f2fbff!important}' in CSS
+    assert 'html[data-theme="light"] body.studiox-ui4 .soundboard-app-pad small{color:#c3dce6!important}' in CSS
+    assert ".soundboard-app-pad:focus-visible" in CSS

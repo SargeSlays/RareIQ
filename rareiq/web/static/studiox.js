@@ -673,25 +673,30 @@ function isTypingTarget(target){
 document.addEventListener("keydown",event=>{
   if(isTypingTarget(event.target)) return;
 
-  if(event.altKey&&document.body.dataset.ui4Workspace==="live"&&["1","2","3"].includes(event.key)){
+  const workspace=document.body.dataset.ui4Workspace;
+  if(workspace==="soundboard"&&!event.repeat&&!event.altKey&&!event.ctrlKey&&!event.metaKey&&/^[0-9]$/.test(event.key)){
+    const shortcut=event.key==="0"?"10":event.key;
+    const pad=document.querySelector(`#soundboardAppGrid [data-soundboard-shortcut='${shortcut}']`);
+    if(pad){event.preventDefault();pad.click();}
+  }else if(event.altKey&&document.body.dataset.ui4Workspace==="live"&&["1","2","3"].includes(event.key)){
     event.preventDefault();
     const preset={"1":"intelligence","2":"balanced","3":"monitor"}[event.key];
     applyWorkspaceLayoutPreset(preset);
     announceWorkspaceLayoutPreset(preset);
-  }else if(event.key===" "){
+  }else if(workspace==="live"&&event.key===" "){
     event.preventDefault();
     captureCamera();
-  }else if(event.key.toLowerCase()==="a"){
+  }else if(workspace==="live"&&event.key.toLowerCase()==="a"){
     operatorApprove();
-  }else if(event.key.toLowerCase()==="r"){
+  }else if(workspace==="live"&&event.key.toLowerCase()==="r"){
     operatorReject();
-  }else if(event.key.toLowerCase()==="d"){
+  }else if(workspace==="live"&&event.key.toLowerCase()==="d"){
     operatorDetails();
-  }else if(event.key.toLowerCase()==="p"){
+  }else if(workspace==="live"&&event.key.toLowerCase()==="p"){
     openCameraPopout();
-  }else if(event.key.toLowerCase()==="z"){
+  }else if(workspace==="live"&&event.key.toLowerCase()==="z"){
     toggleCardZoom();
-  }else if(event.key.toLowerCase()==="f"){
+  }else if(workspace==="live"&&event.key.toLowerCase()==="f"){
     openCameraPopout();
   }else if(event.key==="?" || (event.shiftKey&&event.key==="/")){
     toggleShortcutOverlay();
@@ -1486,7 +1491,43 @@ function refreshSoundPadImages(){const playable=soundboardState.pads.filter(pad=
 function addSoundboardImageControls(){const visuals=soundboardState.assets.filter(asset=>asset.kind==="visual");document.querySelectorAll("#soundboardPadConfig .studiox-soundboard-config-row").forEach((row,index)=>{const select=document.createElement("select");select.dataset.soundboardImage=String(index);select.append(new Option("No button image",""),...visuals.map(asset=>new Option(asset.name,asset.id)));select.value=soundboardState.pads[index]?.image_asset_id||"";const upload=document.createElement("label");upload.className="riq-button soundboard-image-upload";upload.textContent="Image";const input=document.createElement("input");input.type="file";input.accept="image/png,image/jpeg,image/webp,image/gif";input.addEventListener("change",()=>uploadSoundboardPadImage(index,input.files?.[0]).catch(error=>notify("Image Not Added",error.message||String(error),"error")));upload.append(input);row.insertBefore(select,row.lastElementChild);row.insertBefore(upload,row.lastElementChild)});}
 async function uploadSoundboardPadImage(index,file){if(!file)return;const result=await uploadCreatorAsset(file),asset=result?.asset;if(!asset?.id||asset.kind!=="visual")throw new Error("A valid image was not returned");soundboardState.assets=[...soundboardState.assets.filter(item=>item.id!==asset.id),asset];soundboardState.pads[index]={...soundboardState.pads[index],image_asset_id:asset.id,image_asset:asset};await saveSoundboard();await loadSoundboard();}
 function renderSoundboard(payload={}){soundboardState={pads:Array.isArray(payload.pads)?payload.pads:[],assets:Array.isArray(payload.assets)?payload.assets:[]};const audioAssets=soundboardState.assets.filter(asset=>asset.kind==="audio"),playable=orderedSoundboardPads().filter(p=>p.asset),makePad=(pad,quick=false)=>{const button=document.createElement("button");button.type="button";button.className=quick?"camera-sound-pad":"studiox-sound-pad";button.dataset.padId=pad.id;button.textContent=pad.label;button.title=soundboardLayouts.locked?`Play ${pad.label}`:`Play or drag ${pad.label}`;button.addEventListener("click",()=>playSoundboardPad(pad));return button;};const pads=$("soundboardPads");if(pads){pads.replaceChildren(...(playable.length?playable.map(pad=>makePad(pad)):[Object.assign(document.createElement("p"),{textContent:"Add audio to create your first sound pad."})]));enableSoundboardDrag(pads,".studiox-sound-pad");}const quickPads=$("cameraSoundboardPads");if(quickPads){quickPads.replaceChildren(...playable.slice(0,6).map(pad=>makePad(pad,true)));quickPads.hidden=playable.length===0;}const config=$("soundboardPadConfig");if(config)config.replaceChildren(...soundboardState.pads.map((pad,index)=>{const row=document.createElement("div");row.className="studiox-soundboard-config-row";const label=document.createElement("input");label.value=pad.label||`Sound ${index+1}`;label.maxLength=40;label.dataset.soundboardLabel=String(index);const select=document.createElement("select");select.dataset.soundboardAsset=String(index);select.append(new Option("Choose audio",""),...audioAssets.map(asset=>new Option(asset.name,asset.id)));select.value=pad.asset_id||"";const remove=document.createElement("button");remove.type="button";remove.className="riq-button";remove.textContent="Remove";remove.addEventListener("click",()=>{soundboardState.pads.splice(index,1);storeCurrentSoundboardOrder();renderSoundboard(soundboardState);renderSoundboardApp();addSoundboardImageControls();refreshSoundPadImages();});row.append(label,select,remove);return row;}));if($("soundboardToolPadCount"))$("soundboardToolPadCount").textContent=`${soundboardState.pads.length} / 50`;syncSoundboardLayoutControls();setStudioXWidgetState("soundboard","available");}
-function renderSoundboardApp(){const search=String($("soundboardSearch")?.value||"").toLowerCase(),playable=orderedSoundboardPads().filter(p=>p.asset&&p.label.toLowerCase().includes(search)),grid=$("soundboardAppGrid");if(grid){grid.replaceChildren(...(playable.length?playable.map(pad=>{const button=document.createElement("button");button.type="button";button.className="soundboard-app-pad";button.dataset.padId=pad.id;button.innerHTML=`<i aria-hidden="true">▶</i><strong></strong><small>${pad.asset?.name||"Audio"}</small>`;button.querySelector("strong").textContent=pad.label;button.addEventListener("click",()=>playSoundboardPad(pad));return button;}):[Object.assign(document.createElement("p"),{textContent:soundboardState.pads.length?"No pads match your search.":"Upload audio to create your first sound pad."})]));enableSoundboardDrag(grid,".soundboard-app-pad");}if($("soundboardPadCount"))$("soundboardPadCount").textContent=`${soundboardState.pads.length} / 50 pads`;const config=$("soundboardAppConfig");if(config)config.replaceChildren(...soundboardState.pads.map((pad,index)=>{const row=document.createElement("div");row.className="studiox-soundboard-config-row";const label=document.createElement("input");label.value=pad.label;label.dataset.soundboardAppLabel=String(index);const select=document.createElement("select");select.dataset.soundboardAppAsset=String(index);select.append(new Option("Choose audio",""),...soundboardState.assets.map(asset=>new Option(asset.name,asset.id)));select.value=pad.asset_id||"";row.append(label,select);return row;}));syncSoundboardLayoutControls();}
+function renderSoundboardApp(){
+  const search=String($("soundboardSearch")?.value||"").toLowerCase();
+  const playable=orderedSoundboardPads().filter(p=>p.asset&&p.label.toLowerCase().includes(search));
+  const grid=$("soundboardAppGrid");
+  if(grid){
+    const pads=playable.map((pad,index)=>{
+      const button=document.createElement("button");
+      button.type="button";
+      button.className="soundboard-app-pad";
+      button.dataset.padId=pad.id;
+      if(index<10)button.dataset.soundboardShortcut=String(index+1);
+      const play=document.createElement("i");
+      play.setAttribute("aria-hidden","true");
+      play.textContent="▶";
+      const name=document.createElement("strong");
+      name.textContent=pad.label;
+      const asset=document.createElement("small");
+      asset.textContent=pad.asset?.name||"Audio";
+      button.append(play,name,asset);
+      if(index<10){
+        const shortcut=document.createElement("kbd");
+        shortcut.textContent=index===9?"0":String(index+1);
+        shortcut.setAttribute("aria-hidden","true");
+        button.append(shortcut);
+        button.setAttribute("aria-label",`${pad.label}, keyboard shortcut ${shortcut.textContent}`);
+      }else button.setAttribute("aria-label",pad.label);
+      button.addEventListener("click",()=>playSoundboardPad(pad));
+      return button;
+    });
+    grid.replaceChildren(...(pads.length?pads:[Object.assign(document.createElement("p"),{textContent:soundboardState.pads.length?"No pads match your search.":"Upload audio to create your first sound pad."})]));
+    enableSoundboardDrag(grid,".soundboard-app-pad");
+  }
+  if($("soundboardPadCount"))$("soundboardPadCount").textContent=`${soundboardState.pads.length} / 50 pads`;
+  const config=$("soundboardAppConfig");
+  if(config)config.replaceChildren(...soundboardState.pads.map((pad,index)=>{const row=document.createElement("div");row.className="studiox-soundboard-config-row";const label=document.createElement("input");label.value=pad.label;label.dataset.soundboardAppLabel=String(index);const select=document.createElement("select");select.dataset.soundboardAppAsset=String(index);select.append(new Option("Choose audio",""),...soundboardState.assets.map(asset=>new Option(asset.name,asset.id)));select.value=pad.asset_id||"";row.append(label,select);return row;}));
+  syncSoundboardLayoutControls();
+}
 async function loadSoundboard(){loadSoundboardLayouts();const payload=await api("/api/soundboard");renderSoundboard(payload);renderSoundboardApp();addSoundboardImageControls();refreshSoundPadImages();syncPriceAlertNotificationControls();return payload;}
 async function saveSoundboardApp(){soundboardState.pads=soundboardState.pads.map((pad,index)=>({...pad,label:document.querySelector(`[data-soundboard-app-label='${index}']`)?.value||pad.label,asset_id:document.querySelector(`[data-soundboard-app-asset='${index}']`)?.value||pad.asset_id}));const payload=await api("/api/soundboard",{method:"POST",body:JSON.stringify({pads:soundboardState.pads})});renderSoundboard({pads:payload.soundboard||[],assets:soundboardState.assets});renderSoundboardApp();notify("Soundboard Saved","Your 50-pad layout is ready.","success");}
 async function uploadSoundboardFiles(files){for(const file of Array.from(files||[]))await uploadSoundboardAudio(file);await loadSoundboard();}
