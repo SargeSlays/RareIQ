@@ -10987,6 +10987,18 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
   body.studiox-ui4.studiox-premium[data-mobile-operator-view="card"] .ui4-inspector-column{order:1!important;padding-top:6px!important}
 }
 
+/* Mobile card inspector density: desktop horizontal flex bases must never
+   become oversized vertical rows when the decision strip stacks. */
+@media(max-width:959px){
+  body.studiox-ui4.studiox-premium .single-card-control:has(.result-decision-strip){align-items:start!important;padding:6px!important}
+  body.studiox-ui4.studiox-premium .result-decision-strip{position:relative!important;top:auto!important;align-items:stretch!important;flex-direction:column!important;flex-wrap:nowrap!important;height:auto!important;min-height:0!important;padding:8px!important;gap:7px!important}
+  body.studiox-ui4.studiox-premium .result-decision-identity{flex:0 0 auto!important}
+  body.studiox-ui4.studiox-premium .auto-add-verified-control{flex:0 0 40px!important;width:100%!important;height:40px!important;min-height:40px!important;padding:5px 8px!important}
+  body.studiox-ui4.studiox-premium .auto-add-verified-control input{width:16px!important;height:16px!important;min-height:0!important}
+  body.studiox-ui4.studiox-premium .result-decision-actions{flex:0 0 40px!important;width:100%!important;height:40px!important;min-height:40px!important;grid-auto-rows:40px!important}
+  body.studiox-ui4.studiox-premium .result-decision-actions button{height:40px!important}
+}
+
 /* Update 6.8.9 — short landscape operator mode.
    The mobile action deck replaces tall command chrome while camera and current
    card remain available side by side. */
