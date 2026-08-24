@@ -1160,6 +1160,7 @@ async def system_health():
     recognition = orchestrator.recognition.status()
     catalog = orchestrator.catalog.status()
     index = orchestrator.index_activation.status()
+    detailed_health = orchestrator.system_health.status()
 
     components = {
         "camera": camera,
@@ -1189,6 +1190,7 @@ async def system_health():
         "ok": all(component["healthy"] for component in components.values()),
         "timestamp": time.time(),
         "components": components,
+        "health": detailed_health,
     }
 
 @app.get("/api/index-activation/status")
@@ -2186,13 +2188,6 @@ async def intelligence_learning(request: LearningQueueRequest):
         reason=request.reason,
         correct_card_id=request.correct_card_id,
     )
-
-@app.get("/api/system/health")
-async def system_health():
-    return {
-        "ok": True,
-        "health": orchestrator.system_health.status(),
-    }
 
 @app.get("/api/jobs/status")
 async def job_status():
