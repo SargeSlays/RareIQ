@@ -11113,6 +11113,43 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
   body.studiox-ui4.studiox-premium .ui4-history-result time{font-size:9px!important}
 }
 
+/* Mobile notifications sit above the fixed operator deck instead of covering
+   current-card identity and decision controls. */
+@media(max-width:959px){
+  body.studiox-ui4.studiox-premium .notification-stack{
+    top:auto!important;
+    right:8px!important;
+    bottom:calc(178px + env(safe-area-inset-bottom,0px))!important;
+    left:8px!important;
+    width:auto!important;
+    max-width:374px!important;
+    margin:0 auto!important;
+    gap:6px!important;
+  }
+  body.studiox-ui4.studiox-premium .riq-notification{
+    grid-template-columns:28px minmax(0,1fr)!important;
+    min-height:44px!important;
+    padding:7px 9px!important;
+    gap:8px!important;
+    border-radius:10px!important;
+  }
+  body.studiox-ui4.studiox-premium .notification-icon{width:28px!important;height:28px!important}
+  body.studiox-ui4.studiox-premium .notification-copy{min-width:0!important}
+  body.studiox-ui4.studiox-premium .notification-copy strong{
+    overflow:hidden!important;
+    font-size:9px!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+  }
+  body.studiox-ui4.studiox-premium .notification-copy span{
+    overflow:hidden!important;
+    margin-top:2px!important;
+    font-size:7px!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+  }
+}
+
 /* Update 6.8.9 — short landscape operator mode.
    The mobile action deck replaces tall command chrome while camera and current
    card remain available side by side. */
