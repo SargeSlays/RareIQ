@@ -1,0 +1,26 @@
+{
+  "id": "/control",
+  "name": "RareIQ Studio X",
+  "short_name": "RareIQ",
+  "description": "Live trading-card recognition and production workspace.",
+  "start_url": "/control",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#050c13",
+  "theme_color": "#050c13",
+  "icons": [
+    {
+      "src": "/static/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/brand/app_icon_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

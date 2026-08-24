@@ -72,6 +72,17 @@ http://WORKSTATION-IP:8765/control
 RareIQ redirects an unpaired device to the pairing screen. Enter the token once;
 the session remains valid for up to 12 hours or until the server restarts.
 
+## Add Studio X to a phone or tablet home screen
+
+After pairing succeeds, use the browser's **Add to Home Screen** or **Install**
+action. RareIQ opens in a standalone app window and keeps using the same LAN
+address and pairing cookie.
+
+RareIQ intentionally does not register an offline service worker. The camera,
+recognition pipeline, and operator state require a live connection to the
+RareIQ workstation. If the workstation or LAN connection is unavailable, the
+installed shortcut cannot operate until that connection returns.
+
 ## Return to local-only mode
 
 ```powershell
