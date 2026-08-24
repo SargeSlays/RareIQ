@@ -32,3 +32,5 @@ py -3.13 -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .venv\Scripts\python.exe -B -m pytest tests
 ```
+
+Run the complete release-quality gate with the command documented in [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
