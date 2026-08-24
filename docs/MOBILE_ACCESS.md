@@ -13,6 +13,10 @@ The operator shell also reports device-offline and server-unreachable states
 without starting another polling loop. **Retry Connection** probes the existing
 server only; it does not restart RareIQ or change remote-access configuration.
 
+When a mobile browser backgrounds Studio X, existing network pollers stop
+issuing requests. Returning to Studio X performs one bounded state refresh so
+camera, recognition, and health state catch up without duplicating poll loops.
+
 ## Security boundary
 
 - LAN mode binds RareIQ to the workstation's wildcard network interface.

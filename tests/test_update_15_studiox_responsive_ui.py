@@ -143,7 +143,7 @@ def test_api_and_recognition_ordering_contracts_remain() -> None:
     assert '$("cardArt").innerHTML=""' in script
     assert script.count("/api/camera/stream") == 3
     assert 'const source=lockedCapture?.url||"/api/camera/stream?viewer=secondary-card-focus"' in script
-    assert script.count("setInterval(loadRecognition,600)") == 1
+    assert script.count("setInterval(()=>{if(document.hidden!==true)loadRecognition()},600)") == 1
 
 
 def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
@@ -152,7 +152,7 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
     version = re.search(r'data-studiox-build="([^"]+)"', html).group(1)
     assert styles[-3:] == [
         f"/static/studiox_ui4_tokens.css?v={version}",
-        f"/static/studiox_update15.css?v={version}&amp;shell=6.8.9-mobile-shell6",
+        f"/static/studiox_update15.css?v={version}&amp;shell=6.8.9-mobile-shell7",
         f"/static/pack_run_coach.css?v={version}",
     ]
     assert len(styles) == 18

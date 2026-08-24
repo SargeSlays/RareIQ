@@ -56,7 +56,7 @@ def test_spotify_dj_refinements_include_queue_modes_and_soundboard_ducking():
     assert 'action == "repeat"' in SERVER
     assert "function renderSpotifyEnhancements" in STUDIO
     assert "function setSpotifyDucking" in STUDIO
-    assert 'setInterval(()=>loadSpotify()' in STUDIO
+    assert 'setInterval(()=>{if(document.hidden!==true)loadSpotify()' in STUDIO
     assert 'spotifyDuckedVolume' in STUDIO
     assert '.spotify-queue-section' in CSS
     assert '.spotify-duck-control' in CSS

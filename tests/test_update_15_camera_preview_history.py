@@ -59,7 +59,7 @@ def test_recent_scans_use_existing_history_once_and_render_newest_first() -> Non
     assert ".slice(0,20)" in renderer
     assert 'title.textContent="No recent scans"' in renderer
     assert "renderUI4RecentScans(Array.isArray(payload.cards)?payload.cards:[])" in loader
-    assert script.count("setInterval(loadRecognition,600)") == 1
+    assert script.count("setInterval(()=>{if(document.hidden!==true)loadRecognition()},600)") == 1
     assert "setInterval(loadUI4RecentScans" not in script
 
 

@@ -1286,7 +1286,7 @@ async function markProductionIncident(event){event.preventDefault();const title=
 async function logProductionEvent(kind,title,detail=""){if(!productionSessionState.active)return null;try{const payload=await api("/api/production/session/events",{method:"POST",body:JSON.stringify({kind,title,detail})});renderProductionSession(payload);return payload.event;}catch{return null;}}
 function healthCard(name,state){const card=document.querySelector(`[data-health="${name}"]`);if(card)card.dataset.state=state;}
 function renderOperatorHealth(payload={}){const sessions=payload.sessions||[],connected=Number(payload.connected_cameras)||0,configured=Number(payload.configured_cameras)||0,program=Number(payload.program_slot)||1,replaySeconds=Math.round(Number(payload.replay_buffered_frames||0)/Math.max(1,Number(payload.replay_fps)||5)),recognition=String(payload.recognition_state||"ready").replaceAll("_"," "),confidence=Math.round(Number(payload.recognition_confidence||0)*((Number(payload.recognition_confidence||0)<=1)?100:1)),audioActive=(soundboardQueue?.length||0)>0||Boolean(spotifyState?.playback?.is_playing),layers=[];if(payload.production_screen_visible)layers.push("Screen");if(payload.graphic_visible)layers.push("Graphic");if($("operatorCameraHealth"))$("operatorCameraHealth").textContent=`${connected}/${configured||sessions.length||0} Online`;if($("operatorCameraDetail"))$("operatorCameraDetail").textContent=configured?"Configured production sources":"No cameras configured";if($("operatorProgramHealth"))$("operatorProgramHealth").textContent=`Camera ${program}`;if($("operatorSceneDetail"))$("operatorSceneDetail").textContent=payload.active_scene_id||"Manual switcher";if($("operatorRecognitionHealth"))$("operatorRecognitionHealth").textContent=recognition;if($("operatorRecognitionDetail"))$("operatorRecognitionDetail").textContent=`${confidence}% confidence`;if($("operatorAudioHealth"))$("operatorAudioHealth").textContent=audioActive?"Active":"Idle";if($("operatorAudioDetail"))$("operatorAudioDetail").textContent=spotifyState?.playback?.is_playing?"Spotify playing":soundboardQueue?.length?`${soundboardQueue.length} sound(s) queued`:"Outputs ready";if($("operatorReplayHealth"))$("operatorReplayHealth").textContent=replaySeconds>=3?"Ready":"Buffering";if($("operatorReplayDetail"))$("operatorReplayDetail").textContent=`${replaySeconds}s rolling buffer`;if($("operatorOutputHealth"))$("operatorOutputHealth").textContent=layers.length?layers.join(" + "):"Clean";if($("operatorOutputDetail"))$("operatorOutputDetail").textContent=layers.length?"Active on browser output":"No takeover active";healthCard("cameras",connected>0||configured===0?"good":"bad");healthCard("recognition",recognition.includes("error")?"bad":"good");healthCard("replay",replaySeconds>=3?"good":"warn");healthCard("output",layers.length?"active":"good");const unhealthy=configured>0&&connected===0;if($("operatorHealthSummary"))$("operatorHealthSummary").textContent=unhealthy?"ACTION REQUIRED":"SYSTEMS READY";if($("operatorHealthUpdated"))$("operatorHealthUpdated").textContent=`Updated ${new Date().toLocaleTimeString()}`;}
-async function loadOperatorHealth(){const payload=await api("/api/production/operator-health");renderOperatorHealth(payload);if(!operatorHealthTimer)operatorHealthTimer=setInterval(()=>{if(document.body.dataset.ui4Workspace==="broadcast")loadOperatorHealth().catch(()=>{});},3000);return payload;}
+async function loadOperatorHealth(){const payload=await api("/api/production/operator-health");renderOperatorHealth(payload);if(!operatorHealthTimer)operatorHealthTimer=setInterval(()=>{if(document.hidden!==true&&document.body.dataset.ui4Workspace==="broadcast")loadOperatorHealth().catch(()=>{});},3000);return payload;}
 function renderShowPreflight(payload={}){const preflight=payload.preflight||{},checks=preflight.checks||[],blockers=preflight.blockers||[],warnings=preflight.warnings||[],ready=Boolean(preflight.ready),root=$("showPreflight");if(root)root.dataset.state=ready?"ready":"blocked";if($("showPreflightVerdict"))$("showPreflightVerdict").textContent=ready?"READY TO GO LIVE":"NOT READY";if($("showPreflightSummary"))$("showPreflightSummary").textContent=ready?(warnings.length?"Core systems are ready. Review optional warnings before air.":"All production systems passed."):`${blockers.length} blocking issue${blockers.length===1?"":"s"} must be fixed before air.`;if($("showPreflightCounts"))$("showPreflightCounts").textContent=`${blockers.length} blocker${blockers.length===1?"":"s"} · ${warnings.length} warning${warnings.length===1?"":"s"}`;if($("showPreflightUpdated"))$("showPreflightUpdated").textContent=`Checked ${new Date((Number(preflight.checked_at)||Date.now()/1000)*1000).toLocaleTimeString()}`;if($("showStartButton"))$("showStartButton").disabled=!ready||Boolean(productionSessionState.active);if($("showStartProgress"))$("showStartProgress").textContent=ready?"Ready. Startup will reset the output to Main Card first.":"Preflight must pass before startup.";if($("showPreflightChecks"))$("showPreflightChecks").innerHTML=checks.map(check=>`<article data-state="${escapeHtml(check.state||"warn")}"><i>${check.state==="pass"?"✓":check.state==="fail"?"!":"•"}</i><div><strong>${escapeHtml(check.label||"Check")}</strong><span>${escapeHtml(check.detail||"")}</span>${check.action?`<small>${escapeHtml(check.action)}</small>`:""}</div><b>${escapeHtml(String(check.state||"warn").toUpperCase())}</b></article>`).join("")||"<p>No preflight checks returned.</p>";}
 async function loadShowPreflight(){const payload=await api("/api/production/preflight");renderShowPreflight(payload);return payload;}
 async function startProductionShow(){const button=$("showStartButton"),progress=$("showStartProgress");if(button)button.disabled=true;if(progress)progress.textContent="Starting show · securing Main Card output…";try{const payload=await api("/api/production/show/start",{method:"POST",body:JSON.stringify({...productionMetadataPayload(),start_obs_stream:Boolean($("showStartObsStream")?.checked),start_obs_recording:Boolean($("showStartObsRecording")?.checked)})});renderProductionSession(payload);renderProductionSwitcher(payload.safe||{});renderObsStatus(payload.obs||{});if(progress)progress.textContent=(payload.steps||[]).map(step=>`${step.state==="pass"?"✓":step.state==="warn"?"!":"–"} ${step.detail}`).join(" · ");notify("Show Started",`${(payload.steps||[]).filter(step=>step.state==="pass").length} startup steps completed.`,"success");await Promise.all([loadShowPreflight(),loadOperatorHealth()]);return payload;}catch(error){if(error.payload?.preflight)renderShowPreflight({preflight:error.payload.preflight});if(progress)progress.textContent=error.payload?.reason==="preflight_blocked"?"Startup blocked. Resolve the failed preflight checks.":error.message||String(error);throw error;}finally{if(button&&!productionSessionState.active)button.disabled=$("showPreflight")?.dataset.state!=="ready";}}
@@ -1347,7 +1347,7 @@ async function saveSpotifySetup(){const button=$("spotifySaveSetup"),clientId=$(
 async function startSpotifyConnection(event){event?.preventDefault?.();const payload=await api("/api/spotify/setup",{retries:0});renderSpotifySetup(payload);if(!payload.configured){switchWorkspace("spotify");$("spotifySetupCard")?.scrollIntoView({behavior:"smooth",block:"start"});notify("Spotify Setup Required","Create a Spotify developer app and paste its Client ID.","error");return}window.location.assign("/api/spotify/connect")}
 function renderSpotify(payload={}){spotifyState=payload;const playback=payload.playback||{},item=playback.item||{},image=item.album?.images?.[0]?.url||"",artist=(item.artists||[]).map(value=>value.name).join(", ")||"Connect your account to begin",duration=Number(item.duration_ms)||0,progress=Number(playback.progress_ms)||0,percent=duration?Math.min(100,progress/duration*100):0;[["spotifyTrackName","spotifyArtistName","spotifyAlbumArt","spotifyAlbumPlaceholder","spotifyProgress","spotifyTime"],["spotifyToolTrack","spotifyToolArtist","spotifyToolArt",null,"spotifyToolProgress",null]].forEach(([trackId,artistId,artId,placeholderId,progressId,timeId])=>{if($(trackId))$(trackId).textContent=item.name||(!payload.configured?"Spotify setup required":"Spotify not connected");if($(artistId))$(artistId).textContent=artist;if($(artId)){if(image){$(artId).src=image;$(artId).hidden=false}else $(artId).hidden=true;}if(placeholderId&&$(placeholderId))$(placeholderId).hidden=Boolean(image);if($(progressId))$(progressId).style.width=`${percent}%`;if(timeId&&$(timeId))$(timeId).textContent=`${spotifyTime(progress)} / ${spotifyTime(duration)}`;});["spotifyConnect","spotifyToolConnect"].forEach(id=>{const button=$(id);if(button)button.textContent=payload.connected?`Connected${payload.profile?.display_name?` · ${payload.profile.display_name}`:""}`:"Connect Spotify";});const devices=$("spotifyDevice");if(devices){devices.replaceChildren(...((payload.devices||[]).length?payload.devices.map(device=>new Option(`${device.name}${device.is_active?" · Active":""}`,device.id)):[new Option("No Spotify device available","")]));devices.value=(payload.devices||[]).find(device=>device.is_active)?.id||devices.value;}if($("spotifyVolume"))$("spotifyVolume").value=String(playback.device?.volume_percent??50);if(!payload.configured)renderSpotifyError("Set SPOTIFY_CLIENT_ID and restart RareIQ to connect Spotify.");}
 function renderSpotifyEnhancements(){const playback=spotifyState.playback||{},queue=spotifyState.queue||[],isPlaying=playback.is_playing===true;if($("spotifyPlay"))$("spotifyPlay").textContent=isPlaying?"❚❚":"▶";if($("spotifyToolPlay"))$("spotifyToolPlay").textContent=isPlaying?"❚❚":"▶";if($("spotifyShuffle")){$("spotifyShuffle").setAttribute("aria-pressed",String(playback.shuffle_state===true));$("spotifyShuffle").classList.toggle("active",playback.shuffle_state===true);}if($("spotifyRepeat")){$("spotifyRepeat").dataset.repeat=playback.repeat_state||"off";$("spotifyRepeat").textContent=`Repeat ${playback.repeat_state||"off"}`;}if($("spotifyQueueCount"))$("spotifyQueueCount").textContent=`${queue.length} tracks`;if($("spotifyQueue"))$("spotifyQueue").replaceChildren(...(queue.length?queue.map(item=>spotifyResultCard(item,"queue")):[Object.assign(document.createElement("p"),{textContent:"Spotify's upcoming tracks will appear here."})]));const duck=localStorage.getItem("rareiq.spotify.duckSoundboard")==="true";["spotifyDuckEnabled","spotifyAppDuckEnabled"].forEach(id=>{if($(id))$(id).checked=duck;});}
-async function loadSpotify(){const payload=await api("/api/spotify/status");renderSpotifySetup(payload);renderSpotify(payload);renderSpotifyEnhancements();if(payload.connected&&!spotifyRefreshTimer)spotifyRefreshTimer=setInterval(()=>loadSpotify().catch(()=>{}),5000);if(payload.connected)loadSpotifyPlaylists().catch(()=>{});return payload;}
+async function loadSpotify(){const payload=await api("/api/spotify/status");renderSpotifySetup(payload);renderSpotify(payload);renderSpotifyEnhancements();if(payload.connected&&!spotifyRefreshTimer)spotifyRefreshTimer=setInterval(()=>{if(document.hidden!==true)loadSpotify().catch(()=>{})},5000);if(payload.connected)loadSpotifyPlaylists().catch(()=>{});return payload;}
 async function spotifyCommand(action,extra={}){await api("/api/spotify/player",{method:"POST",body:JSON.stringify({action,device_id:$("spotifyDevice")?.value||null,...extra})});setTimeout(()=>loadSpotify().catch(()=>{}),250);}
 function spotifyResultCard(item,type="track"){const card=document.createElement("article");card.className="spotify-result-card";const image=item.album?.images?.[0]?.url||item.images?.[0]?.url;if(image){const img=document.createElement("img");img.src=image;img.alt="";card.append(img);}const copy=document.createElement("div"),name=document.createElement("strong"),meta=document.createElement("span");name.textContent=item.name||"Untitled";meta.textContent=type==="track"||type==="queue"?(item.artists||[]).map(value=>value.name).join(", "):`${item.tracks?.total||0} tracks`;copy.append(name,meta);const actions=document.createElement("span");if(type==="track")[["Play","play"],["Queue","queue"]].forEach(([label,action])=>{const button=document.createElement("button");button.type="button";button.textContent=label;button.addEventListener("click",()=>spotifyCommand(action,{uri:item.uri}).catch(error=>notify("Spotify Command Failed",error.message||String(error),"error")));actions.append(button);});if(type==="playlist"){const button=document.createElement("button");button.type="button";button.textContent="Play";button.addEventListener("click",()=>spotifyCommand("play",{uri:item.uri}).catch(error=>notify("Spotify Playlist Failed",error.message||String(error),"error")));actions.append(button);}card.append(copy,actions);return card;}
 function setSpotifyDucking(enabled){localStorage.setItem("rareiq.spotify.duckSoundboard",String(Boolean(enabled)));["spotifyDuckEnabled","spotifyAppDuckEnabled"].forEach(id=>{if($(id))$(id).checked=Boolean(enabled);});}
@@ -2500,9 +2500,9 @@ async function startBackgroundInitialization(){
   try{ loadSystemHealth(); }catch{}
   try{ loadCameraManagerState(); }catch{}
 
-  setInterval(()=>loadCameraStatus({forceStream:false}),1800);
-  setInterval(loadSystemHealth,5000);
-  setInterval(loadCameraManagerState,1800);
+  setInterval(()=>{if(document.hidden!==true)loadCameraStatus({forceStream:false})},1800);
+  setInterval(()=>{if(document.hidden!==true)loadSystemHealth()},5000);
+  setInterval(()=>{if(document.hidden!==true)loadCameraManagerState()},1800);
 }
 
 function setViewerBridgeState(state,label){
@@ -5859,6 +5859,29 @@ function initializeServerConnectionStatus(){
   if(navigator.onLine===false)setServerConnectionState("offline");
 }
 
+let foregroundRefreshInFlight=false;
+async function refreshStudioXAfterForeground(){
+  if(document.hidden===true||foregroundRefreshInFlight)return false;
+  foregroundRefreshInFlight=true;
+  try{
+    await Promise.allSettled([
+      loadRecognition(),
+      loadCameraStatus({forceStream:false}),
+      loadCameraManagerState(),
+      loadSystemHealth(),
+    ]);
+    return true;
+  }finally{
+    foregroundRefreshInFlight=false;
+  }
+}
+
+function initializeVisibilityAwareRefresh(){
+  document.addEventListener("visibilitychange",()=>{
+    if(document.hidden!==true)refreshStudioXAfterForeground();
+  });
+}
+
 let mobileAccessUrl="";
 function renderMobileAccessStatus(status={}){
   const panel=document.querySelector(".mobile-access-settings");
@@ -8048,6 +8071,7 @@ function initializeStudioXUI4(){
 
 document.addEventListener("DOMContentLoaded",()=>{
   initializeServerConnectionStatus();
+  initializeVisibilityAwareRefresh();
   initializeWorkspaceReadiness();
   loadTCGGames().then(loadRecognitionSets).catch(()=>loadRecognitionSets());
   $("tcgGameSelect")?.addEventListener("change",updateTCGSelection);
@@ -8454,7 +8478,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   startBackgroundInitialization();
 
 
-  setInterval(loadRecognition,600);
+  setInterval(()=>{if(document.hidden!==true)loadRecognition()},600);
 });
 
 

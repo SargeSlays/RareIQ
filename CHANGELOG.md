@@ -2,6 +2,8 @@
 
 ## Studio X 6.4.18-dev — In development
 
+- Paused existing network pollers while mobile Studio X is backgrounded and
+  added one guarded catch-up refresh when the operator returns.
 - Added event-driven mobile connection status with explicit offline,
   server-unreachable, retrying, and reconnected states without another poller.
 - Added a read-only Studio X mobile-access readiness panel with safe LAN URL
