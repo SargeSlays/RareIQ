@@ -5832,6 +5832,7 @@ function setServerConnectionState(state,detail=""){
   setCardText("serverConnectionDetail",detail||defaults[state]||defaults.unreachable);
   const retry=$("serverConnectionRetry");
   if(retry){retry.hidden=["connected","reconnected"].includes(state);retry.disabled=state==="checking"}
+  syncMobileOperatorDeck();
   if(state==="reconnected")serverConnectionHideTimer=window.setTimeout(()=>setServerConnectionState("connected"),2400);
 }
 
@@ -7851,10 +7852,14 @@ function syncMobileOperatorDeck(){
   setCardText("mobileOperatorCardName",name);
   setCardText("mobileOperatorConfidence",confidence);
   setCardText("mobileOperatorState",state);
+  const connectionUnavailable=["offline","unreachable","checking"].includes(serverConnectionState);
+  const connectionLabel={offline:"OFFLINE",unreachable:"UNREACHABLE",checking:"CHECKING",reconnected:"RESTORED",connected:"ONLINE"}[serverConnectionState]||"UNREACHABLE";
+  setCardText("mobileOperatorConnection",connectionLabel);
   const region=document.querySelector(".ui4-mobile-action-region");
-  if(region) region.dataset.state=state.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"searching";
-  if($("mobileOperatorNext")) $("mobileOperatorNext").disabled=Boolean($("nextClearButton")?.disabled);
-  if($("mobileOperatorCapture")) $("mobileOperatorCapture").disabled=Boolean(document.querySelector(".premium-capture-action")?.disabled);
+  if(region){region.dataset.state=state.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"searching";region.dataset.connection=serverConnectionState}
+  if($("mobileOperatorNext")) $("mobileOperatorNext").disabled=connectionUnavailable||Boolean($("nextClearButton")?.disabled);
+  if($("mobileOperatorCapture")) $("mobileOperatorCapture").disabled=connectionUnavailable||Boolean(document.querySelector(".premium-capture-action")?.disabled);
+  if($("mobileOperatorReconnect")) $("mobileOperatorReconnect").disabled=connectionUnavailable;
 }
 
 function syncResultDecisionStrip(){const name=$("cardName")?.textContent?.trim()||"No verified identity",number=$("cardCollectorNumber")?.textContent?.trim()||"—",confidence=$("confidenceRingValue")?.textContent?.trim()||"0%",verdict=$("identityVerdictBadge")?.textContent?.trim()||$("recognitionStateLabel")?.textContent?.trim()||"WAITING FOR CARD";if($("decisionCardName"))$("decisionCardName").textContent=name;if($("decisionCollectorNumber"))$("decisionCollectorNumber").textContent=number;if($("decisionConfidence"))$("decisionConfidence").textContent=confidence;if($("decisionVerdict"))$("decisionVerdict").textContent=verdict;[["decisionApproveButton","approveButton"],["decisionRejectButton","rejectButton"],["decisionNextButton","nextClearButton"]].forEach(([target,source])=>{if($(target))$(target).disabled=Boolean($(source)?.disabled)});syncMobileOperatorDeck();}

@@ -12,6 +12,7 @@ def test_mobile_operator_deck_has_unique_accessible_controls():
         "mobileOperatorState",
         "mobileOperatorCardName",
         "mobileOperatorConfidence",
+        "mobileOperatorConnection",
         "mobileOperatorCapture",
         "mobileOperatorNext",
         "mobileOperatorReconnect",
@@ -38,6 +39,18 @@ def test_mobile_summary_reuses_authoritative_recognition_sources():
     for source_id in ("cardName", "confidenceRingValue", "identityVerdictBadge", "recognitionStateLabel", "nextClearButton"):
         assert f'$("{source_id}")' in sync
     assert "syncMobileOperatorDeck();" in JS
+
+
+def test_mobile_deck_reuses_connection_events_and_blocks_unsafe_actions():
+    sync = JS[JS.index("function syncMobileOperatorDeck()") : JS.index("function syncResultDecisionStrip()")]
+    connection = JS[JS.index("function setServerConnectionState") : JS.index("async function retryServerConnection")]
+    assert '["offline","unreachable","checking"].includes(serverConnectionState)' in sync
+    assert 'region.dataset.connection=serverConnectionState' in sync
+    assert 'setCardText("mobileOperatorConnection",connectionLabel)' in sync
+    for action_id in ("mobileOperatorCapture", "mobileOperatorNext", "mobileOperatorReconnect"):
+        assert f'$("{action_id}").disabled=connectionUnavailable' in sync
+    assert "syncMobileOperatorDeck();" in connection
+    assert "setInterval" not in connection
 
 
 def test_mobile_deck_is_touch_sized_and_does_not_change_desktop_geometry():

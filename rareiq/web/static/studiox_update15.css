@@ -10633,7 +10633,8 @@ body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!importan
     gap:2px!important;
     padding:0 3px!important;
   }
-  body.studiox-ui4.studiox-premium .mobile-operator-summary>span{
+  body.studiox-ui4.studiox-premium .mobile-operator-summary>header{display:flex!important;align-items:center!important;justify-content:space-between!important;min-width:0!important;gap:5px!important}
+  body.studiox-ui4.studiox-premium .mobile-operator-summary>header>span{
     overflow:hidden!important;
     color:#62daf4!important;
     font-size:7px!important;
@@ -10643,6 +10644,17 @@ body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!importan
     text-transform:uppercase!important;
     white-space:nowrap!important;
   }
+  body.studiox-ui4.studiox-premium .mobile-operator-summary>header>i{
+    flex:0 0 auto!important;
+    color:#65dfb8!important;
+    font-size:6px!important;
+    font-style:normal!important;
+    font-weight:900!important;
+    letter-spacing:.08em!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-mobile-action-region[data-connection="offline"] .mobile-operator-summary>header>i,
+  body.studiox-ui4.studiox-premium .ui4-mobile-action-region[data-connection="unreachable"] .mobile-operator-summary>header>i{color:#ff788c!important}
+  body.studiox-ui4.studiox-premium .ui4-mobile-action-region[data-connection="checking"] .mobile-operator-summary>header>i{color:#ffd16d!important}
   body.studiox-ui4.studiox-premium .mobile-operator-summary>strong{
     overflow:hidden!important;
     color:#edfaff!important;
