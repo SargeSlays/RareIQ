@@ -9,6 +9,7 @@ let captureBannerTimer = null;
 let newestRecognitionGeneration = -1;
 let newestRecognitionRevision = -1;
 let currentServerSessionId = null;
+const MOBILE_OPERATOR_VIEW_KEY="rareiq.mobileOperatorView";
 let studioXExactMatchMomentKey = null;
 let studioXExactMatchMomentTimer = null;
 let recognitionPresentationMemory={key:"ready",presentation:null,changedAt:0};
@@ -7862,6 +7863,14 @@ function syncMobileOperatorDeck(){
   if($("mobileOperatorReconnect")) $("mobileOperatorReconnect").disabled=connectionUnavailable;
 }
 
+function setMobileOperatorView(requested,{persist=true}={}){
+  const view=["camera","both","card"].includes(requested)?requested:"both";
+  document.body.dataset.mobileOperatorView=view;
+  document.querySelectorAll(".mobile-operator-view-switcher [data-mobile-operator-view]").forEach(button=>button.setAttribute("aria-pressed",button.dataset.mobileOperatorView===view?"true":"false"));
+  if(persist){try{localStorage.setItem(MOBILE_OPERATOR_VIEW_KEY,view)}catch(_error){}}
+  return view;
+}
+
 function syncResultDecisionStrip(){const name=$("cardName")?.textContent?.trim()||"No verified identity",number=$("cardCollectorNumber")?.textContent?.trim()||"—",confidence=$("confidenceRingValue")?.textContent?.trim()||"0%",verdict=$("identityVerdictBadge")?.textContent?.trim()||$("recognitionStateLabel")?.textContent?.trim()||"WAITING FOR CARD";if($("decisionCardName"))$("decisionCardName").textContent=name;if($("decisionCollectorNumber"))$("decisionCollectorNumber").textContent=number;if($("decisionConfidence"))$("decisionConfidence").textContent=confidence;if($("decisionVerdict"))$("decisionVerdict").textContent=verdict;[["decisionApproveButton","approveButton"],["decisionRejectButton","rejectButton"],["decisionNextButton","nextClearButton"]].forEach(([target,source])=>{if($(target))$(target).disabled=Boolean($(source)?.disabled)});syncMobileOperatorDeck();}
 
 function initializeStudioXUI4(){
@@ -7877,6 +7886,9 @@ function initializeStudioXUI4(){
   document.body.dataset.ui4Initialized="true";
   const mobileOperator=document.querySelector(".ui4-mobile-action-region");
   if(mobileOperator&&mobileOperator.parentElement!==document.body) document.body.appendChild(mobileOperator);
+  let savedMobileOperatorView="both";
+  try{savedMobileOperatorView=localStorage.getItem(MOBILE_OPERATOR_VIEW_KEY)||"both"}catch(_error){}
+  setMobileOperatorView(savedMobileOperatorView,{persist:false});
   initializeInspectorResize();
   const decisionActions=document.querySelector(".result-decision-actions"),correctMatch=$("correctMatchButton");
   if(decisionActions&&correctMatch&&correctMatch.parentElement!==decisionActions)decisionActions.insertBefore(correctMatch,$("decisionNextButton"));
@@ -7887,6 +7899,7 @@ function initializeStudioXUI4(){
   $("mobileOperatorNext")?.addEventListener("click",()=>$("nextClearButton")?.click());
   $("mobileOperatorReconnect")?.addEventListener("click",()=>Promise.resolve().then(()=>reconnectCamera()).catch(error=>notify("Camera Reconnect Failed",error.message||String(error),"error")));
   $("mobileOperatorStatus")?.addEventListener("click",()=>setUI4HealthOpen(!ui4HealthOpen));
+  document.querySelectorAll(".mobile-operator-view-switcher [data-mobile-operator-view]").forEach(button=>button.addEventListener("click",()=>setMobileOperatorView(button.dataset.mobileOperatorView)));
   const observeStudioXTarget=(observer,target,options)=>{if(typeof Node==="undefined"||!(target instanceof Node))return false;try{observer.observe(target,options);return true}catch(error){console.warn("Studio X observer skipped",error);return false}};
   const decisionObserver=new MutationObserver(syncResultDecisionStrip);["cardName","cardCollectorNumber","confidenceRingValue","identityVerdictBadge","recognitionStateLabel","approveButton","rejectButton","nextClearButton"].forEach(id=>observeStudioXTarget(decisionObserver,$(id),{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["disabled","hidden"]}));
   const inspectorNavigationObserver=new MutationObserver(syncInspectorNavigationState);observeStudioXTarget(inspectorNavigationObserver,$("recognitionStateLabel"),{subtree:true,childList:true,characterData:true});syncResultDecisionStrip();syncInspectorNavigationState();

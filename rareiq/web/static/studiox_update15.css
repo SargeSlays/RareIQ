@@ -10461,7 +10461,7 @@ body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!importan
     display:block!important;
     width:100%!important;
     min-height:100dvh!important;
-    padding:0 0 calc(140px + env(safe-area-inset-bottom,0px))!important;
+    padding:0 0 calc(174px + env(safe-area-inset-bottom,0px))!important;
     overflow-x:hidden!important;
     overflow-y:auto!important;
   }
@@ -10614,10 +10614,11 @@ body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!importan
     left:6px!important;
     display:grid!important;
     grid-template-columns:minmax(92px,1fr) minmax(190px,auto)!important;
+    grid-template-rows:28px minmax(46px,auto)!important;
     align-items:center!important;
     width:auto!important;
     max-width:720px!important;
-    min-height:64px!important;
+    min-height:98px!important;
     margin:0 auto!important;
     padding:7px!important;
     gap:7px!important;
@@ -10627,6 +10628,35 @@ body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!importan
     box-shadow:0 16px 40px rgba(0,0,0,.42),inset 0 1px rgba(255,255,255,.03)!important;
     backdrop-filter:blur(18px)!important;
   }
+  body.studiox-ui4.studiox-premium .mobile-operator-view-switcher{
+    grid-column:1/-1!important;
+    display:grid!important;
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    height:28px!important;
+    padding:2px!important;
+    gap:3px!important;
+    border:1px solid rgba(102,215,244,.12)!important;
+    border-radius:9px!important;
+    background:rgba(2,13,21,.5)!important;
+  }
+  body.studiox-ui4.studiox-premium .mobile-operator-view-switcher>button{
+    min-width:0!important;
+    min-height:22px!important;
+    padding:0 8px!important;
+    border:0!important;
+    border-radius:6px!important;
+    background:transparent!important;
+    color:#7793a0!important;
+    font-family:inherit!important;
+    font-size:7px!important;
+    font-weight:850!important;
+  }
+  body.studiox-ui4.studiox-premium .mobile-operator-view-switcher>button[aria-pressed="true"]{
+    background:linear-gradient(110deg,rgba(43,175,214,.3),rgba(104,79,220,.28))!important;
+    color:#effbff!important;
+    box-shadow:inset 0 0 0 1px rgba(105,217,244,.2)!important;
+  }
+  body.studiox-ui4.studiox-premium .mobile-operator-view-switcher>button:focus-visible{outline:2px solid #72e4fa!important;outline-offset:2px!important}
   body.studiox-ui4.studiox-premium .mobile-operator-summary{
     display:grid!important;
     min-width:0!important;
@@ -10799,6 +10829,12 @@ body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!importan
   }
 }
 
+@media(max-width:959px) and (orientation:portrait){
+  body.studiox-ui4.studiox-premium[data-mobile-operator-view="camera"] .ui4-inspector-column{display:none!important}
+  body.studiox-ui4.studiox-premium[data-mobile-operator-view="card"] .ui4-center-column{display:none!important}
+  body.studiox-ui4.studiox-premium[data-mobile-operator-view="card"] .ui4-inspector-column{order:1!important;padding-top:6px!important}
+}
+
 /* Update 6.8.9 — short landscape operator mode.
    The mobile action deck replaces tall command chrome while camera and current
    card remain available side by side. */
@@ -10893,8 +10929,10 @@ body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!importan
   body.studiox-ui4.studiox-premium .ui4-navigation-rail .nav-app-icon{width:27px!important;height:27px!important}
   body.studiox-ui4.studiox-premium .ui4-mobile-action-region{
     bottom:calc(54px + env(safe-area-inset-bottom,0px))!important;
+    grid-template-rows:minmax(44px,auto)!important;
     min-height:56px!important;
     padding:5px!important;
   }
+  body.studiox-ui4.studiox-premium .mobile-operator-view-switcher{display:none!important}
   body.studiox-ui4.studiox-premium .mobile-operator-actions>button{min-height:44px!important}
 }

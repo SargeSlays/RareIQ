@@ -17,6 +17,9 @@ def test_mobile_operator_deck_has_unique_accessible_controls():
         "mobileOperatorNext",
         "mobileOperatorReconnect",
         "mobileOperatorStatus",
+        "mobileOperatorViewCamera",
+        "mobileOperatorViewBoth",
+        "mobileOperatorViewCard",
     ):
         assert HTML.count(f'id="{element_id}"') == 1
     assert 'aria-label="Mobile operator controls"' in HTML
@@ -60,3 +63,13 @@ def test_mobile_deck_is_touch_sized_and_does_not_change_desktop_geometry():
     assert "min-height:46px!important" in mobile_css
     assert "bottom:calc(70px + env(safe-area-inset-bottom,0px))!important" in mobile_css
     assert "grid-template-columns:repeat(4,minmax(44px,1fr))!important" in mobile_css
+
+
+def test_mobile_workspace_switch_is_explicit_persistent_and_poll_free():
+    section = JS[JS.index("function setMobileOperatorView") : JS.index("function syncResultDecisionStrip")]
+    assert '["camera","both","card"].includes(requested)' in section
+    assert 'document.body.dataset.mobileOperatorView=view' in section
+    assert 'localStorage.setItem(MOBILE_OPERATOR_VIEW_KEY,view)' in section
+    assert "setInterval" not in section
+    assert "fetch(" not in section
+    assert 'id="mobileOperatorViewBoth" data-mobile-operator-view="both" aria-pressed="true"' in HTML
