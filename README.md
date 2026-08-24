@@ -1,16 +1,14 @@
-# RareIQ Studio X 6.3 — Backend Test Foundation
+# RareIQ Studio X 6.4.17-dev — WAR Build Foundation
 
-Camera UI is intentionally unchanged.
+RareIQ is a live trading-card recognition and production workspace. The current development foundation combines:
 
-This release adds the first complete backend testing contract:
+- High-resolution camera capture, normalized ROI detection, and rectified card crops
+- Continuous recognition with generation-safe card replacement and removal handling
+- OCR, artwork verification, variant-family matching, and candidate ranking
+- Multi-camera preview sessions with one explicit active recognition source
+- Studio X camera, intelligence, session, and provenance workflows
+- Deterministic automated coverage for recognition, catalog, inventory, creator, and frontend contracts
 
-- Unified runtime snapshot
-- Normalized current-card payload
-- Backend smoke test
-- Corrected-crop recognition trigger
-- Recent pulls endpoint
-- Downloadable diagnostics
-- Full active-session persistence and recovery
-- Automated backend contract tests
+Runtime catalogs, artwork indexes, captures, provenance events, diagnostics, and secrets are local data and are intentionally excluded from source control.
 
-See `BACKEND_TEST_GUIDE.md`.
+Development status and upcoming work are tracked in `docs/ROADMAP.md`.

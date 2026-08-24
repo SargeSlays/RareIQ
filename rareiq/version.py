@@ -1,6 +1,6 @@
-VERSION = "Studio X 6.3"
-CODENAME = "Backend Test Foundation"
-BUILD_DATE = "2026.07.13"
+VERSION = "6.4.17-dev"
+CODENAME = "WAR Build Foundation"
+BUILD_DATE = "2026.08.23"
 PRODUCT_NAME = "RareIQ"
 PROJECT_NAME = "Project Digital Jazz"
 

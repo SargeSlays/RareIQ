@@ -715,7 +715,7 @@ DEMO_CARDS = {
 @app.get("/")
 async def root():
     return HTMLResponse(
-        f'<h1>RareIQ v{VERSION} â€” {CODENAME}</h1>'
+        f'<h1>RareIQ v{VERSION} — {CODENAME}</h1>'
         '<p><a href="/control">Open RareIQ Operator Console</a></p>'
         '<p><a href="/about">Build diagnostics</a></p>',
         headers={"Cache-Control": "no-store"},
@@ -4076,7 +4076,7 @@ def run():
     print()
     print("=" * 58)
     print("RareIQ Vision")
-    print(f"Version {VERSION} â€” {CODENAME}")
+    print(f"Version {VERSION} — {CODENAME}")
     print(f"Build {BUILD_DATE}")
     print("Project Digital Jazz")
     print("=" * 58)

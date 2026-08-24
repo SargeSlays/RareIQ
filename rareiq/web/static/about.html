@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>RareIQ vX.1 Diagnostics</title>
+<title>RareIQ v6.4.17-dev Diagnostics</title>
 <style>
 :root{color-scheme:dark}
 *{box-sizing:border-box}
@@ -25,27 +25,40 @@ pre{background:#05080d;border-radius:12px;padding:14px;overflow:auto}
 <main>
 <div class="panel">
 <h1>RareIQ Build Diagnostics</h1>
-<p><a href="/control">â† Back to Operator Dashboard</a></p>
+<p><a href="/control">&larr; Back to Studio X</a></p>
 <div class="grid">
-<div class="card"><span class="label">VERSION</span><span class="value">X.1</span></div>
-<div class="card"><span class="label">CODENAME</span><span class="value">Professional Operator Console</span></div>
-<div class="card"><span class="label">BUILD DATE</span><span class="value">2026.07.11</span></div>
-<div class="card"><span class="label">PROJECT</span><span class="value">Project Digital Jazz</span></div>
-<div class="card"><span class="label">OCR ENGINE</span><span class="value">RapidOCR</span></div>
-<div class="card"><span class="label">CATALOG</span><span class="value">TCGdex</span></div>
-<div class="card"><span class="label">CAMERA</span><span id="camera" class="value">Loadingâ€¦</span></div>
-<div class="card"><span class="label">SERVER</span><span class="value">12X.1.1:8765</span></div>
+<div class="card"><span class="label">VERSION</span><span id="version" class="value">6.4.17-dev</span></div>
+<div class="card"><span class="label">CODENAME</span><span id="codename" class="value">WAR Build Foundation</span></div>
+<div class="card"><span class="label">BUILD DATE</span><span id="buildDate" class="value">2026.08.23</span></div>
+<div class="card"><span class="label">PROJECT</span><span id="project" class="value">Project Digital Jazz</span></div>
+<div class="card"><span class="label">OCR ENGINE</span><span id="ocrEngine" class="value">RapidOCR</span></div>
+<div class="card"><span class="label">CATALOG</span><span id="catalog" class="value">TCGdex + RareIQ Master Catalog</span></div>
+<div class="card"><span class="label">CAMERA</span><span id="camera" class="value">Loading&hellip;</span></div>
+<div class="card"><span class="label">SERVER</span><span id="server" class="value">127.0.0.1:8765</span></div>
 </div>
 <h2>Live version payload</h2>
-<pre id="payload">Loadingâ€¦</pre>
+<pre id="payload">Loading&hellip;</pre>
 </div>
 </main>
 <script>
 fetch("/api/version",{cache:"no-store"})
   .then(r=>r.json())
   .then(data=>{
+    if(!data.ok||!data.version) throw new Error("Version payload unavailable");
+    const version=data.version;
+    const setText=(id,value,fallback="Unavailable")=>{
+      document.getElementById(id).textContent=value||fallback;
+    };
+    setText("version",version.version);
+    setText("codename",version.codename);
+    setText("buildDate",version.build_date);
+    setText("project",version.project);
+    setText("ocrEngine",version.ocr_engine);
+    setText("catalog",version.catalog);
+    setText("camera",version.camera,"Not started");
+    setText("server",window.location.host);
+    document.title=`RareIQ v${version.version} Diagnostics`;
     document.getElementById("payload").textContent=JSON.stringify(data,null,2);
-    document.getElementById("camera").textContent=data.version.camera||"Not started";
   })
   .catch(error=>{
     document.getElementById("payload").textContent=String(error);
