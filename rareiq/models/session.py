@@ -21,6 +21,7 @@ class CardPull:
     recognition_signature: str | None = None
     printed_name: str | None = None
     english_name: str | None = None
+    operator_resolution: dict[str, Any] | None = None
 
     @classmethod
     def create(
@@ -37,6 +38,7 @@ class CardPull:
         recognition_signature: str | None = None,
         printed_name: str | None = None,
         english_name: str | None = None,
+        operator_resolution: dict[str, Any] | None = None,
     ) -> "CardPull":
         return cls(
             id=str(uuid.uuid4()),
@@ -53,6 +55,11 @@ class CardPull:
             recognition_signature=recognition_signature,
             printed_name=printed_name,
             english_name=english_name,
+            operator_resolution=(
+                dict(operator_resolution)
+                if isinstance(operator_resolution, dict)
+                else None
+            ),
         )
 
 
@@ -252,6 +259,14 @@ class BreakSession:
                             ),
                             english_name=card_payload.get(
                                 "english_name"
+                            ),
+                            operator_resolution=(
+                                dict(card_payload["operator_resolution"])
+                                if isinstance(
+                                    card_payload.get("operator_resolution"),
+                                    dict,
+                                )
+                                else None
                             ),
                         )
                     )

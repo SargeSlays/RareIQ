@@ -159,6 +159,7 @@ class SessionService:
             recognition_signature=signature or None,
             printed_name=card.get("printed_name"),
             english_name=card.get("english_name"),
+            operator_resolution=card.get("operator_resolution"),
         )
         self.current.active_box.active_pack.pulls.append(pull)
         self.last_added_signature = signature or None

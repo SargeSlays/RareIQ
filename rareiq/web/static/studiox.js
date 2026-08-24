@@ -7270,6 +7270,10 @@ function renderUI4RecentScanDetail(card){
   confidence.textContent=`${recentScanConfidence(card.confidence)}% confidence`;
   const stamp=document.createElement("time");
   stamp.textContent=card.timestamp?new Date(Number(card.timestamp)*1000).toLocaleString():"Time unavailable";
+  const resolution=document.createElement("em");
+  resolution.className="ui4-history-resolution";
+  resolution.textContent="Operator-corrected identity";
+  resolution.hidden=!card.operator_resolution;
   const historyPricing=normalizeCardPricing(card);
   const values=document.createElement("p");
   values.className="ui4-history-detail-prices";
@@ -7282,7 +7286,7 @@ function renderUI4RecentScanDetail(card){
       : "PSA 10 unavailable"
   ].join("  |  ");
   heading.append(name,meta);
-  detail.append(heading,values,confidence,stamp);
+  detail.append(heading,values,confidence,stamp,resolution);
   const live=document.createElement("button");
   live.type="button";
   live.className="ui4-return-live";
@@ -7358,7 +7362,11 @@ function renderUI4RecentScans(cards=[]){
         ? `PSA 10 ${cardMoney(historyPricing.psa10)}`
         : null
     ].filter(Boolean).join("  |  ")||"Value unavailable";
-    identity.append(name,meta,prices);
+    const resolution=document.createElement("em");
+    resolution.className="ui4-history-resolution";
+    resolution.textContent="Operator corrected";
+    resolution.hidden=!card.operator_resolution;
+    identity.append(name,meta,prices,resolution);
     const result=document.createElement("span");
     result.className="ui4-history-result";
     const confidence=document.createElement("b");

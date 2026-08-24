@@ -3941,6 +3941,48 @@ async def confirm_recognition(state_id: str | None = None):
         return stale
     return await orchestrator.confirm_recognition(automatic=False)
 
+
+def _operator_identity_summary(payload: dict[str, Any] | None) -> dict[str, Any]:
+    source = payload if isinstance(payload, dict) else {}
+    fields = (
+        "id", "card_id", "name", "printed_name", "english_name",
+        "set_id", "set_name", "collector_number", "language", "rarity",
+    )
+    return {
+        field: source.get(field)
+        for field in fields
+        if source.get(field) not in (None, "")
+    }
+
+
+def _operator_identity_resolution(
+    snapshot: dict[str, Any],
+    candidate: dict[str, Any],
+    selection_source: str,
+) -> dict[str, Any]:
+    evidence = snapshot.get("identity_evidence")
+    evidence = evidence if isinstance(evidence, dict) else {}
+    conflicts = snapshot.get("identity_conflicts")
+    return {
+        "version": 1,
+        "resolved_at": time.time(),
+        "state_id": str(snapshot.get("state_id") or "")[:120],
+        "selection_source": selection_source,
+        "observed_identity": _operator_identity_summary(
+            evidence.get("observed")
+        ),
+        "previous_catalog_identity": _operator_identity_summary(
+            evidence.get("catalog")
+        ),
+        "selected_identity": _operator_identity_summary(candidate),
+        "prior_conflicts": [
+            dict(item)
+            for item in (conflicts if isinstance(conflicts, list) else [])
+            if isinstance(item, dict)
+        ],
+        "previous_verification_state": snapshot.get("verification_state"),
+    }
+
 @app.post("/api/session/confirm-recognition-candidate")
 async def confirm_recognition_candidate(request: RecognitionCandidateSelectionRequest):
     snapshot=orchestrator.recognition_state.snapshot()
@@ -3950,9 +3992,12 @@ async def confirm_recognition_candidate(request: RecognitionCandidateSelectionRe
     if request.candidate_index>=len(candidates):
         raise HTTPException(status_code=404,detail="Candidate is no longer available.")
     candidate=dict(candidates[request.candidate_index]); candidate["source"]="operator_selected_candidate"; candidate["operator_selected"]=True
+    resolution=_operator_identity_resolution(snapshot,candidate,"ranked_candidate")
+    candidate["operator_resolution"]=resolution
     result=await orchestrator.confirm_recognition(automatic=False,card_override=candidate)
     if result.get("ok"):
-        result["learning"]=orchestrator.learning_queue.add_correction(fingerprint=snapshot.get("artwork_fingerprint") or "",candidate=candidate,state_id=request.state_id)
+        result["learning"]=orchestrator.learning_queue.add_correction(fingerprint=snapshot.get("artwork_fingerprint") or "",candidate=candidate,state_id=request.state_id,resolution=resolution)
+        result["operator_resolution"]=resolution
     return result
 
 @app.get("/api/intelligence/catalog-search")
@@ -3973,9 +4018,12 @@ async def confirm_recognition_catalog_candidate(request: RecognitionCatalogSelec
         raise HTTPException(status_code=422,detail="The selected catalog card has no stable identity.")
     candidate["source"]="operator_catalog_search"
     candidate["operator_selected"]=True
+    resolution=_operator_identity_resolution(snapshot,candidate,"catalog_search")
+    candidate["operator_resolution"]=resolution
     result=await orchestrator.confirm_recognition(automatic=False,card_override=candidate)
     if result.get("ok"):
-        result["learning"]=orchestrator.learning_queue.add_correction(fingerprint=snapshot.get("artwork_fingerprint") or "",candidate=candidate,state_id=request.state_id)
+        result["learning"]=orchestrator.learning_queue.add_correction(fingerprint=snapshot.get("artwork_fingerprint") or "",candidate=candidate,state_id=request.state_id,resolution=resolution)
+        result["operator_resolution"]=resolution
     return result
 
 @app.get("/api/intelligence/corrections")

@@ -10373,6 +10373,20 @@ body.studiox-ui4 #marketProviderComparisonRows article{grid-template-columns:min
 }
 .reference-candidates button[data-identity-evidence="recommended"] span>em{background:rgba(82,223,169,.13);color:#72edbd}
 .reference-candidates button[data-identity-evidence="conflict"] span>em{background:rgba(255,170,73,.1);color:#d8a35c}
+.ui4-history-resolution[hidden]{display:none!important}
+.ui4-history-resolution{
+  width:max-content;
+  padding:2px 6px;
+  border:1px solid rgba(82,223,169,.18);
+  border-radius:999px;
+  background:rgba(82,223,169,.08);
+  color:#72e7ba;
+  font-size:7px;
+  font-style:normal;
+  font-weight:850;
+  letter-spacing:.04em;
+}
+.ui4-history-detail>.ui4-history-resolution{grid-column:2;justify-self:start}
 .reference-catalog-search{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:7px}
 .reference-catalog-search label{display:grid;gap:4px;min-width:0;color:#7f9aa7;font-size:8px;font-weight:750}
 .reference-catalog-search input{width:100%;height:32px;padding:0 10px;border:1px solid rgba(101,217,245,.2);border-radius:8px;outline:0;background:#061721;color:#eaf8fc}

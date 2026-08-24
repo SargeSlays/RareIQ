@@ -44,11 +44,12 @@ class LearningQueueService:
             "root": str(self.root),
         }
 
-    def add_correction(self, *, fingerprint: str, candidate: dict[str, Any], state_id: str = "") -> dict[str, Any]:
+    def add_correction(self, *, fingerprint: str, candidate: dict[str, Any], state_id: str = "", resolution: dict[str, Any] | None = None) -> dict[str, Any]:
         normalized=str(fingerprint or "").strip()
         if not normalized: return {"ok":False,"reason":"artwork_fingerprint_required"}
         item_id=uuid.uuid4().hex
         payload={"id":item_id,"kind":"identity_correction","created_at":time.time(),"fingerprint":normalized,"state_id":str(state_id or "")[:80],"candidate":dict(candidate),"active":True,"times_applied":0,"exact_applies":0,"approximate_applies":0}
+        if isinstance(resolution,dict): payload["resolution"]=dict(resolution)
         path=self.root/f"correction-{item_id}.json"; path.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
         return {"ok":True,"correction":payload}
 
