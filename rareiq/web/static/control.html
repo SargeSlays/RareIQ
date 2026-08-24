@@ -30,9 +30,9 @@
 <link rel="stylesheet" href="/static/studiox_61.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.8.8-provisional-identity">
-<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.9-mobile-shell9">
+<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.9-mobile-shell10">
 <link rel="stylesheet" href="/static/pack_run_coach.css?v=6.8.8-provisional-identity">
-<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.9-mobile-shell9"></script>
+<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.9-mobile-shell10"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><style id="ui4-unified-card-stage-overrides">
@@ -332,7 +332,19 @@ body.studiox-ui4 #inspectorMain .card-art {
       </details>
     </div>
   </div>
-  <div class="ui4-mobile-action-region" data-ui4-region="mobile-actions" aria-hidden="true"></div>
+  <div class="ui4-mobile-action-region" data-ui4-region="mobile-actions" aria-label="Mobile operator controls">
+    <div class="mobile-operator-summary" aria-live="polite" aria-atomic="true">
+      <span id="mobileOperatorState">SEARCHING</span>
+      <strong id="mobileOperatorCardName">Waiting for card</strong>
+      <small><b id="mobileOperatorConfidence">0%</b> confidence</small>
+    </div>
+    <div class="mobile-operator-actions" aria-label="Recognition actions">
+      <button type="button" id="mobileOperatorCapture" class="primary">Capture</button>
+      <button type="button" id="mobileOperatorNext">Next</button>
+      <button type="button" id="mobileOperatorReconnect">Reconnect</button>
+      <button type="button" id="mobileOperatorStatus" aria-expanded="false">Status</button>
+    </div>
+  </div>
 </div>
 </div>
 

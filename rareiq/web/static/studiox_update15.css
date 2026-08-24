@@ -10454,13 +10454,14 @@ html[data-theme=light] .pack-tuning-history{background:#f7fbfd}
 
 /* Update 6.8.9 — mobile operator shell foundation.
    Desktop geometry remains authoritative above this breakpoint. */
+body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!important}
 @media(max-width:959px){
   html{overflow-x:hidden}
   body.studiox-ui4.studiox-premium{
     display:block!important;
     width:100%!important;
     min-height:100dvh!important;
-    padding:0 0 calc(66px + env(safe-area-inset-bottom,0px))!important;
+    padding:0 0 calc(140px + env(safe-area-inset-bottom,0px))!important;
     overflow-x:hidden!important;
     overflow-y:auto!important;
   }
@@ -10605,7 +10606,82 @@ html[data-theme=light] .pack-tuning-history{background:#f7fbfd}
   body.studiox-ui4.studiox-premium .premium-command-bar>.premium-view-control{flex-basis:190px!important;width:190px!important}
   body.studiox-ui4.studiox-premium .premium-command-bar>.premium-actions-control{flex-basis:132px!important;width:132px!important}
   body.studiox-ui4.studiox-premium .premium-command-bar .command-group-label{font-size:7px!important}
-  body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!important}
+  body.studiox-ui4.studiox-premium .ui4-mobile-action-region{
+    position:fixed!important;
+    z-index:215!important;
+    right:6px!important;
+    bottom:calc(70px + env(safe-area-inset-bottom,0px))!important;
+    left:6px!important;
+    display:grid!important;
+    grid-template-columns:minmax(92px,1fr) minmax(190px,auto)!important;
+    align-items:center!important;
+    width:auto!important;
+    max-width:720px!important;
+    min-height:64px!important;
+    margin:0 auto!important;
+    padding:7px!important;
+    gap:7px!important;
+    border:1px solid rgba(102,215,244,.24)!important;
+    border-radius:15px!important;
+    background:linear-gradient(145deg,rgba(6,24,34,.97),rgba(12,14,31,.97))!important;
+    box-shadow:0 16px 40px rgba(0,0,0,.42),inset 0 1px rgba(255,255,255,.03)!important;
+    backdrop-filter:blur(18px)!important;
+  }
+  body.studiox-ui4.studiox-premium .mobile-operator-summary{
+    display:grid!important;
+    min-width:0!important;
+    gap:2px!important;
+    padding:0 3px!important;
+  }
+  body.studiox-ui4.studiox-premium .mobile-operator-summary>span{
+    overflow:hidden!important;
+    color:#62daf4!important;
+    font-size:7px!important;
+    font-weight:900!important;
+    letter-spacing:.12em!important;
+    text-overflow:ellipsis!important;
+    text-transform:uppercase!important;
+    white-space:nowrap!important;
+  }
+  body.studiox-ui4.studiox-premium .mobile-operator-summary>strong{
+    overflow:hidden!important;
+    color:#edfaff!important;
+    font-size:11px!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+  }
+  body.studiox-ui4.studiox-premium .mobile-operator-summary>small{color:#7893a0!important;font-size:7px!important}
+  body.studiox-ui4.studiox-premium .mobile-operator-summary>small b{color:#65dfb8!important}
+  body.studiox-ui4.studiox-premium .mobile-operator-actions{
+    display:grid!important;
+    grid-template-columns:repeat(4,minmax(44px,1fr))!important;
+    min-width:0!important;
+    gap:4px!important;
+  }
+  body.studiox-ui4.studiox-premium .mobile-operator-actions>button{
+    display:grid!important;
+    place-items:center!important;
+    min-width:0!important;
+    min-height:46px!important;
+    padding:0 5px!important;
+    overflow:hidden!important;
+    border:1px solid rgba(105,203,232,.16)!important;
+    border-radius:10px!important;
+    background:rgba(10,37,50,.88)!important;
+    color:#a9c3ce!important;
+    font-family:inherit!important;
+    font-size:7px!important;
+    font-weight:850!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+  }
+  body.studiox-ui4.studiox-premium .mobile-operator-actions>button.primary{
+    border-color:rgba(101,216,245,.44)!important;
+    background:linear-gradient(135deg,#1a91ba,#6453d7)!important;
+    color:#fff!important;
+  }
+  body.studiox-ui4.studiox-premium .mobile-operator-actions>button:disabled{cursor:not-allowed!important;opacity:.42!important}
+  body.studiox-ui4.studiox-premium .mobile-operator-actions>button:focus-visible{outline:2px solid #72e4fa!important;outline-offset:2px!important}
   body.studiox-ui4.studiox-premium .workspace-stage,
   body.studiox-ui4.studiox-premium .workspace[data-workspace="live"]{
     width:100%!important;

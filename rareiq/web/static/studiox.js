@@ -6101,6 +6101,7 @@ function setUI4HealthOpen(open){
   }
   const trigger=document.querySelector('[data-ui4-action="health"]');
   if(trigger) trigger.setAttribute("aria-expanded",ui4HealthOpen?"true":"false");
+  if($("mobileOperatorStatus")) $("mobileOperatorStatus").setAttribute("aria-expanded",ui4HealthOpen?"true":"false");
 }
 
 function setUI4InspectorTab(name){
@@ -7842,7 +7843,21 @@ function applyStudioXExactMatchMoment(context={}){
   });
 }
 
-function syncResultDecisionStrip(){const name=$("cardName")?.textContent?.trim()||"No verified identity",number=$("cardCollectorNumber")?.textContent?.trim()||"—",confidence=$("confidenceRingValue")?.textContent?.trim()||"0%",verdict=$("identityVerdictBadge")?.textContent?.trim()||$("recognitionStateLabel")?.textContent?.trim()||"WAITING FOR CARD";if($("decisionCardName"))$("decisionCardName").textContent=name;if($("decisionCollectorNumber"))$("decisionCollectorNumber").textContent=number;if($("decisionConfidence"))$("decisionConfidence").textContent=confidence;if($("decisionVerdict"))$("decisionVerdict").textContent=verdict;[["decisionApproveButton","approveButton"],["decisionRejectButton","rejectButton"],["decisionNextButton","nextClearButton"]].forEach(([target,source])=>{if($(target))$(target).disabled=Boolean($(source)?.disabled)});}
+function syncMobileOperatorDeck(){
+  const sourceName=$("cardName")?.textContent?.trim();
+  const name=sourceName&&sourceName!=="No verified identity"&&sourceName!=="—"?sourceName:"Waiting for card";
+  const confidence=$("confidenceRingValue")?.textContent?.trim()||"0%";
+  const state=$("identityVerdictBadge")?.textContent?.trim()||$("recognitionStateLabel")?.textContent?.trim()||"SEARCHING";
+  setCardText("mobileOperatorCardName",name);
+  setCardText("mobileOperatorConfidence",confidence);
+  setCardText("mobileOperatorState",state);
+  const region=document.querySelector(".ui4-mobile-action-region");
+  if(region) region.dataset.state=state.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"searching";
+  if($("mobileOperatorNext")) $("mobileOperatorNext").disabled=Boolean($("nextClearButton")?.disabled);
+  if($("mobileOperatorCapture")) $("mobileOperatorCapture").disabled=Boolean(document.querySelector(".premium-capture-action")?.disabled);
+}
+
+function syncResultDecisionStrip(){const name=$("cardName")?.textContent?.trim()||"No verified identity",number=$("cardCollectorNumber")?.textContent?.trim()||"—",confidence=$("confidenceRingValue")?.textContent?.trim()||"0%",verdict=$("identityVerdictBadge")?.textContent?.trim()||$("recognitionStateLabel")?.textContent?.trim()||"WAITING FOR CARD";if($("decisionCardName"))$("decisionCardName").textContent=name;if($("decisionCollectorNumber"))$("decisionCollectorNumber").textContent=number;if($("decisionConfidence"))$("decisionConfidence").textContent=confidence;if($("decisionVerdict"))$("decisionVerdict").textContent=verdict;[["decisionApproveButton","approveButton"],["decisionRejectButton","rejectButton"],["decisionNextButton","nextClearButton"]].forEach(([target,source])=>{if($(target))$(target).disabled=Boolean($(source)?.disabled)});syncMobileOperatorDeck();}
 
 function initializeStudioXUI4(){
   if(document.body.dataset.ui4Initialized==="true") return;
@@ -7855,12 +7870,18 @@ function initializeStudioXUI4(){
   const appbar=document.querySelector(".appbar");
   if(!camera||!inspector||!inspectorMount||!pipeline||!dock||!toolbar||!appbar) return;
   document.body.dataset.ui4Initialized="true";
+  const mobileOperator=document.querySelector(".ui4-mobile-action-region");
+  if(mobileOperator&&mobileOperator.parentElement!==document.body) document.body.appendChild(mobileOperator);
   initializeInspectorResize();
   const decisionActions=document.querySelector(".result-decision-actions"),correctMatch=$("correctMatchButton");
   if(decisionActions&&correctMatch&&correctMatch.parentElement!==decisionActions)decisionActions.insertBefore(correctMatch,$("decisionNextButton"));
   $("decisionApproveButton")?.addEventListener("click",operatorApprove);
   $("decisionRejectButton")?.addEventListener("click",operatorReject);
   $("decisionNextButton")?.addEventListener("click",()=>$("nextClearButton")?.click());
+  $("mobileOperatorCapture")?.addEventListener("click",()=>Promise.resolve().then(()=>captureRecognitionMode()).catch(error=>notify("Capture Failed",error.message||String(error),"error")));
+  $("mobileOperatorNext")?.addEventListener("click",()=>$("nextClearButton")?.click());
+  $("mobileOperatorReconnect")?.addEventListener("click",()=>Promise.resolve().then(()=>reconnectCamera()).catch(error=>notify("Camera Reconnect Failed",error.message||String(error),"error")));
+  $("mobileOperatorStatus")?.addEventListener("click",()=>setUI4HealthOpen(!ui4HealthOpen));
   const observeStudioXTarget=(observer,target,options)=>{if(typeof Node==="undefined"||!(target instanceof Node))return false;try{observer.observe(target,options);return true}catch(error){console.warn("Studio X observer skipped",error);return false}};
   const decisionObserver=new MutationObserver(syncResultDecisionStrip);["cardName","cardCollectorNumber","confidenceRingValue","identityVerdictBadge","recognitionStateLabel","approveButton","rejectButton","nextClearButton"].forEach(id=>observeStudioXTarget(decisionObserver,$(id),{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["disabled","hidden"]}));
   const inspectorNavigationObserver=new MutationObserver(syncInspectorNavigationState);observeStudioXTarget(inspectorNavigationObserver,$("recognitionStateLabel"),{subtree:true,childList:true,characterData:true});syncResultDecisionStrip();syncInspectorNavigationState();
