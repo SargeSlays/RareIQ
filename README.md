@@ -1,4 +1,4 @@
-# RareIQ Studio X 6.4.17 — WAR Build Foundation
+# RareIQ Studio X 6.4.18-dev — WAR Build Foundation
 
 RareIQ is a live trading-card recognition and production workspace. The current development foundation combines:
 
