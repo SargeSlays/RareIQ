@@ -17,6 +17,10 @@ When a mobile browser backgrounds Studio X, existing network pollers stop
 issuing requests. Returning to Studio X performs one bounded state refresh so
 camera, recognition, and health state catch up without duplicating poll loops.
 
+**Keep screen awake** is an opt-in, per-page operator control. It defaults off,
+uses the browser's native Screen Wake Lock API after a user gesture, releases
+while Studio X is hidden, and reports unsupported or denied requests honestly.
+
 ## Security boundary
 
 - LAN mode binds RareIQ to the workstation's wildcard network interface.

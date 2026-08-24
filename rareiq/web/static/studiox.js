@@ -5882,6 +5882,64 @@ function initializeVisibilityAwareRefresh(){
   });
 }
 
+let mobileWakeLock=null;
+let mobileWakeLockRequested=false;
+function mobileWakeLockSupported(){
+  return typeof navigator.wakeLock?.request==="function";
+}
+
+function renderMobileWakeLockState(state="off",detail=""){
+  const toggle=$("mobileWakeLockEnabled");
+  const supported=mobileWakeLockSupported();
+  if(toggle){toggle.disabled=!supported;toggle.checked=supported&&mobileWakeLockRequested}
+  const defaults={off:"Off · enable for this operator session",active:"Active · screen will remain awake",paused:"Paused while Studio X is hidden",unsupported:"Unavailable in this browser",error:"Could not keep the screen awake"};
+  setCardText("mobileWakeLockStatus",detail||defaults[supported?state:"unsupported"]);
+  document.querySelector(".mobile-wake-lock")?.setAttribute("data-state",supported?state:"unsupported");
+}
+
+async function releaseMobileWakeLock(){
+  const lock=mobileWakeLock;
+  mobileWakeLock=null;
+  if(lock&&!lock.released){
+    try{await lock.release()}catch(_error){}
+  }
+  renderMobileWakeLockState(mobileWakeLockRequested?"paused":"off");
+}
+
+async function requestMobileWakeLock(){
+  if(!mobileWakeLockRequested||!mobileWakeLockSupported()){
+    renderMobileWakeLockState(mobileWakeLockSupported()?"off":"unsupported");
+    return false;
+  }
+  if(document.hidden===true){renderMobileWakeLockState("paused");return false}
+  try{
+    mobileWakeLock=await navigator.wakeLock.request("screen");
+    mobileWakeLock.addEventListener("release",()=>{
+      mobileWakeLock=null;
+      renderMobileWakeLockState(mobileWakeLockRequested?"paused":"off");
+    },{once:true});
+    renderMobileWakeLockState("active");
+    return true;
+  }catch(error){
+    mobileWakeLockRequested=false;
+    renderMobileWakeLockState("error",error.message||"");
+    notify("Screen Awake Unavailable",error.message||"This browser denied the screen wake request.","error");
+    return false;
+  }
+}
+
+function initializeMobileWakeLock(){
+  renderMobileWakeLockState(mobileWakeLockSupported()?"off":"unsupported");
+  $("mobileWakeLockEnabled")?.addEventListener("change",event=>{
+    mobileWakeLockRequested=event.target.checked===true;
+    if(mobileWakeLockRequested)requestMobileWakeLock();else releaseMobileWakeLock();
+  });
+  document.addEventListener("visibilitychange",()=>{
+    if(!mobileWakeLockRequested)return;
+    if(document.hidden===true)releaseMobileWakeLock();else requestMobileWakeLock();
+  });
+}
+
 let mobileAccessUrl="";
 function renderMobileAccessStatus(status={}){
   const panel=document.querySelector(".mobile-access-settings");
@@ -8072,6 +8130,7 @@ function initializeStudioXUI4(){
 document.addEventListener("DOMContentLoaded",()=>{
   initializeServerConnectionStatus();
   initializeVisibilityAwareRefresh();
+  initializeMobileWakeLock();
   initializeWorkspaceReadiness();
   loadTCGGames().then(loadRecognitionSets).catch(()=>loadRecognitionSets());
   $("tcgGameSelect")?.addEventListener("change",updateTCGSelection);

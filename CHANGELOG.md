@@ -2,6 +2,8 @@
 
 ## Studio X 6.4.18-dev — In development
 
+- Added an opt-in mobile screen wake control that defaults off, follows page
+  visibility, and fails truthfully when the browser does not support it.
 - Paused existing network pollers while mobile Studio X is backgrounded and
   added one guarded catch-up refresh when the operator returns.
 - Added event-driven mobile connection status with explicit offline,
