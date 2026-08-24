@@ -4,6 +4,8 @@
 
 - Added an opt-in authenticated LAN foundation for mobile Studio X access while
   preserving loopback-only operation by default.
+- Added throttled device pairing plus dry-run-first token setup and private-LAN
+  address discovery for safer mobile operations.
 
 ## Studio X 6.4.17 — WAR Build Foundation
 

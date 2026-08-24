@@ -37,6 +37,7 @@ from rareiq.services.obs_service import ObsService
 from rareiq.version import BUILD_DATE, CODENAME, VERSION, version_payload
 from rareiq.web.remote_access import (
     REMOTE_ACCESS_COOKIE,
+    PairingAttemptLimiter,
     RemoteAccessPolicy,
     is_loopback_client,
     validate_server_binding,
@@ -51,6 +52,7 @@ REMOTE_ACCESS = RemoteAccessPolicy.from_environment(
     SERVER_SESSION_ID,
     secret_store=secret_store,
 )
+REMOTE_PAIRING_LIMITER = PairingAttemptLimiter()
 LOGGER = logging.getLogger(__name__)
 CATALOG_REFRESH_INTERVAL_SECONDS = max(
     15 * 60,
@@ -147,7 +149,12 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title=f"RareIQ v{VERSION}", lifespan=lifespan)
 
 
-def _remote_access_page(*, error: str | None = None) -> HTMLResponse:
+def _remote_access_page(
+    *,
+    error: str | None = None,
+    status_code: int | None = None,
+    retry_after: int | None = None,
+) -> HTMLResponse:
     notice = (
         f'<p class="error" role="alert">{html.escape(error)}</p>'
         if error
@@ -159,10 +166,13 @@ def _remote_access_page(*, error: str | None = None) -> HTMLResponse:
 :root{{color-scheme:dark}}*{{box-sizing:border-box}}body{{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:#031019;color:#eafaff;font:16px Inter,Segoe UI,sans-serif}}
 main{{width:min(100%,420px);padding:28px;border:1px solid #1d5267;border-radius:20px;background:#081e2a;box-shadow:0 24px 80px #0009}}.brand{{color:#54ddfa;font-size:12px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}}h1{{margin:10px 0 6px;font-size:28px}}p{{color:#9bb4c0;line-height:1.5}}label{{display:grid;gap:8px;margin-top:22px;font-weight:800}}input,button{{width:100%;min-height:48px;border-radius:11px;font:inherit}}input{{padding:0 13px;border:1px solid #28566a;background:#04151f;color:#fff}}button{{margin-top:14px;border:0;background:#55d9f4;color:#03202b;font-weight:900;cursor:pointer}}.error{{color:#ff9b9b}}
 </style></head><body><main><span class="brand">RareIQ Studio X</span><h1>Pair this device</h1>{notice}<form method="post" action="/remote-access" autocomplete="off"><label>Pairing token<input name="token" type="password" minlength="24" required autofocus autocomplete="one-time-code"></label><button type="submit">Connect securely</button></form></main></body></html>'''
+    headers = {"Cache-Control": "no-store", "X-Frame-Options": "DENY"}
+    if retry_after:
+        headers["Retry-After"] = str(retry_after)
     return HTMLResponse(
         document,
-        status_code=401 if error else 200,
-        headers={"Cache-Control": "no-store", "X-Frame-Options": "DENY"},
+        status_code=status_code or (401 if error else 200),
+        headers=headers,
     )
 
 
@@ -204,6 +214,14 @@ async def remote_access_pair(request: Request):
             status_code=404,
             content={"ok": False, "reason": "remote_access_disabled"},
         )
+    client_host = request.client.host if request.client else None
+    retry_after = REMOTE_PAIRING_LIMITER.retry_after(client_host)
+    if retry_after:
+        return _remote_access_page(
+            error="Too many pairing attempts. Wait before trying again.",
+            status_code=429,
+            retry_after=retry_after,
+        )
     try:
         body = await _read_bounded_body(request, 4096)
     except RequestBodyTooLarge:
@@ -211,7 +229,15 @@ async def remote_access_pair(request: Request):
     values = parse_qs(body.decode("utf-8", errors="replace"), keep_blank_values=True)
     token = (values.get("token") or [""])[0]
     if not REMOTE_ACCESS.verify_pairing_token(token):
+        retry_after = REMOTE_PAIRING_LIMITER.record_failure(client_host)
+        if retry_after:
+            return _remote_access_page(
+                error="Too many pairing attempts. Wait before trying again.",
+                status_code=429,
+                retry_after=retry_after,
+            )
         return _remote_access_page(error="Pairing token was not accepted.")
+    REMOTE_PAIRING_LIMITER.clear(client_host)
     response = RedirectResponse("/control", status_code=303)
     response.set_cookie(
         REMOTE_ACCESS_COOKIE,

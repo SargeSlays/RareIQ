@@ -15,6 +15,8 @@ explicitly enables authenticated LAN binding.
   the token and current server session. Restarting RareIQ invalidates it.
 - The token is never accepted from a URL query string and is never written into
   frontend storage.
+- Repeated failed pairing attempts are throttled per client before another token
+  can be tried.
 - Local desktop access remains available without pairing.
 
 LAN mode authenticates clients but does not add TLS. Use it only on a trusted
@@ -23,21 +25,30 @@ or use it on an untrusted public Wi-Fi network.
 
 ## Configure a pairing token
 
-Generate a strong token locally:
+Preview the setup first. This does not write a token:
 
 ```powershell
-.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(32))"
+.venv\Scripts\python.exe -B tools\server_control.py mobile-setup --port 8765
 ```
 
-Add the generated value to the ignored `rareiq_secrets.json` file:
+Apply setup to generate and atomically store a strong token in the ignored
+`rareiq_secrets.json` file:
 
-```json
-{
-  "remote_access_token": "paste-the-generated-token-here"
-}
+```powershell
+.venv\Scripts\python.exe -B tools\server_control.py mobile-setup --port 8765 --apply
 ```
 
-Keep any existing keys in that file. Never add the real secrets file to Git.
+The command prints a newly generated pairing token once so it can be entered on
+the phone. Existing credentials in the file are preserved. Running setup again
+does not replace an existing token; use `--rotate` only when intentionally
+invalidating previously paired devices. Never add the real secrets file to Git.
+
+Check configuration and discover current private-LAN addresses without showing
+the token:
+
+```powershell
+.venv\Scripts\python.exe -B tools\server_control.py mobile-status
+```
 
 ## Start or restart in LAN mode
 

@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import ipaddress
 import json
 import os
+import secrets as token_secrets
+import socket
 import subprocess
 import sys
 import time
@@ -164,6 +167,104 @@ def _remote_access_token_configured(project_root: Path) -> bool:
     except (FileNotFoundError, OSError, ValueError, TypeError):
         return False
     return isinstance(payload, dict) and len(str(payload.get("remote_access_token") or "").strip()) >= 24
+
+
+def _private_ipv4_addresses() -> list[str]:
+    addresses: set[str] = set()
+    try:
+        candidates = socket.getaddrinfo(
+            socket.gethostname(),
+            None,
+            family=socket.AF_INET,
+            type=socket.SOCK_STREAM,
+        )
+    except OSError:
+        return []
+    for candidate in candidates:
+        value = str(candidate[4][0])
+        try:
+            address = ipaddress.ip_address(value)
+        except ValueError:
+            continue
+        if address.is_private and not address.is_loopback and not address.is_link_local:
+            addresses.add(value)
+    return sorted(addresses, key=lambda value: tuple(int(part) for part in value.split(".")))
+
+
+def mobile_access_setup(
+    project_root: Path,
+    *,
+    port: int = DEFAULT_PORT,
+    apply: bool = False,
+    rotate: bool = False,
+) -> dict[str, Any]:
+    project_root = Path(project_root).resolve()
+    _validate_binding("127.0.0.1", port)
+    secrets_path = project_root / "rareiq_secrets.json"
+    try:
+        values = json.loads(secrets_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        values = {}
+    except (OSError, ValueError, TypeError) as exc:
+        raise ServerControlError(f"Secrets file is unreadable: {secrets_path}") from exc
+    if not isinstance(values, dict):
+        raise ServerControlError("Secrets file must contain a JSON object.")
+    existing = str(values.get("remote_access_token") or "").strip()
+    configured = len(existing) >= 24
+    addresses = _private_ipv4_addresses()
+    report = {
+        "mode": "apply" if apply else "dry-run",
+        "secrets_path": str(secrets_path),
+        "token_configured": configured,
+        "token_changed": False,
+        "pairing_token": None,
+        "lan_addresses": addresses,
+        "mobile_urls": [f"http://{address}:{port}/control" for address in addresses],
+        "start_command": f"tools\\server_control.py start --lan --port {port}",
+        "restart_command": f"tools\\server_control.py restart --lan --port {port}",
+        "local_command": "tools\\server_control.py restart --local",
+    }
+    if not apply or (configured and not rotate):
+        return report
+
+    token = token_secrets.token_urlsafe(32)
+    values["remote_access_token"] = token
+    secrets_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = secrets_path.with_name(f".{secrets_path.name}.{os.getpid()}.tmp")
+    try:
+        temporary.write_text(
+            json.dumps(values, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        os.replace(temporary, secrets_path)
+        try:
+            secrets_path.chmod(0o600)
+        except OSError:
+            pass
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+    return {
+        **report,
+        "token_configured": True,
+        "token_changed": True,
+        "pairing_token": token,
+    }
+
+
+def mobile_access_status(project_root: Path) -> dict[str, Any]:
+    project_root = Path(project_root).resolve()
+    server = server_status(project_root)
+    return {
+        "token_configured": _remote_access_token_configured(project_root),
+        "lan_addresses": _private_ipv4_addresses(),
+        "server_state": server.get("state"),
+        "remote_access": bool(server.get("remote_access")),
+        "bind_host": server.get("bind_host") or DEFAULT_HOST,
+        "server_url": server.get("url"),
+    }
 
 
 @contextmanager
@@ -651,6 +752,11 @@ def main(argv: list[str] | None = None) -> int:
     schedule = subparsers.add_parser("schedule")
     schedule.add_argument("--interval", type=int, default=DEFAULT_WATCHDOG_MINUTES)
     schedule.add_argument("--apply", action="store_true")
+    mobile_setup = subparsers.add_parser("mobile-setup")
+    mobile_setup.add_argument("--port", type=int, default=DEFAULT_PORT)
+    mobile_setup.add_argument("--apply", action="store_true")
+    mobile_setup.add_argument("--rotate", action="store_true")
+    subparsers.add_parser("mobile-status")
     args = parser.parse_args(argv)
     try:
         if args.command == "start":
@@ -684,12 +790,21 @@ def main(argv: list[str] | None = None) -> int:
                 open_browser=args.open_browser,
                 remote_access=args.remote_access,
             )
-        else:
+        elif args.command == "schedule":
             result = windows_watchdog_schedule(
                 project_root,
                 interval_minutes=args.interval,
                 apply=args.apply,
             )
+        elif args.command == "mobile-setup":
+            result = mobile_access_setup(
+                project_root,
+                port=args.port,
+                apply=args.apply,
+                rotate=args.rotate,
+            )
+        else:
+            result = mobile_access_status(project_root)
     except ServerControlError as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, indent=2), file=sys.stderr)
         return 1

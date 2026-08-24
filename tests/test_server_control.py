@@ -207,6 +207,48 @@ def test_restart_can_explicitly_return_a_lan_server_to_loopback(tmp_path, monkey
     assert calls[0]["remote_access"] is False
 
 
+def test_mobile_setup_is_dry_run_first_and_preserves_existing_secrets(tmp_path, monkeypatch):
+    project = _project(tmp_path)
+    secrets_path = project / "rareiq_secrets.json"
+    secrets_path.write_text(json.dumps({"existing_key": "keep-me"}), encoding="utf-8")
+    monkeypatch.setattr(control, "_private_ipv4_addresses", lambda: ["192.168.1.25"])
+
+    dry_run = control.mobile_access_setup(project, port=9040)
+
+    assert dry_run["mode"] == "dry-run"
+    assert dry_run["token_configured"] is False
+    assert dry_run["pairing_token"] is None
+    assert dry_run["mobile_urls"] == ["http://192.168.1.25:9040/control"]
+    assert json.loads(secrets_path.read_text(encoding="utf-8")) == {"existing_key": "keep-me"}
+
+    applied = control.mobile_access_setup(project, port=9040, apply=True)
+    persisted = json.loads(secrets_path.read_text(encoding="utf-8"))
+
+    assert applied["mode"] == "apply"
+    assert applied["token_changed"] is True
+    assert len(applied["pairing_token"]) >= 24
+    assert persisted["existing_key"] == "keep-me"
+    assert persisted["remote_access_token"] == applied["pairing_token"]
+
+
+def test_mobile_setup_does_not_rotate_an_existing_token_without_explicit_request(tmp_path):
+    project = _project(tmp_path)
+    secrets_path = project / "rareiq_secrets.json"
+    original = "existing-mobile-token-with-enough-entropy"
+    secrets_path.write_text(
+        json.dumps({"remote_access_token": original}),
+        encoding="utf-8",
+    )
+
+    unchanged = control.mobile_access_setup(project, apply=True)
+    rotated = control.mobile_access_setup(project, apply=True, rotate=True)
+
+    assert unchanged["token_changed"] is False
+    assert unchanged["pairing_token"] is None
+    assert rotated["token_changed"] is True
+    assert rotated["pairing_token"] != original
+
+
 def test_server_run_binding_is_loopback_and_environment_configurable(monkeypatch):
     from rareiq.web import server
 

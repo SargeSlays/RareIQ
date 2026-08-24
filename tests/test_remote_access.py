@@ -7,6 +7,7 @@ import pytest
 from rareiq.web import server
 from rareiq.web.remote_access import (
     REMOTE_ACCESS_COOKIE,
+    PairingAttemptLimiter,
     RemoteAccessConfigurationError,
     RemoteAccessPolicy,
     validate_server_binding,
@@ -60,9 +61,28 @@ def test_pairing_cookie_is_constant_time_verified_and_process_scoped() -> None:
     assert second.authorizes("192.168.1.20", first.cookie_value) is False
 
 
+def test_pairing_failures_are_bounded_per_client_and_clear_after_lockout() -> None:
+    limiter = PairingAttemptLimiter(
+        attempt_limit=3,
+        window_seconds=60,
+        lockout_seconds=10,
+    )
+
+    assert limiter.record_failure("192.168.1.20", now=0) == 0
+    assert limiter.record_failure("192.168.1.20", now=1) == 0
+    assert limiter.record_failure("192.168.1.20", now=2) == 10
+    assert limiter.retry_after("192.168.1.20", now=3) == 9
+    assert limiter.retry_after("192.168.1.21", now=3) == 0
+    assert limiter.retry_after("192.168.1.20", now=12) == 0
+    assert limiter.record_failure("192.168.1.20", now=13) == 0
+    limiter.clear("192.168.1.20")
+    assert limiter.retry_after("192.168.1.20", now=14) == 0
+
+
 def test_remote_browser_must_pair_before_control_access(monkeypatch) -> None:
     policy = _enabled_policy()
     monkeypatch.setattr(server, "REMOTE_ACCESS", policy)
+    monkeypatch.setattr(server, "REMOTE_PAIRING_LIMITER", PairingAttemptLimiter())
     client = TestClient(
         server.app,
         raise_server_exceptions=False,
@@ -101,6 +121,29 @@ def test_remote_browser_must_pair_before_control_access(monkeypatch) -> None:
     assert status.status_code == 200
     assert status.json()["enabled"] is True
     assert status.json()["paired"] is True
+
+
+def test_pairing_endpoint_throttles_repeated_failures(monkeypatch) -> None:
+    monkeypatch.setattr(server, "REMOTE_ACCESS", _enabled_policy())
+    monkeypatch.setattr(
+        server,
+        "REMOTE_PAIRING_LIMITER",
+        PairingAttemptLimiter(attempt_limit=2, lockout_seconds=30),
+    )
+    client = TestClient(
+        server.app,
+        raise_server_exceptions=False,
+        client=("192.168.1.30", 50000),
+    )
+
+    first = client.post("/remote-access", data={"token": "wrong"})
+    blocked = client.post("/remote-access", data={"token": "still-wrong"})
+    correct_while_blocked = client.post("/remote-access", data={"token": TOKEN})
+
+    assert first.status_code == 401
+    assert blocked.status_code == 429
+    assert int(blocked.headers["retry-after"]) > 0
+    assert correct_while_blocked.status_code == 429
 
 
 def test_direct_asgi_remote_exposure_still_fails_closed_when_feature_is_disabled(monkeypatch) -> None:
