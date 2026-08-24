@@ -11420,6 +11420,35 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
     gap:7px!important;
     overflow:auto!important;
   }
+  body.studiox-ui4.studiox-premium .single-card-control:has(.result-decision-strip){padding:3px!important}
+  body.studiox-ui4.studiox-premium .result-decision-strip{
+    position:relative!important;
+    top:auto!important;
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) 112px!important;
+    gap:4px 6px!important;
+    min-height:0!important;
+    padding:6px!important;
+  }
+  body.studiox-ui4.studiox-premium .result-decision-identity{grid-column:1!important;grid-row:1!important;min-width:0!important}
+  body.studiox-ui4.studiox-premium .auto-add-verified-control{
+    grid-column:2!important;
+    grid-row:1!important;
+    width:112px!important;
+    height:36px!important;
+    min-height:36px!important;
+    padding:4px 6px!important;
+  }
+  body.studiox-ui4.studiox-premium .result-decision-actions{
+    grid-column:1/-1!important;
+    grid-row:2!important;
+    display:grid!important;
+    grid-template-columns:repeat(4,minmax(0,1fr))!important;
+    gap:4px!important;
+    width:100%!important;
+    min-width:0!important;
+  }
+  body.studiox-ui4.studiox-premium .result-decision-actions button{height:34px!important;min-height:34px!important;padding:0 4px!important}
   body.studiox-ui4.studiox-premium .ui4-navigation-rail{
     height:calc(50px + env(safe-area-inset-bottom,0px))!important;
     padding:3px 6px env(safe-area-inset-bottom,0px)!important;

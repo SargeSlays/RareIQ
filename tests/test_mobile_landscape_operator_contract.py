@@ -44,3 +44,13 @@ def test_landscape_replaces_tall_command_chrome_with_touch_deck():
     assert ".ui4-mobile-action-region" in section
     assert "min-height:44px!important" in section
     assert "bottom:calc(54px + env(safe-area-inset-bottom,0px))!important" in section
+
+
+def test_landscape_decision_controls_leave_room_for_inspector_navigation():
+    section = landscape_css()
+    assert "grid-template-columns:minmax(0,1fr) 112px!important" in section
+    assert ".auto-add-verified-control{" in section
+    assert "grid-column:2!important" in section
+    assert ".result-decision-actions{" in section
+    assert "grid-template-columns:repeat(4,minmax(0,1fr))!important" in section
+    assert ".result-decision-actions button{height:34px!important" in section
