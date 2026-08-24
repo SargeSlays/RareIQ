@@ -69,6 +69,16 @@ def test_templates_import_export_duplicate_and_preflight_exist():
     assert 'function exportProductionRundown' in JS
     assert 'async function importProductionRundown' in JS
     assert 'async function preflightProductionRundown' in JS
+
+
+def test_rundown_replacement_requires_explicit_operator_confirmation():
+    assert "function confirmRundownReplacement(action)" in JS
+    assert "will replace ${productionRundown.length} current cue" in JS
+    assert 'confirmRundownReplacement(`Loading “${name}”`)' in JS
+    assert 'confirmRundownReplacement(`Importing ${cues.length} cue' in JS
+    assert 'function clearProductionRundown()' in JS
+    assert 'confirmRundownReplacement("Clearing the rundown")' in JS
+    assert '$("rundownClear")?.addEventListener("click",clearProductionRundown)' in JS
     assert 'scene is unavailable' in JS
     assert 'no replay highlight is ready' in JS
 
