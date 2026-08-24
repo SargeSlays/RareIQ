@@ -10604,6 +10604,17 @@ html[data-theme="light"] .break-history-controls :is(input,select){
   filter:saturate(.35);
 }
 
+/* Collection console: the existing rail now routes the dense collection
+   toolset into four persistent, keyboard-accessible operator views. */
+.workspace[data-workspace="collection"] [data-collection-panels][hidden]{display:none!important}
+.workspace[data-workspace="collection"] .side-nav [data-collection-view]{cursor:pointer}
+.workspace[data-workspace="collection"] .side-nav [data-collection-view][aria-selected="true"]{
+  border-color:rgba(67,202,233,.42);
+  background:linear-gradient(135deg,rgba(29,157,190,.2),rgba(117,91,211,.16));
+  color:var(--ui4-text,#dce9ef);
+}
+html[data-theme="light"] .workspace[data-workspace="collection"] .side-nav [data-collection-view][aria-selected="true"]{color:#183540}
+
 /* Broadcast console: preserve every production module while exposing one
    operator task group at a time. */
 body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"].active{

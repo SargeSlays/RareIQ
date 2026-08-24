@@ -2254,6 +2254,65 @@ const WORKSPACE_READINESS={
   settings:{path:"/api/system/health",label:"System settings",describe:()=>"RareIQ services online"}
 };
 
+const COLLECTION_WORKSPACE_VIEW_KEY="rareiq.collection.workspace.view.v1";
+const COLLECTION_WORKSPACE_PANELS={
+  recent:["#librarySyncPanel",".collection-trends",".collection-exact-inventory",".collection-corrections"],
+  sessions:[".inventory-manager",".inventory-pack-ledgers",".tax-comparison",".business-trends",".break-performance",".collection-valuation"],
+  boxes:[".inventory-manager",".inventory-manager>.collection-ledger-head",".inventory-manager>.inventory-metrics",".inventory-valuation",".approved-inventory-intake","#inventoryIntakeForm","#inventoryLookupForm",".inventory-items",".inventory-price-watchlist",".collection-goals",".collection-set-progress",".collection-duplicates"],
+  exports:[".inventory-manager",".inventory-listing-dashboard",".inventory-reprice-history",".inventory-marketplace-sync",".accounting-controls",".period-close",".inventory-batch-actions",".collection-recovery"],
+};
+const COLLECTION_WORKSPACE_COPY={
+  recent:["Collection Intelligence","Verified cards, exact versions, and recent collection activity."],
+  sessions:["Session & Pack Intelligence","Verified profitability, accounting, and production-session performance."],
+  boxes:["Physical Inventory & Boxes","Owned copies, box locations, set progress, and duplicate allocation."],
+  exports:["Marketplace & Exports","Listings, connector queues, financial reports, and backup recovery."],
+};
+
+function setCollectionWorkspaceView(requested,{persist=true,focus=false,scroll=true}={}){
+  const workspace=document.querySelector('.workspace[data-workspace="collection"]'),tabs=$("collectionWorkspaceTabs");
+  if(!workspace||!tabs)return "recent";
+  const views=Object.keys(COLLECTION_WORKSPACE_PANELS),view=views.includes(requested)?requested:"recent";
+  workspace.dataset.collectionView=view;
+  workspace.querySelectorAll("[data-collection-panels]").forEach(panel=>{panel.hidden=!panel.dataset.collectionPanels.split(" ").includes(view)});
+  tabs.querySelectorAll("[data-collection-view]").forEach(button=>{
+    const selected=button.dataset.collectionView===view;
+    button.classList.toggle("active",selected);
+    button.setAttribute("aria-selected",selected?"true":"false");
+    button.tabIndex=selected?0:-1;
+    if(selected&&focus)button.focus();
+  });
+  const [title,description]=COLLECTION_WORKSPACE_COPY[view],heading=workspace.querySelector(".collection-heading");
+  if(heading?.querySelector("h2"))heading.querySelector("h2").textContent=title;
+  if(heading?.querySelector("p"))heading.querySelector("p").textContent=description;
+  if(scroll)workspace.querySelector(".full-shell>.content")?.scrollTo({top:0,behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});
+  if(persist){try{localStorage.setItem(COLLECTION_WORKSPACE_VIEW_KEY,view)}catch(_error){}}
+  return view;
+}
+
+function initializeCollectionWorkspace(){
+  const workspace=document.querySelector('.workspace[data-workspace="collection"]'),tabs=$("collectionWorkspaceTabs");
+  if(!workspace||!tabs)return;
+  const memberships=new Map();
+  Object.entries(COLLECTION_WORKSPACE_PANELS).forEach(([view,selectors])=>selectors.forEach(selector=>workspace.querySelectorAll(selector).forEach(panel=>{
+    if(!memberships.has(panel))memberships.set(panel,new Set());
+    memberships.get(panel).add(view);
+  })));
+  memberships.forEach((views,panel)=>{panel.dataset.collectionPanels=[...views].join(" ")});
+  tabs.querySelectorAll("[data-collection-view]").forEach(button=>{
+    button.addEventListener("click",()=>setCollectionWorkspaceView(button.dataset.collectionView));
+    button.addEventListener("keydown",event=>{
+      const buttons=[...tabs.querySelectorAll("[data-collection-view]")],current=buttons.indexOf(button),key=event.key;
+      if(!["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Home","End"].includes(key))return;
+      event.preventDefault();
+      const backwards=key==="ArrowUp"||key==="ArrowLeft",next=key==="Home"?0:key==="End"?buttons.length-1:(current+(backwards?-1:1)+buttons.length)%buttons.length;
+      setCollectionWorkspaceView(buttons[next].dataset.collectionView,{focus:true});
+    });
+  });
+  let saved="recent";
+  try{saved=localStorage.getItem(COLLECTION_WORKSPACE_VIEW_KEY)||"recent"}catch(_error){}
+  setCollectionWorkspaceView(saved,{persist:false,scroll:false});
+}
+
 const BROADCAST_WORKSPACE_PANELS={
   live:[".workspace-readiness",".production-session-metadata",".production-session",".operator-health",".show-preflight",".production-switcher-shell"],
   destinations:[".broadcast-destinations"],
@@ -8355,6 +8414,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   initializeMobileWakeLock();
   initializeStudioXInstallPrompt();
   initializeWorkspaceReadiness();
+  initializeCollectionWorkspace();
   initializeBroadcastWorkspace();
   loadTCGGames().then(loadRecognitionSets).catch(()=>loadRecognitionSets());
   $("tcgGameSelect")?.addEventListener("change",updateTCGSelection);
