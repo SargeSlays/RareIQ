@@ -7,7 +7,7 @@ def test_reveal_animation_is_a_live_reorderable_tool():
     assert 'data-studiox-widget="reveal-animations"' in CONTROL
     assert 'data-widget-visibility="reveal-animations"' in CONTROL
     assert 'id="liveRevealAnimationsEnabled"' in CONTROL
-    assert '"identify","pokedex","reveal-animations"' in STUDIO
+    assert '"identify","sarge-advisor","pokedex","reveal-animations"' in STUDIO
 
 def test_live_toggle_uses_persisted_reveal_configuration():
     assert "async function setLiveRevealAnimationsEnabled(enabled)" in STUDIO

@@ -116,6 +116,30 @@ def test_advisor_api_and_ui_are_explicit_and_one_shot():
     assert ".innerHTML" not in advisor
 
 
+def test_live_card_workbench_exposes_the_same_one_shot_advisor():
+    assert CONTROL.count('data-studiox-widget="sarge-advisor"') == 1
+    assert 'data-widget-visibility="sarge-advisor"' in CONTROL
+    assert 'id="liveSargeAdvisorForm"' in CONTROL
+    assert 'id="liveSargeAdvisorQuestion"' in CONTROL
+    assert 'id="liveSargeAdvisorResponse" hidden' in CONTROL
+    assert '"sarge-advisor":"Ask Sarge"' in SCRIPT
+    assert 'card:["identify","sarge-advisor"' in SCRIPT
+    assert 'recognition:["identify","sarge-advisor"' in SCRIPT
+    live = SCRIPT[SCRIPT.index("let liveSargeAdvisorInFlight"):SCRIPT.index("async function loadSargeAdvisorStatus")]
+    assert "if(liveSargeAdvisorInFlight)return null" in live
+    assert "requestSargeAdvisor(question" in live
+    assert "setInterval" not in live
+    assert ".innerHTML" not in live
+
+
+def test_live_advisor_prompts_fill_the_question_without_automatic_submission():
+    initializer = SCRIPT[SCRIPT.index("function initializeAiLab"):SCRIPT.index("const LIBRARY_VIEW_KEY")]
+    prompt_handler = initializer[initializer.index('[data-live-sarge-question]'):]
+    assert "dataset.liveSargeQuestion" in prompt_handler
+    assert ".focus()" in prompt_handler
+    assert "requestSubmit" not in prompt_handler
+
+
 def test_missing_sarge_configuration_is_truthful_and_still_useful():
     status = SargeAdvisorService().status()
     assert status["configured"] is False

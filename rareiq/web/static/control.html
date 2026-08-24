@@ -30,9 +30,9 @@
 <link rel="stylesheet" href="/static/studiox_61.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.8.8-provisional-identity">
-<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.70-sarge-advisor1">
+<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.71-sarge-live1">
 <link rel="stylesheet" href="/static/pack_run_coach.css?v=6.8.8-provisional-identity">
-<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.70-sarge-advisor1"></script>
+<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.71-sarge-live1"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><style id="ui4-unified-card-stage-overrides">
@@ -901,6 +901,7 @@ Choose a source from Manage Cameras</span>
               <div class="studiox-widget-manager-panel" id="widgetManagerPanel">
                 <strong>Visible tools</strong>
                 <label><input type="checkbox" data-widget-visibility="identify" checked> Identify</label>
+                <label><input type="checkbox" data-widget-visibility="sarge-advisor" checked> Ask Sarge</label>
                 <label><input type="checkbox" data-widget-visibility="pokedex" checked> Rare Intelligence</label>
                 <label><input type="checkbox" data-widget-visibility="reveal-animations" checked> Reveal Animations</label>
                 <label><input type="checkbox" data-widget-visibility="soundboard" checked> Soundboard</label>
@@ -934,6 +935,32 @@ Choose a source from Manage Cameras</span>
               </div>
               <div class="studiox-identity-evidence" id="identifyEvidence" hidden></div>
               <button class="riq-button studiox-identity-review" type="button" onclick="switchDock('candidates');setUI4DiagnosticsOpen(true)">Review identity</button>
+            </div>
+          </section>
+
+          <section class="studiox-widget studiox-live-sarge" data-studiox-widget="sarge-advisor" data-widget-state="ready" aria-label="Sarge AI live advisor">
+            <div class="studiox-widget-content live-sarge-advisor-shell">
+              <div class="live-sarge-advisor-intro">
+                <div><span>LIVE OPERATOR ADVISOR</span><strong>Ask Sarge</strong></div>
+                <b id="liveSargeAdvisorBadge">LOCAL READY</b>
+              </div>
+              <p>Get a read-only recommendation from the current card and session evidence.</p>
+              <form id="liveSargeAdvisorForm" class="live-sarge-advisor-form">
+                <label for="liveSargeAdvisorQuestion">Ask for a suggestion</label>
+                <div>
+                  <input id="liveSargeAdvisorQuestion" type="text" minlength="1" maxlength="800" autocomplete="off" placeholder="What should I do next?" required>
+                  <select id="liveSargeAdvisorScope" aria-label="Advisor context"><option value="current-card">Current card</option><option value="recognition">Recognition</option><option value="session">Session</option><option value="broadcast">Broadcast</option><option value="general">All relevant context</option></select>
+                  <button class="riq-button primary" id="liveSargeAdvisorAsk" type="submit">Ask Sarge</button>
+                </div>
+              </form>
+              <div class="live-sarge-advisor-prompts" aria-label="Advisor question starters"><button type="button" data-live-sarge-question="Why is this card not verified yet?">Why not verified?</button><button type="button" data-live-sarge-question="What should I do next?">What next?</button><button type="button" data-live-sarge-question="Is this card ready for market pricing?">Market ready?</button></div>
+              <p class="live-sarge-advisor-status" id="liveSargeAdvisorStatus" role="status">Ready for a question.</p>
+              <div class="live-sarge-advisor-response" id="liveSargeAdvisorResponse" hidden>
+                <div><span id="liveSargeAdvisorSource">RareIQ Local Advisor</span><b>ADVISORY ONLY</b></div>
+                <p id="liveSargeAdvisorAnswer"></p>
+                <section><h4>Evidence</h4><ul id="liveSargeAdvisorEvidence"></ul></section>
+                <section><h4>Next steps</h4><ul id="liveSargeAdvisorSuggestions"></ul></section>
+              </div>
             </div>
           </section>
 

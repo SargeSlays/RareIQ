@@ -2685,6 +2685,7 @@ function renderSargeAdvisorStatus(payload={}){
   setCardText("sargeAdvisorBadge",advisor.configured?"SARGE CONNECTED":"LOCAL ADVISOR");
   const status=$("sargeAdvisorStatus");
   if(status&&!sargeAdvisorInFlight)status.textContent=advisor.configured?`Sarge AI configured at ${advisor.endpoint_host||"the operator endpoint"}.`:"Sarge AI is not configured yet. RareIQ's local evidence advisor is ready now.";
+  renderLiveSargeAdvisorStatus(advisor);
 }
 function sargeAdvisorList(hostId,items=[]){
   const host=$(hostId);
@@ -2700,6 +2701,9 @@ function renderSargeAdvisorAnswer(payload={}){
   sargeAdvisorList("sargeAdvisorSuggestions",payload.suggestions||[]);
   setCardText("sargeAdvisorStatus",payload.source==="sarge_ai"?"Sarge AI answered using the current sanitized RareIQ context.":payload.fallback_reason?"Sarge AI was unavailable, so RareIQ returned local evidence-based guidance.":"RareIQ returned local evidence-based guidance.");
 }
+function requestSargeAdvisor(question,scope="general"){
+  return api("/api/ai/advisor/ask",{method:"POST",body:JSON.stringify({question,scope}),timeoutMs:30000});
+}
 async function askSargeAdvisor(event=null){
   event?.preventDefault?.();
   if(sargeAdvisorInFlight)return null;
@@ -2710,7 +2714,7 @@ async function askSargeAdvisor(event=null){
   if(button){button.disabled=true;button.textContent="Thinking…";}
   setCardText("sargeAdvisorStatus","Reviewing the latest sanitized RareIQ evidence…");
   try{
-    const payload=await api("/api/ai/advisor/ask",{method:"POST",body:JSON.stringify({question,scope:$("sargeAdvisorScope")?.value||"general"}),timeoutMs:30000});
+    const payload=await requestSargeAdvisor(question,$("sargeAdvisorScope")?.value||"general");
     renderSargeAdvisorAnswer(payload);
     return payload;
   }catch(error){
@@ -2721,6 +2725,52 @@ async function askSargeAdvisor(event=null){
     sargeAdvisorInFlight=false;
     if(button){button.disabled=false;button.textContent=original;}
   }
+}
+
+let liveSargeAdvisorInFlight=false;
+function renderLiveSargeAdvisorStatus(advisor={}){
+  setCardText("liveSargeAdvisorBadge",advisor.configured?"SARGE CONNECTED":"LOCAL READY");
+  const status=$("liveSargeAdvisorStatus");
+  if(status&&!liveSargeAdvisorInFlight)status.textContent=advisor.configured?"Sarge AI is connected and ready.":"RareIQ Local Advisor is ready. External Sarge AI is not configured.";
+}
+function renderLiveSargeAdvisorAnswer(payload={}){
+  const response=$("liveSargeAdvisorResponse");
+  if(response)response.hidden=false;
+  setCardText("liveSargeAdvisorSource",payload.provider||"RareIQ Local Advisor");
+  setCardText("liveSargeAdvisorAnswer",payload.answer||"No suggestion was returned.");
+  sargeAdvisorList("liveSargeAdvisorEvidence",payload.evidence||[]);
+  sargeAdvisorList("liveSargeAdvisorSuggestions",payload.suggestions||[]);
+  setCardText("liveSargeAdvisorStatus",payload.source==="sarge_ai"?"Sarge AI answered using sanitized live evidence.":payload.fallback_reason?"Sarge AI was unavailable; RareIQ supplied local guidance.":"RareIQ supplied local evidence-based guidance.");
+  setStudioXWidgetState("sarge-advisor","ready");
+}
+async function askLiveSargeAdvisor(event=null){
+  event?.preventDefault?.();
+  if(liveSargeAdvisorInFlight)return null;
+  const question=$("liveSargeAdvisorQuestion")?.value?.trim()||"";
+  if(!question){$("liveSargeAdvisorQuestion")?.focus();return null;}
+  const button=$("liveSargeAdvisorAsk"),original=button?.textContent||"Ask Sarge";
+  liveSargeAdvisorInFlight=true;
+  setStudioXWidgetState("sarge-advisor","working");
+  if(button){button.disabled=true;button.textContent="Thinking…";}
+  setCardText("liveSargeAdvisorStatus","Reviewing the latest sanitized RareIQ evidence…");
+  try{
+    const payload=await requestSargeAdvisor(question,$("liveSargeAdvisorScope")?.value||"current-card");
+    renderLiveSargeAdvisorAnswer(payload);
+    return payload;
+  }catch(error){
+    setStudioXWidgetState("sarge-advisor","error");
+    setCardText("liveSargeAdvisorStatus",error.message||"The advisor could not answer.");
+    notify("Advisor Unavailable",error.message||String(error),"error");
+    return null;
+  }finally{
+    liveSargeAdvisorInFlight=false;
+    if(button){button.disabled=false;button.textContent=original;}
+  }
+}
+async function loadSargeAdvisorStatus(){
+  const payload=await api("/api/ai/advisor/status");
+  renderSargeAdvisorStatus(payload);
+  return payload;
 }
 
 async function loadAiLab(){
@@ -2752,6 +2802,9 @@ function initializeAiLab(){
   $("aiLabRefresh")?.addEventListener("click",()=>loadAiLab().catch(error=>notify("AI Lab Unavailable",error.message||String(error),"error")));
   $("sargeAdvisorForm")?.addEventListener("submit",askSargeAdvisor);
   document.querySelectorAll("[data-sarge-question]").forEach(button=>button.addEventListener("click",()=>{if($("sargeAdvisorQuestion"))$("sargeAdvisorQuestion").value=button.dataset.sargeQuestion||"";$("sargeAdvisorForm")?.requestSubmit();}));
+  $("liveSargeAdvisorForm")?.addEventListener("submit",askLiveSargeAdvisor);
+  document.querySelectorAll("[data-live-sarge-question]").forEach(button=>button.addEventListener("click",()=>{if($("liveSargeAdvisorQuestion")){$("liveSargeAdvisorQuestion").value=button.dataset.liveSargeQuestion||"";$("liveSargeAdvisorQuestion").focus();}}));
+  loadSargeAdvisorStatus().catch(error=>setCardText("liveSargeAdvisorStatus",error.message||"Advisor status unavailable."));
   let saved="recognition";
   try{saved=localStorage.getItem(AI_LAB_VIEW_KEY)||"recognition"}catch(_error){}
   setAiLabView(saved,{persist:false});
@@ -7258,11 +7311,12 @@ function syncInspectorNavigationState(){
 const STUDIOX_WIDGET_LAYOUT_KEY="rareiq.studiox.widgetLayout.v2";
 const STUDIOX_WIDGET_LAYOUT_LEGACY_KEY="rareiq.studiox.widgetLayout.v1";
 const STUDIOX_WIDGET_IDS=[
-  "identify","pokedex","reveal-animations","soundboard","spotify","ai-grade","market","candidates","details","diagnostics",
+  "identify","sarge-advisor","pokedex","reveal-animations","soundboard","spotify","ai-grade","market","candidates","details","diagnostics",
   "auto-screenshot"
 ];
 const STUDIOX_WIDGET_TITLES={
   identify:"Identify",
+  "sarge-advisor":"Ask Sarge",
   pokedex:"Rare Intelligence",
   "reveal-animations":"Reveal Animations",
   soundboard:"Soundboard",
@@ -7274,7 +7328,7 @@ const STUDIOX_WIDGET_TITLES={
   diagnostics:"Diagnostics",
   "auto-screenshot":"Auto Screenshot",
 };
-const STUDIOX_WORKBENCH_CATEGORIES={card:["identify","pokedex","details","ai-grade"],recognition:["identify","candidates","diagnostics","auto-screenshot"],stream:["reveal-animations","soundboard","spotify"],business:["market"],all:[]};
+const STUDIOX_WORKBENCH_CATEGORIES={card:["identify","sarge-advisor","pokedex","details","ai-grade"],recognition:["identify","sarge-advisor","candidates","diagnostics","auto-screenshot"],stream:["reveal-animations","soundboard","spotify"],business:["market"],all:[]};
 const STUDIOX_WORKBENCH_TAB_KEY="rareiq.studiox.workbenchTab.v1";
 const STUDIOX_WORKBENCH_CONTEXT={card:{eyebrow:"CARD WORKBENCH",title:"Card profile and intelligence",description:"Review verified identity, species intelligence, condition, and card details.",action:"Review identity"},recognition:{eyebrow:"RECOGNITION LAB",title:"Evidence and verification",description:"Inspect candidates, diagnostics, provenance, and the evidence behind the match.",action:"Open candidates"},stream:{eyebrow:"STREAM CONTROL",title:"Audience effects and audio",description:"Run reveal animations, sound cues, and music without leaving the live card.",action:"Stop all audio"},business:{eyebrow:"BUSINESS DESK",title:"Value and commerce",description:"Review verified market data and commercial context without invented pricing.",action:"Refresh market"},all:{eyebrow:"POWER USER",title:"All intelligence tools",description:"Full workspace with custom ordering, visibility, sizing, and pinning.",action:"Manage tools"}};
 function syncStudioXWorkbenchContext(){const context=STUDIOX_WORKBENCH_CONTEXT[document.body.dataset.workbenchTab||"card"];if($("workbenchEyebrow"))$("workbenchEyebrow").textContent=context.eyebrow;if($("workbenchTitle"))$("workbenchTitle").textContent=context.title;if($("workbenchDescription"))$("workbenchDescription").textContent=context.description;if($("workbenchPrimaryAction"))$("workbenchPrimaryAction").textContent=context.action;}
@@ -8651,6 +8705,7 @@ async function saveRareIntelligenceTheme(){
 
 const STUDIOX_WIDGET_RENDERERS={
   identify:renderIdentifyWidget,
+  "sarge-advisor":()=>setStudioXWidgetState("sarge-advisor",liveSargeAdvisorInFlight?"working":"ready"),
   pokedex:renderPokedexWidget,
   "reveal-animations":()=>{},
   soundboard:()=>{},

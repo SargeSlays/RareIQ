@@ -59,7 +59,7 @@ def test_initialization_and_tabs_are_stable_and_accessible() -> None:
         script.index("function initializeStudioXUI4"):
         script.index('document.addEventListener("DOMContentLoaded"')
     ]
-    assert html.count("data-studiox-widget=") == 11
+    assert html.count("data-studiox-widget=") == 12
     assert 'data-widget-visibility="identify"' in html
     assert "applyStudioXWidgetLayout()" in script
 
