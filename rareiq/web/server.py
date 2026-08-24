@@ -29,6 +29,7 @@ from rareiq.core.storage import storage
 from rareiq.services.provenance_capture_service import ProvenanceCaptureService
 from rareiq.services.spotify_service import spotify
 from rareiq.services.instant_replay_service import InstantReplayService
+from rareiq.services.inventory_service import MAX_RECEIPT_DATA_URL_CHARS
 from rareiq.services.recording_service import RecordingService
 from rareiq.services.obs_service import ObsService
 from rareiq.version import BUILD_DATE, CODENAME, VERSION, version_payload
@@ -42,6 +43,44 @@ CATALOG_REFRESH_INTERVAL_SECONDS = max(
     15 * 60,
     int(os.getenv("RAREIQ_CATALOG_REFRESH_SECONDS", str(60 * 60))),
 )
+MAX_CONTROL_REQUEST_BYTES = 64 * 1024
+MAX_RECEIPT_REQUEST_BYTES = MAX_RECEIPT_DATA_URL_CHARS + 8 * 1024
+
+
+class RequestBodyTooLarge(ValueError):
+    def __init__(self, max_bytes: int) -> None:
+        super().__init__(f"request body exceeds {max_bytes} bytes")
+        self.max_bytes = max_bytes
+
+
+async def _read_bounded_body(request: Request, max_bytes: int) -> bytes:
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            declared_size = int(content_length)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="invalid_content_length") from exc
+        if declared_size < 0:
+            raise HTTPException(status_code=400, detail="invalid_content_length")
+        if declared_size > max_bytes:
+            raise RequestBodyTooLarge(max_bytes)
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(chunk) > max_bytes - len(body):
+            raise RequestBodyTooLarge(max_bytes)
+        body.extend(chunk)
+    return bytes(body)
+
+
+async def _read_bounded_json(request: Request, max_bytes: int = MAX_CONTROL_REQUEST_BYTES) -> dict[str, Any]:
+    body = await _read_bounded_body(request, max_bytes)
+    if not body:
+        return {}
+    try:
+        payload = json.loads(body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 @asynccontextmanager
@@ -111,6 +150,49 @@ async def json_api_exception_handler(request: Request, exc: Exception):
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 event_bus = EventBus()
 orchestrator = RareIQOrchestrator(event_bus, CAPTURE_DIR)
+
+
+def _request_body_limit(request: Request) -> int | None:
+    path = request.url.path
+    if request.method == "POST" and path == "/api/creator/assets":
+        mime = (request.headers.get("content-type") or "").split(";", 1)[0].strip().lower()
+        rule = orchestrator.reaction_assets.ALLOWED.get(mime)
+        return rule[2] if rule else None
+    if request.method == "POST" and path == "/api/inventory/expenses":
+        return MAX_RECEIPT_REQUEST_BYTES
+    if request.method == "POST" and path in {"/api/multi-card/select", "/api/multi-card/capture"}:
+        return MAX_CONTROL_REQUEST_BYTES
+    return None
+
+
+@app.middleware("http")
+async def enforce_bounded_request_bodies(request: Request, call_next):
+    limit = _request_body_limit(request)
+    if limit is None:
+        return await call_next(request)
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            declared_size = int(content_length)
+        except ValueError:
+            return JSONResponse(status_code=400, content={"ok": False, "reason": "invalid_content_length"})
+        if declared_size < 0:
+            return JSONResponse(status_code=400, content={"ok": False, "reason": "invalid_content_length"})
+        if declared_size > limit:
+            return JSONResponse(
+                status_code=413,
+                content={"ok": False, "reason": "request_too_large", "max_bytes": limit},
+            )
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(chunk) > limit - len(body):
+            return JSONResponse(
+                status_code=413,
+                content={"ok": False, "reason": "request_too_large", "max_bytes": limit},
+            )
+        body.extend(chunk)
+    request._body = bytes(body)
+    return await call_next(request)
 
 
 def _active_camera_provenance_context() -> dict[str, Any]:
@@ -468,7 +550,7 @@ class InventoryExpenseRequest(BaseModel):
     incurred_at: float | None = None
     recurrence: Literal["none", "weekly", "monthly", "annual"] = "none"
     receipt_name: str = Field(default="", max_length=180)
-    receipt_data_url: str = ""
+    receipt_data_url: str = Field(default="", max_length=MAX_RECEIPT_DATA_URL_CHARS)
 
 class InventoryExpenseUpdateRequest(BaseModel):
     category: Literal["fees", "shipping", "supplies", "packs", "boxes", "other"] | None = None
@@ -1338,10 +1420,24 @@ async def creator_assets():
 
 @app.post("/api/creator/assets")
 async def upload_creator_asset(request: Request):
+    mime = (request.headers.get("Content-Type") or "application/octet-stream").split(";", 1)[0].strip().lower()
+    rule = orchestrator.reaction_assets.ALLOWED.get(mime)
+    if not rule:
+        return _collection_mutation_response(
+            {"created": False, "reason": "unsupported_media_type"}, "created"
+        )
+    limit = rule[2]
+    try:
+        body = await _read_bounded_body(request, limit)
+    except RequestBodyTooLarge:
+        return JSONResponse(
+            status_code=413,
+            content={"ok": False, "created": False, "reason": "asset_too_large", "max_bytes": limit},
+        )
     result = orchestrator.reaction_assets.add(
         request.headers.get("X-RareIQ-Filename") or "asset",
-        request.headers.get("Content-Type") or "application/octet-stream",
-        await request.body(),
+        mime,
+        body,
     )
     return _collection_mutation_response(result, "created")
 
@@ -2650,9 +2746,9 @@ async def multi_card_status():
 @app.post("/api/multi-card/select")
 async def multi_card_select(request: Request):
     try:
-        payload = await request.json()
-    except (json.JSONDecodeError, ValueError):
-        payload = {}
+        payload = await _read_bounded_json(request)
+    except RequestBodyTooLarge as exc:
+        return JSONResponse(status_code=413, content={"ok": False, "reason": "request_too_large", "max_bytes": exc.max_bytes})
     slots = payload.get("slots") if isinstance(payload.get("slots"), list) else []
     state = orchestrator.multi_card_recognition.select_slots(slots)
     # Resolve immediately so the held Rare Intelligence profile follows the
@@ -2663,9 +2759,9 @@ async def multi_card_select(request: Request):
 @app.post("/api/multi-card/capture")
 async def multi_card_capture(request: Request):
     try:
-        options = await request.json()
-    except (json.JSONDecodeError, ValueError):
-        options = {}
+        options = await _read_bounded_json(request)
+    except RequestBodyTooLarge as exc:
+        return JSONResponse(status_code=413, content={"ok": False, "reason": "request_too_large", "max_bytes": exc.max_bytes})
     max_cards = max(2, min(12, int(options.get("max_cards", 6) or 6)))
     frame = None
     best_detections = []

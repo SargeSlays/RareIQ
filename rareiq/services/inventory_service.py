@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import base64
+import binascii
 import json
 import re
 import threading
@@ -12,6 +13,16 @@ import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+
+MAX_RECEIPT_BYTES = 5 * 1024 * 1024
+MAX_RECEIPT_BASE64_CHARS = ((MAX_RECEIPT_BYTES + 2) // 3) * 4
+MAX_RECEIPT_DATA_URL_CHARS = MAX_RECEIPT_BASE64_CHARS + 128
+RECEIPT_TYPES = {
+    "application/pdf": (".pdf", b"%PDF-"),
+    "image/png": (".png", b"\x89PNG\r\n\x1a\n"),
+    "image/jpeg": (".jpg", b"\xff\xd8\xff"),
+}
 
 
 class InventoryService:
@@ -301,11 +312,25 @@ class InventoryService:
         recurring = recurrence if recurrence in {"none", "weekly", "monthly", "annual"} else "none"
         category_key = str(category or "other")[:40]
         expense = {"expense_id": expense_id, "category": category_key, "tax_category": self.TAX_CATEGORIES.get(category_key, self.TAX_CATEGORIES["other"]), "amount": value, "currency": str(currency or "USD")[:8], "note": str(note or "")[:300], "incurred_at": timestamp, "created_at": now, "recurrence": recurring, "receipt_name": str(receipt_name or "")[:180], "receipt_file": None}
-        if receipt_data_url and "," in receipt_data_url:
-            header, encoded = receipt_data_url.split(",", 1); raw = base64.b64decode(encoded, validate=True)
-            if len(raw) > 5 * 1024 * 1024:
-                return {"created": False, "reason": "receipt_too_large"}
-            extension = ".pdf" if "application/pdf" in header else ".png" if "image/png" in header else ".jpg"
+        if receipt_data_url:
+            if "," not in receipt_data_url:
+                return {"created": False, "reason": "receipt_invalid"}
+            header, encoded = receipt_data_url.split(",", 1)
+            media_type = header[5:].split(";", 1)[0].strip().lower() if header.lower().startswith("data:") else ""
+            receipt_type = RECEIPT_TYPES.get(media_type)
+            if not receipt_type or not header.lower().endswith(";base64"):
+                return {"created": False, "reason": "receipt_unsupported_media_type"}
+            if len(encoded) > MAX_RECEIPT_BASE64_CHARS:
+                return {"created": False, "reason": "receipt_too_large", "max_bytes": MAX_RECEIPT_BYTES}
+            try:
+                raw = base64.b64decode(encoded, validate=True)
+            except (binascii.Error, ValueError):
+                return {"created": False, "reason": "receipt_invalid"}
+            if len(raw) > MAX_RECEIPT_BYTES:
+                return {"created": False, "reason": "receipt_too_large", "max_bytes": MAX_RECEIPT_BYTES}
+            extension, signature = receipt_type
+            if not raw.startswith(signature):
+                return {"created": False, "reason": "receipt_signature_mismatch"}
             receipt_dir = self.state_path.parent / "expense_receipts"; receipt_dir.mkdir(parents=True, exist_ok=True)
             receipt_file = f"{expense_id}{extension}"; (receipt_dir / receipt_file).write_bytes(raw); expense["receipt_file"] = receipt_file
         with self._lock:
