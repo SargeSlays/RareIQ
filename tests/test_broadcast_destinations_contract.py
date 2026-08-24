@@ -18,7 +18,7 @@ def test_destinations_have_a_first_class_broadcast_view() -> None:
 
 def test_destination_state_uses_one_read_only_status_endpoint() -> None:
     assert '@app.get("/api/production/destinations")' in SERVER
-    assert 'async function loadBroadcastDestinations(){const payload=await api("/api/production/destinations")' in JS
+    assert 'async function loadBroadcastDestinations(){try{const payload=await api("/api/production/destinations")' in JS
     section = JS[
         JS.index("function broadcastDestinationCard") :
         JS.index("async function saveObsSettings")
@@ -27,6 +27,18 @@ def test_destination_state_uses_one_read_only_status_endpoint() -> None:
     assert "method:\"POST\"" not in section
     assert "destination.connected=" not in section
     assert "routing.platform_live_verified" in section
+
+
+def test_destination_failure_renders_a_truthful_durable_state() -> None:
+    section = JS[
+        JS.index("function renderBroadcastDestinationsUnavailable") :
+        JS.index("async function saveObsSettings")
+    ]
+    assert 'status.dataset.state="unavailable"' in section
+    assert 'Destination connectors unavailable' in section
+    assert 'No platform connection or live state is being assumed.' in section
+    assert 'renderBroadcastDestinationsUnavailable(error);throw error' in section
+    assert ".broadcast-destination-unavailable" in CSS
 
 
 def test_destination_console_is_truthful_and_responsive() -> None:
