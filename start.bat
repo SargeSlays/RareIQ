@@ -14,7 +14,7 @@ if errorlevel 1 goto :setup_failed
 python -m pip install -r requirements.txt
 if errorlevel 1 goto :setup_failed
 
-python -B app.py
+python -B tools\server_control.py start --open
 set EXIT_CODE=%ERRORLEVEL%
 if not "%EXIT_CODE%"=="0" echo RareIQ exited with code %EXIT_CODE%.
 pause

@@ -58,7 +58,7 @@ def test_launcher_installs_the_checked_in_manifest() -> None:
     assert "py -3.13 -m venv .venv" in launcher
     assert "python -m pip install -r requirements.txt" in launcher
     assert "python -m pip install --upgrade pip" not in launcher
-    assert "python -B app.py" in launcher
+    assert "python -B tools\\server_control.py start --open" in launcher
 
 
 def test_runtime_and_development_dependencies_are_separated_and_pinned() -> None:

@@ -1,0 +1,435 @@
+from __future__ import annotations
+
+import argparse
+import ctypes
+import json
+import os
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+import webbrowser
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+
+STATE_VERSION = 1
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 8765
+DEFAULT_START_TIMEOUT = 90.0
+DEFAULT_STOP_TIMEOUT = 30.0
+
+
+class ServerControlError(RuntimeError):
+    pass
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _validate_binding(host: str, port: int) -> tuple[str, int]:
+    host = str(host).strip().lower()
+    if host not in {"127.0.0.1", "localhost", "::1"}:
+        raise ServerControlError("RareIQ server control only permits loopback hosts.")
+    if not 1 <= int(port) <= 65535:
+        raise ServerControlError("Server port must be between 1 and 65535.")
+    return host, int(port)
+
+
+def _runtime_paths(project_root: Path) -> tuple[Path, Path]:
+    project_root = Path(project_root).resolve()
+    sys.path.insert(0, str(project_root))
+    try:
+        from rareiq.core.storage import StorageManager
+
+        manager = StorageManager(project_root=project_root)
+        log_root = manager.get_path("log_path") / "server"
+    finally:
+        try:
+            sys.path.remove(str(project_root))
+        except ValueError:
+            pass
+    log_root.mkdir(parents=True, exist_ok=True)
+    return log_root / "server-control.json", log_root
+
+
+def _load_state(state_path: Path) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(state_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError, TypeError) as exc:
+        raise ServerControlError(f"Server state is unreadable: {state_path}") from exc
+    if not isinstance(payload, dict) or payload.get("version") != STATE_VERSION:
+        raise ServerControlError(f"Server state has an unsupported format: {state_path}")
+    return payload
+
+
+def _write_state(state_path: Path, payload: dict[str, Any]) -> None:
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = state_path.with_name(f".{state_path.name}.{os.getpid()}.tmp")
+    try:
+        temporary.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        os.replace(temporary, state_path)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _remove_state(state_path: Path) -> None:
+    try:
+        state_path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def _pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        process_query_limited_information = 0x1000
+        still_active = 259
+        handle = ctypes.windll.kernel32.OpenProcess(process_query_limited_information, False, pid)
+        if not handle:
+            return False
+        try:
+            exit_code = ctypes.c_ulong()
+            return bool(ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))) and exit_code.value == still_active
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except (OSError, ProcessLookupError):
+        return False
+    return True
+
+
+def _request_json(url: str, *, method: str = "GET", timeout: float = 1.0) -> dict[str, Any] | None:
+    request = urllib.request.Request(url, method=method)
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            return payload if isinstance(payload, dict) else None
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError, TypeError):
+        return None
+
+
+def _base_url(host: str, port: int) -> str:
+    display_host = f"[{host}]" if ":" in host else host
+    return f"http://{display_host}:{port}"
+
+
+def _ping(host: str, port: int, *, timeout: float = 1.0) -> dict[str, Any] | None:
+    return _request_json(f"{_base_url(host, port)}/api/boot/ping", timeout=timeout)
+
+
+def _resolved_paths(project_root: Path, state_path: Path | None) -> tuple[Path, Path]:
+    if state_path is None:
+        return _runtime_paths(project_root)
+    state_path = Path(state_path).resolve()
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    return state_path, state_path.parent
+
+
+def server_status(project_root: Path, *, state_path: Path | None = None) -> dict[str, Any]:
+    project_root = Path(project_root).resolve()
+    state_path, _log_root = _resolved_paths(project_root, state_path)
+    state = _load_state(state_path)
+    if state:
+        host, port = _validate_binding(state.get("host", DEFAULT_HOST), int(state.get("port", DEFAULT_PORT)))
+    else:
+        host, port = DEFAULT_HOST, DEFAULT_PORT
+    ping = _ping(host, port)
+    if not state:
+        return {
+            "state": "unmanaged" if ping else "stopped",
+            "managed": False,
+            "healthy": bool(ping),
+            "url": _base_url(host, port),
+            "server": ping,
+            "state_path": str(state_path),
+        }
+    pid = int(state.get("pid") or 0)
+    launcher_pid = int(state.get("launcher_pid") or pid)
+    pid_alive = _pid_alive(pid)
+    launcher_alive = _pid_alive(launcher_pid)
+    session_matches = bool(
+        ping
+        and state.get("server_session_id")
+        and ping.get("server_session_id") == state.get("server_session_id")
+        and int(ping.get("pid") or 0) == pid
+    )
+    if session_matches and pid_alive:
+        status = "running"
+    elif ping:
+        status = "conflict"
+    elif pid_alive:
+        status = "unhealthy"
+    else:
+        status = "stale"
+    return {
+        "state": status,
+        "managed": True,
+        "healthy": status == "running",
+        "pid": pid,
+        "pid_alive": pid_alive,
+        "launcher_pid": launcher_pid,
+        "launcher_alive": launcher_alive,
+        "server_session_id": state.get("server_session_id"),
+        "url": _base_url(host, port),
+        "control_url": f"{_base_url(host, port)}/control",
+        "server": ping,
+        "stdout_log": state.get("stdout_log"),
+        "stderr_log": state.get("stderr_log"),
+        "started_at": state.get("started_at"),
+        "state_path": str(state_path),
+    }
+
+
+def start_server(
+    project_root: Path,
+    *,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
+    timeout: float = DEFAULT_START_TIMEOUT,
+    open_browser: bool = False,
+    state_path: Path | None = None,
+) -> dict[str, Any]:
+    project_root = Path(project_root).resolve()
+    host, port = _validate_binding(host, port)
+    state_path, log_root = _resolved_paths(project_root, state_path)
+    existing = server_status(project_root, state_path=state_path)
+    if existing["state"] == "running":
+        return {**existing, "already_running": True}
+    if existing["state"] in {"unmanaged", "conflict", "unhealthy"}:
+        raise ServerControlError(
+            f"Refusing to start another RareIQ instance while server state is {existing['state']}. "
+            "Inspect status or use a verified managed restart."
+        )
+    if existing["state"] == "stale":
+        _remove_state(state_path)
+    if _ping(host, port):
+        raise ServerControlError(f"A RareIQ server already responds at {_base_url(host, port)} but is not managed by this state file.")
+    python = project_root / ".venv" / "Scripts" / "python.exe"
+    app = project_root / "app.py"
+    if not python.is_file() or not app.is_file():
+        raise ServerControlError("RareIQ runtime is incomplete; expected .venv\\Scripts\\python.exe and app.py.")
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    stdout_path = log_root / f"server-{stamp}.out.log"
+    stderr_path = log_root / f"server-{stamp}.err.log"
+    environment = os.environ.copy()
+    environment.update({
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONUNBUFFERED": "1",
+        "RAREIQ_HOST": host,
+        "RAREIQ_PORT": str(port),
+    })
+    popen_kwargs: dict[str, Any] = {
+        "cwd": str(project_root),
+        "env": environment,
+        "stdin": subprocess.DEVNULL,
+    }
+    if os.name == "nt":
+        popen_kwargs["creationflags"] = (
+            subprocess.CREATE_NEW_PROCESS_GROUP
+            | subprocess.DETACHED_PROCESS
+            | subprocess.CREATE_NO_WINDOW
+        )
+    else:
+        popen_kwargs["start_new_session"] = True
+    with stdout_path.open("ab", buffering=0) as stdout_handle, stderr_path.open("ab", buffering=0) as stderr_handle:
+        process = subprocess.Popen(
+            [str(python), "-B", str(app)],
+            stdout=stdout_handle,
+            stderr=stderr_handle,
+            **popen_kwargs,
+        )
+    pending = {
+        "version": STATE_VERSION,
+        "pid": None,
+        "launcher_pid": process.pid,
+        "host": host,
+        "port": port,
+        "server_session_id": None,
+        "started_at": _utc_now(),
+        "stdout_log": str(stdout_path),
+        "stderr_log": str(stderr_path),
+    }
+    _write_state(state_path, pending)
+    deadline = time.monotonic() + timeout
+    ping = None
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            break
+        ping = _ping(host, port)
+        if ping and int(ping.get("pid") or 0) > 0 and ping.get("server_session_id"):
+            break
+        time.sleep(0.25)
+    if not ping or int(ping.get("pid") or 0) <= 0 or not ping.get("server_session_id"):
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+        _remove_state(state_path)
+        try:
+            error_tail = stderr_path.read_text(encoding="utf-8", errors="replace")[-2000:].strip()
+        except OSError:
+            error_tail = ""
+        raise ServerControlError(f"RareIQ did not become ready within {timeout:.0f}s. {error_tail}".strip())
+    ready = {
+        **pending,
+        "pid": int(ping["pid"]),
+        "server_session_id": ping["server_session_id"],
+        "ready_at": _utc_now(),
+    }
+    _write_state(state_path, ready)
+    result = server_status(project_root, state_path=state_path)
+    if open_browser:
+        webbrowser.open(result["control_url"])
+    return {**result, "started": True}
+
+
+def _force_stop(pid: int) -> None:
+    if os.name == "nt":
+        completed = subprocess.run(
+            ["taskkill.exe", "/PID", str(pid), "/T", "/F"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode not in {0, 128}:
+            raise ServerControlError((completed.stderr or completed.stdout or "taskkill failed").strip())
+    else:
+        os.kill(pid, 15)
+
+
+def stop_server(
+    project_root: Path,
+    *,
+    timeout: float = DEFAULT_STOP_TIMEOUT,
+    force: bool = False,
+    state_path: Path | None = None,
+) -> dict[str, Any]:
+    project_root = Path(project_root).resolve()
+    state_path, _log_root = _resolved_paths(project_root, state_path)
+    current = server_status(project_root, state_path=state_path)
+    if current["state"] == "stopped":
+        return {**current, "already_stopped": True}
+    if current["state"] == "stale":
+        _remove_state(state_path)
+        return {**current, "stopped": True, "stale_state_removed": True}
+    if current["state"] in {"unmanaged", "conflict"}:
+        raise ServerControlError(f"Refusing to stop a {current['state']} server without matching managed provenance.")
+    pid = int(current.get("pid") or 0)
+    if current["state"] == "running":
+        response = _request_json(f"{current['url']}/api/system/shutdown", method="POST", timeout=3.0)
+        if not response or response.get("ok") is not True:
+            if not force:
+                raise ServerControlError("RareIQ did not acknowledge graceful shutdown.")
+    elif not force:
+        raise ServerControlError("The managed process is unhealthy; use --force only after confirming its PID.")
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline and _pid_alive(pid):
+        time.sleep(0.2)
+    if _pid_alive(pid) and force:
+        _force_stop(pid)
+        force_deadline = time.monotonic() + 5.0
+        while time.monotonic() < force_deadline and _pid_alive(pid):
+            time.sleep(0.1)
+    if _pid_alive(pid):
+        raise ServerControlError(f"RareIQ PID {pid} did not stop within {timeout:.0f}s.")
+    _remove_state(state_path)
+    return {
+        **current,
+        "state": "stopped",
+        "healthy": False,
+        "pid_alive": False,
+        "launcher_alive": _pid_alive(int(current.get("launcher_pid") or 0)),
+        "stopped": True,
+    }
+
+
+def restart_server(
+    project_root: Path,
+    *,
+    host: str | None = None,
+    port: int | None = None,
+    timeout: float = DEFAULT_START_TIMEOUT,
+    force: bool = False,
+    open_browser: bool = False,
+    state_path: Path | None = None,
+) -> dict[str, Any]:
+    state_path, _log_root = _resolved_paths(Path(project_root).resolve(), state_path)
+    state = _load_state(state_path)
+    selected_host = host or (str(state.get("host")) if state else DEFAULT_HOST)
+    selected_port = port or (int(state.get("port")) if state else DEFAULT_PORT)
+    stopped = stop_server(project_root, timeout=DEFAULT_STOP_TIMEOUT, force=force, state_path=state_path)
+    started = start_server(
+        project_root,
+        host=selected_host,
+        port=selected_port,
+        timeout=timeout,
+        open_browser=open_browser,
+        state_path=state_path,
+    )
+    return {"stopped": stopped, "started": started}
+
+
+def main(argv: list[str] | None = None) -> int:
+    project_root = Path(__file__).resolve().parents[1]
+    parser = argparse.ArgumentParser(description="Reliably manage one local RareIQ server process.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    start = subparsers.add_parser("start")
+    start.add_argument("--host", default=DEFAULT_HOST)
+    start.add_argument("--port", type=int, default=DEFAULT_PORT)
+    start.add_argument("--timeout", type=float, default=DEFAULT_START_TIMEOUT)
+    start.add_argument("--open", action="store_true", dest="open_browser")
+    subparsers.add_parser("status")
+    stop = subparsers.add_parser("stop")
+    stop.add_argument("--timeout", type=float, default=DEFAULT_STOP_TIMEOUT)
+    stop.add_argument("--force", action="store_true")
+    restart = subparsers.add_parser("restart")
+    restart.add_argument("--host", default=None)
+    restart.add_argument("--port", type=int, default=None)
+    restart.add_argument("--timeout", type=float, default=DEFAULT_START_TIMEOUT)
+    restart.add_argument("--force", action="store_true")
+    restart.add_argument("--open", action="store_true", dest="open_browser")
+    args = parser.parse_args(argv)
+    try:
+        if args.command == "start":
+            result = start_server(
+                project_root,
+                host=args.host,
+                port=args.port,
+                timeout=args.timeout,
+                open_browser=args.open_browser,
+            )
+        elif args.command == "status":
+            result = server_status(project_root)
+        elif args.command == "stop":
+            result = stop_server(project_root, timeout=args.timeout, force=args.force)
+        else:
+            result = restart_server(
+                project_root,
+                host=args.host,
+                port=args.port,
+                timeout=args.timeout,
+                force=args.force,
+                open_browser=args.open_browser,
+            )
+    except ServerControlError as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}, indent=2), file=sys.stderr)
+        return 1
+    print(json.dumps({"ok": True, **result}, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

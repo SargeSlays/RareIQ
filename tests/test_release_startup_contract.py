@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -40,11 +41,11 @@ def test_app_entrypoint_initializes_storage_before_loading_server():
 def test_boot_ping_exposes_the_active_release_version():
     payload = asyncio.run(server.boot_ping())
 
-    assert payload == {
-        "ok": True,
-        "version": VERSION,
-        "message": "Boot API online.",
-    }
+    assert payload["ok"] is True
+    assert payload["version"] == VERSION
+    assert payload["server_session_id"] == server.SERVER_SESSION_ID
+    assert payload["pid"] == os.getpid()
+    assert payload["message"] == "Boot API online."
 
 
 def test_system_health_has_one_route_and_supports_both_frontend_contracts(monkeypatch):

@@ -1229,6 +1229,8 @@ async def boot_ping():
     return {
         "ok": True,
         "version": VERSION,
+        "server_session_id": SERVER_SESSION_ID,
+        "pid": os.getpid(),
         "message": "Boot API online.",
     }
 
@@ -4168,6 +4170,16 @@ async def demo(tier: str):
     return {"ok":True,"session":await orchestrator.add_demo_card(DEMO_CARDS[tier])}
 
 def run():
+    host = os.getenv("RAREIQ_HOST", "127.0.0.1").strip().lower()
+    if host not in {"127.0.0.1", "localhost", "::1"}:
+        raise RuntimeError("RAREIQ_HOST must be a loopback address.")
+    try:
+        port = int(os.getenv("RAREIQ_PORT", "8765"))
+    except ValueError as exc:
+        raise RuntimeError("RAREIQ_PORT must be an integer.") from exc
+    if not 1 <= port <= 65535:
+        raise RuntimeError("RAREIQ_PORT must be between 1 and 65535.")
+    display_host = f"[{host}]" if ":" in host else host
     print()
     print("=" * 58)
     print("RareIQ Vision")
@@ -4175,13 +4187,13 @@ def run():
     print(f"Build {BUILD_DATE}")
     print("Project Digital Jazz")
     print("=" * 58)
-    print("Control: http://127.0.0.1:8765/control")
-    print("About:  http://127.0.0.1:8765/about")
+    print(f"Control: http://{display_host}:{port}/control")
+    print(f"About:  http://{display_host}:{port}/about")
     print()
     uvicorn.run(
         "rareiq.web.server:app",
-        host="127.0.0.1",
-        port=8765,
+        host=host,
+        port=port,
         reload=False,
     )
 
