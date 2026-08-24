@@ -6358,6 +6358,7 @@ function setUI4InspectorView(name,loadHistory=true){
   recent?.setAttribute("aria-hidden",String(ui4InspectorView!=="recent"));
   document.querySelector(".inspector")?.setAttribute("data-primary-view",ui4InspectorView);
   syncMobileOperatorViewButtons();
+  syncMobileOperatorDeck();
   if(ui4InspectorView==="recent"&&loadHistory) loadUI4RecentScans();
 }
 
@@ -7861,7 +7862,8 @@ function syncMobileOperatorDeck(){
   setCardText("mobileOperatorConnection",connectionLabel);
   const region=document.querySelector(".ui4-mobile-action-region");
   const decisionAvailable=name!=="Waiting for card"&&(!$("approveButton")?.disabled||!$("rejectButton")?.disabled);
-  if(region){region.dataset.state=state.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"searching";region.dataset.connection=serverConnectionState;region.dataset.actions=decisionAvailable?"decision":"scan"}
+  const actions=ui4InspectorView==="recent"?"history":decisionAvailable?"decision":"scan";
+  if(region){region.dataset.state=state.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"searching";region.dataset.connection=serverConnectionState;region.dataset.actions=actions}
   if($("mobileOperatorNext")) $("mobileOperatorNext").disabled=connectionUnavailable||Boolean($("nextClearButton")?.disabled);
   if($("mobileOperatorCapture")) $("mobileOperatorCapture").disabled=connectionUnavailable||Boolean(document.querySelector(".premium-capture-action")?.disabled);
   if($("mobileOperatorApprove")) $("mobileOperatorApprove").disabled=connectionUnavailable||Boolean($("approveButton")?.disabled);
@@ -7921,6 +7923,8 @@ function initializeStudioXUI4(){
   $("mobileOperatorCapture")?.addEventListener("click",()=>Promise.resolve().then(()=>captureRecognitionMode()).catch(error=>notify("Capture Failed",error.message||String(error),"error")));
   $("mobileOperatorApprove")?.addEventListener("click",()=>$("approveButton")?.click());
   $("mobileOperatorReject")?.addEventListener("click",()=>$("rejectButton")?.click());
+  $("mobileOperatorHistoryLive")?.addEventListener("click",()=>setMobileOperatorDestination("card"));
+  $("mobileOperatorHistoryRefresh")?.addEventListener("click",loadUI4RecentScans);
   $("mobileOperatorNext")?.addEventListener("click",()=>$("nextClearButton")?.click());
   $("mobileOperatorReconnect")?.addEventListener("click",()=>Promise.resolve().then(()=>reconnectCamera()).catch(error=>notify("Camera Reconnect Failed",error.message||String(error),"error")));
   $("mobileOperatorStatus")?.addEventListener("click",()=>setUI4HealthOpen(!ui4HealthOpen));

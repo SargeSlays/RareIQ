@@ -17,6 +17,8 @@ def test_mobile_operator_deck_has_unique_accessible_controls():
         "mobileOperatorCapture",
         "mobileOperatorApprove",
         "mobileOperatorReject",
+        "mobileOperatorHistoryLive",
+        "mobileOperatorHistoryRefresh",
         "mobileOperatorNext",
         "mobileOperatorReconnect",
         "mobileOperatorStatus",
@@ -36,6 +38,8 @@ def test_mobile_operator_actions_delegate_to_existing_paths_without_polling():
     assert '$("mobileOperatorCapture")?.addEventListener("click",()=>Promise.resolve().then(()=>captureRecognitionMode())' in initializer
     assert '$("mobileOperatorApprove")?.addEventListener("click",()=>$("approveButton")?.click())' in initializer
     assert '$("mobileOperatorReject")?.addEventListener("click",()=>$("rejectButton")?.click())' in initializer
+    assert '$("mobileOperatorHistoryLive")?.addEventListener("click",()=>setMobileOperatorDestination("card"))' in initializer
+    assert '$("mobileOperatorHistoryRefresh")?.addEventListener("click",loadUI4RecentScans)' in initializer
     assert '$("mobileOperatorNext")?.addEventListener("click",()=>$("nextClearButton")?.click())' in initializer
     assert '$("mobileOperatorReconnect")?.addEventListener("click",()=>Promise.resolve().then(()=>reconnectCamera())' in initializer
     assert '$("mobileOperatorStatus")?.addEventListener("click",()=>setUI4HealthOpen(!ui4HealthOpen))' in initializer
@@ -54,7 +58,8 @@ def test_mobile_deck_switches_to_existing_decision_actions_only_for_a_card():
     sync = JS[JS.index("function syncMobileOperatorDeck()") : JS.index("function setMobileOperatorView")]
     assert 'name!=="Waiting for card"' in sync
     assert '!$("approveButton")?.disabled||!$("rejectButton")?.disabled' in sync
-    assert 'region.dataset.actions=decisionAvailable?"decision":"scan"' in sync
+    assert 'const actions=ui4InspectorView==="recent"?"history":decisionAvailable?"decision":"scan"' in sync
+    assert "region.dataset.actions=actions" in sync
     assert '$("mobileOperatorApprove").disabled=connectionUnavailable||Boolean($("approveButton")?.disabled)' in sync
     assert '$("mobileOperatorReject").disabled=connectionUnavailable||Boolean($("rejectButton")?.disabled)' in sync
     assert '[data-mobile-decision-action]{display:none!important}' in CSS
@@ -100,3 +105,13 @@ def test_mobile_scans_delegates_to_existing_history_without_another_poll_loop():
     assert "setInterval" not in section
     assert "fetch(" not in section
     assert JS.count('/api/recent-pulls?limit=20') == 1
+
+
+def test_history_mode_hides_live_mutations_and_offers_explicit_return_and_refresh():
+    sync = JS[JS.index("function syncMobileOperatorDeck()") : JS.index("function setMobileOperatorView")]
+    assert 'ui4InspectorView==="recent"?"history"' in sync
+    inspector = JS[JS.index("function setUI4InspectorView") : JS.index("function syncInspectorNavigationState")]
+    assert "syncMobileOperatorDeck();" in inspector
+    assert '[data-actions="history"] .mobile-operator-actions>:not([data-mobile-history-action]):not(#mobileOperatorStatus){display:none!important}' in CSS
+    assert '[data-actions="history"] .mobile-operator-actions>[data-mobile-history-action]{display:grid!important}' in CSS
+    assert "setInterval(loadUI4RecentScans" not in JS
