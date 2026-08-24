@@ -1556,6 +1556,17 @@ let librarySyncTimer=0;
 function libraryPercent(value,total){
   return total?Math.max(0,Math.min(100,Math.round(Number(value||0)/Number(total)*100))):0;
 }
+function librarySyncErrorSummary(error){
+  const raw=String(error||"").trim();
+  if(!raw)return "";
+  if(/\b(?:500|502|503|504)\b|internal server error|bad gateway|service unavailable|gateway timeout/i.test(raw))return "Reference provider is temporarily unavailable.";
+  if(/\b429\b|rate limit|too many requests/i.test(raw))return "Reference provider rate limit reached; retry after the provider cooldown.";
+  if(/\b(?:401|403)\b|unauthori[sz]ed|forbidden/i.test(raw))return "Reference provider authorization failed; check provider access settings.";
+  if(/timed? out|timeout/i.test(raw))return "Reference provider timed out; retry when the connection is stable.";
+  if(/network|connection|dns|offline|name resolution/i.test(raw))return "Reference provider could not be reached; check the network connection.";
+  const cleaned=raw.replace(/https?:\/\/\S+/gi,"").replace(/for more information.*/i,"").replace(/\s+/g," ").trim();
+  return cleaned?`Reference sync paused · ${cleaned.slice(0,140)}`:"Reference sync paused by the provider.";
+}
 async function loadLibrarySyncStatus(){
   const payload=await api("/api/master-builder/status");
   const state=payload.builder||{},catalog=state.catalog||{};
@@ -1572,12 +1583,12 @@ async function loadLibrarySyncStatus(){
   if($("librarySyncFailures"))$("librarySyncFailures").textContent=String(failed);
   if($("librarySyncProvider"))$("librarySyncProvider").textContent=state.busy?[state.current_provider,state.current_language].filter(Boolean).join(" · ")||"Preparing provider":"TCGdex + Pokémon TCG API";
   if($("librarySyncCurrent"))$("librarySyncCurrent").textContent=state.current_set_name||state.last_completed||"No active download";
-  if($("librarySyncCurrentDetail"))$("librarySyncCurrentDetail").textContent=state.busy?`${currentDone.toLocaleString()} of ${currentTotal.toLocaleString()} cards · ${Number(state.queue_remaining||0).toLocaleString()} sets queued`:state.last_error||"Progress is saved between sessions.";
+  if($("librarySyncCurrentDetail"))$("librarySyncCurrentDetail").textContent=state.busy?`${currentDone.toLocaleString()} of ${currentTotal.toLocaleString()} cards · ${Number(state.queue_remaining||0).toLocaleString()} sets queued`:state.last_error?"Progress saved · sync paused by provider":"Progress is saved between sessions.";
   if($("librarySyncCurrentPercent"))$("librarySyncCurrentPercent").textContent=`${currentPercent}%`;
   if($("librarySyncCurrentBar"))$("librarySyncCurrentBar").style.width=`${currentPercent}%`;
   if($("librarySyncOverallText"))$("librarySyncOverallText").textContent=`${processed.toLocaleString()} of ${discovered.toLocaleString()} sets processed`;
   if($("librarySyncOverallBar"))$("librarySyncOverallBar").style.width=`${overallPercent}%`;
-  if($("librarySyncNote"))$("librarySyncNote").textContent=state.last_error?`Last error: ${state.last_error}`:state.busy?"Downloading reference artwork in the background. Recognition and collection tools remain available.":state.phase==="COMPLETE"?"Worldwide reference library and visual index are ready.":"Reference images improve exact-version recognition. Resume whenever the app is online.";
+  if($("librarySyncNote"))$("librarySyncNote").textContent=state.last_error?`${librarySyncErrorSummary(state.last_error)} Progress is saved; Resume Sync will continue from the last completed set.`:state.busy?"Downloading reference artwork in the background. Recognition and collection tools remain available.":state.phase==="COMPLETE"?"Worldwide reference library and visual index are ready.":"Reference images improve exact-version recognition. Resume whenever the app is online.";
   if($("librarySyncStart"))$("librarySyncStart").disabled=Boolean(state.busy);
   if($("librarySyncPause"))$("librarySyncPause").disabled=!state.busy;
   clearTimeout(librarySyncTimer);

@@ -10614,6 +10614,40 @@ html[data-theme="light"] .break-history-controls :is(input,select){
   color:var(--ui4-text,#dce9ef);
 }
 html[data-theme="light"] .workspace[data-workspace="collection"] .side-nav [data-collection-view][aria-selected="true"]{color:#183540}
+html[data-theme="light"] body.studiox-ui4 .workspace[data-workspace="collection"] .content :is(
+  .library-sync-stats>div,
+  .collection-trend-layout>div,
+  #collectionActivity>div,
+  .inventory-valuation>div>article,
+  .inventory-listing-metrics>article,
+  .inventory-reprice-history,
+  .inventory-marketplace-sync,
+  .inventory-sync-metrics>article,
+  .inventory-pack-ledgers article,
+  .tax-comparison>div>article,
+  .accounting-controls,
+  .period-close,
+  .period-close>div>article,
+  .business-trend-totals>article,
+  .business-trend-chart,
+  .break-performance-leaders>article,
+  .approved-inventory-intake,
+  .inventory-price-watchlist,
+  .collection-goal-card,
+  .collection-duplicate-grid article,
+  .collection-import-preview>div
+){
+  border-color:#c7dbe3!important;
+  background:#eef5f7!important;
+  color:#243d49!important;
+}
+html[data-theme="light"] body.studiox-ui4 .workspace[data-workspace="collection"] .content :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea){
+  border-color:#bfd3dc!important;
+  background:#fff!important;
+  color:#203b47!important;
+}
+html[data-theme="light"] body.studiox-ui4 .workspace[data-workspace="collection"] .collection-table :is(th,td){color:#294651}
+html[data-theme="light"] body.studiox-ui4 .workspace[data-workspace="collection"] .collection-table td:first-child{color:#183540}
 
 /* Broadcast console: preserve every production module while exposing one
    operator task group at a time. */
