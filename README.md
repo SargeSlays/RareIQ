@@ -12,3 +12,21 @@ RareIQ is a live trading-card recognition and production workspace. The current 
 Runtime catalogs, artwork indexes, captures, provenance events, diagnostics, and secrets are local data and are intentionally excluded from source control.
 
 Development status and upcoming work are tracked in `docs/ROADMAP.md`.
+
+## Quick start
+
+RareIQ targets Python 3.13. From a Windows command prompt in the project directory:
+
+```bat
+start.bat
+```
+
+The launcher creates `.venv` when needed, installs the pinned runtime dependencies, and opens RareIQ at `http://127.0.0.1:8765/control`.
+
+For development and tests:
+
+```powershell
+py -3.13 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.venv\Scripts\python.exe -B -m pytest tests
+```
