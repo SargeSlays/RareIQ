@@ -11205,20 +11205,22 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
     top:auto!important;
     right:8px!important;
     bottom:calc(178px + env(safe-area-inset-bottom,0px))!important;
-    left:8px!important;
-    width:auto!important;
-    max-width:374px!important;
-    margin:0 auto!important;
+    left:auto!important;
+    width:min(260px,calc(100vw - 16px))!important;
+    max-width:260px!important;
+    margin:0!important;
     gap:6px!important;
+    pointer-events:none!important;
   }
   body.studiox-ui4.studiox-premium .riq-notification{
-    grid-template-columns:28px minmax(0,1fr)!important;
-    min-height:44px!important;
-    padding:7px 9px!important;
-    gap:8px!important;
+    grid-template-columns:24px minmax(0,1fr)!important;
+    min-height:38px!important;
+    padding:5px 7px!important;
+    gap:6px!important;
     border-radius:10px!important;
+    pointer-events:none!important;
   }
-  body.studiox-ui4.studiox-premium .notification-icon{width:28px!important;height:28px!important}
+  body.studiox-ui4.studiox-premium .notification-icon{width:24px!important;height:24px!important}
   body.studiox-ui4.studiox-premium .notification-copy{min-width:0!important}
   body.studiox-ui4.studiox-premium .notification-copy strong{
     overflow:hidden!important;
@@ -11235,6 +11237,14 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
   }
   body.studiox-ui4.studiox-premium[data-ui4-workspace]:not([data-ui4-workspace="live"]) .notification-stack{
     bottom:calc(78px + env(safe-area-inset-bottom,0px))!important;
+  }
+}
+
+@media(max-width:959px) and (orientation:landscape) and (max-height:600px){
+  body.studiox-ui4.studiox-premium .notification-stack{
+    bottom:calc(118px + env(safe-area-inset-bottom,0px))!important;
+    width:min(280px,calc(100vw - 16px))!important;
+    max-width:280px!important;
   }
 }
 
