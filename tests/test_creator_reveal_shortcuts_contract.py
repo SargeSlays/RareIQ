@@ -8,7 +8,7 @@ def test_creator_reveal_shortcuts_are_visible_and_wired():
     for label in ("Space", "Esc", "Alt+1", "Alt+2", "Alt+3", "Alt+N"):
         assert f"<kbd>{label}</kbd>" in html
     assert "function handleCreatorRevealShortcut(event)" in script
-    assert 'event.code==="Space"&&armed' in script
+    assert 'event.code==="Space"&&!event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&armed' in script
     assert 'event.key==="Escape"&&armed' in script
     assert 'previewCreatorAnimation("grail")' in script
     assert '$("creatorNextPack")?.click()' in script
