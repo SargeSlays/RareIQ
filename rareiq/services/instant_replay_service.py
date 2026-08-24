@@ -58,10 +58,13 @@ class InstantReplayService:
         with self._lock: self._playback.update({"active": False, "highlight_id": None, "generation": int(self._playback["generation"]) + 1}); return self.snapshot()
 
     def frame(self, highlight_id: str, index: int) -> Path | None:
-        with self._lock: item = next((value for value in self._highlights if value["id"] == highlight_id), None)
+        with self._lock: item = next((value for value in self._highlights if value.get("id") == highlight_id), None)
         if not item: return None
-        path = (Path(item["path"]) / f"{max(0, index):04d}.jpg").resolve()
-        return path if path.is_file() and Path(item["path"]).resolve() in path.parents else None
+        highlight_root = self._safe_highlight_root(item)
+        if highlight_root is None:
+            return None
+        path = (highlight_root / f"{max(0, index):04d}.jpg").resolve()
+        return path if path.is_file() and path.parent == highlight_root else None
 
     @staticmethod
     def _public(item: dict[str, Any]) -> dict[str, Any]: return {key: value for key, value in item.items() if key != "path"}
@@ -70,5 +73,14 @@ class InstantReplayService:
     def _persist(self) -> None:
         self.root.mkdir(parents=True, exist_ok=True); (self.root / "highlights.json").write_text(json.dumps(self._highlights, indent=2), encoding="utf-8")
     def _load(self) -> None:
-        try: self._highlights = [item for item in json.loads((self.root / "highlights.json").read_text(encoding="utf-8")) if Path(str(item.get("path", ""))).is_dir()][:25]
+        try: self._highlights = [item for item in json.loads((self.root / "highlights.json").read_text(encoding="utf-8")) if isinstance(item, dict) and str(item.get("id") or "") and self._safe_highlight_root(item) is not None][:25]
         except (OSError, ValueError, TypeError): self._highlights = []
+
+    def _safe_highlight_root(self, item: dict[str, Any]) -> Path | None:
+        try:
+            root = self.root.resolve()
+            candidate = Path(str(item.get("path") or "")).resolve()
+            candidate.relative_to(root)
+        except (OSError, ValueError):
+            return None
+        return candidate if candidate != root and candidate.is_dir() else None

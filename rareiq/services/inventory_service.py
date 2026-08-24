@@ -284,7 +284,11 @@ class InventoryService:
 
     def _expense_public(self, expense: dict[str, Any]) -> dict[str, Any]:
         result = dict(expense)
-        result["receipt_url"] = f"/api/inventory/expenses/{expense['expense_id']}/receipt" if expense.get("receipt_file") else None
+        result["receipt_url"] = (
+            f"/api/inventory/expenses/{expense['expense_id']}/receipt"
+            if self._safe_receipt_path(expense.get("receipt_file"))
+            else None
+        )
         return result
 
     def add_expense(self, category: str, amount: Any, currency: str = "USD", note: str = "", incurred_at: Any = None, recurrence: str = "none", receipt_name: str = "", receipt_data_url: str = "") -> dict[str, Any]:
@@ -319,7 +323,10 @@ class InventoryService:
                 self._expenses[key]=expense; return {"removed":False,"reason":"accounting_period_closed"}
             receipt = expense.get("receipt_file")
             if receipt:
-                try: (self.state_path.parent / "expense_receipts" / str(receipt)).unlink()
+                try:
+                    path = self._safe_receipt_path(receipt)
+                    if path is not None:
+                        path.unlink()
                 except OSError: pass
             self._audit("expense.removed", "expense", key, {"category": expense.get("category"), "amount": expense.get("amount")}); self._persist(); return {"removed": True, "expense": self._expense_public(expense)}
 
@@ -343,8 +350,20 @@ class InventoryService:
     def expense_receipt(self, expense_id: str) -> Path | None:
         with self._lock:
             expense = self._expenses.get(str(expense_id or "").upper()); receipt = (expense or {}).get("receipt_file")
-        path = self.state_path.parent / "expense_receipts" / str(receipt or "")
-        return path if receipt and path.is_file() else None
+        return self._safe_receipt_path(receipt)
+
+    def _safe_receipt_path(self, receipt: Any) -> Path | None:
+        name = str(receipt or "")
+        if not name or Path(name).name != name:
+            return None
+        try:
+            root = (self.state_path.parent / "expense_receipts").resolve()
+            path = (root / name).resolve()
+        except OSError:
+            return None
+        if path.parent != root or path.suffix.lower() not in {".jpg", ".png", ".pdf"}:
+            return None
+        return path if path.is_file() else None
 
     @staticmethod
     def _expense_occurrences(expense: dict[str, Any], start: float, end: float) -> list[float]:
