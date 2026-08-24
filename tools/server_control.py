@@ -25,6 +25,7 @@ DEFAULT_PORT = 8765
 DEFAULT_START_TIMEOUT = 90.0
 DEFAULT_STOP_TIMEOUT = 30.0
 DEFAULT_WATCHDOG_MINUTES = 5
+MIN_WATCHDOG_SECONDS = 5.0
 AUTOSTART_VALUE_NAME = "RareIQ Server Auto Start"
 WATCHDOG_TASK_NAME = "RareIQ Server Watchdog"
 WINDOWS_RUN_KEY = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run"
@@ -381,6 +382,7 @@ def start_server(
     remote_access: bool = False,
     state_path: Path | None = None,
     _lock_held: bool = False,
+    _attach_to_parent: bool = False,
 ) -> dict[str, Any]:
     project_root = Path(project_root).resolve()
     host, port = _validate_binding(host, port, remote_access=remote_access)
@@ -401,6 +403,7 @@ def start_server(
                 remote_access=remote_access,
                 state_path=state_path,
                 _lock_held=True,
+                _attach_to_parent=_attach_to_parent,
             )
     existing = server_status(project_root, state_path=state_path)
     if existing["state"] == "running":
@@ -414,7 +417,9 @@ def start_server(
         _remove_state(state_path)
     if _ping(host, port):
         raise ServerControlError(f"A RareIQ server already responds at {_base_url(host, port)} but is not managed by this state file.")
-    python = project_root / ".venv" / "Scripts" / "python.exe"
+    python = project_root / ".venv" / "Scripts" / (
+        "pythonw.exe" if os.name == "nt" and _attach_to_parent else "python.exe"
+    )
     app = project_root / "app.py"
     if not python.is_file() or not app.is_file():
         raise ServerControlError("RareIQ runtime is incomplete; expected .venv\\Scripts\\python.exe and app.py.")
@@ -434,7 +439,7 @@ def start_server(
         "env": environment,
         "stdin": subprocess.DEVNULL,
     }
-    if os.name == "nt":
+    if os.name == "nt" and not _attach_to_parent:
         popen_kwargs["creationflags"] = (
             subprocess.CREATE_NEW_PROCESS_GROUP
             | subprocess.DETACHED_PROCESS
@@ -461,7 +466,8 @@ def start_server(
         "started_at": _utc_now(),
         "stdout_log": str(stdout_path),
         "stderr_log": str(stderr_path),
-        "windows_job_breakaway": os.name == "nt",
+        "windows_job_breakaway": os.name == "nt" and not _attach_to_parent,
+        "supervisor_attached": bool(_attach_to_parent),
     }
     _write_state(state_path, pending)
     deadline = time.monotonic() + timeout
@@ -653,6 +659,63 @@ def ensure_server(
     return {**started, "action": "started"}
 
 
+def supervise_server(
+    project_root: Path,
+    *,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
+    interval_seconds: float = DEFAULT_WATCHDOG_MINUTES * 60,
+    timeout: float = DEFAULT_START_TIMEOUT,
+    max_cycles: int | None = None,
+    sleeper=time.sleep,
+) -> dict[str, Any]:
+    """Keep the managed server alive from one long-running, windowless task.
+
+    Task Scheduler places launched processes in a job object. A short-lived task
+    can therefore tear down a detached server child as soon as the launcher
+    exits. Keeping this supervisor alive makes the ownership explicit while the
+    existing health and provenance gates continue to prevent duplicate servers.
+    """
+    project_root = Path(project_root).resolve()
+    host, port = _validate_binding(host, port)
+    interval_seconds = float(interval_seconds)
+    if interval_seconds < MIN_WATCHDOG_SECONDS:
+        raise ServerControlError(
+            f"Watchdog interval must be at least {MIN_WATCHDOG_SECONDS:.0f} seconds."
+        )
+    cycles = 0
+    starts = 0
+    last_state = "stopped"
+    while max_cycles is None or cycles < max_cycles:
+        current = server_status(project_root)
+        last_state = str(current.get("state") or "unknown")
+        if last_state in {"stopped", "stale"}:
+            started = start_server(
+                project_root,
+                host=host,
+                port=port,
+                timeout=timeout,
+                _attach_to_parent=True,
+            )
+            last_state = str(started.get("state") or "running")
+            starts += 1
+        elif last_state != "running":
+            raise ServerControlError(
+                f"Watchdog stopped because managed server state is {last_state}; "
+                "operator review is required."
+            )
+        cycles += 1
+        if max_cycles is not None and cycles >= max_cycles:
+            break
+        sleeper(interval_seconds)
+    return {
+        "state": last_state,
+        "cycles": cycles,
+        "starts": starts,
+        "interval_seconds": interval_seconds,
+    }
+
+
 def windows_watchdog_schedule(
     project_root: Path,
     *,
@@ -668,7 +731,10 @@ def windows_watchdog_schedule(
     script = project_root / "tools" / "server_control.py"
     if not python.is_file() or not pythonw.is_file() or not script.is_file():
         raise ServerControlError("RareIQ runtime or server-control script is missing.")
-    task_command = f'"{python}" -B "{script}" ensure'
+    task_command = (
+        f'"{pythonw}" -B "{script}" watchdog '
+        f'--interval-seconds {int(interval_minutes) * 60}'
+    )
     logon_command = f'"{pythonw}" -B "{script}" ensure'
     commands = [
         [
@@ -724,6 +790,15 @@ def main(argv: list[str] | None = None) -> int:
     subparsers.add_parser("status")
     ensure = subparsers.add_parser("ensure")
     ensure.add_argument("--timeout", type=float, default=DEFAULT_START_TIMEOUT)
+    watchdog = subparsers.add_parser("watchdog")
+    watchdog.add_argument("--host", default=DEFAULT_HOST)
+    watchdog.add_argument("--port", type=int, default=DEFAULT_PORT)
+    watchdog.add_argument(
+        "--interval-seconds",
+        type=float,
+        default=DEFAULT_WATCHDOG_MINUTES * 60,
+    )
+    watchdog.add_argument("--timeout", type=float, default=DEFAULT_START_TIMEOUT)
     stop = subparsers.add_parser("stop")
     stop.add_argument("--timeout", type=float, default=DEFAULT_STOP_TIMEOUT)
     stop.add_argument("--force", action="store_true")
@@ -772,6 +847,14 @@ def main(argv: list[str] | None = None) -> int:
             result = server_status(project_root)
         elif args.command == "ensure":
             result = ensure_server(project_root, timeout=args.timeout)
+        elif args.command == "watchdog":
+            result = supervise_server(
+                project_root,
+                host=args.host,
+                port=args.port,
+                interval_seconds=args.interval_seconds,
+                timeout=args.timeout,
+            )
         elif args.command == "stop":
             result = stop_server(project_root, timeout=args.timeout, force=args.force)
         elif args.command == "restart":

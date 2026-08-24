@@ -318,6 +318,50 @@ def test_ensure_never_replaces_ambiguous_or_unhealthy_process(tmp_path, monkeypa
         control.ensure_server(project, state_path=state_path)
 
 
+def test_supervisor_keeps_task_alive_and_recovers_once(tmp_path, monkeypatch):
+    project = _project(tmp_path)
+    states = iter([{"state": "stale"}, {"state": "running"}])
+    starts = []
+    sleeps = []
+    monkeypatch.setattr(control, "server_status", lambda *_args, **_kwargs: next(states))
+    monkeypatch.setattr(
+        control,
+        "start_server",
+        lambda *_args, **kwargs: starts.append(kwargs) or {"state": "running"},
+    )
+
+    result = control.supervise_server(
+        project,
+        host="127.0.0.1",
+        port=9040,
+        interval_seconds=5,
+        max_cycles=2,
+        sleeper=sleeps.append,
+    )
+
+    assert result == {
+        "state": "running",
+        "cycles": 2,
+        "starts": 1,
+        "interval_seconds": 5.0,
+    }
+    assert starts == [{
+        "host": "127.0.0.1",
+        "port": 9040,
+        "timeout": 90.0,
+        "_attach_to_parent": True,
+    }]
+    assert sleeps == [5.0]
+
+
+def test_supervisor_refuses_ambiguous_server_state(tmp_path, monkeypatch):
+    project = _project(tmp_path)
+    monkeypatch.setattr(control, "server_status", lambda *_args, **_kwargs: {"state": "conflict"})
+
+    with pytest.raises(ServerControlError, match="operator review"):
+        control.supervise_server(project, interval_seconds=5, max_cycles=1)
+
+
 def test_watchdog_schedule_is_dry_run_first_and_uses_shell_free_tasks(tmp_path):
     project = _project(tmp_path)
     (project / "tools").mkdir()
@@ -340,7 +384,9 @@ def test_watchdog_schedule_is_dry_run_first_and_uses_shell_free_tasks(tmp_path):
     assert calls[1][0][0] == "schtasks.exe" and "MINUTE" in calls[1][0]
     assert all("shell" not in kwargs for _command, kwargs in calls)
     assert " ensure" in calls[0][0][8]
-    assert " ensure" in calls[1][0][5]
+    assert "pythonw.exe" in calls[1][0][5]
+    assert " watchdog " in calls[1][0][5]
+    assert "--interval-seconds 300" in calls[1][0][5]
 
 
 def test_watchdog_failure_rolls_back_new_logon_entry(tmp_path):
