@@ -33,7 +33,7 @@ def test_green_screen_is_processed_on_a_separate_output_layer():
     assert 'context.getImageData(0,0,width,height)' in STUDIO
     assert 'context.putImageData(frame,0,0)' in STUDIO
     assert 'feed=$("cameraFeed"),canvas=$("cameraFxCanvas")' in STUDIO
-    assert "Recognition continues using the clean camera source" in CONTROL
+    assert "Recognition and Program / OBS remain on the clean source." in CONTROL
 
 
 def test_camera_fx_preferences_and_responsive_theme_are_complete():
@@ -43,3 +43,28 @@ def test_camera_fx_preferences_and_responsive_theme_are_complete():
     assert "/* Camera FX: audience styling stays isolated from the raw recognition frame. */" in CSS
     assert "html[data-theme=light] body.studiox-ui4 .camera-fx-shell" in CSS
     assert "@media(max-width:620px)" in CSS
+
+
+def test_camera_fx_truthfully_limits_effects_to_studio_preview():
+    assert "Studio X preview only" in CONTROL
+    assert "Recognition and Program / OBS remain on the clean source." in CONTROL
+    assert "without changing recognition or broadcast output" in CONTROL
+    assert "Program styling is active" not in STUDIO
+    assert 'notify(cameraFxState.enabled?"Studio Preview Styled":"Studio Preview Bypassed"' in STUDIO
+
+
+def test_camera_fx_has_momentary_mouse_and_keyboard_clean_comparison():
+    assert 'id="cameraFxCompare" type="button" aria-pressed="false"' in CONTROL
+    assert "function setCameraFxCompare(active)" in STUDIO
+    assert 'preview.dataset.compareClean==="true"?"none":filter' in STUDIO
+    for event_name in ("pointerdown", "pointerup", "pointercancel", "pointerleave"):
+        assert f'["{event_name}",' in STUDIO
+    assert 'event.key===" "||event.key==="Enter"' in STUDIO
+    assert '.camera-fx-preview img[data-compare-clean="true"]' in CSS
+
+
+def test_camera_fx_preview_copy_does_not_claim_program_or_obs_delivery():
+    assert "Apply to Studio Preview" in CONTROL
+    assert '"Bypass Studio Preview":"Apply to Studio Preview"' in STUDIO
+    assert "Preview-only chroma key" in CONTROL
+    assert '"Green screen preview active"' in STUDIO
