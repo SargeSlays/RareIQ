@@ -386,7 +386,16 @@ class ProvenanceCaptureService:
 
     @staticmethod
     def _identity_verdict(snapshot: dict[str, Any]) -> str:
-        return "exact-match" if snapshot.get("verification_state") == "VERIFIED" and snapshot.get("has_reference_evidence") else "provisional" if snapshot.get("primary_candidate") else "unknown"
+        exact_match = (
+            str(snapshot.get("verification_state") or "").upper() == "VERIFIED"
+            and snapshot.get("has_reference_evidence") is True
+            and snapshot.get("identity_consistent") is True
+            and snapshot.get("recognition_locked") is True
+            and snapshot.get("result_current") is True
+        )
+        if exact_match:
+            return "exact-match"
+        return "provisional" if snapshot.get("primary_candidate") else "unknown"
 
     @classmethod
     def _identity(cls, snapshot: dict[str, Any]) -> dict[str, Any]:

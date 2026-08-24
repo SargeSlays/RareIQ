@@ -26,6 +26,9 @@ def _snapshot(generation=7, verified=True, confidence=0.96):
         "state_id": f"state-{generation}",
         "verification_state": "VERIFIED" if verified else "PROVISIONAL",
         "has_reference_evidence": verified,
+        "identity_consistent": verified,
+        "recognition_locked": verified,
+        "result_current": True,
         "overall_confidence": confidence,
         "primary_candidate": {
             "id": "card-water-horsea",
@@ -84,6 +87,53 @@ def test_disabled_and_low_confidence_do_not_capture(service):
     result = service.evaluate_recognition(_snapshot(confidence=0.80))
     assert result == {"ok": False, "captured": False, "reason": "confidence_below_threshold"}
     assert service.list_events() == []
+
+
+@pytest.mark.parametrize(
+    ("unsafe_field", "unsafe_value"),
+    (
+        ("identity_consistent", False),
+        ("recognition_locked", False),
+        ("result_current", False),
+        ("has_reference_evidence", False),
+    ),
+)
+def test_automatic_capture_requires_authoritative_identity(
+    service,
+    unsafe_field,
+    unsafe_value,
+):
+    service.save_settings({**service.default_settings(), "enabled": True})
+    snapshot = _snapshot()
+    snapshot[unsafe_field] = unsafe_value
+
+    result = service.evaluate_recognition(snapshot)
+
+    assert result == {
+        "ok": False,
+        "captured": False,
+        "reason": "identity_not_exact",
+    }
+    assert service.list_events() == []
+
+
+def test_manual_capture_strips_disputed_catalog_identity(service):
+    snapshot = _snapshot()
+    snapshot["identity_consistent"] = False
+    snapshot["identity_conflicts"] = [{
+        "field": "language",
+        "observed": "Chinese",
+        "catalog": "Japanese",
+    }]
+
+    result = service.capture(trigger="manual", snapshot=snapshot)
+    event = service.get_event(result["eventId"])
+
+    assert result["captured"] is True
+    assert event["identity"]["identity_verdict"] == "provisional"
+    assert event["identity"]["card_id"] is None
+    assert event["identity"]["english_name"] is None
+    assert event["recognition"]["verdict"] == "provisional"
 
 
 def test_unsupported_truthful_triggers_do_not_fabricate(service):
