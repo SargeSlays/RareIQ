@@ -56,6 +56,7 @@ let bootAutoEnterTimer = null;
 let studioEntered = false;
 let ui4DiagnosticsOpen = false;
 let ui4HealthOpen = false;
+let ui4UtilityReturnFocus = null;
 let ui4InspectorTab = "details";
 let ui4InspectorView = "current";
 let ui4RecentScans = [];
@@ -702,7 +703,7 @@ document.addEventListener("keydown",event=>{
   }else if(event.key==="?" || (event.shiftKey&&event.key==="/")){
     toggleShortcutOverlay();
   }else if(event.key==="Escape"){
-    resetUI4PresentationSurfaces();
+    resetUI4PresentationSurfaces({restoreFocus:true});
     toggleShortcutOverlay(false);
     setRecognitionLatencyReportOpen(false);
   }
@@ -6679,7 +6680,18 @@ async function maintenance(path,label,button=null){
 
 const fetchLearnedCorrections=()=>api("/api/intelligence/corrections?limit=30");
 const revokeLearnedCorrection=id=>api(`/api/intelligence/corrections/${encodeURIComponent(id)}`,{method:"DELETE"});
+function closeUI4MoreMenu(){
+  const menu=document.querySelector(".premium-more-menu");
+  if(!menu) return;
+  menu.open=false;
+  menu.querySelector("summary")?.setAttribute("aria-expanded","false");
+}
+
 function setUI4DiagnosticsOpen(open){
+  if(open){
+    setUI4HealthOpen(false);
+    closeUI4MoreMenu();
+  }
   ui4DiagnosticsOpen=Boolean(open);
   const drawer=document.querySelector(".ui4-diagnostics-drawer");
   if(drawer){
@@ -6688,10 +6700,18 @@ function setUI4DiagnosticsOpen(open){
   }
   const trigger=document.querySelector('[data-ui4-action="diagnostics"]');
   if(trigger) trigger.setAttribute("aria-expanded",ui4DiagnosticsOpen?"true":"false");
-  if($("dockToggle")) $("dockToggle").textContent="Close";
+  if($("dockToggle")) $("dockToggle").textContent=ui4DiagnosticsOpen?"Close":"Open";
+  if(ui4DiagnosticsOpen){
+    ui4UtilityReturnFocus=trigger;
+    requestAnimationFrame(()=>drawer?.focus());
+  }
 }
 
 function setUI4HealthOpen(open){
+  if(open){
+    setUI4DiagnosticsOpen(false);
+    closeUI4MoreMenu();
+  }
   ui4HealthOpen=Boolean(open);
   const popover=document.querySelector(".ui4-health-popover");
   if(popover){
@@ -6701,6 +6721,10 @@ function setUI4HealthOpen(open){
   const trigger=document.querySelector('[data-ui4-action="health"]');
   if(trigger) trigger.setAttribute("aria-expanded",ui4HealthOpen?"true":"false");
   if($("mobileOperatorStatus")) $("mobileOperatorStatus").setAttribute("aria-expanded",ui4HealthOpen?"true":"false");
+  if(ui4HealthOpen){
+    ui4UtilityReturnFocus=trigger||$("mobileOperatorStatus");
+    requestAnimationFrame(()=>popover?.focus());
+  }
 }
 
 function setUI4InspectorTab(name){
@@ -6716,10 +6740,14 @@ function setUI4InspectorTab(name){
   });
 }
 
-function resetUI4PresentationSurfaces(){
+function resetUI4PresentationSurfaces({restoreFocus=false}={}){
+  const returnFocus=ui4UtilityReturnFocus;
+  closeUI4MoreMenu();
   setUI4DiagnosticsOpen(false);
   setUI4HealthOpen(false);
   setUI4InspectorTab("details");
+  ui4UtilityReturnFocus=null;
+  if(restoreFocus) requestAnimationFrame(()=>returnFocus?.focus());
 }
 
 function recentScanConfidence(value){
@@ -8591,6 +8619,7 @@ function initializeStudioXUI4(){
   healthPopover.setAttribute("role","dialog");
   healthPopover.setAttribute("aria-label","System status and camera actions");
   healthPopover.setAttribute("aria-hidden","true");
+  healthPopover.tabIndex=-1;
   const lowFrequency=[
     toolbar.querySelector('[onclick="startSelectedCamera()"]'),
     toolbar.querySelector('[onclick="stopCamera()"]'),
@@ -8601,6 +8630,30 @@ function initializeStudioXUI4(){
   ].filter(Boolean);
   lowFrequency.forEach(node=>healthPopover.appendChild(node));
   document.querySelector(".ui4-command-bar")?.appendChild(healthPopover);
+  dock.tabIndex=-1;
+  const moreMenu=toolbar.querySelector(".premium-more-menu");
+  const moreSummary=moreMenu?.querySelector("summary");
+  if(moreSummary){
+    moreSummary.setAttribute("aria-haspopup","menu");
+    moreSummary.setAttribute("aria-expanded",String(Boolean(moreMenu.open)));
+    moreMenu.addEventListener("toggle",()=>{
+      const open=Boolean(moreMenu.open);
+      moreSummary.setAttribute("aria-expanded",String(open));
+      if(open){
+        setUI4DiagnosticsOpen(false);
+        setUI4HealthOpen(false);
+        ui4UtilityReturnFocus=moreSummary;
+      }else if(ui4UtilityReturnFocus===moreSummary) ui4UtilityReturnFocus=null;
+    });
+  }
+  document.addEventListener("pointerdown",event=>{
+    const target=event.target;
+    let dismissed=false;
+    if(ui4DiagnosticsOpen&&!dock.contains(target)&&!diagnosticsButton.contains(target)){setUI4DiagnosticsOpen(false);dismissed=true;}
+    if(ui4HealthOpen&&!healthPopover.contains(target)&&!healthButton.contains(target)&&!$("mobileOperatorStatus")?.contains(target)){setUI4HealthOpen(false);dismissed=true;}
+    if(moreMenu?.open&&!moreMenu.contains(target)){closeUI4MoreMenu();dismissed=true;}
+    if(dismissed) ui4UtilityReturnFocus=null;
+  });
   const mountHealthPopover=()=>{
     const target=window.matchMedia("(max-width: 959px)").matches?document.body:document.querySelector(".ui4-command-bar");
     if(target&&healthPopover.parentElement!==target) target.appendChild(healthPopover);

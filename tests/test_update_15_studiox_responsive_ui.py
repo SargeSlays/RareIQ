@@ -152,7 +152,7 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
     version = re.search(r'data-studiox-build="([^"]+)"', html).group(1)
     assert styles[-3:] == [
         f"/static/studiox_ui4_tokens.css?v={version}",
-        f"/static/studiox_update15.css?v={version}&amp;shell=6.8.58-capture-guard1",
+        f"/static/studiox_update15.css?v={version}&amp;shell=6.8.59-command-utilities1",
         f"/static/pack_run_coach.css?v={version}",
     ]
     assert len(styles) == 18
@@ -183,6 +183,20 @@ def test_scaled_4k_command_bar_does_not_clip_primary_controls() -> None:
     assert "@media(min-width:1101px) and (max-width:1320px)" in css
     assert 'premium-actions-row>[data-ui4-action="health"]' in css
     assert "overflow:hidden!important" in css
+
+
+def test_command_bar_utilities_are_mutually_exclusive_and_keyboard_safe() -> None:
+    script = read("studiox.js")
+    diagnostics = script[script.index("function setUI4DiagnosticsOpen"):script.index("function setUI4InspectorTab")]
+    initialization = script[script.index('const healthPopover=document.createElement("div")'):script.index("const mountHealthPopover")]
+    assert "setUI4HealthOpen(false)" in diagnostics
+    assert "setUI4DiagnosticsOpen(false)" in diagnostics
+    assert diagnostics.count("closeUI4MoreMenu();") >= 2
+    assert 'requestAnimationFrame(()=>drawer?.focus())' in diagnostics
+    assert 'requestAnimationFrame(()=>popover?.focus())' in diagnostics
+    assert 'resetUI4PresentationSurfaces({restoreFocus:true})' in script
+    assert 'moreSummary.setAttribute("aria-expanded",String(open))' in initialization
+    assert 'document.addEventListener("pointerdown"' in initialization
 
 
 def test_ui4_foundation_tokens_cover_mobile_and_accessibility_contracts() -> None:
