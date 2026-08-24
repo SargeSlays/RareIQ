@@ -21,6 +21,7 @@ def _project(tmp_path: Path) -> Path:
     (project / "rareiq/version.py").write_text(
         'VERSION = "6.4.17-test"\n', encoding="utf-8"
     )
+    (project / "rareiq/__init__.py").write_bytes(b"")
     (project / "app.py").write_text('print("RareIQ")\n', encoding="utf-8")
     (project / "storage_config.example.json").write_text("{}\n", encoding="utf-8")
     (project / "rareiq_secrets.example.json").write_text("{}\n", encoding="utf-8")
@@ -40,7 +41,7 @@ def test_release_build_is_dry_run_first_and_uses_only_committed_tree(tmp_path):
 
     assert report["mode"] == "dry-run"
     assert report["release_version"] == "6.4.17-test"
-    assert report["files"] == 4
+    assert report["files"] == 5
     assert report["runtime_data_included"] is False
     assert report["secrets_included"] is False
     assert output.exists() is False
@@ -65,7 +66,24 @@ def test_release_is_deterministic_manifest_backed_and_verified(tmp_path):
     assert all(name.startswith("RareIQ-6.4.17-test/") for name in names)
     assert manifest["runtime_data_included"] is False
     assert manifest["secrets_included"] is False
-    assert len(manifest["files"]) == 4
+    assert len(manifest["files"]) == 5
+
+
+def test_failed_post_build_verification_removes_published_archive(tmp_path, monkeypatch):
+    import tools.build_release as builder
+
+    project = _project(tmp_path)
+    output = tmp_path / "release.zip"
+    monkeypatch.setattr(
+        builder,
+        "verify_release",
+        lambda _path: (_ for _ in ()).throw(ReleaseBuildError("simulated verification failure")),
+    )
+
+    with pytest.raises(ReleaseBuildError, match="simulated verification failure"):
+        builder.build_release(project, output=output, apply=True)
+
+    assert output.exists() is False
 
 
 def test_release_build_refuses_dirty_worktree(tmp_path):

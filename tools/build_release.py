@@ -179,13 +179,22 @@ def build_release(
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_name(f".{output.name}.{uuid.uuid4().hex}.tmp")
     manifest_payload = json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True).encode("utf-8")
+    published = False
     try:
         with zipfile.ZipFile(temporary, "x", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
             for entry in entries:
                 archive.writestr(_archive_info(f"{root_name}/{entry['path']}", entry["mode"]), entry["payload"])
             archive.writestr(_archive_info(f"{root_name}/{MANIFEST_NAME}"), manifest_payload)
         os.replace(temporary, output)
+        published = True
         verification = verify_release(output)
+    except Exception:
+        if published:
+            try:
+                output.unlink()
+            except FileNotFoundError:
+                pass
+        raise
     finally:
         try:
             temporary.unlink()
@@ -227,7 +236,7 @@ def verify_release(archive_path: Path) -> dict[str, Any]:
                     raise ReleaseBuildError(f"Release manifest contains a forbidden path: {path}")
                 name = f"{root_name}/{path}"
                 payload = archive.read(name)
-                if len(payload) != int(entry.get("bytes") or -1) or _sha256(payload) != entry.get("sha256"):
+                if len(payload) != int(entry.get("bytes", -1)) or _sha256(payload) != entry.get("sha256"):
                     raise ReleaseBuildError(f"Release file checksum mismatch: {path}")
                 expected.add(name)
                 total_bytes += len(payload)
