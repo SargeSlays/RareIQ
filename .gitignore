@@ -53,3 +53,5 @@ rareiq/data/provenance/
 rareiq/data/multi_card_presentation.json
 rareiq/data/overlay_presentation.json
 rareiq/data/temporal_multi_card_history.json
+production_session.json
+production_history.json

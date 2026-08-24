@@ -1862,6 +1862,13 @@ async function updateCollectionDisposition(versionKey,trade,sell){
 }
 
 async function readCollectionBackup(){
+  const button=$("previewCollectionBackup"),merge=$("mergeCollectionBackup"),originalLabel=button?.textContent||"Preview Backup";
+  if(button?.disabled)return null;
+  collectionImportBackup=null;
+  if(button){button.disabled=true;button.textContent="Previewing…";}
+  if(merge)merge.disabled=true;
+  if($("collectionImportPreview")) $("collectionImportPreview").hidden=true;
+  try{
   const file=$("collectionBackupFile")?.files?.[0];
   if(!file) throw new Error("Choose a RareIQ JSON backup first.");
   let payload;
@@ -1876,17 +1883,25 @@ async function readCollectionBackup(){
   }
   if($("mergeCollectionBackup")) $("mergeCollectionBackup").disabled=false;
   notify("Backup Preview Ready","Review the merge summary before continuing.","success");
+  return result;
+  }finally{if(button){button.disabled=false;button.textContent=originalLabel;}}
 }
 
 async function mergeCollectionBackup(){
   if(!collectionImportBackup) throw new Error("Preview a valid backup first.");
+  const button=$("mergeCollectionBackup"),originalLabel=button?.textContent||"Merge Backup";
+  if(button?.disabled)return null;
+  if(button){button.disabled=true;button.textContent="Merging…";}
+  let merged=false;
+  try{
   const result=await api("/api/collection/import/merge",{method:"POST",body:JSON.stringify({backup:collectionImportBackup})});
+  merged=true;
   collectionImportBackup=null;
-  if($("mergeCollectionBackup")) $("mergeCollectionBackup").disabled=true;
   if($("collectionImportPreview")) $("collectionImportPreview").hidden=true;
   if($("collectionBackupFile")) $("collectionBackupFile").value="";
   notify("Backup Merged",`${Number(result.new_versions||0)} versions added without overwriting local inventory.`,"success");
   return loadCollection();
+  }finally{if(button){button.disabled=merged||!collectionImportBackup;button.textContent=originalLabel;}}
 }
 
 function renderCollectionGoals(goals,summary={}){

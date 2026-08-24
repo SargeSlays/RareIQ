@@ -22,3 +22,23 @@ def test_collection_recovery_ui_requires_preview_before_merge():
     assert "function readCollectionBackup()" in STUDIO
     assert "function mergeCollectionBackup()" in STUDIO
     assert "keep the higher owned quantity" in STUDIO
+
+
+def test_collection_recovery_actions_are_one_shot_and_retryable():
+    preview = STUDIO[STUDIO.index("async function readCollectionBackup()"):STUDIO.index("async function mergeCollectionBackup()")]
+    merge = STUDIO[STUDIO.index("async function mergeCollectionBackup()"):STUDIO.index("function renderCollectionGoals")]
+    assert 'if(button?.disabled)return null' in preview
+    assert 'button.textContent="Previewing…"' in preview
+    assert "collectionImportBackup=null" in preview
+    assert "merge.disabled=true" in preview
+    assert "finally{if(button){button.disabled=false" in preview
+    assert 'if(button?.disabled)return null' in merge
+    assert 'button.textContent="Merging…"' in merge
+    assert "let merged=false" in merge
+    assert "button.disabled=merged||!collectionImportBackup" in merge
+
+
+def test_generated_production_session_state_is_ignored():
+    ignore = Path(".gitignore").read_text(encoding="utf-8")
+    assert "production_session.json" in ignore
+    assert "production_history.json" in ignore
