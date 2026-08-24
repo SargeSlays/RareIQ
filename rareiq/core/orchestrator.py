@@ -219,6 +219,7 @@ class RareIQOrchestrator:
             self.fast_pipeline,
             self.provider_diagnostics,
             self.job_queue,
+            storage,
         )
         self.vision_optimizer = VisionOptimizerService()
         self.candidate_ranker = CandidateRankerService(

@@ -29,6 +29,17 @@ class _CameraManagerDouble:
         }
 
 
+class _StorageDouble:
+    def health(self) -> dict:
+        return {
+            "healthy": True,
+            "state": "ready",
+            "message": "Storage healthy.",
+            "free_bytes": 10_000_000_000,
+            "recovery": {"state": "healthy", "age_hours": 1.0},
+        }
+
+
 def test_app_entrypoint_initializes_storage_before_loading_server():
     source = (PROJECT_ROOT / "app.py").read_text(encoding="utf-8")
 
@@ -45,6 +56,8 @@ def test_boot_ping_exposes_the_active_release_version():
     assert payload["version"] == VERSION
     assert payload["server_session_id"] == server.SERVER_SESSION_ID
     assert payload["pid"] == os.getpid()
+    assert payload["started_at"] == server.SERVER_STARTED_AT
+    assert payload["uptime_seconds"] >= 0
     assert payload["message"] == "Boot API online."
 
 
@@ -70,11 +83,16 @@ def test_system_health_has_one_route_and_supports_both_frontend_contracts(monkey
         system_health=_StatusDouble(detailed_health),
     )
     monkeypatch.setattr(server, "orchestrator", orchestrator)
+    monkeypatch.setattr(server, "storage", _StorageDouble())
 
     payload = asyncio.run(server.system_health())
 
     assert payload["ok"] is True
     assert payload["components"]["camera"]["healthy"] is True
     assert payload["components"]["recognition"]["state"] == "ready"
+    assert payload["components"]["storage"]["recovery"]["state"] == "healthy"
+    assert payload["components"]["server"]["pid"] == os.getpid()
+    assert payload["server_session_id"] == server.SERVER_SESSION_ID
+    assert payload["uptime_seconds"] >= 0
     assert payload["health"] == detailed_health
     assert isinstance(payload["timestamp"], float)

@@ -14,6 +14,7 @@ class SystemHealthService:
         fast_pipeline: Any,
         provider_diagnostics: Any,
         job_queue: Any,
+        storage_manager: Any,
     ) -> None:
         self.vision = vision
         self.recognition = recognition
@@ -22,6 +23,7 @@ class SystemHealthService:
         self.fast_pipeline = fast_pipeline
         self.provider_diagnostics = provider_diagnostics
         self.job_queue = job_queue
+        self.storage_manager = storage_manager
 
         self._lock = threading.RLock()
         self._stop = threading.Event()
@@ -44,6 +46,7 @@ class SystemHealthService:
         recognition = self.recognition.status()
         assets = self.asset_manager.status()
         jobs = self.job_queue.status()
+        storage = self.storage_manager.health()
 
         systems = {
             "camera": self._state(
@@ -66,7 +69,13 @@ class SystemHealthService:
                 ),
                 "online" if providers.get("providers") else "unchecked",
             ),
-            "storage": self._state(True, "ready"),
+            "storage": {
+                "ok": bool(storage.get("healthy")),
+                "status": storage.get("state") or "unknown",
+                "message": storage.get("message"),
+                "free_bytes": storage.get("free_bytes"),
+                "recovery": storage.get("recovery"),
+            },
             "asset_registry": self._state(True, "ready"),
             "job_queue": self._state(True, "ready"),
         }
@@ -82,6 +91,8 @@ class SystemHealthService:
                 ),
                 "registered_assets": int(assets.get("assets") or 0),
                 "queued_jobs": int(jobs.get("queued") or 0),
+                "storage_free_bytes": int(storage.get("free_bytes") or 0),
+                "recovery_age_hours": (storage.get("recovery") or {}).get("age_hours"),
             },
             "auto_index_enabled": self._auto_index_enabled,
             "current_job": jobs.get("current"),

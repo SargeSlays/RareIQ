@@ -11,6 +11,7 @@ from typing import Any
 
 class StorageManager:
     RECOVERY_MAX_AGE_HOURS = 36.0
+    MIN_FREE_BYTES = 2 * 1024 * 1024 * 1024
     REQUIRED_PATHS = (
         "database_root", "catalog_path", "image_path", "embedding_path",
         "index_path", "cache_path", "capture_path", "grading_path",
@@ -148,6 +149,48 @@ class StorageManager:
                 == (database_root.drive or database_root.anchor).casefold()
             ),
             "verification_scope": "manifest",
+        }
+
+    def health(self) -> dict[str, Any]:
+        try:
+            status = self.status()
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            return {
+                "healthy": False,
+                "state": "error",
+                "message": f"Configured storage is unavailable: {type(exc).__name__}",
+                "free_bytes": None,
+                "minimum_free_bytes": self.MIN_FREE_BYTES,
+                "recovery": {"state": "unknown"},
+            }
+        recovery = status["recovery"]
+        low_space = int(status["free_bytes"]) < self.MIN_FREE_BYTES
+        recovery_state = str(recovery.get("state") or "unknown")
+        invalid_recovery = recovery_state == "invalid"
+        healthy = not low_space and not invalid_recovery
+        if low_space:
+            state = "error"
+            message = "Configured storage has less than 2 GiB free."
+        elif invalid_recovery:
+            state = "error"
+            message = "No valid recovery snapshot is available; invalid snapshots were found."
+        elif recovery_state == "stale":
+            state = "warning"
+            message = "Runtime storage is ready, but the latest recovery snapshot is stale."
+        elif recovery_state == "missing":
+            state = "warning"
+            message = "Runtime storage is ready; no recovery snapshot exists yet."
+        else:
+            state = "ready"
+            message = "Configured storage and recovery checkpoint are healthy."
+        return {
+            "healthy": healthy,
+            "state": state,
+            "message": message,
+            "root": status["root"],
+            "free_bytes": status["free_bytes"],
+            "minimum_free_bytes": self.MIN_FREE_BYTES,
+            "recovery": recovery,
         }
 
 

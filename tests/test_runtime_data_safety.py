@@ -176,9 +176,40 @@ def test_storage_status_distinguishes_missing_stale_and_invalid_snapshots(tmp_pa
     import hashlib
     (snapshot / "manifest.sha256").write_text(hashlib.sha256(manifest_path.read_bytes()).hexdigest() + "\n", encoding="ascii")
     assert manager.recovery_status()["state"] == "stale"
+    stale_health = manager.health()
+    assert stale_health["healthy"] is True
+    assert stale_health["state"] == "warning"
 
     (snapshot / "manifest.sha256").write_text("0" * 64, encoding="ascii")
     invalid = manager.recovery_status()
     assert invalid["state"] == "invalid"
     assert invalid["valid_snapshot_count"] == 0
     assert invalid["invalid_snapshot_count"] == 1
+    invalid_health = manager.health()
+    assert invalid_health["healthy"] is False
+    assert invalid_health["state"] == "error"
+
+
+def test_storage_health_is_truthful_without_treating_first_run_as_failure(tmp_path, monkeypatch):
+    (tmp_path / "storage_config.json").write_text(json.dumps(_storage_payload()), encoding="utf-8")
+    manager = StorageManager(project_root=tmp_path)
+    manager.initialize()
+
+    first_run = manager.health()
+    assert first_run["healthy"] is True
+    assert first_run["state"] == "warning"
+    assert first_run["recovery"]["state"] == "missing"
+
+    monkeypatch.setattr(
+        manager,
+        "status",
+        lambda: {
+            "root": str(tmp_path),
+            "free_bytes": manager.MIN_FREE_BYTES - 1,
+            "recovery": {"state": "healthy"},
+        },
+    )
+    low_space = manager.health()
+    assert low_space["healthy"] is False
+    assert low_space["state"] == "error"
+    assert "2 GiB" in low_space["message"]

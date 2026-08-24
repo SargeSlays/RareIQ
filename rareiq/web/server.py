@@ -38,6 +38,7 @@ BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 CAPTURE_DIR = BASE_DIR.parent.parent / "captures"
 SERVER_SESSION_ID = uuid.uuid4().hex
+SERVER_STARTED_AT = time.time()
 LOGGER = logging.getLogger(__name__)
 CATALOG_REFRESH_INTERVAL_SECONDS = max(
     15 * 60,
@@ -1226,11 +1227,14 @@ async def camera_ptz_control(req: CameraControlRequest):
 
 @app.get("/api/boot/ping")
 async def boot_ping():
+    uptime_seconds = max(0.0, time.time() - SERVER_STARTED_AT)
     return {
         "ok": True,
         "version": VERSION,
         "server_session_id": SERVER_SESSION_ID,
         "pid": os.getpid(),
+        "started_at": SERVER_STARTED_AT,
+        "uptime_seconds": round(uptime_seconds, 3),
         "message": "Boot API online.",
     }
 
@@ -1249,6 +1253,8 @@ async def system_health():
     catalog = orchestrator.catalog.status()
     index = orchestrator.index_activation.status()
     detailed_health = orchestrator.system_health.status()
+    storage_health = storage.health()
+    uptime_seconds = max(0.0, time.time() - SERVER_STARTED_AT)
 
     components = {
         "camera": camera,
@@ -1267,16 +1273,25 @@ async def system_health():
             "state": index.get("state") or "unknown",
             "message": index.get("error") or "Index activation service available.",
         },
-        "storage": {
+        "storage": storage_health,
+        "server": {
             "healthy": True,
-            "state": "ready",
-            "message": "Configured storage paths are available.",
+            "state": "running",
+            "message": f"RareIQ {VERSION} server process is running.",
+            "pid": os.getpid(),
+            "server_session_id": SERVER_SESSION_ID,
+            "started_at": SERVER_STARTED_AT,
+            "uptime_seconds": round(uptime_seconds, 3),
         },
     }
 
     return {
         "ok": all(component["healthy"] for component in components.values()),
         "timestamp": time.time(),
+        "version": VERSION,
+        "server_session_id": SERVER_SESSION_ID,
+        "pid": os.getpid(),
+        "uptime_seconds": round(uptime_seconds, 3),
         "components": components,
         "health": detailed_health,
     }
