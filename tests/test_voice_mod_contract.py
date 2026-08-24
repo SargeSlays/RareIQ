@@ -61,3 +61,34 @@ def test_voice_mod_has_complete_dark_light_and_responsive_styling():
     assert "@media(max-width:620px)" in CSS
     version = re.search(r'data-studiox-build="([^"]+)"', CONTROL).group(1)
     assert f"/static/studiox_update15.css?v={version}" in CONTROL
+
+
+def test_voice_mod_reports_truthful_microphone_discovery_state():
+    assert 'id="voiceModInputStatus" role="status" aria-live="polite"' in CONTROL
+    assert "function setVoiceModInputStatus" in STUDIO
+    assert "selectable=devices.filter(device=>device.deviceId)" in STUDIO
+    assert '"No microphones detected. Connect an input, then refresh."' in STUDIO
+    assert '"permission"' in STUDIO
+    assert ".voice-mod-input-status" in CSS
+
+
+def test_voice_mod_recovers_when_the_active_microphone_disconnects():
+    assert "async function handleVoiceModInputEnded(track)" in STUDIO
+    assert 'addEventListener("ended",event=>handleVoiceModInputEnded(event.target).catch' in STUDIO
+    assert 'setVoiceModStatus("error","Microphone disconnected")' in STUDIO
+    assert 'window.rareiqVoiceModStream=null' in STUDIO
+
+
+def test_voice_mod_startup_failure_releases_acquired_media_resources():
+    start = STUDIO[STUDIO.index("async function startVoiceMod") : STUDIO.index("function restoreVoiceModPreferences")]
+    assert "let stream=null,context=null" in start
+    assert "stream?.getTracks().forEach(track=>track.stop())" in start
+    assert 'context.close().catch(()=>{})' in start
+    assert 'setVoiceModStatus("error","Microphone unavailable")' in start
+
+
+def test_voice_mod_route_uses_success_color_only_while_live():
+    assert 'class="voice-mod-meter-card" data-state="idle"' in CONTROL
+    assert "if(meter)meter.dataset.state=state" in STUDIO
+    assert '.voice-mod-meter-card[data-state="live"] .voice-mod-readout span' in CSS
+    assert '.voice-mod-meter-card[data-state="error"] .voice-mod-readout span' in CSS
