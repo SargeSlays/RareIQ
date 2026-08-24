@@ -80,7 +80,10 @@ def test_secret_updates_preserve_unrelated_credentials_and_are_atomic(tmp_path, 
         "cardgrader_api_key": "cgk_example",
     }
     assert not path.with_name("rareiq_secrets.tmp.json").exists()
-    assert manager.public_status() == {"pokemontcg_api_key_loaded": True}
+    assert manager.public_status() == {
+        "pokemontcg_api_key_loaded": True,
+        "remote_access_token_loaded": False,
+    }
     assert "keep-me" not in str(manager.public_status())
 
 

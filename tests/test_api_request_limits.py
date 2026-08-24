@@ -76,7 +76,9 @@ def test_creator_asset_route_returns_413_from_declared_oversize(monkeypatch):
         return {"created": True}
 
     monkeypatch.setattr(orchestrator.reaction_assets, "add", unexpected_add)
-    response = TestClient(app, raise_server_exceptions=False).post(
+    response = TestClient(
+        app, raise_server_exceptions=False, client=("127.0.0.1", 50000)
+    ).post(
         "/api/creator/assets",
         content=b"small",
         headers={"content-type": "image/png", "content-length": str(limit + 1)},
@@ -97,7 +99,9 @@ def test_creator_asset_route_replays_a_valid_bounded_body(monkeypatch):
         return {"created": True, "asset": {"id": "test-asset"}}
 
     monkeypatch.setattr(orchestrator.reaction_assets, "add", capture_add)
-    response = TestClient(app, raise_server_exceptions=False).post(
+    response = TestClient(
+        app, raise_server_exceptions=False, client=("127.0.0.1", 50000)
+    ).post(
         "/api/creator/assets",
         content=png,
         headers={"content-type": "image/png", "x-rareiq-filename": "proof.png"},
@@ -113,7 +117,9 @@ def test_multi_card_control_route_rejects_chunked_oversize():
         yield b'{' + b'"padding":"' + b"x" * (MAX_CONTROL_REQUEST_BYTES // 2)
         yield b"x" * (MAX_CONTROL_REQUEST_BYTES // 2 + 32) + b'"}'
 
-    response = TestClient(app, raise_server_exceptions=False).post(
+    response = TestClient(
+        app, raise_server_exceptions=False, client=("127.0.0.1", 50000)
+    ).post(
         "/api/multi-card/select",
         content=chunks(),
         headers={"content-type": "application/json"},

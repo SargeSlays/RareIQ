@@ -62,6 +62,7 @@ class SecretsManager:
     def public_status(self) -> dict[str, bool]:
         return {
             "pokemontcg_api_key_loaded": self.has("pokemontcg_api_key"),
+            "remote_access_token_loaded": self.has("remote_access_token"),
         }
 
     def _read_file(self, *, strict: bool) -> dict[str, Any]:

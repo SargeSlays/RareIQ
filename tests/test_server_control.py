@@ -154,6 +154,59 @@ def test_remote_bindings_are_rejected(host):
         control._validate_binding(host, 8765)
 
 
+def test_authenticated_lan_binding_requires_explicit_mode_and_configured_token(tmp_path):
+    project = _project(tmp_path)
+
+    assert control._validate_binding(
+        "0.0.0.0", 8765, remote_access=True
+    ) == ("0.0.0.0", 8765)
+    with pytest.raises(ServerControlError, match="remote_access_token"):
+        control.start_server(
+            project,
+            host="0.0.0.0",
+            remote_access=True,
+            state_path=tmp_path / "state/server.json",
+        )
+
+
+def test_remote_token_can_be_loaded_from_ignored_secrets_file(tmp_path):
+    project = _project(tmp_path)
+    (project / "rareiq_secrets.json").write_text(
+        json.dumps({"remote_access_token": "a" * 32}),
+        encoding="utf-8",
+    )
+
+    assert control._remote_access_token_configured(project) is True
+
+
+def test_restart_can_explicitly_return_a_lan_server_to_loopback(tmp_path, monkeypatch):
+    project = _project(tmp_path)
+    state_path = tmp_path / "state/server.json"
+    _state(state_path)
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    payload.update({"host": "0.0.0.0", "remote_access": True})
+    state_path.write_text(json.dumps(payload), encoding="utf-8")
+    calls = []
+    monkeypatch.setattr(control, "stop_server", lambda *_args, **_kwargs: {"stopped": True})
+
+    def start(*_args, **kwargs):
+        calls.append(kwargs)
+        return {"state": "running"}
+
+    monkeypatch.setattr(control, "start_server", start)
+
+    control.restart_server(
+        project,
+        host="127.0.0.1",
+        remote_access=False,
+        state_path=state_path,
+        _lock_held=True,
+    )
+
+    assert calls[0]["host"] == "127.0.0.1"
+    assert calls[0]["remote_access"] is False
+
+
 def test_server_run_binding_is_loopback_and_environment_configurable(monkeypatch):
     from rareiq.web import server
 

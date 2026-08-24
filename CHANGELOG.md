@@ -2,7 +2,8 @@
 
 ## Studio X 6.4.18-dev — In development
 
-- No unreleased changes yet.
+- Added an opt-in authenticated LAN foundation for mobile Studio X access while
+  preserving loopback-only operation by default.
 
 ## Studio X 6.4.17 — WAR Build Foundation
 

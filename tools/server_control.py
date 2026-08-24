@@ -35,10 +35,20 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _validate_binding(host: str, port: int) -> tuple[str, int]:
+def _validate_binding(
+    host: str,
+    port: int,
+    *,
+    remote_access: bool = False,
+) -> tuple[str, int]:
     host = str(host).strip().lower()
-    if host not in {"127.0.0.1", "localhost", "::1"}:
-        raise ServerControlError("RareIQ server control only permits loopback hosts.")
+    allowed = {"127.0.0.1", "localhost", "::1"}
+    if remote_access:
+        allowed.update({"0.0.0.0", "::"})
+    if host not in allowed:
+        raise ServerControlError(
+            "RareIQ permits loopback hosts or an explicit authenticated wildcard LAN binding."
+        )
     if not 1 <= int(port) <= 65535:
         raise ServerControlError("Server port must be between 1 and 65535.")
     return host, int(port)
@@ -125,6 +135,10 @@ def _request_json(url: str, *, method: str = "GET", timeout: float = 1.0) -> dic
 
 
 def _base_url(host: str, port: int) -> str:
+    if host == "0.0.0.0":
+        host = "127.0.0.1"
+    elif host == "::":
+        host = "::1"
     display_host = f"[{host}]" if ":" in host else host
     return f"http://{display_host}:{port}"
 
@@ -139,6 +153,17 @@ def _resolved_paths(project_root: Path, state_path: Path | None) -> tuple[Path, 
     state_path = Path(state_path).resolve()
     state_path.parent.mkdir(parents=True, exist_ok=True)
     return state_path, state_path.parent
+
+
+def _remote_access_token_configured(project_root: Path) -> bool:
+    token = os.environ.get("RAREIQ_REMOTE_ACCESS_TOKEN", "").strip()
+    if token:
+        return len(token) >= 24
+    try:
+        payload = json.loads((project_root / "rareiq_secrets.json").read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, ValueError, TypeError):
+        return False
+    return isinstance(payload, dict) and len(str(payload.get("remote_access_token") or "").strip()) >= 24
 
 
 @contextmanager
@@ -189,7 +214,11 @@ def server_status(project_root: Path, *, state_path: Path | None = None) -> dict
     state_path, _log_root = _resolved_paths(project_root, state_path)
     state = _load_state(state_path)
     if state:
-        host, port = _validate_binding(state.get("host", DEFAULT_HOST), int(state.get("port", DEFAULT_PORT)))
+        host, port = _validate_binding(
+            state.get("host", DEFAULT_HOST),
+            int(state.get("port", DEFAULT_PORT)),
+            remote_access=bool(state.get("remote_access")),
+        )
     else:
         host, port = DEFAULT_HOST, DEFAULT_PORT
     ping = _ping(host, port)
@@ -229,6 +258,8 @@ def server_status(project_root: Path, *, state_path: Path | None = None) -> dict
         "launcher_pid": launcher_pid,
         "launcher_alive": launcher_alive,
         "server_session_id": state.get("server_session_id"),
+        "bind_host": host,
+        "remote_access": bool(state.get("remote_access")),
         "url": _base_url(host, port),
         "control_url": f"{_base_url(host, port)}/control",
         "server": ping,
@@ -246,11 +277,17 @@ def start_server(
     port: int = DEFAULT_PORT,
     timeout: float = DEFAULT_START_TIMEOUT,
     open_browser: bool = False,
+    remote_access: bool = False,
     state_path: Path | None = None,
     _lock_held: bool = False,
 ) -> dict[str, Any]:
     project_root = Path(project_root).resolve()
-    host, port = _validate_binding(host, port)
+    host, port = _validate_binding(host, port, remote_access=remote_access)
+    if remote_access and not _remote_access_token_configured(project_root):
+        raise ServerControlError(
+            "LAN access requires remote_access_token in rareiq_secrets.json "
+            "or RAREIQ_REMOTE_ACCESS_TOKEN with at least 24 characters."
+        )
     state_path, log_root = _resolved_paths(project_root, state_path)
     if not _lock_held:
         with _control_lock(state_path):
@@ -260,6 +297,7 @@ def start_server(
                 port=port,
                 timeout=timeout,
                 open_browser=open_browser,
+                remote_access=remote_access,
                 state_path=state_path,
                 _lock_held=True,
             )
@@ -288,6 +326,7 @@ def start_server(
         "PYTHONUNBUFFERED": "1",
         "RAREIQ_HOST": host,
         "RAREIQ_PORT": str(port),
+        "RAREIQ_REMOTE_ACCESS": "1" if remote_access else "0",
     })
     popen_kwargs: dict[str, Any] = {
         "cwd": str(project_root),
@@ -316,6 +355,7 @@ def start_server(
         "launcher_pid": process.pid,
         "host": host,
         "port": port,
+        "remote_access": remote_access,
         "server_session_id": None,
         "started_at": _utc_now(),
         "stdout_log": str(stdout_path),
@@ -436,6 +476,7 @@ def restart_server(
     timeout: float = DEFAULT_START_TIMEOUT,
     force: bool = False,
     open_browser: bool = False,
+    remote_access: bool | None = None,
     state_path: Path | None = None,
     _lock_held: bool = False,
 ) -> dict[str, Any]:
@@ -449,12 +490,18 @@ def restart_server(
                 timeout=timeout,
                 force=force,
                 open_browser=open_browser,
+                remote_access=remote_access,
                 state_path=state_path,
                 _lock_held=True,
             )
     state = _load_state(state_path)
     selected_host = host or (str(state.get("host")) if state else DEFAULT_HOST)
     selected_port = port or (int(state.get("port")) if state else DEFAULT_PORT)
+    selected_remote_access = (
+        bool(remote_access)
+        if remote_access is not None
+        else bool(state.get("remote_access")) if state else False
+    )
     stopped = stop_server(
         project_root,
         timeout=DEFAULT_STOP_TIMEOUT,
@@ -468,6 +515,7 @@ def restart_server(
         port=selected_port,
         timeout=timeout,
         open_browser=open_browser,
+        remote_access=selected_remote_access,
         state_path=state_path,
         _lock_held=True,
     )
@@ -492,11 +540,13 @@ def ensure_server(
         )
     host = str(state.get("host")) if state else DEFAULT_HOST
     port = int(state.get("port")) if state else DEFAULT_PORT
+    remote_access = bool(state.get("remote_access")) if state else False
     started = start_server(
         project_root,
         host=host,
         port=port,
         timeout=timeout,
+        remote_access=remote_access,
         state_path=state_path,
     )
     return {**started, "action": "started"}
@@ -569,6 +619,7 @@ def main(argv: list[str] | None = None) -> int:
     start.add_argument("--port", type=int, default=DEFAULT_PORT)
     start.add_argument("--timeout", type=float, default=DEFAULT_START_TIMEOUT)
     start.add_argument("--open", action="store_true", dest="open_browser")
+    start.add_argument("--lan", action="store_true", help="Enable authenticated LAN access.")
     subparsers.add_parser("status")
     ensure = subparsers.add_parser("ensure")
     ensure.add_argument("--timeout", type=float, default=DEFAULT_START_TIMEOUT)
@@ -581,6 +632,22 @@ def main(argv: list[str] | None = None) -> int:
     restart.add_argument("--timeout", type=float, default=DEFAULT_START_TIMEOUT)
     restart.add_argument("--force", action="store_true")
     restart.add_argument("--open", action="store_true", dest="open_browser")
+    restart_access = restart.add_mutually_exclusive_group()
+    restart_access.add_argument(
+        "--lan",
+        action="store_const",
+        const=True,
+        default=None,
+        dest="remote_access",
+        help="Enable authenticated LAN access.",
+    )
+    restart_access.add_argument(
+        "--local",
+        action="store_const",
+        const=False,
+        dest="remote_access",
+        help="Return to loopback-only access.",
+    )
     schedule = subparsers.add_parser("schedule")
     schedule.add_argument("--interval", type=int, default=DEFAULT_WATCHDOG_MINUTES)
     schedule.add_argument("--apply", action="store_true")
@@ -589,10 +656,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "start":
             result = start_server(
                 project_root,
-                host=args.host,
+                host="0.0.0.0" if args.lan else args.host,
                 port=args.port,
                 timeout=args.timeout,
                 open_browser=args.open_browser,
+                remote_access=args.lan,
             )
         elif args.command == "status":
             result = server_status(project_root)
@@ -603,11 +671,18 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "restart":
             result = restart_server(
                 project_root,
-                host=args.host,
+                host=(
+                    "0.0.0.0"
+                    if args.remote_access is True
+                    else "127.0.0.1"
+                    if args.remote_access is False
+                    else args.host
+                ),
                 port=args.port,
                 timeout=args.timeout,
                 force=args.force,
                 open_browser=args.open_browser,
+                remote_access=args.remote_access,
             )
         else:
             result = windows_watchdog_schedule(

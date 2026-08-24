@@ -34,3 +34,7 @@ py -3.13 -m venv .venv
 ```
 
 Run the complete release-quality gate with the command documented in [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
+
+For opt-in, authenticated access from a phone on the same trusted private
+network, follow [`docs/MOBILE_ACCESS.md`](docs/MOBILE_ACCESS.md). RareIQ remains
+loopback-only unless LAN mode is explicitly enabled.

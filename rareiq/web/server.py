@@ -13,18 +13,20 @@ import uuid
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import parse_qs
 
 import cv2
 import httpx
 import numpy as np
 import uvicorn
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from rareiq.core.events import EventBus
 from rareiq.core.orchestrator import RareIQOrchestrator
+from rareiq.core.secrets import secrets as secret_store
 from rareiq.core.storage import storage
 from rareiq.services.provenance_capture_service import ProvenanceCaptureService
 from rareiq.services.spotify_service import spotify
@@ -33,12 +35,22 @@ from rareiq.services.inventory_service import MAX_RECEIPT_DATA_URL_CHARS
 from rareiq.services.recording_service import RecordingService
 from rareiq.services.obs_service import ObsService
 from rareiq.version import BUILD_DATE, CODENAME, VERSION, version_payload
+from rareiq.web.remote_access import (
+    REMOTE_ACCESS_COOKIE,
+    RemoteAccessPolicy,
+    is_loopback_client,
+    validate_server_binding,
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 CAPTURE_DIR = BASE_DIR.parent.parent / "captures"
 SERVER_SESSION_ID = uuid.uuid4().hex
 SERVER_STARTED_AT = time.time()
+REMOTE_ACCESS = RemoteAccessPolicy.from_environment(
+    SERVER_SESSION_ID,
+    secret_store=secret_store,
+)
 LOGGER = logging.getLogger(__name__)
 CATALOG_REFRESH_INTERVAL_SECONDS = max(
     15 * 60,
@@ -133,6 +145,108 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title=f"RareIQ v{VERSION}", lifespan=lifespan)
+
+
+def _remote_access_page(*, error: str | None = None) -> HTMLResponse:
+    notice = (
+        f'<p class="error" role="alert">{html.escape(error)}</p>'
+        if error
+        else '<p>Enter the pairing token configured on the RareIQ workstation.</p>'
+    )
+    document = f'''<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pair with RareIQ</title><style>
+:root{{color-scheme:dark}}*{{box-sizing:border-box}}body{{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:#031019;color:#eafaff;font:16px Inter,Segoe UI,sans-serif}}
+main{{width:min(100%,420px);padding:28px;border:1px solid #1d5267;border-radius:20px;background:#081e2a;box-shadow:0 24px 80px #0009}}.brand{{color:#54ddfa;font-size:12px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}}h1{{margin:10px 0 6px;font-size:28px}}p{{color:#9bb4c0;line-height:1.5}}label{{display:grid;gap:8px;margin-top:22px;font-weight:800}}input,button{{width:100%;min-height:48px;border-radius:11px;font:inherit}}input{{padding:0 13px;border:1px solid #28566a;background:#04151f;color:#fff}}button{{margin-top:14px;border:0;background:#55d9f4;color:#03202b;font-weight:900;cursor:pointer}}.error{{color:#ff9b9b}}
+</style></head><body><main><span class="brand">RareIQ Studio X</span><h1>Pair this device</h1>{notice}<form method="post" action="/remote-access" autocomplete="off"><label>Pairing token<input name="token" type="password" minlength="24" required autofocus autocomplete="one-time-code"></label><button type="submit">Connect securely</button></form></main></body></html>'''
+    return HTMLResponse(
+        document,
+        status_code=401 if error else 200,
+        headers={"Cache-Control": "no-store", "X-Frame-Options": "DENY"},
+    )
+
+
+@app.middleware("http")
+async def enforce_remote_access(request: Request, call_next):
+    client_host = request.client.host if request.client else None
+    if REMOTE_ACCESS.authorizes(
+        client_host,
+        request.cookies.get(REMOTE_ACCESS_COOKIE),
+    ):
+        return await call_next(request)
+    if request.url.path == "/remote-access" or (
+        request.method == "GET" and request.url.path == "/api/boot/ping"
+    ):
+        return await call_next(request)
+    if request.method == "GET" and "text/html" in request.headers.get("accept", ""):
+        return RedirectResponse("/remote-access", status_code=303)
+    return JSONResponse(
+        status_code=401,
+        content={"ok": False, "reason": "remote_pairing_required"},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/remote-access")
+async def remote_access_login():
+    if not REMOTE_ACCESS.enabled:
+        return JSONResponse(
+            status_code=404,
+            content={"ok": False, "reason": "remote_access_disabled"},
+        )
+    return _remote_access_page()
+
+
+@app.post("/remote-access")
+async def remote_access_pair(request: Request):
+    if not REMOTE_ACCESS.enabled:
+        return JSONResponse(
+            status_code=404,
+            content={"ok": False, "reason": "remote_access_disabled"},
+        )
+    try:
+        body = await _read_bounded_body(request, 4096)
+    except RequestBodyTooLarge:
+        return _remote_access_page(error="Pairing request was too large.")
+    values = parse_qs(body.decode("utf-8", errors="replace"), keep_blank_values=True)
+    token = (values.get("token") or [""])[0]
+    if not REMOTE_ACCESS.verify_pairing_token(token):
+        return _remote_access_page(error="Pairing token was not accepted.")
+    response = RedirectResponse("/control", status_code=303)
+    response.set_cookie(
+        REMOTE_ACCESS_COOKIE,
+        REMOTE_ACCESS.cookie_value,
+        httponly=True,
+        samesite="strict",
+        secure=False,
+        max_age=12 * 60 * 60,
+        path="/",
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.post("/api/remote-access/logout")
+async def remote_access_logout():
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(REMOTE_ACCESS_COOKIE, path="/")
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.get("/api/remote-access/status")
+async def remote_access_status(request: Request):
+    client_host = request.client.host if request.client else None
+    return {
+        "ok": True,
+        "enabled": REMOTE_ACCESS.enabled,
+        "paired": REMOTE_ACCESS.authorizes(
+            client_host,
+            request.cookies.get(REMOTE_ACCESS_COOKIE),
+        ),
+        "client_loopback": is_loopback_client(client_host),
+        "server_session_id": SERVER_SESSION_ID,
+    }
 
 @app.exception_handler(Exception)
 async def json_api_exception_handler(request: Request, exc: Exception):
@@ -865,6 +979,13 @@ async def audio(): return FileResponse(STATIC_DIR/"audio_overlay.html")
 
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
+    client_host = ws.client.host if ws.client else None
+    if not REMOTE_ACCESS.authorizes(
+        client_host,
+        ws.cookies.get(REMOTE_ACCESS_COOKIE),
+    ):
+        await ws.close(code=4401, reason="remote_pairing_required")
+        return
     await manager.connect(ws)
     try:
         while True: await ws.receive_text()
@@ -4186,8 +4307,7 @@ async def demo(tier: str):
 
 def run():
     host = os.getenv("RAREIQ_HOST", "127.0.0.1").strip().lower()
-    if host not in {"127.0.0.1", "localhost", "::1"}:
-        raise RuntimeError("RAREIQ_HOST must be a loopback address.")
+    host = validate_server_binding(host, REMOTE_ACCESS)
     try:
         port = int(os.getenv("RAREIQ_PORT", "8765"))
     except ValueError as exc:
