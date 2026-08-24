@@ -78,3 +78,15 @@ def test_single_card_can_pick_one_numbered_region_from_crowded_table():
     assert "recognizePickedSingleCard" in JS
     assert '@app.get("/api/single-card/regions")' in SERVER
     assert '@app.post("/api/single-card/pick/{slot}")' in SERVER
+
+
+def test_single_and_multi_card_capture_share_one_inflight_guard():
+    assert "let recognitionCaptureInFlight = false" in JS
+    assert "function setRecognitionCaptureBusy(busy)" in JS
+    assert JS.count("if(recognitionCaptureInFlight)return null") == 2
+    single = JS[JS.index("async function captureCamera()"):JS.index("function startCameraStream")]
+    multi = JS[JS.index("async function captureMultiCardGrid()"):JS.index("async function toggleMultiCardOutput")]
+    assert "setRecognitionCaptureBusy(true)" in single
+    assert "finally{setRecognitionCaptureBusy(false);}" in single
+    assert "setRecognitionCaptureBusy(true)" in multi
+    assert "finally{setRecognitionCaptureBusy(false);}" in multi

@@ -5,6 +5,7 @@ let selectedCamera = null;
 let cameraStreamStarted = false;
 let previousCardId = null;
 let autoCaptureEnabled = true;
+let recognitionCaptureInFlight = false;
 let captureBannerTimer = null;
 let newestRecognitionGeneration = -1;
 let newestRecognitionRevision = -1;
@@ -3980,6 +3981,9 @@ async function loadMultiCardStatus(){
 }
 
 async function captureMultiCardGrid(){
+  if(recognitionCaptureInFlight)return null;
+  setRecognitionCaptureBusy(true);
+  try{
   const uniqueVariants=Boolean($("multiCardUniqueVariants")?.checked);
   const requestedCards=Math.max(2,Math.min(12,Number($("multiCardMaxCards")?.value||6)));
   setCardText("multiCardSummary",`Detecting up to ${requestedCards} cards…`);
@@ -3989,6 +3993,7 @@ async function captureMultiCardGrid(){
   });
   renderMultiCardStatus(payload);
   return payload;
+  }finally{setRecognitionCaptureBusy(false);}
 }
 
 async function toggleMultiCardOutput(slot){
@@ -4274,7 +4279,18 @@ async function reconnectCamera(){
   }
 }
 
+function setRecognitionCaptureBusy(busy){
+  recognitionCaptureInFlight=Boolean(busy);
+  document.querySelectorAll(".premium-capture-action,#multiCardCaptureButton").forEach(button=>{
+    if(busy){button.dataset.captureWasDisabled=String(button.disabled);button.disabled=true;}
+    else{button.disabled=button.dataset.captureWasDisabled==="true";delete button.dataset.captureWasDisabled;}
+  });
+  syncMobileOperatorDeck();
+}
+
 async function captureCamera(){
+  if(recognitionCaptureInFlight)return null;
+  setRecognitionCaptureBusy(true);
   setRecognitionState("searching","Saving current corrected card crop...");
   try{
     const result=await api("/api/camera/capture",{
@@ -4306,7 +4322,7 @@ async function captureCamera(){
     setRecognitionState("error","Capture request failed.");
     showCaptureBanner(false,"CAPTURE FAILED","RareIQ could not save the card.");
     addActivity("Capture Failed","Request error.");
-  }
+  }finally{setRecognitionCaptureBusy(false);}
 }
 
 function startCameraStream(force=false){ connectMainViewer(force); }
@@ -8446,7 +8462,7 @@ function syncMobileOperatorDeck(){
   if(region){region.dataset.state=state.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"searching";region.dataset.connection=serverConnectionState;region.dataset.actions=actions}
   if($("mobileOperatorWorking")) $("mobileOperatorWorking").textContent=/VERIFY|CANDIDATE/.test(state.toUpperCase())?"Verifying":"Working";
   if($("mobileOperatorNext")) $("mobileOperatorNext").disabled=connectionUnavailable||Boolean($("nextClearButton")?.disabled);
-  if($("mobileOperatorCapture")) $("mobileOperatorCapture").disabled=connectionUnavailable||Boolean(document.querySelector(".premium-capture-action")?.disabled);
+  if($("mobileOperatorCapture")) $("mobileOperatorCapture").disabled=connectionUnavailable||recognitionCaptureInFlight||Boolean(document.querySelector(".premium-capture-action")?.disabled);
   if($("mobileOperatorApprove")) $("mobileOperatorApprove").disabled=connectionUnavailable||Boolean($("approveButton")?.disabled);
   if($("mobileOperatorReject")) $("mobileOperatorReject").disabled=connectionUnavailable||Boolean($("rejectButton")?.disabled);
   if($("mobileOperatorReconnect")) $("mobileOperatorReconnect").disabled=connectionUnavailable;

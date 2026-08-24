@@ -89,6 +89,14 @@ def test_mobile_deck_reuses_connection_events_and_blocks_unsafe_actions():
     assert "setInterval" not in connection
 
 
+def test_mobile_capture_stays_disabled_while_any_capture_is_inflight():
+    sync = JS[JS.index("function syncMobileOperatorDeck()") : JS.index("function syncResultDecisionStrip()")]
+    assert "connectionUnavailable||recognitionCaptureInFlight||Boolean" in sync
+    guard = JS[JS.index("function setRecognitionCaptureBusy") : JS.index("async function captureCamera")]
+    assert 'document.querySelectorAll(".premium-capture-action,#multiCardCaptureButton")' in guard
+    assert "syncMobileOperatorDeck();" in guard
+
+
 def test_mobile_deck_is_touch_sized_and_does_not_change_desktop_geometry():
     mobile_css = CSS[CSS.index("/* Update 6.8.9 — mobile operator shell foundation.") :]
     assert "@media(max-width:959px)" in mobile_css
