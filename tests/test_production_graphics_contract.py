@@ -28,6 +28,10 @@ def test_broadcast_workspace_controls_lower_thirds_and_card_graphics():
     assert 'function sendProductionGraphic' in STUDIO
     assert 'function fillProductionGraphicFromCard' in STUDIO
     assert '.production-graphics-layout' in CSS
+    assert 'previewLayout.dataset.graphicState=action' in STUDIO
+    assert '.production-graphics-layout::after' in CSS
+    assert '[data-graphic-state="preview"]::after' in CSS
+    assert '@media(max-width:1000px){.production-graphics-layout::after{display:none}}' in CSS
 
 
 def test_transparent_browser_source_animates_and_auto_hides():

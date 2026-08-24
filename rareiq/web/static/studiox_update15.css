@@ -10528,6 +10528,52 @@ html[data-theme="light"] .production-scene-actions button:first-child{
   color:#227744;
 }
 
+/* Broadcast graphics and insights: identify the transparent browser-source
+   preview and keep verified economics readable in the light theme. */
+.production-graphics-layout{position:relative}
+.production-graphics-layout::after{
+  content:"Preview hidden — use Preview to inspect the browser-source output";
+  z-index:1;
+  grid-column:2;
+  grid-row:1;
+  place-self:start end;
+  max-width:calc(100% - 20px);
+  margin:10px;
+  padding:5px 8px;
+  border:1px solid rgba(120,211,235,.18);
+  border-radius:999px;
+  background:rgba(4,18,29,.82);
+  color:#9eb5bf;
+  font-size:7px;
+  font-weight:850;
+  letter-spacing:.05em;
+  line-height:1.25;
+  pointer-events:none;
+  text-align:center;
+  text-transform:uppercase;
+}
+.production-graphics-layout[data-graphic-state="preview"]::after{content:"Preview ready — not on air"}
+.production-graphics-layout[data-graphic-state="take"]::after{content:"On air — browser-source output";color:#7fe7aa}
+.production-graphics-layout[data-graphic-state="hide"]::after{content:"Graphic hidden — preview available"}
+@media(max-width:1000px){.production-graphics-layout::after{display:none}}
+html[data-theme="light"] .pack-economics{
+  border-color:#d7e5e9;
+  background:linear-gradient(145deg,#fff,#edf5f8);
+  color:#183540;
+}
+html[data-theme="light"] .pack-economics form,
+html[data-theme="light"] .pack-economics-summary article{
+  border-color:#dbe7ea;
+  background:#f5fafc;
+}
+html[data-theme="light"] .pack-economics input{
+  border-color:#cfdee3;
+  background:#fff;
+  color:#183540;
+}
+html[data-theme="light"] .pack-economics :is(h3,strong,b){color:#183540}
+html[data-theme="light"] .pack-economics .economics-pack-rows>p{color:#607985}
+
 /* Broadcast console: preserve every production module while exposing one
    operator task group at a time. */
 body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"].active{

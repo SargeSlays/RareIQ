@@ -34,4 +34,6 @@ def test_pack_economics_operator_ui_contract():
     assert "async function loadPackEconomics" in JS
     assert "async function savePackEconomics" in JS
     assert ".pack-economics" in CSS
+    assert 'html[data-theme="light"] .pack-economics{' in CSS
+    assert 'html[data-theme="light"] .pack-economics-summary article' in CSS
     assert "@media(max-width:760px)" in CSS
