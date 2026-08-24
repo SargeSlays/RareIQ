@@ -40,4 +40,15 @@ def test_creator_ui_configures_pack_suspense_and_reaction_tiers():
 def test_custom_audio_is_not_enabled_without_user_asset():
     assert "Audio remains off until you provide and license a custom asset." in CONTROL
     assert 'id="creatorAudioEnabled"' in CONTROL
+
+
+def test_creator_mutations_are_one_shot_and_pack_rules_are_normalized():
+    assert "async function runCreatorAction(button,pendingLabel,action)" in STUDIO
+    assert "if(button?.disabled)return null" in STUDIO
+    assert 'runCreatorAction($("creatorNextPack"),"Resetting…"' in STUDIO
+    assert 'runCreatorAction($("creatorRevealNow"),"Revealing…"' in STUDIO
+    assert 'runCreatorAction($("creatorCancelReveal"),"Cancelling…"' in STUDIO
+    assert 'runCreatorAction(button,"Saving…"' in STUDIO
+    assert 'Math.max(1,Math.min(30,Number($("creatorExpectedCards")?.value)||6))' in STUDIO
+    assert 'Math.max(1,Math.min(expected,Number($("creatorRareSlot")?.value)||expected))' in STUDIO
     assert '$("creatorAudioEnabled")?.checked===true' in STUDIO

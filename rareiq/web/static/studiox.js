@@ -1590,14 +1590,27 @@ function handleCreatorRevealShortcut(event){
   if(action){event.preventDefault();action();}
 }
 
+async function runCreatorAction(button,pendingLabel,action){
+  if(button?.disabled)return null;
+  const originalLabel=button?.textContent||"";
+  if(button){button.disabled=true;button.textContent=pendingLabel;}
+  try{return await action()}finally{if(button){button.disabled=false;button.textContent=originalLabel;}}
+}
+
 async function saveRevealSequence(){
-  const expected=Number($("creatorExpectedCards")?.value||6);
-  const rare=Math.min(expected,Number($("creatorRareSlot")?.value||expected));
+  const button=$("saveRevealSequence");
+  return runCreatorAction(button,"Saving…",async()=>{
+  const expected=Math.max(1,Math.min(30,Number($("creatorExpectedCards")?.value)||6));
+  const rare=Math.max(1,Math.min(expected,Number($("creatorRareSlot")?.value)||expected));
   const mediumThreshold=Math.max(0,Number($("creatorMediumValueThreshold")?.value||25));
   const grailThreshold=Math.max(mediumThreshold,Number($("creatorGrailValueThreshold")?.value||150));
+  if($("creatorExpectedCards")) $("creatorExpectedCards").value=String(expected);
+  if($("creatorRareSlot")) $("creatorRareSlot").value=String(rare);
   if($("creatorGrailValueThreshold")) $("creatorGrailValueThreshold").value=String(grailThreshold);
   const state=await api("/api/creator/reveal-sequence",{method:"POST",body:JSON.stringify({enabled:$("creatorRevealEnabled")?.checked!==false,build_suspense:$("creatorBuildSuspense")?.checked!==false,expected_cards:expected,rare_slot:rare,medium_value_threshold:mediumThreshold,grail_value_threshold:grailThreshold,arming_delay_ms:Number($("creatorArmingDelay")?.value||0),reaction_copy:{standard:$("creatorStandardCopy")?.value,low:$("creatorLowCopy")?.value,medium:$("creatorMediumCopy")?.value,grail:$("creatorGrailCopy")?.value},custom_grail_preset:$("creatorGrailPreset")?.value||"none",audio_enabled:$("creatorAudioEnabled")?.checked===true,animations_enabled:$("creatorAnimationsEnabled")?.checked!==false,animation_intensity:Number($("creatorAnimationIntensity")?.value||75),animation_duration_ms:Number($("creatorAnimationDuration")?.value||3200),particles_enabled:$("creatorParticlesEnabled")?.checked!==false,flash_enabled:$("creatorFlashEnabled")?.checked!==false,minimum_animation_tier:$("creatorMinimumAnimationTier")?.value||"low"})});
   renderRevealSequence(state.state||{});notify("Reveal Rules Saved","The browser source will use the new sequence.","success");
+  return state;
+  });
 }
 
 let librarySyncTimer=0;
@@ -9042,9 +9055,9 @@ document.addEventListener("DOMContentLoaded",()=>{
     if($("collectionImportPreview")) $("collectionImportPreview").hidden=true;
   });
   $("saveRevealSequence")?.addEventListener("click",()=>saveRevealSequence().catch(error=>notify("Reveal Rules Not Saved",error.message||String(error),"error")));
-  $("creatorNextPack")?.addEventListener("click",()=>api("/api/creator/reveal-sequence/next-pack",{method:"POST"}).then(payload=>renderRevealSequence(payload.state||{})).catch(error=>notify("Pack Reset Failed",error.message||String(error),"error")));
-  $("creatorRevealNow")?.addEventListener("click",()=>api("/api/creator/reveal-sequence/release",{method:"POST"}).then(payload=>renderRevealSequence(payload.state||{})).catch(error=>notify("Reveal Failed",error.message||String(error),"error")));
-  $("creatorCancelReveal")?.addEventListener("click",()=>api("/api/creator/reveal-sequence/cancel",{method:"POST"}).then(payload=>renderRevealSequence(payload.state||{})).catch(error=>notify("Cancel Failed",error.message||String(error),"error")));
+  $("creatorNextPack")?.addEventListener("click",()=>runCreatorAction($("creatorNextPack"),"Resetting…",()=>api("/api/creator/reveal-sequence/next-pack",{method:"POST"}).then(payload=>renderRevealSequence(payload.state||{}))).catch(error=>notify("Pack Reset Failed",error.message||String(error),"error")));
+  $("creatorRevealNow")?.addEventListener("click",()=>runCreatorAction($("creatorRevealNow"),"Revealing…",()=>api("/api/creator/reveal-sequence/release",{method:"POST"}).then(payload=>renderRevealSequence(payload.state||{}))).catch(error=>notify("Reveal Failed",error.message||String(error),"error")));
+  $("creatorCancelReveal")?.addEventListener("click",()=>runCreatorAction($("creatorCancelReveal"),"Cancelling…",()=>api("/api/creator/reveal-sequence/cancel",{method:"POST"}).then(payload=>renderRevealSequence(payload.state||{}))).catch(error=>notify("Cancel Failed",error.message||String(error),"error")));
   $("creatorAnimationIntensity")?.addEventListener("input",event=>{if($("creatorIntensityValue"))$("creatorIntensityValue").textContent=`${event.target.value}%`});
   document.querySelectorAll("[data-animation-preview]").forEach(button=>button.addEventListener("click",()=>previewCreatorAnimation(button.dataset.animationPreview)));
   window.addEventListener("keydown",handleCreatorRevealShortcut);
