@@ -12,6 +12,13 @@ def test_live_mobile_deck_does_not_cover_other_workspaces() -> None:
     assert '[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recognition-workflow-prompt{display:none!important}' in CSS
 
 
+def test_non_live_mobile_workspaces_restore_center_content_and_hide_inspector() -> None:
+    assert '[data-ui4-workspace="live"][data-mobile-operator-view="card"] .ui4-center-column{display:none!important}' in CSS
+    assert '[data-ui4-workspace]:not([data-ui4-workspace="live"]) .ui4-center-column{display:grid!important;grid-template-rows:minmax(0,1fr)!important;width:100%!important}' in CSS
+    assert '[data-ui4-workspace]:not([data-ui4-workspace="live"]) .ui4-command-bar{display:none!important}' in CSS
+    assert '[data-ui4-workspace]:not([data-ui4-workspace="live"]) .ui4-inspector-column{display:none!important}' in CSS
+
+
 def test_switching_away_from_live_closes_mobile_status_sheet() -> None:
     section = JS[JS.index("function switchWorkspace") : JS.index("function voiceModPreferences")]
     assert 'document.body.dataset.ui4Workspace=name' in section

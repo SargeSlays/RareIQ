@@ -10982,9 +10982,12 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
 }
 
 @media(max-width:959px) and (orientation:portrait){
-  body.studiox-ui4.studiox-premium[data-mobile-operator-view="camera"] .ui4-inspector-column{display:none!important}
-  body.studiox-ui4.studiox-premium[data-mobile-operator-view="card"] .ui4-center-column{display:none!important}
-  body.studiox-ui4.studiox-premium[data-mobile-operator-view="card"] .ui4-inspector-column{order:1!important;padding-top:6px!important}
+  body.studiox-ui4.studiox-premium[data-ui4-workspace="live"][data-mobile-operator-view="camera"] .ui4-inspector-column{display:none!important}
+  body.studiox-ui4.studiox-premium[data-ui4-workspace="live"][data-mobile-operator-view="card"] .ui4-center-column{display:none!important}
+  body.studiox-ui4.studiox-premium[data-ui4-workspace="live"][data-mobile-operator-view="card"] .ui4-inspector-column{order:1!important;padding-top:6px!important}
+  body.studiox-ui4.studiox-premium[data-ui4-workspace]:not([data-ui4-workspace="live"]) .ui4-center-column{display:grid!important;grid-template-rows:minmax(0,1fr)!important;width:100%!important}
+  body.studiox-ui4.studiox-premium[data-ui4-workspace]:not([data-ui4-workspace="live"]) .ui4-command-bar{display:none!important}
+  body.studiox-ui4.studiox-premium[data-ui4-workspace]:not([data-ui4-workspace="live"]) .ui4-inspector-column{display:none!important}
 }
 
 /* Camera-only mobile view owns the usable space above the operator deck.
@@ -11147,6 +11150,9 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
     font-size:7px!important;
     text-overflow:ellipsis!important;
     white-space:nowrap!important;
+  }
+  body.studiox-ui4.studiox-premium[data-ui4-workspace]:not([data-ui4-workspace="live"]) .notification-stack{
+    bottom:calc(78px + env(safe-area-inset-bottom,0px))!important;
   }
 }
 
