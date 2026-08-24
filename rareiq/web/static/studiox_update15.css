@@ -11018,34 +11018,34 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
   body.studiox-ui4.studiox-premium .result-decision-actions button{height:40px!important}
 }
 
-/* Mobile Both view keeps the decision controls compact enough for the live
-   camera and the current-card evidence to share the first viewport. */
+/* Mobile Card and Both views keep the decision controls compact enough for
+   current-card evidence to enter the first viewport. */
 @media(max-width:959px) and (orientation:portrait){
-  body.studiox-ui4.studiox-premium[data-mobile-operator-view="both"] .result-decision-strip{
+  body.studiox-ui4.studiox-premium:is([data-mobile-operator-view="both"],[data-mobile-operator-view="card"]) .result-decision-strip{
     display:grid!important;
     grid-template-columns:minmax(0,1fr) auto!important;
     gap:6px 8px!important;
   }
-  body.studiox-ui4.studiox-premium[data-mobile-operator-view="both"] .result-decision-identity{
+  body.studiox-ui4.studiox-premium:is([data-mobile-operator-view="both"],[data-mobile-operator-view="card"]) .result-decision-identity{
     align-self:center!important;
     min-width:0!important;
   }
-  body.studiox-ui4.studiox-premium[data-mobile-operator-view="both"] .auto-add-verified-control{
+  body.studiox-ui4.studiox-premium:is([data-mobile-operator-view="both"],[data-mobile-operator-view="card"]) .auto-add-verified-control{
     align-self:center!important;
     width:auto!important;
     min-width:112px!important;
     height:36px!important;
     min-height:36px!important;
   }
-  body.studiox-ui4.studiox-premium[data-mobile-operator-view="both"] .result-decision-actions{
+  body.studiox-ui4.studiox-premium:is([data-mobile-operator-view="both"],[data-mobile-operator-view="card"]) .result-decision-actions{
     grid-column:1/-1!important;
     height:36px!important;
     min-height:36px!important;
     grid-auto-rows:36px!important;
   }
-  body.studiox-ui4.studiox-premium[data-mobile-operator-view="both"] .result-decision-actions button{height:36px!important}
-  body.studiox-ui4.studiox-premium[data-mobile-operator-view="both"] .card-removal-progress,
-  body.studiox-ui4.studiox-premium[data-mobile-operator-view="both"] .pack-speed-run{
+  body.studiox-ui4.studiox-premium:is([data-mobile-operator-view="both"],[data-mobile-operator-view="card"]) .result-decision-actions button{height:36px!important}
+  body.studiox-ui4.studiox-premium:is([data-mobile-operator-view="both"],[data-mobile-operator-view="card"]) .card-removal-progress,
+  body.studiox-ui4.studiox-premium:is([data-mobile-operator-view="both"],[data-mobile-operator-view="card"]) .pack-speed-run{
     grid-column:1/-1!important;
   }
 }
