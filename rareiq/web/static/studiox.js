@@ -122,27 +122,72 @@ studioThemeMedia.addEventListener?.("change",()=>{if(studioThemePreference()==="
 
 
 
+const STUDIOX_NOTIFICATION_LIMIT=4;
+const STUDIOX_NOTIFICATION_DEDUPE_MS=1500;
+const STUDIOX_NOTIFICATION_LIFETIME_MS=4200;
+
+function dismissNotification(node,{immediate=false}={}){
+  if(!node||node.dataset.dismissed==="true") return;
+  node.dataset.dismissed="true";
+  clearTimeout(node._hideTimer);
+  clearTimeout(node._removeTimer);
+  if(immediate){node.remove();return;}
+  node.classList.add("dismissing");
+  node._removeTimer=setTimeout(()=>node.remove(),220);
+}
+
+function armNotificationDismissal(node){
+  clearTimeout(node?._hideTimer);
+  if(!node||node.dataset.dismissed==="true") return;
+  node._hideTimer=setTimeout(()=>dismissNotification(node),STUDIOX_NOTIFICATION_LIFETIME_MS);
+}
+
 function notify(title,detail="",type="info"){
   const stack=$("notificationStack");
   if(!stack) return;
-
+  const safeType=["success","error","warning","info"].includes(type)?type:"info";
+  const safeTitle=String(title||"Notification");
+  const safeDetail=String(detail||"");
+  const key=`${safeType}\u0000${safeTitle}\u0000${safeDetail}`;
+  const now=Date.now();
+  const duplicate=[...stack.children].find(item=>item.dataset.notificationKey===key&&now-Number(item.dataset.createdAt||0)<STUDIOX_NOTIFICATION_DEDUPE_MS);
+  if(duplicate){
+    duplicate.dataset.createdAt=String(now);
+    armNotificationDismissal(duplicate);
+    return duplicate;
+  }
+  while(stack.children.length>=STUDIOX_NOTIFICATION_LIMIT) dismissNotification(stack.firstElementChild,{immediate:true});
   const node=document.createElement("div");
-  node.className=`riq-notification ${type}`;
-  node.innerHTML=`
-    <div class="notification-icon" aria-hidden="true">${type==="error"?"!":""}</div>
-    <div class="notification-copy">
-      <strong>${title}</strong>
-      <span>${detail}</span>
-    </div>
-  `;
+  node.className=`riq-notification ${safeType}`;
+  node.dataset.notificationKey=key;
+  node.dataset.createdAt=String(now);
+  node.setAttribute("role",safeType==="error"?"alert":"status");
+  const icon=document.createElement("div");
+  icon.className="notification-icon";
+  icon.setAttribute("aria-hidden","true");
+  icon.textContent=safeType==="error"?"!":"";
+  const copy=document.createElement("div");
+  copy.className="notification-copy";
+  const heading=document.createElement("strong");
+  heading.textContent=safeTitle;
+  const description=document.createElement("span");
+  description.textContent=safeDetail;
+  description.hidden=!safeDetail;
+  copy.append(heading,description);
+  const dismiss=document.createElement("button");
+  dismiss.type="button";
+  dismiss.className="notification-dismiss";
+  dismiss.setAttribute("aria-label",`Dismiss ${safeTitle} notification`);
+  dismiss.textContent="×";
+  dismiss.addEventListener("click",()=>dismissNotification(node));
+  node.addEventListener("mouseenter",()=>clearTimeout(node._hideTimer));
+  node.addEventListener("mouseleave",()=>{if(!node.contains(document.activeElement))armNotificationDismissal(node)});
+  node.addEventListener("focusin",()=>clearTimeout(node._hideTimer));
+  node.addEventListener("focusout",()=>setTimeout(()=>{if(!node.contains(document.activeElement))armNotificationDismissal(node)},0));
+  node.append(icon,copy,dismiss);
   stack.appendChild(node);
-
-  setTimeout(()=>{
-    node.style.opacity="0";
-    node.style.transform="translateX(18px)";
-    node.style.transition=".22s ease";
-  },2800);
-  setTimeout(()=>node.remove(),3100);
+  armNotificationDismissal(node);
+  return node;
 }
 
 function updateAiPulse(state,label){
