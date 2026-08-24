@@ -36,7 +36,29 @@ def test_manual_refresh_forces_device_rediscovery_and_empty_state_is_truthful() 
     assert 'const force=options.force??!silent' in discovery
     assert 'api(`/api/cameras?force=${force?"true":"false"}`)' in discovery
     assert 'No cameras detected</option>' in discovery
-    assert 'if(action==="refresh") await loadCameraList({force:true})' in JS
+    assert 'const cameras=await loadCameraList({force:true})' in JS
+
+
+def test_camera_source_actions_are_one_shot_and_restore_the_menu() -> None:
+    action = js_section("async function runCameraSourceAction", "function arrangeCameraToolbar")
+    assert "if(cameraSourceActionInFlight)" in action
+    assert "cameraSourceActionInFlight=true" in action
+    assert "setCameraSourceActionBusy(select,true,action)" in action
+    assert "finally{" in action
+    assert "cameraSourceActionInFlight=false" in action
+    assert "setCameraSourceActionBusy(select,false)" in action
+    assert 'notify("Camera Action Failed"' in action
+
+
+def test_camera_source_action_busy_state_is_accessible_and_truthful() -> None:
+    busy = js_section("function setCameraSourceActionBusy", "async function runCameraSourceAction")
+    assert 'select.setAttribute("aria-busy",String(Boolean(busy)))' in busy
+    assert "select.disabled=Boolean(busy)" in busy
+    assert 'select.value=""' in busy
+    assert 'refresh:"Refreshing cameras"' in JS
+    assert 'reconnect:"Reconnecting camera"' in JS
+    assert 'restart:"Restarting camera"' in JS
+    assert 'notify("Cameras Refreshed"' in JS
 
 
 def test_physical_cameras_sort_before_virtual_and_insta360_is_prioritized() -> None:

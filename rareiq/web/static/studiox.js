@@ -3,6 +3,7 @@ const $ = id => document.getElementById(id);
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g,character=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[character]);
 let selectedCamera = null;
 let cameraStreamStarted = false;
+let cameraSourceActionInFlight = false;
 let previousCardId = null;
 let autoCaptureEnabled = true;
 let recognitionCaptureInFlight = false;
@@ -4138,12 +4139,44 @@ function appendCameraGroup(select,label,cameras){
   select.appendChild(group);
 }
 
+const CAMERA_SOURCE_ACTION_LABELS={refresh:"Refreshing cameras",reconnect:"Reconnecting camera",restart:"Restarting camera"};
+
+function setCameraSourceActionBusy(select,busy,action=""){
+  if(!select) return;
+  const prompt=select.options[0];
+  if(busy){
+    select.dataset.idleLabel=prompt?.textContent||"Camera actions";
+    if(prompt) prompt.textContent=`${CAMERA_SOURCE_ACTION_LABELS[action]||"Working"}...`;
+  }else{
+    if(prompt) prompt.textContent=select.dataset.idleLabel||"Camera actions";
+    delete select.dataset.idleLabel;
+  }
+  select.disabled=Boolean(busy);
+  select.setAttribute("aria-busy",String(Boolean(busy)));
+  select.value="";
+}
+
 async function runCameraSourceAction(select){
   const action=select?.value||"";
-  if(select) select.value="";
-  if(action==="refresh") await loadCameraList({force:true});
-  else if(action==="reconnect") await reconnectCamera();
-  else if(action==="restart") await restartFeed();
+  if(!action) return false;
+  if(cameraSourceActionInFlight){if(select)select.value="";return false;}
+  cameraSourceActionInFlight=true;
+  setCameraSourceActionBusy(select,true,action);
+  try{
+    if(action==="refresh"){
+      const cameras=await loadCameraList({force:true});
+      notify("Cameras Refreshed",cameras.length?`${cameras.length} source${cameras.length===1?"":"s"} available.`:"No cameras detected.",cameras.length?"success":"warning");
+    }else if(action==="reconnect") await reconnectCamera();
+    else if(action==="restart") await restartFeed();
+    else return false;
+    return true;
+  }catch(error){
+    notify("Camera Action Failed",error?.message||String(error),"error");
+    return false;
+  }finally{
+    cameraSourceActionInFlight=false;
+    setCameraSourceActionBusy(select,false);
+  }
 }
 
 function arrangeCameraToolbar(){
