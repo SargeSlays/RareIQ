@@ -14,7 +14,7 @@ def test_workbench_context_explains_each_category():
 
 def test_context_primary_actions_use_existing_behaviors():
     assert "function runStudioXWorkbenchAction" in JS
-    assert "switchDock(\"candidates\")" in JS
+    assert "openMatchCorrectionWorkflow()" in JS
     assert "stopAllSoundboardAudio()" in JS
     assert 'querySelector("#widgetManager>summary")' in JS
 

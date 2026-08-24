@@ -7096,8 +7096,45 @@ let referenceSelectedCandidate=-1;
 let referenceSelectedCatalogCandidate=null;
 function setReferenceCompareZoom(value){referenceCompareZoom=Math.max(0.75,Math.min(3,Number(value)||1));if($("referenceCompareStage"))$("referenceCompareStage").style.setProperty("--compare-zoom",String(referenceCompareZoom));setCardText("referenceZoomValue",`${Math.round(referenceCompareZoom*100)}%`)}
 function setReferenceCompareMode(mode="side"){const overlay=$("referenceLightbox");if(!overlay)return;overlay.dataset.compareMode=mode;$("referenceSideBySide")?.classList.toggle("active",mode==="side");$("referenceOverlayMode")?.classList.toggle("active",mode==="overlay");if($("referenceBlendControl"))$("referenceBlendControl").hidden=mode!=="overlay"}
-function syncReferenceVerification(){const confirmed=value=>String(value||"").toLowerCase().includes("confirm"),confidence=Number(String($("confidenceRingValue")?.textContent||"0").replace("%","")),card=window.__rareiqCardContext?.card||{};[["compareCheckArtwork",confidence>=75],["compareCheckNumber",confirmed($("collectorNumberCheck")?.textContent)||$("cardCollectorNumber")?.textContent!=="--"],["compareCheckSet",confirmed($("setConfirmationCheck")?.textContent)||$("cardSetName")?.textContent!=="--"],["compareCheckLanguage",confirmed($("languageCheck")?.textContent)||$("cardLanguage")?.textContent!=="--"]].forEach(([id,ok])=>{if($(id))$(id).dataset.confirmed=String(Boolean(ok))});const learned=$("compareLearnedMatch");if(learned){learned.hidden=!card.operator_learned;learned.dataset.confirmed="true";learned.textContent=card.learned_match_type==="approximate"?`Learned near-match · ${card.learned_fingerprint_distance} bit distance`:"Learned exact match"}if($("referenceApprove"))$("referenceApprove").disabled=Boolean($("approveButton")?.disabled);if($("referenceReject"))$("referenceReject").disabled=Boolean($("rejectButton")?.disabled)}
-function selectReferenceCorrectionCandidate(candidate,{index=-1,catalog=false}={}){const source=multiCardReferenceImage(candidate);referenceSelectedCandidate=catalog?-1:index;referenceSelectedCatalogCandidate=catalog?candidate:null;if(source){$("referenceLightboxImage").src=source;$("referenceLightboxOpen").href=source}setCardText("referenceLightboxTitle",candidate.english_name||candidate.name||candidate.printed_name||"Selected candidate");setCardText("referenceLightboxMeta",[candidate.set_name,candidate.collector_number||candidate.printed_code,candidate.language].filter(Boolean).join(" · "));renderReferenceCandidates();renderReferenceCatalogResults(window.__rareiqCatalogCorrectionResults||[]);if($("referenceApprove"))$("referenceApprove").textContent="Approve selected"}
+function referenceSelectedIdentity(){
+  if(referenceSelectedCatalogCandidate) return referenceSelectedCatalogCandidate;
+  if(referenceSelectedCandidate<0) return null;
+  return (window.__rareiqCardContext?.candidates||[])[referenceSelectedCandidate]||null;
+}
+function referenceIdentityKey(value){return String(value||"").trim().toLowerCase().replaceAll(" ","").split("/").map(part=>/^\d+$/.test(part)?String(Number(part)):part).join("/")}
+function referenceLanguageKey(value){const normalized=String(value||"").trim().toLowerCase().replaceAll("_","-");return {english:"en",en:"en",chinese:"zh-cn","simplified chinese":"zh-cn","zh-cn":"zh-cn"}[normalized]||normalized}
+function syncReferenceIdentityConflict(candidate=null){
+  const host=$("referenceIdentityConflict"),context=window.__rareiqCardContext||{},evidence=context.card?.identity_evidence||context.snapshot?.identity_evidence||{},observed=evidence.observed||{};
+  if(!host)return;
+  const selected=candidate||referenceSelectedIdentity();
+  if(!selected){
+    const conflicts=context.card?.identity_conflicts||context.snapshot?.identity_conflicts||[];
+    host.textContent=conflicts.length?conflicts.map(item=>`Observed ${String(item.field||"identity").replaceAll("_"," ")} ${item.observed||"--"} conflicts with catalog ${item.catalog||"--"}.`).join(" "):"Select a candidate to compare with the observed card evidence.";
+    host.hidden=false;
+    host.dataset.state=conflicts.length?"conflict":"waiting";
+    return;
+  }
+  const messages=[];
+  const observedNumber=referenceIdentityKey(observed.collector_number),selectedNumber=referenceIdentityKey(selected.collector_number||selected.number);
+  const observedLanguage=referenceLanguageKey(observed.language),selectedLanguage=referenceLanguageKey(selected.language||selected.language_code);
+  if(observedNumber&&selectedNumber&&observedNumber!==selectedNumber)messages.push(`collector ${observed.collector_number} vs ${selected.collector_number||selected.number}`);
+  if(observedLanguage&&selectedLanguage&&observedLanguage!==selectedLanguage)messages.push(`language ${observed.language} vs ${selected.language||selected.language_code}`);
+  host.textContent=messages.length?`Selected candidate still conflicts: ${messages.join("; ")}. Approval records an explicit operator correction.`:"Selected candidate agrees with the available observed collector and language evidence.";
+  host.hidden=false;
+  host.dataset.state=messages.length?"conflict":"match";
+}
+function syncReferenceVerification(){
+  const confirmed=value=>String(value||"").toLowerCase().includes("confirm"),confidence=Number(String($("confidenceRingValue")?.textContent||"0").replace("%","")),context=window.__rareiqCardContext||{},card=context.card||{},selected=referenceSelectedIdentity(),evidence=card.identity_evidence||context.snapshot?.identity_evidence||{},observed=evidence.observed||{};
+  const selectedNumber=referenceIdentityKey(selected?.collector_number||selected?.number),observedNumber=referenceIdentityKey(observed.collector_number),numberAgrees=Boolean(selectedNumber&&observedNumber&&selectedNumber===observedNumber);
+  const selectedLanguage=referenceLanguageKey(selected?.language||selected?.language_code),observedLanguage=referenceLanguageKey(observed.language),languageAgrees=Boolean(selectedLanguage&&observedLanguage&&selectedLanguage===observedLanguage);
+  [["compareCheckArtwork",confidence>=75],["compareCheckNumber",selected?numberAgrees:confirmed($("collectorNumberCheck")?.textContent)||$("cardCollectorNumber")?.textContent!=="--"],["compareCheckSet",selected?Boolean(selected.set_id||selected.set_name):confirmed($("setConfirmationCheck")?.textContent)||$("cardSetName")?.textContent!=="--"],["compareCheckLanguage",selected?languageAgrees:confirmed($("languageCheck")?.textContent)||$("cardLanguage")?.textContent!=="--"]].forEach(([id,ok])=>{if($(id))$(id).dataset.confirmed=String(Boolean(ok))});
+  const learned=$("compareLearnedMatch");if(learned){learned.hidden=!card.operator_learned;learned.dataset.confirmed="true";learned.textContent=card.learned_match_type==="approximate"?`Learned near-match · ${card.learned_fingerprint_distance} bit distance`:"Learned exact match"}
+  const explicitSelection=Boolean(selected),busy=recognitionMutationInFlight(),stateId=String(context.snapshot?.state_id||"");
+  if($("referenceApprove"))$("referenceApprove").disabled=busy||(!explicitSelection&&Boolean($("approveButton")?.disabled));
+  if($("referenceReject"))$("referenceReject").disabled=busy||!stateId;
+  syncReferenceIdentityConflict(selected);
+}
+function selectReferenceCorrectionCandidate(candidate,{index=-1,catalog=false}={}){const source=multiCardReferenceImage(candidate);referenceSelectedCandidate=catalog?-1:index;referenceSelectedCatalogCandidate=catalog?candidate:null;if(source){$("referenceLightboxImage").src=source;$("referenceLightboxOpen").href=source}setCardText("referenceLightboxTitle",candidate.english_name||candidate.name||candidate.printed_name||"Selected candidate");setCardText("referenceLightboxMeta",[candidate.set_name,candidate.collector_number||candidate.printed_code,candidate.language].filter(Boolean).join(" · "));renderReferenceCandidates();renderReferenceCatalogResults(window.__rareiqCatalogCorrectionResults||[]);if($("referenceApprove"))$("referenceApprove").textContent="Approve selected";syncReferenceVerification()}
 function makeReferenceCandidateButton(candidate,{index=-1,catalog=false}={}){const button=document.createElement("button"),source=multiCardReferenceImage(candidate),selected=catalog?referenceSelectedCatalogCandidate&&(referenceSelectedCatalogCandidate.id===candidate.id):index===referenceSelectedCandidate;button.type="button";button.dataset.selected=String(Boolean(selected));button.innerHTML=`${source?`<img src="${escapeHtml(source)}" alt="">`:"<i></i>"}<span><strong>${escapeHtml(candidate.english_name||candidate.name||candidate.printed_name||"Candidate")}</strong><small>${escapeHtml([candidate.set_name,candidate.collector_number||candidate.printed_code,candidate.language].filter(Boolean).join(" · ")||"Identity details pending")}</small></span>${catalog?"<b>CATALOG</b>":`<b>${recentScanConfidence(candidate.fused_score??candidate.score??candidate.confidence??0)}%</b>`}`;button.addEventListener("click",()=>selectReferenceCorrectionCandidate(candidate,{index,catalog}));return button}
 function renderReferenceCandidates(){const host=$("referenceCandidateList"),candidates=window.__rareiqCardContext?.candidates||[];if(!host)return;host.replaceChildren(...(candidates.length?candidates.slice(0,12).map((candidate,index)=>makeReferenceCandidateButton(candidate,{index})):[Object.assign(document.createElement("p"),{textContent:"No suggested alternatives are available. Search the local library below."})]))}
 function renderReferenceCatalogResults(results=[]){const host=$("referenceCatalogResults");if(!host)return;host.hidden=false;host.replaceChildren(...(results.length?results.map(candidate=>makeReferenceCandidateButton(candidate,{catalog:true})):[Object.assign(document.createElement("p"),{textContent:"No local catalog cards matched that search."})]))}
@@ -7131,21 +7168,30 @@ function openReferenceLightbox(source,title="Card verification",meta="Compare ag
 function closeReferenceLightbox(){const overlay=$("referenceLightbox");if(!overlay||overlay.hidden)return;overlay.hidden=true;document.body.classList.remove("reference-lightbox-open");leaveStudioXModal(overlay,$("cardArt"))}
 function openCurrentReferenceLightbox(){const image=$("cardArt")?.querySelector("img");if(!image)return;const meta=[$("cardSetName")?.textContent,$("cardCollectorNumber")?.textContent,$("cardLanguage")?.textContent].filter(value=>value&&value!=="--").join(" · ");openReferenceLightbox(image.currentSrc||image.src,$("cardName")?.textContent||"Card verification",meta||"Compare against the live card")}
 function openMatchCorrectionWorkflow(){
-  const image=$("cardArt")?.querySelector("img");
-  if(!image){notify("Correction Unavailable","Wait for a catalog reference image before correcting the match.","error");return}
-  openCurrentReferenceLightbox();
+  const context=window.__rareiqCardContext||{},candidates=context.candidates||[],image=$("cardArt")?.querySelector("img"),initial=context.card||candidates.find(candidate=>multiCardReferenceImage(candidate))||null,source=image?.currentSrc||image?.src||multiCardReferenceImage(initial);
+  if(!source){notify("Correction Unavailable","Wait for a catalog reference image before correcting the match.","error");return}
+  const title=initial?.english_name||initial?.name||initial?.printed_name||"Review identity";
+  const meta=[initial?.set_name,initial?.collector_number||initial?.printed_code,initial?.language].filter(Boolean).join(" · ")||"Compare candidates against the live crop";
+  openReferenceLightbox(source,title,meta);
   if($("referenceCandidates"))$("referenceCandidates").hidden=false;
   renderReferenceCandidates();
   if($("referenceApprove"))$("referenceApprove").textContent="Select the correct card";
+  syncReferenceVerification();
 }
 async function approveReferenceSelection(){
+  if(recognitionMutationInFlight())return null;
   let result;
   const context=window.__rareiqCardContext||{};
+  recognitionDecisionInFlight=true;
+  syncRecognitionMutationControls();
+  syncReferenceVerification();
+  try{
   if(referenceSelectedCatalogCandidate){
     result=await api("/api/session/confirm-recognition-catalog-candidate",{method:"POST",body:JSON.stringify({state_id:context.snapshot?.state_id,candidate:referenceSelectedCatalogCandidate})}).catch(error=>{notify("Catalog Match Not Approved",error.message||String(error),"error");return null});
   }else if(referenceSelectedCandidate>=0){
     result=await api("/api/session/confirm-recognition-candidate",{method:"POST",body:JSON.stringify({state_id:context.snapshot?.state_id,candidate_index:referenceSelectedCandidate})}).catch(error=>{notify("Candidate Not Approved",error.message||String(error),"error");return null});
   }else{
+    recognitionDecisionInFlight=false;
     result=await operatorApprove();
     if(result)closeReferenceLightbox();
     return result;
@@ -7159,6 +7205,23 @@ async function approveReferenceSelection(){
     closeReferenceLightbox();
   }
   return result;
+  }finally{
+    recognitionDecisionInFlight=false;
+    syncRecognitionMutationControls();
+    syncReferenceVerification();
+  }
+}
+
+async function rejectReferenceSelection(){
+  const context=window.__rareiqCardContext||{},stateId=String(context.snapshot?.state_id||"");
+  if(!stateId||recognitionMutationInFlight())return null;
+  recognitionDecisionInFlight=true;syncRecognitionMutationControls();syncReferenceVerification();
+  try{
+    const result=await api(`/api/session/reject-recognition?state_id=${encodeURIComponent(stateId)}`,{method:"POST",body:"{}"});
+    if(result?.ok!==true)throw new Error(result?.error||"The recognition could not be rejected.");
+    applyAuthoritativeSession(result.session);beginCardHandoff("rejected");notify("Recognition Rejected","The conflicted candidate was rejected.","success");closeReferenceLightbox();return result;
+  }catch(error){notify("Recognition Not Rejected",error.message||String(error),"error");return null}
+  finally{recognitionDecisionInFlight=false;syncRecognitionMutationControls();syncReferenceVerification()}
 }
 
 function renderUI4RecentScanDetail(card){
@@ -7464,7 +7527,7 @@ function renderPriceAlert(alert){
   const condition=alert.direction==="below"?"at or below":"at or above";
   setCardText("priceAlertState",alert.triggered?`TRIGGERED · ${condition} ${cardMoney(alert.target,alert.currency)}`:`Watching ${condition} ${cardMoney(alert.target,alert.currency)}`);
 }
-function runStudioXWorkbenchAction(){const tab=document.body.dataset.workbenchTab||"card";if(tab==="card"||tab==="recognition"){switchDock("candidates");setUI4DiagnosticsOpen(true)}else if(tab==="stream")stopAllSoundboardAudio();else if(tab==="business"){refreshCurrentMarket()}else document.querySelector("#widgetManager>summary")?.click();}
+function runStudioXWorkbenchAction(){const tab=document.body.dataset.workbenchTab||"card";if(tab==="card"||tab==="recognition")openMatchCorrectionWorkflow();else if(tab==="stream")stopAllSoundboardAudio();else if(tab==="business"){refreshCurrentMarket()}else document.querySelector("#widgetManager>summary")?.click();}
 function openLiveSargeAdvisor(){
   setStudioXWorkbenchTab("card");
   syncStudioXWorkbenchContext();
@@ -8500,7 +8563,9 @@ function renderCandidatesWidget(context){
   );
   const reviewButton=$("candidateReviewButton");
   const correctButton=$("correctMatchButton");
-  const correctionAvailable=count>0&&Boolean(context.card);
+  const correctionAvailable=count>0&&Boolean(
+    context.card||context.candidates.some(candidate=>multiCardReferenceImage(candidate))
+  );
   if(reviewButton){
     reviewButton.hidden=!correctionAvailable;
     reviewButton.textContent=context.verified?"Correct Match":"Review Candidates";
@@ -9513,7 +9578,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   $("correctMatchButton")?.addEventListener("click",openMatchCorrectionWorkflow);
   $("referenceBlendOpacity")?.addEventListener("input",event=>$("referenceCompareStage")?.style.setProperty("--live-opacity",String(Number(event.target.value)/100)));
   $("referenceApprove")?.addEventListener("click",approveReferenceSelection);
-  $("referenceReject")?.addEventListener("click",async()=>{const result=await operatorReject();if(result)closeReferenceLightbox()});
+  $("referenceReject")?.addEventListener("click",rejectReferenceSelection);
   if($("periodCloseMonth")){const previous=new Date();previous.setDate(1);previous.setMonth(previous.getMonth()-1);$("periodCloseMonth").value=`${previous.getFullYear()}-${String(previous.getMonth()+1).padStart(2,"0")}`}
   $("periodCloseReview")?.addEventListener("click",()=>loadProfitAndLoss().catch(error=>notify("Report Not Loaded",error.message||String(error),"error")));
   $("periodCloseMonth")?.addEventListener("change",()=>loadProfitAndLoss().catch(()=>{}));

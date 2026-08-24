@@ -92,10 +92,11 @@ def test_presentation_helpers_use_only_expected_apis() -> None:
     end = script.index("const STUDIOX_WIDGET_LAYOUT_KEY", start)
     presentation = script[start:end]
     assert "fetch(" not in presentation
-    assert presentation.count("api(") == 4
+    assert presentation.count("api(") == 5
     assert "/api/intelligence/catalog-search" in presentation
     assert "/api/session/confirm-recognition-catalog-candidate" in presentation
     assert "/api/session/confirm-recognition-candidate" in presentation
+    assert "/api/session/reject-recognition?state_id=" in presentation
     assert 'api("/api/recent-pulls?limit=20")' in presentation
     assert "loadRecognition(" not in presentation
     assert "captureCamera();" not in presentation
@@ -152,7 +153,7 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
     version = re.search(r'data-studiox-build="([^"]+)"', html).group(1)
     assert styles[-3:] == [
         f"/static/studiox_ui4_tokens.css?v={version}",
-        f"/static/studiox_update15.css?v={version}&amp;shell=6.8.73-identity-provenance1",
+        f"/static/studiox_update15.css?v={version}&amp;shell=6.8.74-identity-review1",
         f"/static/pack_run_coach.css?v={version}",
     ]
     assert len(styles) == 18

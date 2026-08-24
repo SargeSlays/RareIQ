@@ -30,9 +30,9 @@
 <link rel="stylesheet" href="/static/studiox_61.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.8.8-provisional-identity">
-<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.73-identity-provenance1">
+<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.74-identity-review1">
 <link rel="stylesheet" href="/static/pack_run_coach.css?v=6.8.8-provisional-identity">
-<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.73-identity-provenance1"></script>
+<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.74-identity-review1"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><style id="ui4-unified-card-stage-overrides">
@@ -934,7 +934,7 @@ Choose a source from Manage Cameras</span>
                 <small>Exact version, catalog, and capture stability</small>
               </div>
               <div class="studiox-identity-evidence" id="identifyEvidence" hidden></div>
-              <button class="riq-button studiox-identity-review" type="button" onclick="switchDock('candidates');setUI4DiagnosticsOpen(true)">Review identity</button>
+              <button class="riq-button studiox-identity-review" type="button" onclick="openMatchCorrectionWorkflow()">Review identity</button>
             </div>
           </section>
 
@@ -1935,6 +1935,7 @@ Choose a source from Manage Cameras</span>
     <header><div><span>REFERENCE ARTWORK</span><strong id="referenceLightboxTitle">Card verification</strong><small id="referenceLightboxMeta">Compare against the live card</small></div><button id="referenceLightboxClose" type="button" aria-label="Close reference image">×</button></header>
     <div class="reference-lightbox-stage" id="referenceCompareStage"><figure><figcaption>CATALOG REFERENCE</figcaption><div><img id="referenceLightboxImage" alt="Enlarged card reference artwork"></div></figure><figure><figcaption>LIVE CARD CROP</figcaption><div><img id="referenceLiveCropImage" alt="Current corrected live card crop"></div></figure></div>
     <aside class="reference-verification-checks"><span>VERIFY</span><b id="compareLearnedMatch" hidden>Learned correction</b><b id="compareCheckArtwork">Artwork aligned</b><b id="compareCheckNumber">Collector number confirmed</b><b id="compareCheckSet">Set confirmed</b><b id="compareCheckLanguage">Language confirmed</b></aside>
+    <div class="reference-identity-conflict" id="referenceIdentityConflict" role="status" hidden></div>
     <div class="reference-candidates" id="referenceCandidates" hidden><header><div><strong>Alternate matches</strong><span>Select a candidate to compare before approval</span></div><button class="riq-button" id="referenceCorrectionHistory" type="button">Correction history</button></header><form class="reference-catalog-search" id="referenceCatalogSearchForm"><label><span>Not listed? Search the full local card library</span><input id="referenceCatalogSearchInput" type="search" minlength="2" maxlength="120" placeholder="Name, number, set, or language" autocomplete="off"></label><button class="riq-button" type="submit">Search</button></form><div class="reference-catalog-search-status" id="referenceCatalogSearchStatus">Suggested matches</div><div id="referenceCandidateList"></div><div class="reference-catalog-results" id="referenceCatalogResults" hidden></div><div class="reference-correction-history" id="referenceCorrectionHistoryList" hidden><div class="reference-correction-stats" id="referenceCorrectionStats"></div><div id="referenceCorrectionRows"></div></div></div>
     <footer><div class="reference-view-controls"><button id="referenceSideBySide" class="riq-button active" type="button">Side by side</button><button id="referenceOverlayMode" class="riq-button" type="button">Overlay</button><button id="referenceAlternates" class="riq-button" type="button">Alternates</button><label id="referenceBlendControl" hidden>Live opacity <input id="referenceBlendOpacity" type="range" min="0" max="100" value="50"></label></div><div><button id="referenceZoomOut" class="riq-button" type="button" aria-label="Zoom out">−</button><button id="referenceZoomFit" class="riq-button" type="button">Fit</button><button id="referenceZoomIn" class="riq-button" type="button" aria-label="Zoom in">+</button><b id="referenceZoomValue">100%</b><a id="referenceLightboxOpen" class="riq-button" href="#" target="_blank" rel="noopener">Original</a><button id="referenceReject" class="riq-button danger" type="button">Reject mismatch</button><button id="referenceApprove" class="riq-button primary" type="button">Approve match</button></div></footer>
   </section>

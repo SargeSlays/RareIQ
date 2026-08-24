@@ -10324,6 +10324,34 @@ body.studiox-ui4 #marketProviderComparisonRows article{grid-template-columns:min
 
 /* Full local-catalog fallback for operator match correction. */
 .reference-candidates:has(.reference-catalog-results:not([hidden])){max-height:360px}
+
+/* Explicit identity-review provenance */
+.reference-lightbox>section{
+  grid-template-rows:auto minmax(0,1fr) auto auto auto;
+}
+.reference-lightbox>section:has(.reference-candidates:not([hidden])){
+  grid-template-rows:auto minmax(0,1fr) auto auto minmax(92px,auto) auto;
+}
+.reference-identity-conflict[hidden]{display:none}
+.reference-identity-conflict{
+  padding:8px 16px;
+  border-top:1px solid rgba(101,217,245,.12);
+  background:rgba(7,24,34,.96);
+  color:#9bb6c1;
+  font-size:9px;
+  font-weight:750;
+  line-height:1.45;
+}
+.reference-identity-conflict[data-state="conflict"]{
+  border-top-color:rgba(255,170,73,.22);
+  background:rgba(50,29,7,.72);
+  color:#ffc36e;
+}
+.reference-identity-conflict[data-state="match"]{
+  border-top-color:rgba(82,223,169,.22);
+  background:rgba(6,38,30,.72);
+  color:#74edbd;
+}
 .reference-catalog-search{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:7px}
 .reference-catalog-search label{display:grid;gap:4px;min-width:0;color:#7f9aa7;font-size:8px;font-weight:750}
 .reference-catalog-search input{width:100%;height:32px;padding:0 10px;border:1px solid rgba(101,217,245,.2);border-radius:8px;outline:0;background:#061721;color:#eaf8fc}
