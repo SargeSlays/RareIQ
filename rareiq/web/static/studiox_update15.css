@@ -11240,6 +11240,39 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
   }
 }
 
+/* Mobile Creator keeps fast reveal toggles above the fold while leaving text,
+   thresholds, preview controls, and save actions at a comfortable full width. */
+@media(max-width:620px){
+  body.studiox-ui4.studiox-premium .workspace[data-workspace="creator"] .creator-reveal-layout>.card,
+  body.studiox-ui4.studiox-premium .workspace[data-workspace="creator"] .creator-assets{
+    padding:12px!important;
+  }
+  body.studiox-ui4.studiox-premium .workspace[data-workspace="creator"] .creator-reveal-config{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:8px!important;
+  }
+  body.studiox-ui4.studiox-premium .workspace[data-workspace="creator"] .creator-reveal-config>label:has(input[type="checkbox"]){
+    grid-template-columns:minmax(0,1fr) auto!important;
+    min-height:36px!important;
+    padding:7px 8px!important;
+    border:1px solid rgba(99,205,255,.12)!important;
+    border-radius:9px!important;
+    background:rgba(7,24,36,.46)!important;
+  }
+  body.studiox-ui4.studiox-premium .workspace[data-workspace="creator"] .creator-reveal-config>label:not(:has(input[type="checkbox"])){
+    grid-column:1/-1!important;
+  }
+  body.studiox-ui4.studiox-premium .workspace[data-workspace="creator"] .creator-reveal-actions>.riq-button,
+  body.studiox-ui4.studiox-premium .workspace[data-workspace="creator"] .creator-reveal-actions>a{
+    flex:1 1 120px!important;
+    min-height:40px!important;
+  }
+  html[data-theme="light"] body.studiox-ui4.studiox-premium .workspace[data-workspace="creator"] .creator-reveal-config>label:has(input[type="checkbox"]){
+    border-color:#c7dbe3!important;
+    background:#eef5f7!important;
+  }
+}
+
 /* Update 6.8.9 — short landscape operator mode.
    The mobile action deck replaces tall command chrome while camera and current
    card remain available side by side. */
