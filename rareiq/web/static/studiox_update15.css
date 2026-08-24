@@ -10606,6 +10606,31 @@ body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!importan
   body.studiox-ui4.studiox-premium .premium-command-bar>.premium-view-control{flex-basis:190px!important;width:190px!important}
   body.studiox-ui4.studiox-premium .premium-command-bar>.premium-actions-control{flex-basis:132px!important;width:132px!important}
   body.studiox-ui4.studiox-premium .premium-command-bar .command-group-label{font-size:7px!important}
+  body.studiox-ui4.studiox-premium .ui4-health-popover{
+    position:fixed!important;
+    z-index:225!important;
+    top:116px!important;
+    right:6px!important;
+    bottom:calc(174px + env(safe-area-inset-bottom,0px))!important;
+    left:6px!important;
+    display:none!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    align-content:start!important;
+    width:auto!important;
+    height:auto!important;
+    max-height:none!important;
+    padding:12px!important;
+    gap:8px!important;
+    overflow:auto!important;
+    border:1px solid rgba(102,215,244,.24)!important;
+    border-radius:14px!important;
+    background:linear-gradient(145deg,rgba(6,24,34,.985),rgba(12,14,31,.985))!important;
+    box-shadow:0 20px 50px rgba(0,0,0,.5)!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-health-popover.open{display:grid!important}
+  body.studiox-ui4.studiox-premium .ui4-health-popover:before{content:"SYSTEM STATUS";grid-column:1/-1;color:#63daf3;font-size:8px;font-weight:900;letter-spacing:.12em}
+  body.studiox-ui4.studiox-premium .ui4-health-popover>.system-status-strip{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-column:1/-1!important;gap:6px!important}
+  body.studiox-ui4.studiox-premium .ui4-health-popover :is(.tool-button,.camera-fit-toggle,.riq-pill,.state-chip){width:100%!important;min-width:0!important;min-height:38px!important;margin:0!important}
   body.studiox-ui4.studiox-premium .ui4-mobile-action-region{
     position:fixed!important;
     z-index:215!important;
@@ -10958,6 +10983,7 @@ body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!importan
     min-height:56px!important;
     padding:5px!important;
   }
+  body.studiox-ui4.studiox-premium .ui4-health-popover{top:6px!important;bottom:calc(116px + env(safe-area-inset-bottom,0px))!important}
   body.studiox-ui4.studiox-premium .mobile-operator-view-switcher{display:none!important}
   body.studiox-ui4.studiox-premium .mobile-operator-actions>button{min-height:44px!important}
 }

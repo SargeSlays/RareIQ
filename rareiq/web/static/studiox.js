@@ -7991,6 +7991,8 @@ function initializeStudioXUI4(){
 
   const healthPopover=document.createElement("div");
   healthPopover.className="ui4-health-popover";
+  healthPopover.setAttribute("role","dialog");
+  healthPopover.setAttribute("aria-label","System status and camera actions");
   healthPopover.setAttribute("aria-hidden","true");
   const lowFrequency=[
     toolbar.querySelector('[onclick="startSelectedCamera()"]'),
@@ -8002,6 +8004,12 @@ function initializeStudioXUI4(){
   ].filter(Boolean);
   lowFrequency.forEach(node=>healthPopover.appendChild(node));
   document.querySelector(".ui4-command-bar")?.appendChild(healthPopover);
+  const mountHealthPopover=()=>{
+    const target=window.matchMedia("(max-width: 959px)").matches?document.body:document.querySelector(".ui4-command-bar");
+    if(target&&healthPopover.parentElement!==target) target.appendChild(healthPopover);
+  };
+  mountHealthPopover();
+  window.addEventListener("resize",mountHealthPopover,{passive:true});
   arrangeCameraToolbar();
   window.addEventListener("resize",arrangeCameraToolbar,{passive:true});
   window.addEventListener("resize",applyInspectorWidth,{passive:true});
