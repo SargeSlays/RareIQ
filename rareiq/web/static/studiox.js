@@ -5940,6 +5940,53 @@ function initializeMobileWakeLock(){
   });
 }
 
+let deferredStudioXInstallPrompt=null;
+function studioXIsStandalone(){
+  return window.matchMedia?.("(display-mode: standalone)")?.matches===true||navigator.standalone===true;
+}
+
+function renderStudioXInstallState(state="guidance",detail=""){
+  const installed=studioXIsStandalone()||state==="installed";
+  const installable=Boolean(deferredStudioXInstallPrompt)&&!installed;
+  const panel=document.querySelector(".mobile-install-state");
+  const button=$("mobileInstallButton");
+  if(panel)panel.dataset.state=installed?"installed":state;
+  if(button){button.disabled=!installable;button.textContent=installed?"Installed":"Install Studio X"}
+  const defaults={guidance:"Use your browser menu to Add to Home Screen.",ready:"Native install is ready on this device.",accepted:"Install accepted · finishing setup.",dismissed:"Install dismissed · you can try again later.",installed:"Running as an installed Studio X app."};
+  setCardText("mobileInstallStatus",detail||defaults[installed?"installed":state]||defaults.guidance);
+}
+
+async function installStudioXApp(){
+  const prompt=deferredStudioXInstallPrompt;
+  if(!prompt||studioXIsStandalone())return false;
+  deferredStudioXInstallPrompt=null;
+  try{
+    await prompt.prompt();
+    const choice=await prompt.userChoice;
+    const accepted=choice?.outcome==="accepted";
+    renderStudioXInstallState(accepted?"accepted":"dismissed");
+    return accepted;
+  }catch(error){
+    renderStudioXInstallState("guidance",error.message||"");
+    return false;
+  }
+}
+
+function initializeStudioXInstallPrompt(){
+  renderStudioXInstallState(studioXIsStandalone()?"installed":deferredStudioXInstallPrompt?"ready":"guidance");
+  $("mobileInstallButton")?.addEventListener("click",installStudioXApp);
+}
+
+window.addEventListener("beforeinstallprompt",event=>{
+  event.preventDefault();
+  deferredStudioXInstallPrompt=event;
+  renderStudioXInstallState("ready");
+});
+window.addEventListener("appinstalled",()=>{
+  deferredStudioXInstallPrompt=null;
+  renderStudioXInstallState("installed");
+});
+
 let mobileAccessUrl="";
 function renderMobileAccessStatus(status={}){
   const panel=document.querySelector(".mobile-access-settings");
@@ -8131,6 +8178,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   initializeServerConnectionStatus();
   initializeVisibilityAwareRefresh();
   initializeMobileWakeLock();
+  initializeStudioXInstallPrompt();
   initializeWorkspaceReadiness();
   loadTCGGames().then(loadRecognitionSets).catch(()=>loadRecognitionSets());
   $("tcgGameSelect")?.addEventListener("change",updateTCGSelection);

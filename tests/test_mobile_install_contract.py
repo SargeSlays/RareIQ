@@ -40,3 +40,31 @@ def test_mobile_install_contract_does_not_claim_offline_support() -> None:
     assert "serviceWorker.register" not in HTML
     assert "serviceWorker.register" not in script
     assert "token" not in json.dumps(MANIFEST).lower()
+
+
+def test_install_control_is_truthful_and_unique() -> None:
+    script = (STATIC / "studiox.js").read_text(encoding="utf-8-sig")
+    assert HTML.count('id="mobileInstallButton"') == 1
+    assert HTML.count('id="mobileInstallStatus"') == 1
+    assert 'window.addEventListener("beforeinstallprompt"' in script
+    assert "event.preventDefault()" in script
+    assert "await prompt.userChoice" in script
+    assert 'choice?.outcome==="accepted"' in script
+    assert 'window.addEventListener("appinstalled"' in script
+
+
+def test_install_control_has_guidance_when_native_prompt_is_absent() -> None:
+    script = (STATIC / "studiox.js").read_text(encoding="utf-8-sig")
+    assert "Use your browser menu to Add to Home Screen." in HTML
+    assert 'button.disabled=!installable' in script
+    assert 'navigator.standalone===true' in script
+    assert 'window.matchMedia?.("(display-mode: standalone)")' in script
+
+
+def test_install_flow_does_not_add_offline_or_synthetic_success_behavior() -> None:
+    script = (STATIC / "studiox.js").read_text(encoding="utf-8-sig")
+    install = script[script.index("let deferredStudioXInstallPrompt") : script.index("let mobileAccessUrl")]
+    assert "serviceWorker" not in install
+    assert "fetch(" not in install
+    assert "localStorage" not in install
+    assert 'renderStudioXInstallState(accepted?"accepted":"dismissed")' in install

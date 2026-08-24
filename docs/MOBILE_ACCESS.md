@@ -95,6 +95,11 @@ After pairing succeeds, use the browser's **Add to Home Screen** or **Install**
 action. RareIQ opens in a standalone app window and keeps using the same LAN
 address and pairing cookie.
 
+Studio X Settings enables **Install Studio X** only when the browser supplies a
+native install prompt. Otherwise it gives truthful Add-to-Home-Screen guidance.
+The installed state appears only after the browser reports standalone mode or
+fires its `appinstalled` event.
+
 RareIQ intentionally does not register an offline service worker. The camera,
 recognition pipeline, and operator state require a live connection to the
 RareIQ workstation. If the workstation or LAN connection is unavailable, the
