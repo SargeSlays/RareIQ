@@ -30,9 +30,9 @@
 <link rel="stylesheet" href="/static/studiox_61.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.8.8-provisional-identity">
-<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.65-camera-action-safety1">
+<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.66-modal-safety1">
 <link rel="stylesheet" href="/static/pack_run_coach.css?v=6.8.8-provisional-identity">
-<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.65-camera-action-safety1"></script>
+<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.66-modal-safety1"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><style id="ui4-unified-card-stage-overrides">
@@ -1860,9 +1860,9 @@ Choose a source from Manage Cameras</span>
   </section>
 </div>
 
-<div class="shortcut-overlay" id="shortcutOverlay" onclick="shortcutBackdropClose(event)">
+<div class="shortcut-overlay" id="shortcutOverlay" role="dialog" aria-modal="true" aria-labelledby="shortcutOverlayTitle" aria-hidden="true" inert onclick="shortcutBackdropClose(event)">
   <div class="shortcut-panel">
-    <h2>RareIQ Keyboard Shortcuts</h2>
+    <h2 id="shortcutOverlayTitle">RareIQ Keyboard Shortcuts</h2>
     <p>Fast operator controls for live ripping and scanning.</p>
     <div class="shortcut-grid">
       <div class="shortcut-row"><span>Capture</span><kbd>SPACE</kbd></div>

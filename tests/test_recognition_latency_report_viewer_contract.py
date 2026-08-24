@@ -20,6 +20,8 @@ def test_viewer_renders_summary_distribution_and_recent_samples():
         assert f'$("{target}")' in SCRIPT
     assert "function setRecognitionLatencyReportOpen(open)" in SCRIPT
     assert "setRecognitionLatencyReportOpen(false);" in SCRIPT
+    assert 'enterStudioXModal(overlay,$("latencyReportClose"))' in SCRIPT
+    assert "else leaveStudioXModal(overlay)" in SCRIPT
     assert '$("latencyReportDownload")?.addEventListener("click",exportRecognitionLatencyReport)' in SCRIPT
 
 

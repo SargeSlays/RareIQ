@@ -258,11 +258,58 @@ function updateConfidenceRing(value){
   if($("confidenceRingValue")) $("confidenceRingValue").textContent=`${percent}%`;
 }
 
+const STUDIOX_MODAL_FOCUSABLE='button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+const studioXModalReturnFocus=new WeakMap();
+
+function enterStudioXModal(modal,initialFocus){
+  if(!modal) return;
+  const active=document.activeElement;
+  if(active instanceof HTMLElement&&active!==document.body&&!modal.contains(active))studioXModalReturnFocus.set(modal,active);
+  modal.removeAttribute("inert");
+  modal.removeAttribute("aria-hidden");
+  requestAnimationFrame(()=>initialFocus?.focus());
+}
+
+function leaveStudioXModal(modal,fallbackFocus=null){
+  if(!modal) return;
+  const previous=studioXModalReturnFocus.get(modal);
+  studioXModalReturnFocus.delete(modal);
+  const target=previous?.isConnected?previous:fallbackFocus;
+  if(target?.isConnected) requestAnimationFrame(()=>target.focus());
+}
+
+function activeStudioXModal(){
+  const reference=$("referenceLightbox"),latency=$("latencyReportOverlay"),shortcuts=$("shortcutOverlay");
+  if(reference&&!reference.hidden)return reference;
+  if(latency&&!latency.hidden)return latency;
+  if(shortcuts?.classList.contains("visible"))return shortcuts;
+  return null;
+}
+
+function trapStudioXModalFocus(event){
+  if(event.key!=="Tab") return;
+  const modal=activeStudioXModal();
+  if(!modal) return;
+  const focusable=[...modal.querySelectorAll(STUDIOX_MODAL_FOCUSABLE)].filter(node=>!node.hidden&&node.getAttribute("aria-hidden")!=="true"&&node.getClientRects().length>0);
+  if(!focusable.length){event.preventDefault();modal.focus();return;}
+  const first=focusable[0],last=focusable.at(-1),active=document.activeElement;
+  if(event.shiftKey&&(active===first||!modal.contains(active))){event.preventDefault();last.focus();}
+  else if(!event.shiftKey&&(active===last||!modal.contains(active))){event.preventDefault();first.focus();}
+}
+
+document.addEventListener("keydown",trapStudioXModalFocus,true);
+
 function toggleShortcutOverlay(force){
   const overlay=$("shortcutOverlay");
   if(!overlay) return;
-  const visible=typeof force==="boolean"?force:!overlay.classList.contains("visible");
+  const wasVisible=overlay.classList.contains("visible");
+  const visible=typeof force==="boolean"?force:!wasVisible;
+  if(visible===wasVisible) return;
   overlay.classList.toggle("visible",visible);
+  overlay.toggleAttribute("inert",!visible);
+  overlay.setAttribute("aria-hidden",String(!visible));
+  if(visible)enterStudioXModal(overlay,overlay.querySelector(".shortcut-close"));
+  else leaveStudioXModal(overlay);
 }
 
 function shortcutBackdropClose(event){
@@ -1192,10 +1239,13 @@ function renderRecognitionLatencyReport(){
 function setRecognitionLatencyReportOpen(open){
   const overlay=$("latencyReportOverlay");
   if(!overlay) return;
+  const wasOpen=!overlay.hidden;
+  if(Boolean(open)===wasOpen) return;
   if(open) renderRecognitionLatencyReport();
   overlay.hidden=!open;
   document.body.classList.toggle("latency-report-open",Boolean(open));
-  if(open) $("latencyReportClose")?.focus();
+  if(open) enterStudioXModal(overlay,$("latencyReportClose"));
+  else leaveStudioXModal(overlay);
 }
 
 function showCaptureBanner(success,title,detail){
@@ -6327,7 +6377,9 @@ async function loadRecognition(){
         $("cardArt").innerHTML =
           `<img src="${source}" alt="${verified ? "Verified card reference" : card.set_mismatch ? "Live card crop" : "Provisional candidate reference"}">`;
         const imageElement=$("cardArt").querySelector("img");
-        if(imageElement){imageElement.tabIndex=0;imageElement.setAttribute("role","button");imageElement.setAttribute("aria-label","Enlarge reference artwork")}
+        $("cardArt").tabIndex=0;
+        $("cardArt").setAttribute("role","button");
+        $("cardArt").setAttribute("aria-label","Enlarge reference artwork");
         let fallbackIndex=1;
         imageElement?.addEventListener("error",()=>{
           const fallback=imageSources[fallbackIndex++];
@@ -6336,12 +6388,18 @@ async function loadRecognition(){
           }else{
             $("cardArt").replaceChildren();
             $("cardArt").classList.remove("is-provisional");
+            $("cardArt").removeAttribute("tabindex");
+            $("cardArt").removeAttribute("role");
+            $("cardArt").removeAttribute("aria-label");
           }
         });
         $("cardArt").classList.toggle("is-provisional",!verified);
       }else{
         $("cardArt").replaceChildren();
         $("cardArt").classList.remove("is-provisional");
+        $("cardArt").removeAttribute("tabindex");
+        $("cardArt").removeAttribute("role");
+        $("cardArt").removeAttribute("aria-label");
       }
 
       if(
@@ -6894,6 +6952,7 @@ async function loadReferenceCorrectionHistory(){
 function openReferenceLightbox(source,title="Card verification",meta="Compare against the live card"){
   const overlay=$("referenceLightbox"),image=$("referenceLightboxImage");
   if(!overlay||!image||!source)return;
+  const wasOpen=!overlay.hidden;
   image.src=String(source).replaceAll("\\","/");
   if($("referenceLiveCropImage"))$("referenceLiveCropImage").src=`/api/camera/crop.jpg?compare=${Date.now()}`;
   setCardText("referenceLightboxTitle",title);
@@ -6901,9 +6960,9 @@ function openReferenceLightbox(source,title="Card verification",meta="Compare ag
   if($("referenceLightboxOpen"))$("referenceLightboxOpen").href=image.src;
   referenceSelectedCandidate=-1;referenceSelectedCatalogCandidate=null;window.__rareiqCatalogCorrectionResults=[];if($("referenceApprove"))$("referenceApprove").textContent="Approve match";if($("referenceCandidates"))$("referenceCandidates").hidden=true;if($("referenceCatalogResults"))$("referenceCatalogResults").hidden=true;if($("referenceCatalogSearchInput"))$("referenceCatalogSearchInput").value="";setCardText("referenceCatalogSearchStatus","Suggested matches");renderReferenceCandidates();setReferenceCompareZoom(1);setReferenceCompareMode("side");syncReferenceVerification();overlay.hidden=false;
   document.body.classList.add("reference-lightbox-open");
-  $("referenceLightboxClose")?.focus();
+  if(!wasOpen)enterStudioXModal(overlay,$("referenceLightboxClose"));
 }
-function closeReferenceLightbox(){if($("referenceLightbox"))$("referenceLightbox").hidden=true;document.body.classList.remove("reference-lightbox-open")}
+function closeReferenceLightbox(){const overlay=$("referenceLightbox");if(!overlay||overlay.hidden)return;overlay.hidden=true;document.body.classList.remove("reference-lightbox-open");leaveStudioXModal(overlay,$("cardArt"))}
 function openCurrentReferenceLightbox(){const image=$("cardArt")?.querySelector("img");if(!image)return;const meta=[$("cardSetName")?.textContent,$("cardCollectorNumber")?.textContent,$("cardLanguage")?.textContent].filter(value=>value&&value!=="--").join(" · ");openReferenceLightbox(image.currentSrc||image.src,$("cardName")?.textContent||"Card verification",meta||"Compare against the live card")}
 function openMatchCorrectionWorkflow(){
   const image=$("cardArt")?.querySelector("img");
@@ -9231,8 +9290,8 @@ document.addEventListener("DOMContentLoaded",()=>{
   $("businessTrendDays")?.addEventListener("change",()=>loadInventory().catch(()=>{}));
   $("inventoryExpenseForm")?.addEventListener("submit",event=>addInventoryExpense(event).catch(error=>notify("Expense Not Added",error.message||String(error),"error")));
   $("businessProfileForm")?.addEventListener("submit",event=>saveBusinessProfile(event).catch(error=>notify("Profile Not Saved",error.message||String(error),"error")));
-  $("cardArt")?.addEventListener("click",event=>{if(event.target.closest("img"))openCurrentReferenceLightbox()});
-  $("cardArt")?.addEventListener("keydown",event=>{if((event.key==="Enter"||event.key===" ")&&event.target.closest("img")){event.preventDefault();openCurrentReferenceLightbox()}});
+  $("cardArt")?.addEventListener("click",()=>{if($("cardArt").querySelector("img"))openCurrentReferenceLightbox()});
+  $("cardArt")?.addEventListener("keydown",event=>{if((event.key==="Enter"||event.key===" ")&&$("cardArt").querySelector("img")){event.preventDefault();openCurrentReferenceLightbox()}});
   $("referenceLightboxClose")?.addEventListener("click",closeReferenceLightbox);
   $("referenceLightbox")?.addEventListener("click",event=>{if(event.target===$("referenceLightbox"))closeReferenceLightbox()});
   document.addEventListener("keydown",event=>{if(event.key==="Escape"&&!$("referenceLightbox")?.hidden)closeReferenceLightbox()});
