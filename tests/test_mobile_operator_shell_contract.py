@@ -61,7 +61,7 @@ def test_mobile_camera_toolbar_scrolls_instead_of_overlapping() -> None:
 
 
 def test_mobile_shell_preserves_all_navigation_and_action_handlers() -> None:
-    assert HTML.count("shell=6.8.20-mobile-destination1") == 2
+    assert HTML.count("shell=6.8.21-mobile-broadcasttabs1") == 2
     assert HTML.count('class="nav-button') == 11
     for handler in (
         "selectCamera()",

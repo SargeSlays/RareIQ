@@ -2267,12 +2267,15 @@ function setBroadcastWorkspaceView(requested,{persist=true,focus=false,scroll=tr
   const view=views.includes(requested)?requested:"live";
   workspace.dataset.broadcastView=view;
   workspace.querySelectorAll("[data-broadcast-panel]").forEach(panel=>{panel.hidden=panel.dataset.broadcastPanel!==view});
+  let selectedTab=null;
   workspace.querySelectorAll("[data-broadcast-view]").forEach(button=>{
     const selected=button.dataset.broadcastView===view;
     button.setAttribute("aria-selected",selected?"true":"false");
     button.tabIndex=selected?0:-1;
+    if(selected)selectedTab=button;
     if(selected&&focus)button.focus();
   });
+  if(scroll&&selectedTab&&window.matchMedia("(max-width: 820px)").matches)selectedTab.scrollIntoView({behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"nearest",inline:"center"});
   if(scroll)workspace.scrollTo({top:0,behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});
   if(persist){try{localStorage.setItem(BROADCAST_WORKSPACE_VIEW_KEY,view)}catch(_error){}}
   return view;
