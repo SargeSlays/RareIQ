@@ -456,6 +456,15 @@ class ArtworkIndexService:
                 keys.add(f"canonical-name:{value}")
         return keys
 
+    @staticmethod
+    def _readable_hint_image(candidate: dict[str, Any]) -> str | None:
+        """Return a real local reference supplied by another bounded index."""
+        for field in ("image_path", "reference_image", "local_image"):
+            value = str(candidate.get(field) or "").strip()
+            if value and Path(value).is_file():
+                return value
+        return None
+
     def search_hinted(
         self,
         artwork: np.ndarray | None,
@@ -474,19 +483,54 @@ class ArtworkIndexService:
             return {"ok": True, "matches": [], "latency_ms": 0.0, "hint_hits": 0}
 
         records = self._records_for_active_filter()
-        hinted = [
+        indexed_hints = [
             record for record in records
             if self._identity_hint_keys(record) & hint_keys
         ]
         query = self.fingerprint(artwork)
         live_verification_features = self._verification_features(artwork)
-        hinted.sort(key=lambda row: self.hamming(query, str(row["fingerprint"])))
+        indexed_hints.sort(
+            key=lambda row: self.hamming(query, str(row["fingerprint"]))
+        )
+
+        # The global visual catalog already supplies source-addressable local
+        # references. Verify only its bounded leading hints when the smaller
+        # artwork index does not contain those identities; never scan the image
+        # catalog or silently mutate the active index here.
+        hinted: list[dict[str, Any]] = [dict(row) for row in indexed_hints]
+        present = {
+            str(row.get("id") or row.get("image_path") or "").casefold()
+            for row in hinted
+        }
+        for candidate in identity_hints:
+            if len(hinted) >= max(1, int(limit)):
+                break
+            reference_path = self._readable_hint_image(candidate)
+            identity = str(
+                candidate.get("id") or reference_path or ""
+            ).casefold()
+            if not reference_path or identity in present:
+                continue
+            hinted.append({
+                **dict(candidate),
+                "image_path": reference_path,
+                "external_identity_hint": True,
+            })
+            present.add(identity)
+
         matches: list[dict[str, Any]] = []
         for rank, row in enumerate(hinted[:max(1, int(limit))]):
-            distance = self.hamming(query, str(row["fingerprint"]))
-            hash_score = max(0.0, 1.0 - distance / 64.0)
             image_path = row.get("image_path")
             reference = self._cached_reference_image(image_path)
+            reference_fingerprint = str(row.get("fingerprint") or "")
+            if not reference_fingerprint and reference is not None:
+                reference_fingerprint = self.fingerprint(reference)
+            distance = (
+                self.hamming(query, reference_fingerprint)
+                if reference_fingerprint
+                else 64
+            )
+            hash_score = max(0.0, 1.0 - distance / 64.0)
             reference_features = self._cached_reference_features(
                 image_path, reference
             )
@@ -523,6 +567,10 @@ class ArtworkIndexService:
             "query_fingerprint": query,
             "matches": matches,
             "hint_hits": len(hinted),
+            "indexed_hint_hits": len(indexed_hints),
+            "external_hint_hits": sum(
+                1 for row in hinted if row.get("external_identity_hint")
+            ),
             "latency_ms": round((time.perf_counter() - started) * 1000, 2),
             "error": None,
         }

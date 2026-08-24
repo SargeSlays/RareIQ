@@ -123,8 +123,17 @@ class RecognitionStateStore:
             return False
         source = str(item.get("source") or "").strip().lower()
         if source == "global_visual_index" and not (
-            item.get("set_locked_identity_agreement") is True
-            and float((item.get("signals") or {}).get("collector_number") or 0.0) >= 1.0
+            (
+                item.get("set_locked_identity_agreement") is True
+                and float(
+                    (item.get("signals") or {}).get("collector_number") or 0.0
+                ) >= 1.0
+            )
+            or (
+                item.get("verification_strong") is True
+                and item.get("artwork_verification_strong") is True
+                and item.get("collector_fraction_exact") is True
+            )
         ):
             return False
         if source == "ocr_provisional":

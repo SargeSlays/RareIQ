@@ -33,6 +33,31 @@ class CandidateRankerService:
         }
         return aliases.get(normalized, normalized)
 
+    @staticmethod
+    def _collector_number_score(observed: Any, candidate: Any) -> float:
+        """Compare the complete printed fraction without inventing an exact match."""
+        left = str(observed or "").strip().lower()
+        right = str(candidate or "").strip().lower()
+        if not left or not right:
+            return 0.0
+
+        def parts(value: str) -> tuple[str, str | None]:
+            numerator, separator, denominator = value.partition("/")
+            numerator = numerator.lstrip("0") or "0"
+            if not separator:
+                return numerator, None
+            return numerator, denominator.lstrip("0") or "0"
+
+        left_number, left_total = parts(left)
+        right_number, right_total = parts(right)
+        if left_number != right_number:
+            return 0.0
+        if left_total is not None and right_total is not None:
+            return 1.0 if left_total == right_total else 0.0
+        # A numerator-only read is useful retrieval evidence, but must not satisfy
+        # the exact-identifier lock used by RecognitionService.
+        return 0.65
+
     def rank(
         self,
         *,
@@ -70,6 +95,25 @@ class CandidateRankerService:
                     candidate
                 ),
             )
+            if candidate is not item and candidate.get("verification_strong"):
+                for evidence_key in (
+                    "verification_strong",
+                    "verification_score",
+                    "artwork_verification_strong",
+                    "artwork_verification_score",
+                    "orb_matches",
+                    "homography_inliers",
+                    "inlier_ratio",
+                    "structural_similarity",
+                    "lower_structural_similarity",
+                    "reference_readable",
+                    "image_path",
+                    "reference_image",
+                    "local_image",
+                ):
+                    if candidate.get(evidence_key) is not None:
+                        item[evidence_key] = candidate.get(evidence_key)
+                item["retrieval_only"] = False
             for evidence_key in (
                 "printed_code",
                 "printed_code_match",
@@ -113,7 +157,12 @@ class CandidateRankerService:
 
             else:
                 visual_similarity = (
-                    raw_score
+                    max(
+                        raw_score,
+                        float(candidate.get("verification_score") or 0.0)
+                        if candidate.get("verification_strong")
+                        else 0.0,
+                    )
                 )
 
             item[
@@ -196,6 +245,16 @@ class CandidateRankerService:
                 )
             )
 
+            collector_signal = self._collector_number_score(
+                collector_number,
+                number,
+            )
+            collector_fraction_exact = bool(
+                collector_signal == 1.0
+                and "/" in collector_number
+                and "/" in number
+            )
+
             signals = {
                 "visual_similarity": (
                     item.get(
@@ -204,23 +263,14 @@ class CandidateRankerService:
                     )
                 ),
                 "collector_number": (
-                    1.0
+                    collector_signal
+                    if collector_number and number
+                    else 1.0
                     if (
-                        (
-                            collector_number
-                            and number
-                            and (
-                                collector_number == number
-                                or collector_number.split("/", 1)[0].lstrip("0")
-                                == number.split("/", 1)[0].lstrip("0")
-                            )
-                        )
-                        or (
                             printed_code
                             and candidate_printed_code
                             and printed_code == candidate_printed_code
                             and item.get("printed_code_match") is True
-                        )
                     )
                     else 0.0
                 ),
@@ -333,6 +383,7 @@ class CandidateRankerService:
                     )
                     or 0.0
                 ),
+                "collector_fraction_exact": collector_fraction_exact,
             })
 
             ranked.append(
@@ -342,6 +393,10 @@ class CandidateRankerService:
         ranked.sort(
             key=lambda candidate: (
                 bool(candidate.get("printed_code_match")),
+                bool(
+                    candidate.get("verification_strong")
+                    and candidate.get("collector_fraction_exact")
+                ),
                 bool(
                     candidate.get("verification_strong")
                     and candidate.get("artwork_verification_strong")

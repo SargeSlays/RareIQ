@@ -210,6 +210,37 @@ def test_snapshot_promotes_verified_set_locked_global_identity() -> None:
     assert snapshot["result_current"] is True
 
 
+def test_snapshot_promotes_directly_verified_exact_fraction_global_identity() -> None:
+    store = RecognitionStateStore()
+    store.set_continuous_state("STABLE", generation=6, card_present=True)
+    snapshot = store.update_recognition({
+        "generation": 6,
+        "recognition_locked": True,
+        "verification_state": "VERIFIED",
+        "has_reference_evidence": True,
+        "overall_confidence": 0.79,
+        "candidates": [{
+            "id": "me5-29",
+            "name": "Slowpoke",
+            "collector_number": "29/84",
+            "source": "global_visual_index",
+            "reference_image_url": "/slowpoke.png",
+            "retrieval_only": False,
+            "verification_strong": True,
+            "artwork_verification_strong": True,
+            "collector_fraction_exact": True,
+            "signals": {"collector_number": 1.0},
+            "score": 0.90,
+        }],
+    })
+
+    assert snapshot["primary_candidate"]["id"] == "me5-29"
+    assert snapshot["has_reference_evidence"] is True
+    assert snapshot["recognition_locked"] is True
+    assert snapshot["verification_state"] == "VERIFIED"
+    assert snapshot["result_current"] is True
+
+
 def test_snapshot_surfaces_set_locked_catalog_preview_without_verifying_it() -> None:
     store = RecognitionStateStore()
     store.set_continuous_state("STABLE", generation=7, card_present=True)

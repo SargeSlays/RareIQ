@@ -556,6 +556,41 @@ class RecognitionService:
         } else family
 
     @classmethod
+    def _merge_reference_matches(
+        cls,
+        *groups: list[dict[str, Any]],
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Keep bounded direct verification evidence across index fallback."""
+        merged: dict[str, dict[str, Any]] = {}
+        for group in groups:
+            for candidate in group:
+                keys = cls._candidate_version_keys(candidate)
+                key = next(
+                    (value for value in sorted(keys) if value.startswith("id:")),
+                    next(iter(sorted(keys)), ""),
+                )
+                if not key:
+                    key = str(candidate.get("id") or id(candidate))
+                previous = merged.get(key)
+                if previous is None or (
+                    bool(candidate.get("verification_strong")),
+                    float(candidate.get("score") or 0.0),
+                ) > (
+                    bool(previous.get("verification_strong")),
+                    float(previous.get("score") or 0.0),
+                ):
+                    merged[key] = dict(candidate)
+        return sorted(
+            merged.values(),
+            key=lambda item: (
+                -int(bool(item.get("verification_strong"))),
+                -float(item.get("score") or 0.0),
+                str(item.get("id") or ""),
+            ),
+        )[:max(1, int(limit))]
+
+    @classmethod
     def _variant_family_ambiguous(
         cls,
         candidates: list[dict[str, Any]],
@@ -598,6 +633,39 @@ class RecognitionService:
             if len(versions) >= 2:
                 return True
         return False
+
+    @staticmethod
+    def _unique_verified_collector_fraction(
+        top_candidate: dict[str, Any],
+        candidates: list[dict[str, Any]],
+    ) -> bool:
+        """Allow shared-art resolution only for one exact, verified fraction."""
+        return bool(
+            top_candidate.get("verification_strong")
+            and top_candidate.get("collector_fraction_exact")
+            and sum(
+                1
+                for item in candidates
+                if item.get("verification_strong")
+                and item.get("collector_fraction_exact")
+            ) == 1
+        )
+
+    @staticmethod
+    def _exact_collector_fraction_match(observed: Any, candidate: Any) -> bool:
+        left = str(observed or "").strip().lower()
+        right = str(candidate or "").strip().lower()
+        if "/" not in left or "/" not in right:
+            return False
+
+        def normalized(value: str) -> tuple[str, str]:
+            numerator, denominator = value.split("/", 1)
+            return (
+                numerator.lstrip("0") or "0",
+                denominator.lstrip("0") or "0",
+            )
+
+        return normalized(left) == normalized(right)
 
     @staticmethod
     def _variant_fast_path_is_ocr_safe(evidence: dict[str, Any] | None) -> bool:
@@ -1978,6 +2046,8 @@ class RecognitionService:
             return
         if payload.get("locked_set_reconciled_identity") is True:
             return
+        if payload.get("unique_verified_collector_fraction") is True:
+            return
         evidence = payload.get("collector_ocr") or {}
         repeated_identity = bool(
             evidence.get("frame_vote_winner")
@@ -2942,6 +3012,14 @@ class RecognitionService:
             batch_artwork_hints = _filter_locked_candidates(
                 list(batch_artwork_hints)
             ) if locked_to_set else list(batch_artwork_hints)
+            global_artwork_hints = list(global_visual_candidates[:15])
+            if early_footer_identifier:
+                global_artwork_hints.sort(
+                    key=lambda item: not self._exact_collector_fraction_match(
+                        early_footer_identifier,
+                        item.get("collector_number"),
+                    )
+                )
             artwork_hints = (
                 exact_shortlist[:5]
                 if trusted_exact_shortlist
@@ -2951,7 +3029,7 @@ class RecognitionService:
                 if temporal_family_hints
                 else batch_artwork_hints
                 if batch_artwork_hints
-                else global_visual_candidates[:15]
+                else global_artwork_hints
             )
             artwork_hints = _filter_locked_candidates(list(artwork_hints))
             locked_footer_visual_evidence = self._locked_footer_visual_consensus(
@@ -3049,11 +3127,21 @@ class RecognitionService:
                 or family_shortlist_verified
                 or batch_shortlist_verified
             )
-            artwork_result = (
-                self.artwork_index.search(card, limit=10)
-                if artwork_fallback
-                else hinted_result
-            )
+            if artwork_fallback:
+                artwork_result = self.artwork_index.search(card, limit=10)
+                artwork_result["matches"] = self._merge_reference_matches(
+                    hinted_matches,
+                    list(artwork_result.get("matches") or []),
+                    limit=10,
+                )
+                artwork_result["hint_hits"] = int(
+                    hinted_result.get("hint_hits") or 0
+                )
+                artwork_result["external_hint_hits"] = int(
+                    hinted_result.get("external_hint_hits") or 0
+                )
+            else:
+                artwork_result = hinted_result
             artwork_result["matches"] = _filter_locked_candidates(
                 list(artwork_result.get("matches") or [])
             )
@@ -3984,6 +4072,13 @@ class RecognitionService:
             standard_identifier_agreement = bool(
                 collector_valid and top_collector_score >= 1.0
             )
+            unique_verified_collector_fraction = bool(
+                standard_identifier_agreement
+                and self._unique_verified_collector_fraction(
+                    top_candidate,
+                    candidates,
+                )
+            )
             variant_ambiguity = self._variant_family_ambiguous(candidates)
             repeated_printed_identity = bool(
                 printed_code
@@ -4035,6 +4130,7 @@ class RecognitionService:
             if variant_ambiguity and not (
                 (printed_identity_confirmed and repeated_printed_identity)
                 or locked_set_reconciled_identity
+                or unique_verified_collector_fraction
             ):
                 recognition_locked = False
                 artwork_locked = False
@@ -4146,6 +4242,9 @@ class RecognitionService:
                 "locked_set_reconciled_identity": locked_set_reconciled_identity,
                 "variant_ambiguity": variant_ambiguity,
                 "printed_identity_confirmed": printed_identity_confirmed,
+                "unique_verified_collector_fraction": (
+                    unique_verified_collector_fraction
+                ),
                 "has_reference_evidence": has_reference_evidence,
                 "verification_state": verification_state,
                 "set_mismatch": locked_set_mismatch,

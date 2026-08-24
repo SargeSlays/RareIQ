@@ -192,6 +192,65 @@ def test_failed_geometry_is_demoted_below_verified_match(tmp_path: Path) -> None
     assert failed["score"] <= ArtworkIndexService.FAILED_VERIFICATION_CAP
 
 
+def test_hinted_search_verifies_bounded_external_local_references(
+    tmp_path: Path,
+) -> None:
+    live = patterned_card()
+    correct_path = tmp_path / "slowpoke-29-84.png"
+    wrong_path = tmp_path / "slowpoke-29-120.png"
+    assert cv2.imwrite(str(correct_path), live)
+    assert cv2.imwrite(str(wrong_path), patterned_card(99))
+    service = service_with_records(tmp_path, [])
+    original_index = service.index_path.read_bytes()
+
+    result = service.search_hinted(
+        live,
+        [
+            {
+                "id": "me05-029",
+                "name": "Slowpoke",
+                "collector_number": "029/120",
+                "local_image": str(wrong_path),
+                "source": "global_visual_index",
+            },
+            {
+                "id": "me5-29",
+                "name": "Slowpoke",
+                "collector_number": "29/84",
+                "local_image": str(correct_path),
+                "source": "global_visual_index",
+            },
+        ],
+        limit=2,
+    )
+
+    assert result["indexed_hint_hits"] == 0
+    assert result["external_hint_hits"] == 2
+    assert result["matches"][0]["id"] == "me5-29"
+    assert result["matches"][0]["verification_strong"] is True
+    assert result["matches"][0]["external_identity_hint"] is True
+    assert service.status()["record_count"] == 0
+    assert service.index_path.read_bytes() == original_index
+
+
+def test_hinted_search_ignores_unreadable_external_references(
+    tmp_path: Path,
+) -> None:
+    live = patterned_card()
+    service = service_with_records(tmp_path, [])
+    result = service.search_hinted(
+        live,
+        [{
+            "id": "missing",
+            "local_image": str(tmp_path / "missing.png"),
+        }],
+        limit=2,
+    )
+
+    assert result["matches"] == []
+    assert result["external_hint_hits"] == 0
+
+
 def test_latest_live_variant_is_recovered_outside_hash_shortlist(tmp_path: Path) -> None:
     service, crop = deterministic_horsea_service(tmp_path)
     matches = service.search(crop)["matches"]
