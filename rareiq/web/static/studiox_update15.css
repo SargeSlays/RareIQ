@@ -11158,10 +11158,10 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
   }
 }
 
-/* Mobile Collection owns the full content width; its desktop side rail becomes
-   a compact horizontal section navigator. */
+/* Mobile full-shell workspaces own the full content width; desktop side rails
+   become compact horizontal section navigators. */
 @media(max-width:959px){
-  body.studiox-ui4.studiox-premium .workspace[data-workspace="collection"] .full-shell{
+  body.studiox-ui4.studiox-premium[data-ui4-workspace]:not([data-ui4-workspace="live"]) .workspace.active .full-shell{
     display:grid!important;
     grid-template-columns:minmax(0,1fr)!important;
     grid-template-rows:auto minmax(0,1fr)!important;
@@ -11169,7 +11169,7 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
     min-width:0!important;
     gap:6px!important;
   }
-  body.studiox-ui4.studiox-premium .workspace[data-workspace="collection"] .side-nav{
+  body.studiox-ui4.studiox-premium[data-ui4-workspace]:not([data-ui4-workspace="live"]) .workspace.active .side-nav{
     position:sticky!important;
     z-index:20!important;
     top:0!important;
@@ -11184,8 +11184,8 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
     overscroll-behavior-x:contain!important;
     scrollbar-width:none!important;
   }
-  body.studiox-ui4.studiox-premium .workspace[data-workspace="collection"] .side-nav::-webkit-scrollbar{display:none!important}
-  body.studiox-ui4.studiox-premium .workspace[data-workspace="collection"] .side-nav>button{
+  body.studiox-ui4.studiox-premium[data-ui4-workspace]:not([data-ui4-workspace="live"]) .workspace.active .side-nav::-webkit-scrollbar{display:none!important}
+  body.studiox-ui4.studiox-premium[data-ui4-workspace]:not([data-ui4-workspace="live"]) .workspace.active .side-nav>button{
     flex:0 0 auto!important;
     min-width:102px!important;
     height:38px!important;
@@ -11193,7 +11193,7 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
     text-align:center!important;
     white-space:nowrap!important;
   }
-  body.studiox-ui4.studiox-premium .workspace[data-workspace="collection"] .full-shell>.content{
+  body.studiox-ui4.studiox-premium[data-ui4-workspace]:not([data-ui4-workspace="live"]) .workspace.active .full-shell>.content{
     width:100%!important;
     min-width:0!important;
     overflow-x:hidden!important;

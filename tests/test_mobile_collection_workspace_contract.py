@@ -7,14 +7,14 @@ HTML = (ROOT / "rareiq/web/static/control.html").read_text(encoding="utf-8-sig")
 
 
 def collection_mobile_contract() -> str:
-    start = CSS.index("/* Mobile Collection owns")
+    start = CSS.index("/* Mobile full-shell workspaces own")
     end = CSS.index("/* Update 6.8.9", start)
     return CSS[start:end]
 
 
 def test_mobile_collection_uses_one_full_width_content_column() -> None:
     contract = collection_mobile_contract()
-    assert '.workspace[data-workspace="collection"] .full-shell' in contract
+    assert '[data-ui4-workspace]:not([data-ui4-workspace="live"]) .workspace.active .full-shell' in contract
     assert "grid-template-columns:minmax(0,1fr)!important" in contract
     assert "width:100%!important" in contract
     assert "min-width:0!important" in contract
@@ -22,7 +22,7 @@ def test_mobile_collection_uses_one_full_width_content_column() -> None:
 
 def test_mobile_collection_navigation_is_horizontal_and_scroll_safe() -> None:
     contract = collection_mobile_contract()
-    assert '.workspace[data-workspace="collection"] .side-nav{' in contract
+    assert '[data-ui4-workspace]:not([data-ui4-workspace="live"]) .workspace.active .side-nav{' in contract
     assert "flex-direction:row!important" in contract
     assert "overflow-x:auto!important" in contract
     assert "overscroll-behavior-x:contain!important" in contract
