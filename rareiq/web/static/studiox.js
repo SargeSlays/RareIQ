@@ -6579,6 +6579,7 @@ async function loadSystemHealth(){
 
 let serverConnectionState="connected";
 let serverConnectionHideTimer=0;
+let serverConnectionRetryInFlight=false;
 function setServerConnectionState(state,detail=""){
   const banner=$("serverConnectionBanner");
   if(!banner)return;
@@ -6591,18 +6592,30 @@ function setServerConnectionState(state,detail=""){
   setCardText("serverConnectionTitle",titles[state]||titles.unreachable);
   setCardText("serverConnectionDetail",detail||defaults[state]||defaults.unreachable);
   const retry=$("serverConnectionRetry");
-  if(retry){retry.hidden=["connected","reconnected"].includes(state);retry.disabled=state==="checking"}
+  if(retry){
+    retry.hidden=["connected","reconnected"].includes(state);
+    retry.disabled=state==="checking";
+    retry.setAttribute("aria-busy",String(state==="checking"));
+    retry.textContent=state==="checking"?"Checking...":"Retry Connection";
+  }
   syncMobileOperatorDeck();
   if(state==="reconnected")serverConnectionHideTimer=window.setTimeout(()=>setServerConnectionState("connected"),2400);
 }
 
 async function retryServerConnection(){
+  if(serverConnectionRetryInFlight)return false;
+  serverConnectionRetryInFlight=true;
   setServerConnectionState("checking");
   try{
     await api("/api/boot/ping",{timeoutMs:5000,retries:0});
+    if(navigator.onLine===false){setServerConnectionState("offline");return false;}
     setServerConnectionState("reconnected");
+    return true;
   }catch(error){
     setServerConnectionState(navigator.onLine===false?"offline":"unreachable",error.message||"");
+    return false;
+  }finally{
+    serverConnectionRetryInFlight=false;
   }
 }
 
@@ -6615,7 +6628,7 @@ function initializeServerConnectionStatus(){
     setServerConnectionState(navigator.onLine===false?"offline":"unreachable",event.detail?.error?.message||"");
   });
   document.addEventListener("rareiq:api-end",()=>{
-    if(["offline","unreachable","checking"].includes(serverConnectionState))setServerConnectionState("reconnected");
+    if(["offline","unreachable"].includes(serverConnectionState)&&!serverConnectionRetryInFlight)setServerConnectionState("reconnected");
   });
   if(navigator.onLine===false)setServerConnectionState("offline");
 }
