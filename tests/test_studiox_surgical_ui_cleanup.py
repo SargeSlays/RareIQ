@@ -69,7 +69,9 @@ def test_provisional_is_a_badge_not_card_metadata() -> None:
     assert 'id="identityVerdictBadge" aria-hidden="true" hidden' in HTML
     assert '"Candidate only  |  Exact version unresolved"' in JS
     assert '"WAITING FOR VERIFIED IDENTITY"' in JS
-    assert 'badge.textContent=verified?"EXACT MATCH":"CANDIDATE · VERIFYING"' in JS
+    assert 'badge.textContent=verified' in JS
+    assert '?"REVIEW NEEDED"' in JS
+    assert ':"CANDIDATE · VERIFYING"' in JS
 
 
 def test_sticky_actions_and_polished_empty_states() -> None:

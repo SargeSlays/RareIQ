@@ -41,6 +41,9 @@ class RecognitionSnapshot:
     temporal_confirmation_progress: int = 0
     temporal_confirmation_required: int = 2
     exact_reference_diagnostics: dict[str, Any] = field(default_factory=dict)
+    identity_evidence: dict[str, Any] = field(default_factory=dict)
+    identity_conflicts: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    identity_consistent: bool = True
     has_reference_evidence: bool = False
     verification_state: str = "SEARCHING"
     provisional_candidate: bool = False
@@ -55,6 +58,7 @@ class RecognitionSnapshot:
         payload = asdict(self)
         payload["candidates"] = list(self.candidates)
         payload["pipeline_stages"] = list(self.pipeline_stages)
+        payload["identity_conflicts"] = list(self.identity_conflicts)
         payload["candidate_count"] = len(self.candidates)
         return payload
 
@@ -670,6 +674,11 @@ class RecognitionStateStore:
             exact_reference_diagnostics=copy.deepcopy(
                 raw.get("exact_reference_diagnostics") or {}
             ),
+            identity_evidence=copy.deepcopy(raw.get("identity_evidence") or {}),
+            identity_conflicts=tuple(copy.deepcopy(
+                raw.get("identity_conflicts") or []
+            )),
+            identity_consistent=raw.get("identity_consistent") is not False,
             has_reference_evidence=has_reference,
             verification_state=(
                 "VERIFIED"

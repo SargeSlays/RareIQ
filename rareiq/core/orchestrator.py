@@ -1497,6 +1497,23 @@ class RareIQOrchestrator:
         overall = float(recognition.get("overall_confidence") or 0.0)
 
         if (
+            card_override is None
+            and recognition.get("identity_consistent") is False
+        ):
+            return {
+                "ok": False,
+                "error": (
+                    "Observed OCR evidence conflicts with the selected catalog "
+                    "identity. Review and select the correct candidate."
+                ),
+                "reason": "identity_evidence_conflict",
+                "identity_conflicts": list(
+                    recognition.get("identity_conflicts") or []
+                ),
+                "confidence": overall,
+            }
+
+        if (
             automatic
             and not recognition.get("has_reference_evidence")
             and not allow_unverified_test

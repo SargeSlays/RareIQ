@@ -21,6 +21,31 @@ class BackendTestService:
                 return value
         return default
 
+    @staticmethod
+    def _canonical_language(value: Any) -> str:
+        normalized = str(value or "").strip().casefold().replace("_", "-")
+        if normalized in {"", "none", "null", "unknown", "n/a", "--"}:
+            return ""
+        aliases = {
+            "en": "en",
+            "english": "en",
+            "chinese": "zh-cn",
+            "simplified chinese": "zh-cn",
+            "zh-cn": "zh-cn",
+        }
+        return aliases.get(normalized, normalized)
+
+    @staticmethod
+    def _collector_identity_key(value: Any) -> str:
+        raw = str(value or "").strip().casefold().replace(" ", "")
+        if raw in {"", "none", "null", "unknown", "n/a", "--"}:
+            return ""
+        parts = raw.split("/")
+        return "/".join(
+            str(int(part)) if part.isdigit() else part
+            for part in parts
+        )
+
     def normalize_current_card(
         self,
         recognition: dict[str, Any] | None = None,
@@ -46,6 +71,73 @@ class BackendTestService:
             if candidates and isinstance(candidates[0], dict)
             else {}
         )
+        raw_recognition = state.get("raw_recognition") or {}
+        if not isinstance(raw_recognition, dict):
+            raw_recognition = {}
+
+        observed_language = self._first(
+            recognition.get("language"),
+            raw_recognition.get("language"),
+        )
+        catalog_language = self._first(
+            match.get("language"),
+            match.get("language_code"),
+            top_candidate.get("language"),
+            top_candidate.get("language_code"),
+        )
+        observed_collector_number = self._first(
+            recognition.get("ocr_collector_number"),
+            raw_recognition.get("ocr_collector_number"),
+            state.get("ocr_collector_number"),
+        )
+        catalog_collector_number = self._first(
+            match.get("collector_number"),
+            match.get("number"),
+            top_candidate.get("collector_number"),
+            top_candidate.get("number"),
+        )
+
+        observed_language_key = self._canonical_language(observed_language)
+        catalog_language_key = self._canonical_language(catalog_language)
+        language_known = bool(
+            observed_language_key
+            and catalog_language_key
+            and observed_language_key != "unknown"
+            and catalog_language_key != "unknown"
+        )
+        language_agreement = (
+            observed_language_key == catalog_language_key
+            if language_known
+            else None
+        )
+        observed_collector_key = self._collector_identity_key(
+            observed_collector_number
+        )
+        catalog_collector_key = self._collector_identity_key(
+            catalog_collector_number
+        )
+        collector_known = bool(observed_collector_key and catalog_collector_key)
+        collector_agreement = (
+            observed_collector_key == catalog_collector_key
+            if collector_known
+            else None
+        )
+        identity_conflicts: list[dict[str, Any]] = []
+        if language_agreement is False:
+            identity_conflicts.append({
+                "field": "language",
+                "observed": observed_language,
+                "catalog": catalog_language,
+                "reason": "observed_catalog_mismatch",
+            })
+        if collector_agreement is False:
+            identity_conflicts.append({
+                "field": "collector_number",
+                "observed": observed_collector_number,
+                "catalog": catalog_collector_number,
+                "reason": "observed_catalog_mismatch",
+            })
+        identity_consistent = not identity_conflicts
 
         card_name = self._first(
             match.get("english_name"),
@@ -59,10 +151,10 @@ class BackendTestService:
         collector_number = self._first(
             match.get("collector_number"),
             match.get("number"),
-            recognition.get("collector_number"),
-            recognition.get("ocr_collector_number"),
             top_candidate.get("collector_number"),
             top_candidate.get("number"),
+            recognition.get("collector_number"),
+            recognition.get("ocr_collector_number"),
         )
 
         if not card_name and not collector_number:
@@ -122,10 +214,40 @@ class BackendTestService:
             ),
             "language": self._first(
                 match.get("language"),
-                recognition.get("language"),
                 top_candidate.get("language"),
+                recognition.get("language"),
                 default="Unknown",
             ),
+            "observed_language": observed_language,
+            "catalog_language": catalog_language,
+            "observed_collector_number": observed_collector_number,
+            "catalog_collector_number": catalog_collector_number,
+            "identity_evidence": {
+                "observed": {
+                    "printed_name": self._first(
+                        recognition.get("name_candidate"),
+                        raw_recognition.get("name_candidate"),
+                    ),
+                    "collector_number": observed_collector_number,
+                    "language": observed_language,
+                },
+                "catalog": {
+                    "printed_name": self._first(
+                        match.get("printed_name"),
+                        match.get("name"),
+                        top_candidate.get("printed_name"),
+                        top_candidate.get("name"),
+                    ),
+                    "collector_number": catalog_collector_number,
+                    "language": catalog_language,
+                },
+                "agreements": {
+                    "collector_number": collector_agreement,
+                    "language": language_agreement,
+                },
+            },
+            "identity_conflicts": identity_conflicts,
+            "identity_consistent": identity_consistent,
             "rarity": self._first(
                 match.get("rarity"),
                 top_candidate.get("rarity"),
@@ -156,14 +278,21 @@ class BackendTestService:
                 or 0.0
             ),
             "confidence": confidence,
-            "verification_state": self._first(
-                recognition.get("verification_state"),
-                state.get("verification_state"),
-                default="SEARCHING",
+            "verification_state": (
+                "REVIEW_NEEDED"
+                if not identity_consistent
+                else self._first(
+                    recognition.get("verification_state"),
+                    state.get("verification_state"),
+                    default="SEARCHING",
+                )
             ),
             "recognition_locked": bool(
-                recognition.get("recognition_locked")
-                or state.get("recognition_locked")
+                identity_consistent
+                and (
+                    recognition.get("recognition_locked")
+                    or state.get("recognition_locked")
+                )
             ),
             "source": self._first(
                 match.get("source"),

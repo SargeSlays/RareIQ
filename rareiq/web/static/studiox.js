@@ -5855,12 +5855,28 @@ function resetStudioXPreviewZoom(){
   setStudioXPreviewZoom(1);
 }
 
+function hasIdentityEvidenceConflict(snapshot={},card=null){
+  const snapshotConflicts=Array.isArray(snapshot?.identity_conflicts)
+    ?snapshot.identity_conflicts
+    :[];
+  const cardConflicts=Array.isArray(card?.identity_conflicts)
+    ?card.identity_conflicts
+    :[];
+  return Boolean(
+    snapshot?.identity_consistent===false||
+    card?.identity_consistent===false||
+    snapshotConflicts.length||
+    cardConflicts.length
+  );
+}
+
 function isAuthoritativelyVerified(snapshot={}){
   const state=String(snapshot?.verification_state||"").toUpperCase();
   return Boolean(
     snapshot?.recognition_locked===true&&
     state==="VERIFIED"&&
-    snapshot?.result_current!==false
+    snapshot?.result_current!==false&&
+    !hasIdentityEvidenceConflict(snapshot)
   );
 }
 
@@ -5908,6 +5924,7 @@ function deriveRecognitionPresentation(snapshot={},card=null,candidates=[]){
     )
   );
   const hasCandidate=Boolean(card||candidates.length);
+  const identityConflict=hasIdentityEvidenceConflict(snapshot,card);
   const cardDetected=Boolean(
     snapshot?.card_present===true||
     snapshot?.vision?.visible===true||
@@ -5928,6 +5945,13 @@ function deriveRecognitionPresentation(snapshot={},card=null,candidates=[]){
   }
   if(["ERROR","FAILED"].includes(phase)){
     return {key:"error",state:"error",title:"ERROR",detail:"Recognition is temporarily unavailable.",placeholderTitle:"Recognition Unavailable",confidence};
+  }
+  if(identityConflict&&hasCandidate){
+    const conflict=(card?.identity_conflicts||snapshot?.identity_conflicts||[])[0]||{};
+    const field=String(conflict.field||"identity").replaceAll("_"," ");
+    const observed=conflict.observed??"observed evidence";
+    const catalog=conflict.catalog??"catalog evidence";
+    return {key:"review-needed",state:"searching",title:"REVIEW NEEDED",detail:`Observed ${field} (${observed}) conflicts with the catalog (${catalog}).`,placeholderTitle:"Review Identity",confidence};
   }
   if(verified){
     return {key:"exact-match",state:"matched",title:"EXACT MATCH",detail:"Identity verified against the active catalog.",placeholderTitle:"Exact Match",confidence};
@@ -6035,7 +6059,8 @@ async function loadRecognition(){
     const rawVerifiedCurrent=Boolean(
       raw?.recognition_locked===true&&
       String(raw?.verification_state||"").toUpperCase()==="VERIFIED"&&
-      Number(raw?.generation??-1)===generation
+      Number(raw?.generation??-1)===generation&&
+      !hasIdentityEvidenceConflict(raw)
     );
 
     const candidates = rawVerifiedCurrent&&Array.isArray(raw?.candidates)
@@ -6112,7 +6137,8 @@ async function loadRecognition(){
       canonicalCurrent &&
       canonicalCurrent.recognition_locked === true &&
       String(canonicalCurrent.verification_state||"").toUpperCase() === "VERIFIED" &&
-      (snapshot?.result_current !== false||rawVerifiedCurrent)
+      (snapshot?.result_current !== false||rawVerifiedCurrent)&&
+      !hasIdentityEvidenceConflict(snapshot,canonicalCurrent)
     );
     const canonicalCard=canonicalVerified?{
       ...canonicalCurrent,
@@ -6239,14 +6265,16 @@ async function loadRecognition(){
         candidates.length
       );
 
+      const identitySafe=!hasIdentityEvidenceConflict(snapshot,card)&&
+        !hasIdentityEvidenceConflict(raw,card);
       const verified = Boolean(
-        canonicalVerified || (
+        identitySafe&&(canonicalVerified || (
         (isAuthoritativelyVerified(snapshot)||rawVerifiedCurrent)&&(
           authoritativeSetLockedCandidate ||
           realIdentityCandidate ||
           verifiedVisualCandidate
         ))
-      );
+      ));
 
       const provisionalName=String(
         card?.english_name||card?.printed_name||card?.name||""
@@ -8216,7 +8244,11 @@ function renderIdentityVerdictBadge(presentation={},verified=false){
   ].includes(presentation.key);
   badge.hidden=!(verified||provisional);
   badge.dataset.verdict=verified?"exact-match":"provisional";
-  badge.textContent=verified?"EXACT MATCH":"CANDIDATE · VERIFYING";
+  badge.textContent=verified
+    ?"EXACT MATCH"
+    :presentation.key==="review-needed"
+    ?"REVIEW NEEDED"
+    :"CANDIDATE · VERIFYING";
 }
 
 function renderIdentifyWidget(context){
@@ -8224,6 +8256,7 @@ function renderIdentifyWidget(context){
   const temporalProgress=Number(snapshot.temporal_confirmation_progress||0);
   const temporalRequired=Number(snapshot.temporal_confirmation_required||2);
   const scanning=!context.verified&&!["ready","error"].includes(context.presentation.key);
+  const identityConflict=hasIdentityEvidenceConflict(snapshot,context.card);
   setCardText(
     "identifyCatalogStatus",
     context.verified
@@ -8246,6 +8279,8 @@ function renderIdentifyWidget(context){
         : "Not available"
       : context.verified
       ? "Verified catalog identity"
+      : identityConflict
+      ? "Identity evidence conflicts — operator review required"
       : "Operator review required"
   );
   const identifyWidget=document.querySelector('[data-studiox-widget="identify"]');
@@ -8274,6 +8309,15 @@ function renderIdentifyWidget(context){
       "confirmed":"Exact version confirmed",
     };
     const artworkScore=firstCardValue(card,["visual_score","artwork_score"]);
+    const identityEvidence=card.identity_evidence||snapshot.identity_evidence||{};
+    const observedIdentity=identityEvidence.observed||{};
+    const catalogIdentity=identityEvidence.catalog||{};
+    const identityAgreements=identityEvidence.agreements||{};
+    const observedCollector=card.observed_collector_number||observedIdentity.collector_number;
+    const catalogCollector=card.catalog_collector_number||catalogIdentity.collector_number||firstCardValue(card,["collector_number","card_number"]);
+    const observedLanguage=card.observed_language||observedIdentity.language;
+    const catalogLanguage=card.catalog_language||catalogIdentity.language||firstCardValue(card,["language","language_name","language_code"]);
+    const agreementLabel=value=>value===true?"Match":value===false?"Conflict — review required":null;
     const rows=[
       ["Exact-version decision",exactDecision],
       ["Version confirmation",exactProgress?`${exactProgress}/${exactRequired} distinct captures`:null],
@@ -8283,7 +8327,9 @@ function renderIdentifyWidget(context){
       [
         "Temporal confirmation",
         snapshot.temporal_confirmation===true
-          ?`Verified across ${Number(snapshot.temporal_confirmation_count||temporalRequired)} stable scans`
+          ?context.verified
+            ?`Verified across ${Number(snapshot.temporal_confirmation_count||temporalRequired)} stable scans`
+            :`Capture stable across ${Number(snapshot.temporal_confirmation_count||temporalRequired)} scans`
           :temporalProgress>0
           ?`Confirming ${temporalProgress}/${temporalRequired}`
           :null,
@@ -8294,9 +8340,15 @@ function renderIdentifyWidget(context){
           ? `${context.verified?"Strong · ":""}${Math.round(normalize(artworkScore)*100)}% visual confidence`
           : null,
       ],
-      ["Collector number",firstCardValue(card,["collector_number","card_number"])?(context.verified?"Confirmed":firstCardValue(card,["collector_number","card_number"])):null],
+      ["Observed collector number",observedCollector],
+      ["Catalog collector number",catalogCollector],
+      ["Collector agreement",agreementLabel(identityAgreements.collector_number)],
+      ["Collector number",!observedCollector&&!catalogCollector?firstCardValue(card,["collector_number","card_number"]):null],
       ["Set confirmation",firstCardValue(card,["set_name","set","set_code","set_id"])?(context.verified?"Confirmed":firstCardValue(card,["set_name","set","set_code","set_id"])):null],
-      ["Language",firstCardValue(card,["language","language_name","language_code"])?(context.verified?"Confirmed":firstCardValue(card,["language","language_name","language_code"])):null],
+      ["Observed language",observedLanguage],
+      ["Catalog language",catalogLanguage],
+      ["Language agreement",agreementLabel(identityAgreements.language)],
+      ["Language",!observedLanguage&&!catalogLanguage?firstCardValue(card,["language","language_name","language_code"]):null],
       ["Variant",firstCardValue(card,["variant","variant_name","rarity_variant"])],
     ].filter(([,value])=>value!==null&&value!==undefined&&String(value).trim());
     evidence.dataset.summaryLabel=context.verified?"Identity verified":"Identity evidence";

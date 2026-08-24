@@ -2078,6 +2078,143 @@ class RecognitionService:
                 },
             })
 
+    @staticmethod
+    def _canonical_identity_language(value: Any) -> str:
+        normalized = str(value or "").strip().casefold().replace("_", "-")
+        if normalized in {"", "none", "null", "unknown", "n/a", "--"}:
+            return ""
+        aliases = {
+            "en": "en",
+            "english": "en",
+            "chinese": "zh-cn",
+            "simplified chinese": "zh-cn",
+            "zh-cn": "zh-cn",
+        }
+        return aliases.get(normalized, normalized)
+
+    @staticmethod
+    def _identity_collector_key(value: Any) -> str:
+        raw = str(value or "").strip().casefold().replace(" ", "")
+        if raw in {"", "none", "null", "unknown", "n/a", "--"}:
+            return ""
+        return "/".join(
+            str(int(part)) if part.isdigit() else part
+            for part in raw.split("/")
+        )
+
+    @classmethod
+    def _enforce_payload_identity_consistency(
+        cls,
+        payload: dict[str, Any],
+    ) -> None:
+        """Keep observed OCR evidence separate from the selected catalog record."""
+        candidates = [
+            item for item in payload.get("candidates") or []
+            if isinstance(item, dict)
+            and str(item.get("source") or "").casefold() != "ocr_provisional"
+        ]
+        catalog = payload.get("database_match") or next(iter(candidates), {})
+        if not isinstance(catalog, dict):
+            catalog = {}
+
+        observed_language = payload.get("language")
+        catalog_language = catalog.get("language") or catalog.get("language_code")
+        observed_collector = (
+            payload.get("ocr_collector_number")
+            or payload.get("collector_number")
+        )
+        catalog_collector = (
+            catalog.get("collector_number")
+            or catalog.get("number")
+        )
+        observed_language_key = cls._canonical_identity_language(
+            observed_language
+        )
+        catalog_language_key = cls._canonical_identity_language(
+            catalog_language
+        )
+        language_known = bool(
+            observed_language_key
+            and catalog_language_key
+            and observed_language_key != "unknown"
+            and catalog_language_key != "unknown"
+        )
+        language_agreement = (
+            observed_language_key == catalog_language_key
+            if language_known
+            else None
+        )
+        observed_collector_key = cls._identity_collector_key(
+            observed_collector
+        )
+        catalog_collector_key = cls._identity_collector_key(
+            catalog_collector
+        )
+        collector_known = bool(observed_collector_key and catalog_collector_key)
+        collector_agreement = (
+            observed_collector_key == catalog_collector_key
+            if collector_known
+            else None
+        )
+
+        conflicts: list[dict[str, Any]] = []
+        existing = payload.get("identity_conflict")
+        if isinstance(existing, dict) and existing.get("reason"):
+            conflicts.append({
+                "field": "printed_code",
+                "observed": existing.get("observed"),
+                "catalog": existing.get("selected"),
+                "reason": existing.get("reason"),
+            })
+        if language_agreement is False:
+            conflicts.append({
+                "field": "language",
+                "observed": observed_language,
+                "catalog": catalog_language,
+                "reason": "observed_catalog_mismatch",
+            })
+        if collector_agreement is False:
+            conflicts.append({
+                "field": "collector_number",
+                "observed": observed_collector,
+                "catalog": catalog_collector,
+                "reason": "observed_catalog_mismatch",
+            })
+
+        payload["identity_evidence"] = {
+            "observed": {
+                "printed_name": payload.get("name_candidate"),
+                "collector_number": observed_collector,
+                "language": observed_language,
+            },
+            "catalog": {
+                "printed_name": (
+                    catalog.get("printed_name")
+                    or catalog.get("name")
+                ),
+                "collector_number": catalog_collector,
+                "language": catalog_language,
+            },
+            "agreements": {
+                "collector_number": collector_agreement,
+                "language": language_agreement,
+            },
+        }
+        payload["identity_conflicts"] = conflicts
+        payload["identity_consistent"] = not conflicts
+        if not conflicts:
+            return
+
+        payload.update({
+            "recognition_locked": False,
+            "verification_state": "REVIEW_NEEDED",
+            "lock_reason": None,
+        })
+        for stage in payload.get("pipeline_stages") or []:
+            if isinstance(stage, dict) and stage.get("key") == "verify":
+                stage["state"] = "waiting"
+                stage["detail"] = "Observed and catalog identity evidence disagree"
+
     def _record_footer_observations(
         self,
         *,
@@ -4242,6 +4379,7 @@ class RecognitionService:
                 "locked_set_reconciled_identity": locked_set_reconciled_identity,
                 "variant_ambiguity": variant_ambiguity,
                 "printed_identity_confirmed": printed_identity_confirmed,
+                "identity_conflict": None,
                 "unique_verified_collector_fraction": (
                     unique_verified_collector_fraction
                 ),
@@ -4440,6 +4578,7 @@ class RecognitionService:
                 })
         self._apply_single_temporal_confirmation(payload)
         self._enforce_payload_printed_code_consistency(payload)
+        self._enforce_payload_identity_consistency(payload)
 
         with self._lock:
             current = self._current_generation

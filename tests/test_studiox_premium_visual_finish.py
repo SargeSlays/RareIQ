@@ -37,7 +37,9 @@ def test_identity_hero_and_verdict_badges_keep_truthful_ids() -> None:
         assert HTML.count(f'id="{element_id}"') == 1
     assert ".premium-card-context-header" in CSS
     assert '.identity-verdict-badge[data-verdict="exact-match"]' in CSS
-    assert 'badge.textContent=verified?"EXACT MATCH":"CANDIDATE · VERIFYING"' in JS
+    assert 'badge.textContent=verified' in JS
+    assert '?"REVIEW NEEDED"' in JS
+    assert ':"CANDIDATE · VERIFYING"' in JS
 
 
 def test_widget_hierarchy_is_visual_only() -> None:
