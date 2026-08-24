@@ -10766,12 +10766,16 @@ body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!importan
     color:#fff!important;
   }
   body.studiox-ui4.studiox-premium .mobile-operator-actions>[data-mobile-decision-action]{display:none!important}
+  body.studiox-ui4.studiox-premium .mobile-operator-actions>[data-mobile-processing-action]{display:none!important}
   body.studiox-ui4.studiox-premium .mobile-operator-actions>[data-mobile-history-action]{display:none!important}
   body.studiox-ui4.studiox-premium .ui4-mobile-action-region[data-actions="decision"] .mobile-operator-actions>[data-mobile-scan-action]{display:none!important}
   body.studiox-ui4.studiox-premium .ui4-mobile-action-region[data-actions="decision"] .mobile-operator-actions>[data-mobile-decision-action]{display:grid!important}
   body.studiox-ui4.studiox-premium .ui4-mobile-action-region[data-actions="history"] .mobile-operator-actions{grid-template-columns:repeat(3,minmax(44px,1fr))!important}
   body.studiox-ui4.studiox-premium .ui4-mobile-action-region[data-actions="history"] .mobile-operator-actions>:not([data-mobile-history-action]):not(#mobileOperatorStatus){display:none!important}
   body.studiox-ui4.studiox-premium .ui4-mobile-action-region[data-actions="history"] .mobile-operator-actions>[data-mobile-history-action]{display:grid!important}
+  body.studiox-ui4.studiox-premium .ui4-mobile-action-region[data-actions="processing"] .mobile-operator-actions{grid-template-columns:repeat(3,minmax(44px,1fr))!important}
+  body.studiox-ui4.studiox-premium .ui4-mobile-action-region[data-actions="processing"] .mobile-operator-actions>:not([data-mobile-processing-action]):not([data-mobile-live-action]):not(#mobileOperatorStatus){display:none!important}
+  body.studiox-ui4.studiox-premium .ui4-mobile-action-region[data-actions="processing"] .mobile-operator-actions>[data-mobile-processing-action]{display:grid!important;color:#ffd16d!important;opacity:1!important}
   body.studiox-ui4.studiox-premium .mobile-operator-actions>button:disabled{cursor:not-allowed!important;opacity:.42!important}
   body.studiox-ui4.studiox-premium .mobile-operator-actions>button:focus-visible{outline:2px solid #72e4fa!important;outline-offset:2px!important}
   body.studiox-ui4.studiox-premium .workspace-stage,

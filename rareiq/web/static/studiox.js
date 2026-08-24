@@ -7862,8 +7862,10 @@ function syncMobileOperatorDeck(){
   setCardText("mobileOperatorConnection",connectionLabel);
   const region=document.querySelector(".ui4-mobile-action-region");
   const decisionAvailable=name!=="Waiting for card"&&(!$("approveButton")?.disabled||!$("rejectButton")?.disabled);
-  const actions=ui4InspectorView==="recent"?"history":decisionAvailable?"decision":"scan";
+  const recognitionProcessing=name!=="Waiting for card"&&!decisionAvailable;
+  const actions=ui4InspectorView==="recent"?"history":decisionAvailable?"decision":recognitionProcessing?"processing":"scan";
   if(region){region.dataset.state=state.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"searching";region.dataset.connection=serverConnectionState;region.dataset.actions=actions}
+  if($("mobileOperatorWorking")) $("mobileOperatorWorking").textContent=/VERIFY|CANDIDATE/.test(state.toUpperCase())?"Verifying":"Working";
   if($("mobileOperatorNext")) $("mobileOperatorNext").disabled=connectionUnavailable||Boolean($("nextClearButton")?.disabled);
   if($("mobileOperatorCapture")) $("mobileOperatorCapture").disabled=connectionUnavailable||Boolean(document.querySelector(".premium-capture-action")?.disabled);
   if($("mobileOperatorApprove")) $("mobileOperatorApprove").disabled=connectionUnavailable||Boolean($("approveButton")?.disabled);

@@ -17,6 +17,7 @@ def test_mobile_operator_deck_has_unique_accessible_controls():
         "mobileOperatorCapture",
         "mobileOperatorApprove",
         "mobileOperatorReject",
+        "mobileOperatorWorking",
         "mobileOperatorHistoryLive",
         "mobileOperatorHistoryRefresh",
         "mobileOperatorNext",
@@ -58,13 +59,22 @@ def test_mobile_deck_switches_to_existing_decision_actions_only_for_a_card():
     sync = JS[JS.index("function syncMobileOperatorDeck()") : JS.index("function setMobileOperatorView")]
     assert 'name!=="Waiting for card"' in sync
     assert '!$("approveButton")?.disabled||!$("rejectButton")?.disabled' in sync
-    assert 'const actions=ui4InspectorView==="recent"?"history":decisionAvailable?"decision":"scan"' in sync
+    assert 'const recognitionProcessing=name!=="Waiting for card"&&!decisionAvailable' in sync
+    assert 'const actions=ui4InspectorView==="recent"?"history":decisionAvailable?"decision":recognitionProcessing?"processing":"scan"' in sync
     assert "region.dataset.actions=actions" in sync
     assert '$("mobileOperatorApprove").disabled=connectionUnavailable||Boolean($("approveButton")?.disabled)' in sync
     assert '$("mobileOperatorReject").disabled=connectionUnavailable||Boolean($("rejectButton")?.disabled)' in sync
     assert '[data-mobile-decision-action]{display:none!important}' in CSS
     assert '[data-actions="decision"] .mobile-operator-actions>[data-mobile-scan-action]{display:none!important}' in CSS
     assert '[data-actions="decision"] .mobile-operator-actions>[data-mobile-decision-action]{display:grid!important}' in CSS
+
+
+def test_processing_mode_prevents_capture_or_reconnect_until_decision_is_ready():
+    sync = JS[JS.index("function syncMobileOperatorDeck()") : JS.index("function setMobileOperatorView")]
+    assert '$("mobileOperatorWorking").textContent=/VERIFY|CANDIDATE/.test(state.toUpperCase())?"Verifying":"Working"' in sync
+    assert 'id="mobileOperatorWorking" disabled data-mobile-processing-action' in HTML
+    assert '[data-actions="processing"] .mobile-operator-actions>:not([data-mobile-processing-action]):not([data-mobile-live-action]):not(#mobileOperatorStatus){display:none!important}' in CSS
+    assert '[data-actions="processing"] .mobile-operator-actions>[data-mobile-processing-action]{display:grid!important' in CSS
 
 
 def test_mobile_deck_reuses_connection_events_and_blocks_unsafe_actions():
