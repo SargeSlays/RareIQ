@@ -25,6 +25,9 @@ const STUDIOX_PREFERENCES_KEY="rareiq.studiox.workspacePreferences.v1";
 const STUDIOX_SECONDARY_BAY_KEY="rareiq.studiox.secondaryBayPreferences.v1";
 const CAMERA_WORKSPACE_KEY="rareiq.studiox.cameraWorkspace.v1";
 const STUDIOX_THEME_KEY="rareiq.studiox.theme.v1";
+const STUDIOX_PREVIEW_ZOOM_MIN=.8;
+const STUDIOX_PREVIEW_ZOOM_MAX=2.5;
+const STUDIOX_PREVIEW_ZOOM_STEP=.1;
 const CAMERA_WORKSPACE_LAYOUTS=["single","dual-side","triple","quad"];
 const CAMERA_RECOVER_ENDPOINT="/api/camera/recover";
 let studioXPreferences={
@@ -4682,7 +4685,7 @@ function normalizeStudioXPreferences(value){
       ? value.viewerMode
       : "auto",
     previewZoom:Number.isFinite(zoom)
-      ? Math.max(.8,Math.min(2.5,zoom))
+      ? Math.max(STUDIOX_PREVIEW_ZOOM_MIN,Math.min(STUDIOX_PREVIEW_ZOOM_MAX,zoom))
       : 1,
     inspectorWidth:Number.isFinite(inspectorWidth)
       ? Math.max(340,Math.min(760,inspectorWidth))
@@ -5527,6 +5530,7 @@ function applyStudioXViewerPresentation(
   if($("viewerZoomValue")){
     $("viewerZoomValue").textContent=`${Math.round(studioXPreferences.previewZoom*100)}%`;
   }
+  syncStudioXViewerZoomControls();
   if($("viewerModeStatus")){
     $("viewerModeStatus").textContent=
       requested==="card-focus"&&!geometry
@@ -5540,6 +5544,16 @@ function applyStudioXViewerPresentation(
         : "Full frame";
   }
   updateViewerInspectionHeader(context);
+}
+
+function syncStudioXViewerZoomControls(){
+  const zoom=studioXPreferences.previewZoom;
+  const atMinimum=zoom<=STUDIOX_PREVIEW_ZOOM_MIN+.001;
+  const atMaximum=zoom>=STUDIOX_PREVIEW_ZOOM_MAX-.001;
+  const atFit=Math.abs(zoom-1)<.001;
+  if($("viewerZoomOut")) $("viewerZoomOut").disabled=atMinimum;
+  if($("viewerZoomIn")) $("viewerZoomIn").disabled=atMaximum;
+  if($("viewerZoomReset")) $("viewerZoomReset").disabled=atFit;
 }
 
 function setStudioXViewerMode(mode){
@@ -5561,7 +5575,7 @@ function setStudioXPreviewZoom(value){
 }
 
 function adjustStudioXPreviewZoom(delta){
-  setStudioXPreviewZoom(studioXPreferences.previewZoom+delta);
+  setStudioXPreviewZoom(Number((studioXPreferences.previewZoom+delta).toFixed(2)));
 }
 
 function resetStudioXPreviewZoom(){
@@ -8786,11 +8800,11 @@ function initializeStudioXUI4(){
     setStudioXViewerMode(event.target.value);
   });
   $("viewerZoomOut")?.addEventListener("click",()=>{
-    adjustStudioXPreviewZoom(-.1);
+    adjustStudioXPreviewZoom(-STUDIOX_PREVIEW_ZOOM_STEP);
   });
   $("viewerZoomReset")?.addEventListener("click",resetStudioXPreviewZoom);
   $("viewerZoomIn")?.addEventListener("click",()=>{
-    adjustStudioXPreviewZoom(.1);
+    adjustStudioXPreviewZoom(STUDIOX_PREVIEW_ZOOM_STEP);
   });
   $("secondaryBayMode")?.addEventListener("change",event=>setSecondaryBayMode(event.target.value));
   $("secondaryBaySize")?.addEventListener("change",event=>{

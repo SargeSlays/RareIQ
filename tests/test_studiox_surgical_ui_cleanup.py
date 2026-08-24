@@ -44,6 +44,19 @@ def test_viewer_controls_and_handlers_are_preserved_once() -> None:
     assert '$("viewerZoomIn")?.addEventListener("click"' in JS
 
 
+def test_viewer_zoom_controls_reflect_real_bounds_and_fit_state() -> None:
+    assert "const STUDIOX_PREVIEW_ZOOM_MIN=.8;" in JS
+    assert "const STUDIOX_PREVIEW_ZOOM_MAX=2.5;" in JS
+    assert "const STUDIOX_PREVIEW_ZOOM_STEP=.1;" in JS
+    start = JS.index("function syncStudioXViewerZoomControls")
+    end = JS.index("function setStudioXViewerMode", start)
+    zoom_controls = JS[start:end]
+    assert '$("viewerZoomOut").disabled=atMinimum' in zoom_controls
+    assert '$("viewerZoomIn").disabled=atMaximum' in zoom_controls
+    assert '$("viewerZoomReset").disabled=atFit' in zoom_controls
+    assert "Number((studioXPreferences.previewZoom+delta).toFixed(2))" in JS
+
+
 def test_confidence_sources_are_labeled_separately() -> None:
     assert "Recognition confidence" in HTML
     assert '<span>Visual confidence</span><b id="identifyVisualConfidence">' in HTML

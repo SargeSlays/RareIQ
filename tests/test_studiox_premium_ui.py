@@ -252,7 +252,9 @@ def test_preview_zoom_is_clamped_resettable_and_preview_only() -> None:
     assert 'id="viewerZoomOut"' in html
     assert 'id="viewerZoomReset"' in html
     assert 'id="viewerZoomIn"' in html
-    assert "Math.max(.8,Math.min(2.5,zoom))" in script
+    assert "Math.max(STUDIOX_PREVIEW_ZOOM_MIN,Math.min(STUDIOX_PREVIEW_ZOOM_MAX,zoom))" in script
+    assert "const STUDIOX_PREVIEW_ZOOM_MIN=.8;" in script
+    assert "const STUDIOX_PREVIEW_ZOOM_MAX=2.5;" in script
     assert "function resetStudioXPreviewZoom" in script
     viewer_start = script.index("function applyStudioXViewerPresentation")
     viewer_end = script.index("function setStudioXViewerMode", viewer_start)
