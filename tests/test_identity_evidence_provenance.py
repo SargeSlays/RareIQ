@@ -97,6 +97,62 @@ def test_chinese_language_aliases_do_not_create_a_false_conflict() -> None:
     assert card["verification_state"] == "VERIFIED"
 
 
+def test_disputed_identity_is_not_published_as_authoritative_current_card() -> None:
+    service = object.__new__(BackendTestService)
+    service.orchestrator = None
+    candidate = _catalog_candidate()
+    recognition = {
+        "language": "Chinese",
+        "ocr_collector_number": "029/084",
+        "overall_confidence": 0.801,
+        "recognition_locked": True,
+        "verification_state": "VERIFIED",
+        "candidates": [candidate],
+    }
+    state = {
+        "candidates": [candidate],
+        "result_current": True,
+        "identity_evidence": {
+            "observed": {
+                "collector_number": "029/084",
+                "language": "Chinese",
+            },
+            "catalog": {
+                "collector_number": "29/84",
+                "language": "English",
+            },
+        },
+    }
+
+    assert service.authoritative_current_card(recognition, state) is None
+    assert state["identity_evidence"]["observed"]["language"] == "Chinese"
+    assert state["identity_evidence"]["catalog"]["language"] == "English"
+
+
+def test_verified_consistent_identity_remains_authoritative() -> None:
+    service = object.__new__(BackendTestService)
+    service.orchestrator = None
+    candidate = _catalog_candidate("zh-cn")
+
+    card = service.authoritative_current_card(
+        recognition={
+            "language": "Simplified Chinese",
+            "ocr_collector_number": "029/084",
+            "overall_confidence": 0.93,
+            "recognition_locked": True,
+            "verification_state": "VERIFIED",
+            "candidates": [candidate],
+        },
+        state={"candidates": [candidate], "result_current": True},
+    )
+
+    assert card is not None
+    assert card["card_id"] == "me5-29"
+    assert card["identity_consistent"] is True
+    assert card["verification_state"] == "VERIFIED"
+    assert card["recognition_locked"] is True
+
+
 def test_final_recognition_payload_routes_language_conflict_to_review() -> None:
     payload = {
         "name_candidate": None,

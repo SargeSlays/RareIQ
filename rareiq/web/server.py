@@ -2528,7 +2528,7 @@ def _advisor_context() -> dict[str, Any]:
     manager = dict(camera_status.get("manager") or {})
     vision = dict(camera_status.get("vision") or {})
     session = orchestrator.sessions.snapshot()
-    current_card = orchestrator.backend_test.normalize_current_card(
+    current_card = orchestrator.backend_test.authoritative_current_card(
         recognition,
         snapshot,
     )
@@ -3016,7 +3016,7 @@ async def recognition_state():
         "server_session_id": SERVER_SESSION_ID,
         "tcg": orchestrator.tcg_registry.selection(),
         "recognition_state": snapshot,
-        "current_card": orchestrator.backend_test.normalize_current_card(
+        "current_card": orchestrator.backend_test.authoritative_current_card(
             orchestrator.recognition.status(),
             snapshot,
         ),

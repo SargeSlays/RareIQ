@@ -22,6 +22,19 @@ def test_rare_intelligence_uses_verified_canonical_card():
     assert "profile_verified = True" in endpoint
 
 
+def test_live_api_only_publishes_authoritative_current_card():
+    endpoint = SERVER.split("async def recognition_state", 1)[1]
+    endpoint = endpoint.split('@app.get("/api/tcg/games")', 1)[0]
+    assert "authoritative_current_card" in endpoint
+
+    service = (
+        ROOT / "rareiq" / "services" / "backend_test_service.py"
+    ).read_text(encoding="utf-8")
+    runtime = service.split("def runtime_snapshot", 1)[1]
+    runtime = runtime.split("def smoke_test", 1)[0]
+    assert '"current_card": self.authoritative_current_card(' in runtime
+
+
 def test_latency_total_cannot_be_less_than_visible_stages():
     renderer = SCRIPT.split("function renderRecognitionLatencyTrace", 1)[1]
     renderer = renderer.split("function loadRecognitionLatencySamples", 1)[0]

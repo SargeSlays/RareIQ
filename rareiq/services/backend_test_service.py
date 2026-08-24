@@ -316,6 +316,30 @@ class BackendTestService:
             ),
         }
 
+    def authoritative_current_card(
+        self,
+        recognition: dict[str, Any] | None = None,
+        state: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
+        """Return a card only when its identity is safe to publish as current."""
+        if recognition is None:
+            recognition = self.orchestrator.recognition.status()
+        if state is None:
+            state = self.orchestrator.recognition_state.snapshot()
+
+        card = self.normalize_current_card(recognition, state)
+        if not card:
+            return None
+        if card.get("identity_consistent") is not True:
+            return None
+        if str(card.get("verification_state") or "").upper() != "VERIFIED":
+            return None
+        if card.get("recognition_locked") is not True:
+            return None
+        if state.get("result_current") is False:
+            return None
+        return card
+
     def runtime_snapshot(self) -> dict[str, Any]:
         vision = self.orchestrator.vision.status()
         recognition = self.orchestrator.recognition.status()
@@ -331,7 +355,7 @@ class BackendTestService:
             "camera": vision,
             "recognition": recognition,
             "recognition_state": recognition_state,
-            "current_card": self.normalize_current_card(
+            "current_card": self.authoritative_current_card(
                 recognition,
                 recognition_state,
             ),
