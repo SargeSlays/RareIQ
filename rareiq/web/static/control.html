@@ -30,9 +30,9 @@
 <link rel="stylesheet" href="/static/studiox_61.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.8.8-provisional-identity">
-<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.53-spotify-setup1">
+<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.54-library-actions1">
 <link rel="stylesheet" href="/static/pack_run_coach.css?v=6.8.8-provisional-identity">
-<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.53-spotify-setup1"></script>
+<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.54-library-actions1"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><style id="ui4-unified-card-stage-overrides">
@@ -1715,7 +1715,7 @@ Choose a source from Manage Cameras</span>
         <header class="library-console-heading"><div><h2 id="libraryConsoleTitle">Library Overview</h2><p id="libraryConsoleDescription">Reference coverage, active maintenance, and safe operator actions.</p></div><button class="riq-button" id="libraryConsoleRefresh" type="button">Refresh Status</button></header>
         <section class="library-console-panel" id="libraryOverview" role="tabpanel" aria-labelledby="libraryTabOverview" tabindex="0">
           <div class="library-console-metrics"><article><span>Sets Synced</span><strong id="libraryOverviewSets">0 / 0</strong></article><article><span>Catalog Cards</span><strong id="libraryOverviewCards">0</strong></article><article><span>Local Images</span><strong id="libraryOverviewImages">0</strong></article><article><span>Queued Jobs</span><strong id="libraryOverviewJobs">0</strong></article></div>
-          <div class="library-maintenance-actions"><article><div><span>Protected maintenance</span><strong>Optimize Library</strong><p>Validate registered assets and synchronize existing indexes. Index and provider actions live in their dedicated views.</p></div><button class="riq-button" type="button" onclick="maintenance('/api/library/optimize','Optimization')">Optimize</button></article></div>
+          <div class="library-maintenance-actions"><article><div><span>Protected maintenance</span><strong>Optimize Library</strong><p>Validate registered assets and synchronize existing indexes. Index and provider actions live in their dedicated views.</p></div><button class="riq-button" type="button" onclick="maintenance('/api/library/optimize','Optimization',this)">Optimize</button></article></div>
           <p class="library-operation-status" id="systemStatus" role="status">Library ready.</p>
         </section>
         <section class="library-console-panel" id="libraryMetadata" role="tabpanel" aria-labelledby="libraryTabMetadata" tabindex="0" hidden>
@@ -1724,18 +1724,18 @@ Choose a source from Manage Cameras</span>
         </section>
         <section class="library-console-panel" id="libraryArtwork" role="tabpanel" aria-labelledby="libraryTabArtwork" tabindex="0" hidden>
           <div class="library-console-metrics"><article><span>Registered Assets</span><strong id="libraryArtworkAssets">0</strong></article><article><span>Registry Size</span><strong id="libraryArtworkBytes">0 MB</strong></article><article><span>Reference Images</span><strong id="libraryArtworkImages">0</strong></article><article><span>Coverage</span><strong id="libraryArtworkCoverage">0%</strong></article></div>
-          <section class="library-console-card"><header><div><span>Asset registry</span><strong>Artwork Integrity</strong></div><b id="libraryArtworkState">CHECKING</b></header><p id="libraryArtworkDetail">Loading artwork registry diagnostics…</p><button class="riq-button" type="button" onclick="maintenance('/api/assets/scan','Asset scan')">Scan Registered Assets</button></section>
+          <section class="library-console-card"><header><div><span>Asset registry</span><strong>Artwork Integrity</strong></div><b id="libraryArtworkState">CHECKING</b></header><p id="libraryArtworkDetail">Loading artwork registry diagnostics…</p><button class="riq-button" type="button" onclick="maintenance('/api/assets/scan','Asset scan',this)">Scan Registered Assets</button></section>
         </section>
         <section class="library-console-panel" id="libraryIndexes" role="tabpanel" aria-labelledby="libraryTabIndexes" tabindex="0" hidden>
           <div class="library-console-metrics"><article><span>Global Records</span><strong id="libraryIndexGlobalRecords">0</strong></article><article><span>Dimensions</span><strong id="libraryIndexDimensions">0</strong></article><article><span>Legacy Records</span><strong id="libraryIndexLegacyRecords">0</strong></article><article><span>Activation</span><strong id="libraryIndexActivation">IDLE</strong></article></div>
-          <section class="library-console-card"><header><div><span>Recognition indexes</span><strong>Active Index Health</strong></div><b id="libraryIndexState">CHECKING</b></header><p id="libraryIndexDetail">Loading index diagnostics…</p><button class="riq-button" type="button" onclick="maintenance('/api/index/incremental','Indexing')">Index New Artwork</button></section>
+          <section class="library-console-card"><header><div><span>Recognition indexes</span><strong>Active Index Health</strong></div><b id="libraryIndexState">CHECKING</b></header><p id="libraryIndexDetail">Loading index diagnostics…</p><button class="riq-button" type="button" onclick="maintenance('/api/index/incremental','Indexing',this)">Index New Artwork</button></section>
         </section>
         <section class="library-console-panel" id="libraryProviders" role="tabpanel" aria-labelledby="libraryTabProviders" tabindex="0" hidden>
-          <section class="library-console-card"><header><div><span>External references</span><strong>Provider Diagnostics</strong></div><button class="riq-button" type="button" onclick="maintenance('/api/providers/check','Provider check')">Run Provider Check</button></header><div class="library-provider-list" id="libraryProviderRows"><p>No provider check has run.</p></div></section>
+          <section class="library-console-card"><header><div><span>External references</span><strong>Provider Diagnostics</strong></div><button class="riq-button" type="button" onclick="maintenance('/api/providers/check','Provider check',this)">Run Provider Check</button></header><div class="library-provider-list" id="libraryProviderRows"><p>No provider check has run.</p></div></section>
         </section>
         <section class="library-console-panel" id="libraryUpdates" role="tabpanel" aria-labelledby="libraryTabUpdates" tabindex="0" hidden>
-          <div class="library-console-metrics"><article><span>RareIQ Version</span><strong id="libraryUpdateVersion">Checking</strong></article><article><span>Boot State</span><strong id="libraryUpdateBoot">Checking</strong></article><article><span>New Releases</span><strong id="libraryUpdateReleases">0</strong></article><article><span>Current Job</span><strong id="libraryUpdateJob">Idle</strong></article></div>
-          <section class="library-console-card"><header><div><span>Recent library activity</span><strong>Update Journal</strong></div><b id="libraryUpdateProgress">0%</b></header><div class="library-provider-list" id="libraryUpdateActivity"><p>No library activity has been recorded.</p></div><button class="riq-button" type="button" onclick="maintenance('/api/master-builder/refresh','New release refresh')">Check New Releases</button></section>
+          <div class="library-console-metrics"><article><span>RareIQ Version</span><strong id="libraryUpdateVersion">Checking</strong></article><article><span>Boot State</span><strong id="libraryUpdateBoot">Checking</strong></article><article><span>Records Added</span><strong id="libraryUpdateReleases">0</strong></article><article><span>Current Job</span><strong id="libraryUpdateJob">Idle</strong></article></div>
+          <section class="library-console-card"><header><div><span>Recent library activity</span><strong>Update Journal</strong></div><b id="libraryUpdateProgress">0%</b></header><div class="library-provider-list" id="libraryUpdateActivity"><p>No library activity has been recorded.</p></div><button class="riq-button" type="button" onclick="maintenance('/api/master-builder/refresh','New release refresh',this)">Check New Releases</button></section>
         </section>
       </div>
     </div>

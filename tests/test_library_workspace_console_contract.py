@@ -49,8 +49,23 @@ def test_library_preserves_explicit_existing_maintenance_actions():
         "/api/master-builder/refresh",
     ):
         assert endpoint in CONTROL
-    assert "async function maintenance(path,label)" in SCRIPT
+    assert "async function maintenance(path,label,button=null)" in SCRIPT
     assert 'api(path,{method:"POST",body:"{}"})' in SCRIPT
+
+
+def test_library_maintenance_actions_have_visible_feedback_and_click_protection():
+    assert "async function maintenance(path,label,button=null)" in SCRIPT
+    assert "if(button){button.disabled=true" in SCRIPT
+    assert "notify(result.ok===false?`${label} Failed`:`${label} Queued`" in SCRIPT
+    assert "loadLibraryConsole().catch(()=>{})" in SCRIPT
+    assert "finally{if(button){button.disabled=false;button.textContent=originalLabel;}}" in SCRIPT
+    assert CONTROL.count(",this)\"") == 5
+
+
+def test_library_update_metric_describes_imported_records_truthfully():
+    assert "Records Added" in CONTROL
+    assert "New Releases</span>" not in CONTROL
+    assert "builder.new_releases_added" in SCRIPT
 
 
 def test_library_navigation_is_persistent_and_keyboard_accessible():

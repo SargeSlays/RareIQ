@@ -6612,16 +6612,23 @@ function openProgram(){
   window.open("/program","rareiq-program","width=1280,height=720");
 }
 
-async function maintenance(path,label){
-  $("systemStatus").textContent=`${label} started...`;
+async function maintenance(path,label,button=null){
+  const status=$("systemStatus"),originalLabel=button?.textContent||"";
+  if(status)status.textContent=`${label} started...`;
+  if(button){button.disabled=true;button.textContent=`${label}…`;}
   try{
     const result=await api(path,{method:"POST",body:"{}"});
-    $("systemStatus").textContent=result.ok===false
+    const message=result.ok===false
       ? (result.error||`${label} failed.`)
       : `${label} queued.`;
-  }catch{
-    $("systemStatus").textContent=`${label} failed.`;
-  }
+    if(status)status.textContent=message;
+    notify(result.ok===false?`${label} Failed`:`${label} Queued`,message,result.ok===false?"error":"success");
+    if(result.ok!==false)loadLibraryConsole().catch(()=>{});
+  }catch(error){
+    const message=error?.message||`${label} failed.`;
+    if(status)status.textContent=message;
+    notify(`${label} Failed`,message,"error");
+  }finally{if(button){button.disabled=false;button.textContent=originalLabel;}}
 }
 
 const fetchLearnedCorrections=()=>api("/api/intelligence/corrections?limit=30");
