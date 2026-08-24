@@ -25,6 +25,62 @@ class CameraManagerService:
     FIRST_FRAME_TIMEOUT_SECONDS = 12.0
     FRAME_STALL_TIMEOUT_SECONDS = 2.0
 
+    @staticmethod
+    def _control_profile(camera: dict[str, Any]) -> dict[str, Any]:
+        """Infer safe controls from USB identity without opening the device."""
+        name = str(camera.get("name") or "").strip()
+        normalized = name.casefold()
+        is_virtual = any(token in normalized for token in (
+            "virtual", "obs", "ndi", "snap camera", "manycam",
+        ))
+        is_insta360_link = "insta360" in normalized and "link" in normalized
+        is_mechanical_ptz = is_insta360_link or any(token in normalized for token in (
+            "ptz", "rally", "conferencecam", "meetup",
+        ))
+        capabilities = {
+            "pan": bool(is_mechanical_ptz and not is_virtual),
+            "tilt": bool(is_mechanical_ptz and not is_virtual),
+            "zoom": bool(not is_virtual),
+            "recenter": bool(is_mechanical_ptz and not is_virtual),
+            "presets": bool(is_mechanical_ptz and not is_virtual),
+            "autofocus": bool(not is_virtual),
+            "focus": bool(not is_virtual),
+            "exposure": bool(not is_virtual),
+            "brightness": bool(not is_virtual),
+            "white_balance": bool(not is_virtual),
+            "tracking": bool(is_insta360_link),
+        }
+        transport = {
+            "pan": "uvc" if capabilities["pan"] else "unavailable",
+            "tilt": "uvc" if capabilities["tilt"] else "unavailable",
+            "zoom": "uvc" if capabilities["zoom"] else "unavailable",
+            "recenter": "uvc" if capabilities["recenter"] else "unavailable",
+            "presets": "rareiq" if capabilities["presets"] else "unavailable",
+            "autofocus": "uvc" if capabilities["autofocus"] else "unavailable",
+            "focus": "uvc" if capabilities["focus"] else "unavailable",
+            "exposure": "uvc" if capabilities["exposure"] else "unavailable",
+            "brightness": "uvc" if capabilities["brightness"] else "unavailable",
+            "white_balance": "uvc" if capabilities["white_balance"] else "unavailable",
+            "tracking": "insta360-controller" if capabilities["tracking"] else "unavailable",
+        }
+        control_count = sum(bool(value) for value in capabilities.values())
+        return {
+            "class": (
+                "insta360_link" if is_insta360_link else
+                "mechanical_ptz" if is_mechanical_ptz else
+                "virtual" if is_virtual else "fixed_camera"
+            ),
+            "label": (
+                "Insta360 intelligent PTZ" if is_insta360_link else
+                "PTZ camera" if is_mechanical_ptz else
+                "Virtual camera" if is_virtual else "Standard camera"
+            ),
+            "capabilities": capabilities,
+            "transport": transport,
+            "control_score": control_count,
+            "controller_assisted": ["tracking"] if is_insta360_link else [],
+        }
+
     def __init__(
         self,
         vision: VisionService,
@@ -240,7 +296,11 @@ class CameraManagerService:
         with self._operation_lock:
             self._set_state("discovering", "Scanning Windows camera devices.")
             raw_devices = self.vision.list_cameras()
-            devices = [enrich_camera_source(item) for item in raw_devices]
+            devices = []
+            for item in raw_devices:
+                device = enrich_camera_source(item)
+                device["control_profile"] = self._control_profile(device)
+                devices.append(device)
             previous_sources = dict(self._sources)
             self._sources = {item["source_id"]: dict(item) for item in devices}
             for source_id, previous in previous_sources.items():
@@ -690,6 +750,7 @@ class CameraManagerService:
                 "recovering",
                 "ready",
                 "selected",
+                "error",
             }:
                 self._set_state_if_changed(
                     "running",
@@ -790,6 +851,74 @@ class CameraManagerService:
 
     def latest_frame(self):
         return self.vision.latest_frame()
+
+    def ptz_status(self) -> dict[str, Any]:
+        """Expose camera-owner PTZ state through the manager façade."""
+        status = self.vision.ptz_status()
+        selected = self.selected_camera() or {}
+        profile = self._control_profile(selected)
+        for axis, detail in status.get("properties", {}).items():
+            if detail.get("confirmed"):
+                profile["capabilities"][axis] = True
+                profile["transport"][axis] = "uvc-confirmed"
+        status["profile"] = profile
+        status["selected_source_id"] = selected.get("source_id")
+        return status
+
+    def camera_control_devices(self, force: bool = False) -> list[dict[str, Any]]:
+        devices = self.discover(force=force)
+        selected = self.selected_camera() or {}
+        selected_source_id = selected.get("source_id")
+        ranked = []
+        for device in devices:
+            item = dict(device)
+            profile = dict(item.get("control_profile") or self._control_profile(item))
+            item["control_profile"] = profile
+            item["selected"] = bool(
+                item.get("source_id") == selected_source_id
+                or (
+                    not selected_source_id
+                    and item.get("index") == selected.get("index")
+                    and item.get("backend") == selected.get("backend")
+                )
+            )
+            ranked.append(item)
+        ranked = sorted(
+            ranked,
+            key=lambda item: (
+                not item["selected"],
+                -int(item["control_profile"].get("control_score") or 0),
+                int(item.get("backend") or 0) != 700,
+                str(item.get("name") or "").casefold(),
+            ),
+        )
+        physical_devices: dict[tuple[str, int], dict[str, Any]] = {}
+        for item in ranked:
+            key = (
+                str(item.get("name") or "Camera").strip().casefold(),
+                int(item.get("index") or 0),
+            )
+            physical_devices.setdefault(key, item)
+        return list(physical_devices.values())
+
+    def camera_control(
+        self,
+        action: str,
+        *,
+        speed: str = "medium",
+        preset: int | None = None,
+        control: str | None = None,
+        value: float | None = None,
+        timeout: float = 1.0,
+    ) -> dict[str, Any]:
+        return self.vision.camera_control(
+            action,
+            speed=speed,
+            preset=preset,
+            control=control,
+            value=value,
+            timeout=timeout,
+        )
 
     def set_auto_capture(self, enabled: bool) -> dict[str, Any]:
         return self.vision.set_auto_capture(enabled)

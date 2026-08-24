@@ -190,6 +190,7 @@ class CameraSourceSession:
             "release_count": self._release_count,
             "requested_preview_resolution": [self.PREVIEW_WIDTH, self.PREVIEW_HEIGHT],
             "requested_preview_fps": self.PREVIEW_FPS,
+            "quality_policy": "staging_preview_efficient",
         }
 
     def _pump(self) -> None:

@@ -109,6 +109,15 @@ TARGETS = [
         ),
     },
     {
+        "id": "GEM_PACK_VOL_6",
+        "name": "Gem Pack Vol 6",
+        "kind": "set",
+        "url": (
+            "https://www.pokipair.com/"
+            "gem-pack-vol-6-card-list/"
+        ),
+    },
+    {
         "id": "EXCLUSIVE_ZH_CN",
         "name": (
             "Exclusive Simplified Chinese "

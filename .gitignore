@@ -1,5 +1,4 @@
 rareiq_secrets.json
-grading_captures/
 updates/
 !updates/
 updates/*
@@ -18,25 +17,29 @@ updates/*
 __pycache__/
 *.pyc
 *.zip
+
+# Local environments and generated test/runtime output
+.venv/
+.pytest_cache/
+artifacts/
+backups/
+benchmarks/
+captures/
+catalog_cache/
+grading_captures/
+*.log
+
 # RareIQ generated runtime data
 RareIQ_Release_Source/
 RareIQ_Zip/
 backup_*/
-catalog_master/card_scan_imports/
-catalog_master/greninja_test/
-catalog_master/pokipair/
-catalog_master/recognition/
-catalog_master/simplified_chinese/
-catalog_master/simplified_chinese_proxy/
-catalog_master/*.pre_pokipair_*.json
+catalog_master/
 rareiq/data/*activation_report.json
 test_card_import/
-# RareIQ generated runtime data
-__pycache__/
-*.pyc
-catalog_master/
-grading_captures/
 pokemon_master_database/
 rarityiq/
 rareiq/data/artwork_index.json
 rareiq/data/provenance/
+rareiq/data/multi_card_presentation.json
+rareiq/data/overlay_presentation.json
+rareiq/data/temporal_multi_card_history.json

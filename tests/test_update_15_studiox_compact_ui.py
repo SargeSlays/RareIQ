@@ -89,9 +89,13 @@ def test_warning_failed_and_skipped_have_non_color_indicators() -> None:
 def test_update15_stylesheet_is_last_and_cache_busted() -> None:
     html = read("control.html")
     links = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
-    assert links[-2] == "/static/studiox_ui4_tokens.css?v=6.4.15-provenance2"
-    assert links[-1] == "/static/studiox_update15.css?v=6.4.15-provenance2"
-    assert '/static/studiox.js?v=6.4.15-provenance2' in html
+    active_version = re.search(r'data-studiox-build="([^"]+)"', html).group(1)
+    assert links[-3:] == [
+        f"/static/studiox_ui4_tokens.css?v={active_version}",
+        f"/static/studiox_update15.css?v={active_version}",
+        f"/static/pack_run_coach.css?v={active_version}",
+    ]
+    assert f'/static/studiox.js?v={active_version}' in html
 
 
 def test_compact_controls_and_primary_breakpoints_are_contractual() -> None:
@@ -131,6 +135,25 @@ def test_existing_control_ids_and_handlers_are_preserved() -> None:
         assert handler in html
     for handler in ("loadCameraList", "reconnectCamera", "restartFeed"):
         assert handler in read("studiox.js")
+
+
+def test_all_intelligence_widgets_support_persistent_drag_reordering() -> None:
+    script = read("studiox.js")
+    css = read("studiox_update15.css")
+    assert 'data-widget-drag-handle="${id}"' in script
+    # The primary Identify tool is user-orderable too; no tool receives a
+    # hard-coded exemption from the saved layout.
+    assert 'sourceId==="identify"' not in script
+    assert 'targetId==="identify"' not in script
+    assert 'spotify:"Spotify DJ"' in script
+    assert 'function reorderStudioXWidgetByDrop' in script
+    assert 'widgetWorkspace.addEventListener("dragstart"' in script
+    assert 'widgetWorkspace.addEventListener("dragover"' in script
+    assert 'widgetWorkspace.addEventListener("drop"' in script
+    assert 'applyStudioXWidgetLayout({persist:true})' in script
+    assert ".studiox-widget-drag-handle" in css
+    assert ".studiox-widget.is-drop-before::before" in css
+    assert ".studiox-widget.is-drop-after::after" in css
 
 
 def test_camera_and_recognition_contracts_remain_present() -> None:

@@ -5,6 +5,7 @@ from typing import Any
 
 ARTWORK_SOURCES = {
     "artwork_index",
+    "global_visual_index",
     "pokipair",
     "pokipair_visual_index",
 }
@@ -69,6 +70,15 @@ class CandidateRankerService:
                     candidate
                 ),
             )
+            for evidence_key in (
+                "printed_code",
+                "printed_code_match",
+                "printed_code_match_mode",
+                "printed_code_matching_frames",
+                "printed_code_distance",
+            ):
+                if candidate.get(evidence_key) is not None:
+                    item[evidence_key] = candidate.get(evidence_key)
 
             source = str(
                 candidate.get(
@@ -136,6 +146,10 @@ class CandidateRankerService:
             )
             or ""
         ).strip().lower()
+        printed_code = str(
+            ocr_payload.get("printed_code")
+            or ""
+        ).strip().lower()
 
         detected_language = self._canonical_language(
             ocr_payload.get(
@@ -153,15 +167,17 @@ class CandidateRankerService:
                 )
             ).lower()
 
-            name = str(
-                item.get(
-                    "name"
+            name_aliases = {
+                str(value).strip().lower()
+                for value in (
+                    item.get("name"),
+                    item.get("printed_name"),
+                    item.get("english_name"),
+                    item.get("canonical_name"),
+                    item.get("pokemon_name"),
                 )
-                or item.get(
-                    "printed_name"
-                )
-                or ""
-            ).lower()
+                if str(value or "").strip()
+            }
 
             number = str(
                 item.get(
@@ -169,6 +185,10 @@ class CandidateRankerService:
                 )
                 or ""
             ).lower()
+            candidate_printed_code = str(
+                item.get("printed_code")
+                or ""
+            ).strip().lower()
 
             language = self._canonical_language(
                 item.get(
@@ -186,20 +206,31 @@ class CandidateRankerService:
                 "collector_number": (
                     1.0
                     if (
-                        collector_number
-                        and number
-                        and (
-                            collector_number == number
-                            or collector_number.split("/", 1)[0].lstrip("0")
-                            == number.split("/", 1)[0].lstrip("0")
+                        (
+                            collector_number
+                            and number
+                            and (
+                                collector_number == number
+                                or collector_number.split("/", 1)[0].lstrip("0")
+                                == number.split("/", 1)[0].lstrip("0")
+                            )
+                        )
+                        or (
+                            printed_code
+                            and candidate_printed_code
+                            and printed_code == candidate_printed_code
+                            and item.get("printed_code_match") is True
                         )
                     )
                     else 0.0
                 ),
                 "ocr_name": (
-                    self._text_overlap(
-                        ocr_text,
-                        name,
+                    max(
+                        (
+                            self._text_overlap(ocr_text, name)
+                            for name in name_aliases
+                        ),
+                        default=0.0,
                     )
                 ),
                 "language": (
@@ -310,6 +341,11 @@ class CandidateRankerService:
 
         ranked.sort(
             key=lambda candidate: (
+                bool(candidate.get("printed_code_match")),
+                bool(
+                    candidate.get("verification_strong")
+                    and candidate.get("artwork_verification_strong")
+                ),
                 float(
                     candidate.get(
                         "fused_score",

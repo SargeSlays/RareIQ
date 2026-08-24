@@ -22,6 +22,7 @@ class DetectionResult:
     solidity_score: float = 0.0
     edge_score: float = 0.0
     area_score: float = 0.0
+    ocr_crop: np.ndarray | None = None
 
 
 @dataclass
@@ -47,6 +48,7 @@ class AcquisitionFrame:
     content_fingerprint: str | None = None
     source_camera_index: int | None = None
     source_camera_backend: int | None = None
+    ocr_crop: np.ndarray | None = None
 
 
 class MultiFrameAcquisitionBuffer:
@@ -279,6 +281,7 @@ class MultiFrameAcquisitionBuffer:
         acquisition_epoch: int = 0,
         captured_at: float | None = None,
         provenance: dict[str, Any] | None = None,
+        ocr_crop: np.ndarray | None = None,
     ) -> AcquisitionFrame | None:
         if crop is None or crop.size == 0:
             return None
@@ -318,6 +321,11 @@ class MultiFrameAcquisitionBuffer:
             content_fingerprint=provenance.get("content_fingerprint"),
             source_camera_index=provenance.get("source_camera_index"),
             source_camera_backend=provenance.get("source_camera_backend"),
+            ocr_crop=(
+                crop.copy()
+                if ocr_crop is None
+                else ocr_crop.copy()
+            ),
         )
 
         self.samples.append(sample)
@@ -402,14 +410,11 @@ class MultiFrameAcquisitionBuffer:
         now = time.time() if now is None else float(now)
         quarantine = set(quarantined_frame_ids or ())
         excluded = set(excluded_frame_ids or ())
-        minimum_frame = max(quarantine, default=-1)
         eligible = []
         for sample in self.samples:
             if sample.acquisition_epoch != int(current_epoch):
                 continue
             if sample.frame_id <= 0 or sample.frame_id in quarantine | excluded:
-                continue
-            if sample.frame_id <= minimum_frame:
                 continue
             if current_frame_id is None or sample.frame_id > int(current_frame_id):
                 continue
@@ -523,7 +528,7 @@ class MultiFrameAcquisitionBuffer:
             < self.ARTWORK_STRONG_STRUCTURAL_SIMILARITY_THRESHOLD
         )
         identity_changed = bool(
-            primary_identity_changed
+            primary_identity_changed or artwork_identity_changed
         )
         identity_collapsed = (
             full_distance < self.FULL_CARD_HASH_THRESHOLD - 4
@@ -876,11 +881,15 @@ class VisionService:
     MIN_ENVELOPE_TO_INNER_AREA_RATIO = 4.0
     ENVELOPE_ROI_CONTAINMENT_TOLERANCE = 4.0
 
-    REQUESTED_FRAME_WIDTH = 1920
-    REQUESTED_FRAME_HEIGHT = 1080
+    REQUESTED_FRAME_WIDTH = 3840
+    REQUESTED_FRAME_HEIGHT = 2160
+    REQUESTED_FRAME_FPS = 30
+    REQUESTED_FRAME_FOURCC = "MJPG"
+    PREVIEW_MAX_WIDTH = 1920
     DETECTION_MAX_WIDTH = 960
     OUTPUT_CROP_WIDTH = 1000
     OUTPUT_CROP_HEIGHT = 1400
+    OCR_CROP_MAX_WIDTH = 2000
     SCAN_ZONE = {
         "left": 0.10,
         "top": 0.08,
@@ -896,10 +905,29 @@ class VisionService:
     CAPTURE_COOLDOWN_SECONDS = 1.5
     CAPTURE_MIN_LAPLACIAN_SHARPNESS = 5.0
     CAPTURE_MIN_PIXEL_STDDEV = 28.0
+    CAPTURE_MIN_GUARDED_PIXEL_STDDEV = 24.0
     CAPTURE_MIN_EDGE_DENSITY = 0.008
     CAPTURE_MIN_SIDE_EDGE_SUPPORT = 0.012
     CAPTURE_MIN_SUPPORTED_SIDES = 3
     CAPTURE_MIN_POLYGON_IOU = 0.80
+
+    @classmethod
+    def _capture_texture_supported(
+        cls,
+        *,
+        pixel_stddev: float,
+        sharpness: float,
+        edge_density: float,
+        supported_sides: int,
+    ) -> bool:
+        if pixel_stddev >= cls.CAPTURE_MIN_PIXEL_STDDEV:
+            return True
+        return bool(
+            pixel_stddev >= cls.CAPTURE_MIN_GUARDED_PIXEL_STDDEV
+            and sharpness >= cls.CAPTURE_MIN_LAPLACIAN_SHARPNESS * 2.0
+            and edge_density >= cls.CAPTURE_MIN_EDGE_DENSITY * 2.0
+            and supported_sides == 4
+        )
     CAPTURE_MAX_FRAME_AGE_SECONDS = 0.40
     DUPLICATE_CONTENT_HASH_DISTANCE = 2
     DUPLICATE_ARTWORK_HASH_DISTANCE = 3
@@ -921,6 +949,17 @@ class VisionService:
         self._lock = threading.RLock()
         self._running = False
         self._thread: threading.Thread | None = None
+        self._ptz_commands: deque[dict[str, Any]] = deque()
+        self._ptz_status: dict[str, Any] = {
+            "state": "offline",
+            "message": "Start a camera to detect PTZ controls.",
+            "camera_name": None,
+            "speed": "medium",
+            "properties": {},
+            "presets": {},
+            "last_action": None,
+            "last_error": None,
+        }
 
         self._latest_jpeg: bytes | None = None
         self._latest_frame: np.ndarray | None = None
@@ -954,6 +993,7 @@ class VisionService:
         self._auto_capture_armed = True
         self._missing_frames = 0
         self._last_auto_capture_at = 0.0
+        self._last_auto_capture_epoch = -1
         self._removal_emitted = True
         self._acquisition_epoch = 0
         self._epoch_started_frame_id = 0
@@ -969,6 +1009,7 @@ class VisionService:
             "quarantined_sample_count": 0,
             "last_rejected_frame_id": None,
             "last_accepted_frame_id": None,
+            "selected_frame_age_ms": None,
             "consecutive_retry_count": 0,
             "current_eligible_sample_count": 0,
             "lock_revision": 0,
@@ -990,7 +1031,13 @@ class VisionService:
                 self.REQUESTED_FRAME_WIDTH,
                 self.REQUESTED_FRAME_HEIGHT,
             ],
+            "requested_fps": self.REQUESTED_FRAME_FPS,
+            "requested_fourcc": self.REQUESTED_FRAME_FOURCC,
             "actual_resolution": None,
+            "actual_fps": None,
+            "actual_fourcc": None,
+            "quality_policy": "active_native_high_quality",
+            "preview_max_width": self.PREVIEW_MAX_WIDTH,
             "resolution_fallback": None,
             "scan_zone": dict(self.SCAN_ZONE),
             "scan_zone_pixels": None,
@@ -1109,6 +1156,210 @@ class VisionService:
         with self._lock:
             return dict(self._status)
 
+    def ptz_status(self) -> dict[str, Any]:
+        with self._lock:
+            status = dict(self._ptz_status)
+            status["properties"] = {
+                key: dict(value)
+                for key, value in self._ptz_status.get("properties", {}).items()
+            }
+            status["presets"] = {
+                key: dict(value)
+                for key, value in self._ptz_status.get("presets", {}).items()
+            }
+            status["running"] = self.worker_alive()
+            return status
+
+    def camera_control(
+        self,
+        action: str,
+        *,
+        speed: str = "medium",
+        preset: int | None = None,
+        control: str | None = None,
+        value: float | None = None,
+        timeout: float = 1.0,
+    ) -> dict[str, Any]:
+        """Queue PTZ work for the thread that owns the camera handle."""
+        action = str(action or "").strip().lower()
+        allowed = {
+            "pan_left", "pan_right", "tilt_up", "tilt_down",
+            "zoom_in", "zoom_out", "recenter", "save_preset",
+            "recall_preset",
+            "set_imaging",
+        }
+        if action not in allowed:
+            raise ValueError(f"Unsupported camera control action: {action}")
+        if speed not in {"slow", "medium", "fast"}:
+            raise ValueError("Camera control speed must be slow, medium, or fast")
+        if action.endswith("preset") and preset not in {1, 2, 3}:
+            raise ValueError("Camera preset must be 1, 2, or 3")
+        imaging_controls = {
+            "autofocus", "focus", "auto_exposure", "exposure",
+            "brightness", "auto_white_balance", "white_balance",
+        }
+        if action == "set_imaging":
+            if control not in imaging_controls:
+                raise ValueError("Unsupported camera imaging control")
+            if value is None or not np.isfinite(float(value)):
+                raise ValueError("Camera imaging controls require a numeric value")
+        if not self.worker_alive():
+            return {
+                "ok": False,
+                "error": "camera_offline",
+                "message": "Start the live camera before using PTZ controls.",
+                "ptz": self.ptz_status(),
+            }
+        completed = threading.Event()
+        command = {
+            "action": action,
+            "speed": speed,
+            "preset": preset,
+            "control": control,
+            "value": value,
+            "completed": completed,
+            "result": None,
+        }
+        with self._lock:
+            self._ptz_status["speed"] = speed
+            self._ptz_commands.append(command)
+        if not completed.wait(timeout=max(0.1, float(timeout))):
+            return {
+                "ok": False,
+                "error": "control_timeout",
+                "message": "The camera did not acknowledge the PTZ command in time.",
+                "ptz": self.ptz_status(),
+            }
+        return dict(command.get("result") or {})
+
+    def _initialize_ptz(self, capture: cv2.VideoCapture, camera_name: str) -> None:
+        properties = {}
+        for name, property_id in (
+            ("pan", cv2.CAP_PROP_PAN),
+            ("tilt", cv2.CAP_PROP_TILT),
+            ("zoom", cv2.CAP_PROP_ZOOM),
+            ("autofocus", cv2.CAP_PROP_AUTOFOCUS),
+            ("focus", cv2.CAP_PROP_FOCUS),
+            ("auto_exposure", cv2.CAP_PROP_AUTO_EXPOSURE),
+            ("exposure", cv2.CAP_PROP_EXPOSURE),
+            ("brightness", cv2.CAP_PROP_BRIGHTNESS),
+            ("auto_white_balance", cv2.CAP_PROP_AUTO_WB),
+            ("white_balance", cv2.CAP_PROP_WB_TEMPERATURE),
+        ):
+            try:
+                value = float(capture.get(property_id))
+                readable = bool(np.isfinite(value) and value != -1.0)
+            except Exception:
+                value, readable = 0.0, False
+            properties[name] = {
+                "value": value if readable else None,
+                "readable": readable,
+                "confirmed": False,
+            }
+        with self._lock:
+            self._ptz_status.update({
+                "state": "ready" if any(item["readable"] for item in properties.values()) else "unavailable",
+                "message": (
+                    "PTZ controls detected. The first movement confirms device support."
+                    if any(item["readable"] for item in properties.values())
+                    else "This camera does not expose PTZ through Windows UVC. Use Insta360 Controller for private gimbal controls."
+                ),
+                "camera_name": camera_name,
+                "properties": properties,
+                "last_action": None,
+                "last_error": None,
+            })
+
+    def _run_ptz_commands(self, capture: cv2.VideoCapture) -> None:
+        speed_steps = {
+            "slow": {"pan": 1.0, "tilt": 1.0, "zoom": 1.0},
+            "medium": {"pan": 3.0, "tilt": 3.0, "zoom": 2.0},
+            "fast": {"pan": 7.0, "tilt": 7.0, "zoom": 4.0},
+        }
+        while True:
+            with self._lock:
+                if not self._ptz_commands:
+                    return
+                command = self._ptz_commands.popleft()
+            action = command["action"]
+            speed = command["speed"]
+            preset = command.get("preset")
+            control = command.get("control")
+            requested_value = command.get("value")
+            result: dict[str, Any]
+            try:
+                property_ids = {
+                    "pan": cv2.CAP_PROP_PAN,
+                    "tilt": cv2.CAP_PROP_TILT,
+                    "zoom": cv2.CAP_PROP_ZOOM,
+                    "autofocus": cv2.CAP_PROP_AUTOFOCUS,
+                    "focus": cv2.CAP_PROP_FOCUS,
+                    "auto_exposure": cv2.CAP_PROP_AUTO_EXPOSURE,
+                    "exposure": cv2.CAP_PROP_EXPOSURE,
+                    "brightness": cv2.CAP_PROP_BRIGHTNESS,
+                    "auto_white_balance": cv2.CAP_PROP_AUTO_WB,
+                    "white_balance": cv2.CAP_PROP_WB_TEMPERATURE,
+                }
+                if action == "set_imaging":
+                    accepted = bool(capture.set(property_ids[control], float(requested_value)))
+                    if not accepted:
+                        raise RuntimeError(f"The camera rejected its {control.replace('_', ' ')} adjustment.")
+                    actual = float(capture.get(property_ids[control]))
+                    with self._lock:
+                        prop = self._ptz_status["properties"].setdefault(control, {})
+                        prop.update({"value": actual, "readable": True, "confirmed": True})
+                    result = {
+                        "ok": True,
+                        "message": f"Camera {control.replace('_', ' ')} updated.",
+                        "accepted": [control],
+                        "value": actual,
+                    }
+                elif action == "save_preset":
+                    values = {
+                        name: float(capture.get(prop))
+                        for name, prop in property_ids.items()
+                    }
+                    with self._lock:
+                        self._ptz_status["presets"][str(preset)] = values
+                    result = {"ok": True, "message": f"Position {preset} saved."}
+                else:
+                    targets: dict[str, float] = {}
+                    if action == "recall_preset":
+                        with self._lock:
+                            targets = dict(self._ptz_status["presets"].get(str(preset), {}))
+                        if not targets:
+                            raise ValueError(f"Position {preset} has not been saved yet.")
+                    elif action == "recenter":
+                        targets = {"pan": 0.0, "tilt": 0.0}
+                    else:
+                        axis, direction = action.rsplit("_", 1)
+                        signed = 1.0 if direction in {"right", "up", "in"} else -1.0
+                        current = float(capture.get(property_ids[axis]))
+                        targets[axis] = current + signed * speed_steps[speed][axis]
+                    accepted = []
+                    for axis, value in targets.items():
+                        ok = bool(capture.set(property_ids[axis], float(value)))
+                        if ok:
+                            accepted.append(axis)
+                            with self._lock:
+                                prop = self._ptz_status["properties"].setdefault(axis, {})
+                                prop.update({"value": float(capture.get(property_ids[axis])), "readable": True, "confirmed": True})
+                    if not accepted:
+                        raise RuntimeError(
+                            "The camera rejected this Windows UVC command. Original Insta360 Link gimbal controls may require Insta360 Controller."
+                        )
+                    result = {"ok": True, "message": f"Camera {action.replace('_', ' ')} accepted.", "accepted": accepted}
+                with self._lock:
+                    self._ptz_status.update({"state": "ready", "last_action": action, "last_error": None})
+            except Exception as exc:
+                message = str(exc)
+                with self._lock:
+                    self._ptz_status.update({"state": "limited", "last_action": action, "last_error": message, "message": message})
+                result = {"ok": False, "error": "control_rejected", "message": message}
+            result["ptz"] = self.ptz_status()
+            command["result"] = result
+            command["completed"].set()
+
     def latest_jpeg(self) -> bytes | None:
         with self._lock:
             return self._latest_jpeg
@@ -1142,6 +1393,36 @@ class VisionService:
 
         return self.status()
 
+    def prepare_next_card(self) -> dict[str, Any]:
+        """Rearm one explicit operator-requested recognition cycle."""
+        with self._lock:
+            self._acquisition_epoch += 1
+            self._epoch_started_frame_id = self._frame_id
+            self._epoch_device_sequence_baseline = self._device_sequence_id
+            self._auto_capture_armed = True
+            self._capture_was_locked = False
+            self._best_lock_crop = None
+            self._best_lock_quality = 0.0
+            self._latest_crop = None
+            self._tracked_polygon = None
+            self._last_accepted_provenance = None
+            self._last_accepted_crop = None
+            self._last_accepted_full_hash = None
+            self._last_accepted_artwork_hash = None
+            self._empty_content_transition_seen = True
+            self._acquisition.reset(reason="operator_next_clear")
+            self._reset_capture_quarantine(
+                "operator_next_clear", advance_revision=True
+            )
+            self._status.update({
+                "auto_capture_armed": True,
+                "visible": False,
+                "stable": False,
+                "state": "SEARCHING",
+                "polygon": [],
+            })
+        return self.status()
+
     def _attempt_auto_capture(
         self,
         current_polygon: np.ndarray | None,
@@ -1164,10 +1445,24 @@ class VisionService:
             self._capture_telemetry["current_eligible_sample_count"] = len(
                 eligible
             )
-            ranked = self._acquisition._rank_consensus(eligible)
+            # Once geometry has locked, try the newest eligible sample first.
+            # Every sample still passes the full sharpness, texture, border,
+            # geometry, epoch, and provenance validator in save_latest_crop;
+            # a weak fresh frame is rejected and the loop falls back to the
+            # next newest sample. Quality-only ranking routinely selected a
+            # 300-400 ms older frame for tiny score differences.
+            ranked = sorted(
+                eligible,
+                key=lambda item: item.frame_id,
+                reverse=True,
+            )
             captured_sample = ranked[0] if ranked else None
             if captured_sample is None:
                 break
+            self._capture_telemetry["selected_frame_age_ms"] = round(
+                max(0.0, now - captured_sample.captured_at) * 1000,
+                1,
+            )
             attempted_this_cycle.add(captured_sample.frame_id)
             self._capture_telemetry["total_capture_attempts"] += 1
             try:
@@ -1228,6 +1523,7 @@ class VisionService:
             self._acquisition.mark_captured(captured_sample)
             self._auto_capture_armed = False
             self._last_auto_capture_at = now
+            self._last_auto_capture_epoch = self._acquisition_epoch
             self._capture_telemetry["last_accepted_frame_id"] = (
                 captured_sample.frame_id
             )
@@ -1260,6 +1556,15 @@ class VisionService:
                 "acquisition_epoch": self._acquisition_epoch,
             })
         return False
+
+    def _auto_capture_cooldown_ready(self, now: float) -> bool:
+        """Throttle duplicate captures, never a newly acquired physical card."""
+        return bool(
+            int(getattr(self, "_last_auto_capture_epoch", -1))
+            != int(self._acquisition_epoch)
+            or float(now) - float(self._last_auto_capture_at)
+            >= self.CAPTURE_COOLDOWN_SECONDS
+        )
 
     @staticmethod
     def _is_quarantine_reason(reason: str | None) -> bool:
@@ -1361,6 +1666,8 @@ class VisionService:
                     "capture_quality": 0.0,
                     "polygon": [],
                     "actual_resolution": None,
+                    "actual_fps": None,
+                    "actual_fourcc": None,
                     "resolution_fallback": None,
                     "scan_zone_pixels": None,
                     "error": None,
@@ -1800,6 +2107,30 @@ class VisionService:
             scores,
         )
 
+    @staticmethod
+    def _candidate_content_score(
+        frame: np.ndarray,
+        points: np.ndarray,
+    ) -> float:
+        """Prefer a printed card over a card-shaped patch of background."""
+        destination = np.asarray(
+            [[0, 0], [159, 0], [159, 223], [0, 223]],
+            dtype=np.float32,
+        )
+        transform = cv2.getPerspectiveTransform(
+            points.astype(np.float32), destination
+        )
+        sample = cv2.warpPerspective(frame, transform, (160, 224))
+        gray = cv2.cvtColor(sample, cv2.COLOR_BGR2GRAY)
+        edge_density = float(np.count_nonzero(cv2.Canny(gray, 50, 150))) / float(
+            gray.size
+        )
+        contrast = float(gray.std())
+        return (
+            0.18 * min(1.0, edge_density / 0.10)
+            + 0.08 * min(1.0, contrast / 50.0)
+        )
+
     @classmethod
     def detect(
         cls,
@@ -1942,7 +2273,9 @@ class VisionService:
 
         confidence, points, scores = max(
             candidates,
-            key=lambda item: item[0],
+            key=lambda item: (
+                item[0] + cls._candidate_content_score(detection_frame, item[1])
+            ),
         )
 
         envelope_candidates: list[
@@ -1967,7 +2300,8 @@ class VisionService:
             confidence, points, scores = max(
                 envelope_candidates,
                 key=lambda item: (
-                    item[0],
+                    item[0]
+                    + cls._candidate_content_score(detection_frame, item[1]),
                     abs(float(cv2.contourArea(item[1]))),
                 ),
             )
@@ -2019,6 +2353,49 @@ class VisionService:
             borderMode=cv2.BORDER_REPLICATE,
         )
 
+        top_width = float(np.linalg.norm(full_points[1] - full_points[0]))
+        bottom_width = float(np.linalg.norm(full_points[2] - full_points[3]))
+        left_height = float(np.linalg.norm(full_points[3] - full_points[0]))
+        right_height = float(np.linalg.norm(full_points[2] - full_points[1]))
+        native_scale = max(
+            max(top_width, bottom_width) / cls.OUTPUT_CROP_WIDTH,
+            max(left_height, right_height) / cls.OUTPUT_CROP_HEIGHT,
+            1.0,
+        )
+        detail_width = min(
+            cls.OCR_CROP_MAX_WIDTH,
+            int(round(cls.OUTPUT_CROP_WIDTH * native_scale)),
+        )
+        detail_height = int(round(
+            detail_width * cls.OUTPUT_CROP_HEIGHT / cls.OUTPUT_CROP_WIDTH
+        ))
+        if (
+            detail_width == cls.OUTPUT_CROP_WIDTH
+            and detail_height == cls.OUTPUT_CROP_HEIGHT
+        ):
+            ocr_crop = crop.copy()
+        else:
+            detail_destination = np.array(
+                [
+                    [0, 0],
+                    [detail_width - 1, 0],
+                    [detail_width - 1, detail_height - 1],
+                    [0, detail_height - 1],
+                ],
+                dtype=np.float32,
+            )
+            detail_transform = cv2.getPerspectiveTransform(
+                full_points.astype(np.float32),
+                detail_destination,
+            )
+            ocr_crop = cv2.warpPerspective(
+                frame,
+                detail_transform,
+                (detail_width, detail_height),
+                flags=cv2.INTER_CUBIC,
+                borderMode=cv2.BORDER_REPLICATE,
+            )
+
         return DetectionResult(
             crop=crop,
             polygon=normalized,
@@ -2028,6 +2405,7 @@ class VisionService:
             solidity_score=scores["solidity"],
             edge_score=scores["edge"],
             area_score=scores["area"],
+            ocr_crop=ocr_crop,
         )
 
     @classmethod
@@ -2109,7 +2487,12 @@ class VisionService:
             })
             if sharpness < cls.CAPTURE_MIN_LAPLACIAN_SHARPNESS:
                 reasons.append("insufficient_sharpness")
-            if pixel_stddev < cls.CAPTURE_MIN_PIXEL_STDDEV:
+            if not cls._capture_texture_supported(
+                pixel_stddev=pixel_stddev,
+                sharpness=sharpness,
+                edge_density=edge_density,
+                supported_sides=supported,
+            ):
                 reasons.append("insufficient_texture")
             if edge_density < cls.CAPTURE_MIN_EDGE_DENSITY:
                 reasons.append("smooth_background")
@@ -2215,7 +2598,15 @@ class VisionService:
             provenance_reasons.append("wrong_stream_session")
         if device_sequence and device_sequence <= self._epoch_device_sequence_baseline:
             provenance_reasons.append("stale_device_sequence")
-        if sample is not None and self._is_duplicate_pre_removal_sample(sample):
+        # A bounded OCR retry intentionally captures the same physical card
+        # from a newer frame.  It still passes every geometry/epoch/quality
+        # check above, but must not be rejected as a duplicate of the first
+        # accepted capture.
+        if (
+            sample is not None
+            and source != "collector-ocr-retry"
+            and self._is_duplicate_pre_removal_sample(sample)
+        ):
             provenance_reasons.append("duplicate_pre_removal_content")
         if provenance_reasons:
             existing = validation.get("rejection_reason")
@@ -2252,8 +2643,49 @@ class VisionService:
             self._latest_crop = crop.copy()
             self._status["last_capture_path"] = str(path)
 
+            recent_ocr_samples = [
+                item
+                for item in self._acquisition.samples
+                if (
+                    item.acquisition_epoch == candidate_epoch
+                    and candidate_polygon is not None
+                    and MultiFrameAcquisitionBuffer._polygon_iou(
+                        item.polygon,
+                        np.asarray(candidate_polygon, dtype=np.float32),
+                    ) >= self.CAPTURE_MIN_POLYGON_IOU
+                    and abs(candidate_timestamp - item.captured_at) <= 0.8
+                )
+            ]
+
+        recent_ocr_samples.sort(
+            key=lambda item: item.frame_id,
+            reverse=True,
+        )
+        if sample is not None:
+            recent_ocr_samples = [sample] + [
+                item
+                for item in recent_ocr_samples
+                if item.frame_id != sample.frame_id
+            ]
+        recent_ocr_samples = recent_ocr_samples[:3]
+
         event_crop = crop.copy()
         event_crop.setflags(write=False)
+        event_ocr_crop = (
+            sample.ocr_crop.copy()
+            if sample is not None and sample.ocr_crop is not None
+            else crop.copy()
+        )
+        event_ocr_crop.setflags(write=False)
+        event_ocr_frames: list[np.ndarray] = []
+        for item in recent_ocr_samples:
+            detail = (
+                item.ocr_crop
+                if item.ocr_crop is not None
+                else item.crop
+            ).copy()
+            detail.setflags(write=False)
+            event_ocr_frames.append(detail)
         self.emit(
             {
                 "type": "card_captured",
@@ -2266,6 +2698,8 @@ class VisionService:
                     "capture_timestamp": candidate_timestamp,
                     "crop_path": str(path),
                     "crop": event_crop,
+                    "ocr_crop": event_ocr_crop,
+                    "ocr_frames": tuple(event_ocr_frames),
                     "polygon": np.asarray(candidate_polygon).copy(),
                     "acquisition_epoch": candidate_epoch,
                     "validation": dict(validation),
@@ -2361,6 +2795,11 @@ class VisionService:
             structural_image=self._acquisition._structural_image(result.crop),
             acquisition_epoch=self._acquisition_epoch,
             captured_at=captured_at,
+            ocr_crop=(
+                getattr(result, "ocr_crop", None).copy()
+                if getattr(result, "ocr_crop", None) is not None
+                else result.crop.copy()
+            ),
             **{
                 "stream_session_id": int(self._latest_provenance.get("stream_session_id") or 0),
                 "device_sequence_id": int(self._latest_provenance.get("device_sequence_id") or 0),
@@ -2450,7 +2889,17 @@ class VisionService:
             self._epoch_device_sequence_baseline = 0
             self._latest_provenance = {}
 
+        self._initialize_ptz(capture, name)
+
+        requested_fourcc = cv2.VideoWriter_fourcc(
+            *self.REQUESTED_FRAME_FOURCC
+        )
         camera_properties = (
+            (
+                cv2.CAP_PROP_FOURCC,
+                requested_fourcc,
+                "pixel format",
+            ),
             (
                 cv2.CAP_PROP_FRAME_WIDTH,
                 self.REQUESTED_FRAME_WIDTH,
@@ -2460,6 +2909,11 @@ class VisionService:
                 cv2.CAP_PROP_FRAME_HEIGHT,
                 self.REQUESTED_FRAME_HEIGHT,
                 "frame height",
+            ),
+            (
+                cv2.CAP_PROP_FPS,
+                self.REQUESTED_FRAME_FPS,
+                "frame rate",
             ),
             (
                 cv2.CAP_PROP_BUFFERSIZE,
@@ -2491,7 +2945,29 @@ class VisionService:
                     "[RareIQ Vision] "
                     f"Could not set {label}: "
                     f"{exc}"
-                )       
+                )
+
+        def capture_property(property_id: int) -> float | None:
+            try:
+                value = float(capture.get(property_id))
+                return value if value > 0 else None
+            except Exception:
+                return None
+
+        actual_fps = capture_property(cv2.CAP_PROP_FPS)
+        actual_fourcc_value = capture_property(cv2.CAP_PROP_FOURCC)
+        actual_fourcc = None
+        if actual_fourcc_value is not None:
+            code = int(actual_fourcc_value)
+            actual_fourcc = "".join(
+                chr((code >> (8 * index)) & 0xFF)
+                for index in range(4)
+            ).rstrip("\x00")
+        with self._lock:
+            self._status.update({
+                "actual_fps": actual_fps,
+                "actual_fourcc": actual_fourcc,
+            })
 
         tracker = ConfidenceLockTracker(
             stable_target=self.STABLE_TARGET,
@@ -2513,6 +2989,7 @@ class VisionService:
 
         try:
             while self._running:
+                self._run_ptz_commands(capture)
                 ok, frame = capture.read()
 
                 if not ok or frame is None:
@@ -2629,6 +3106,7 @@ class VisionService:
                         acquisition_epoch=self._acquisition_epoch,
                         captured_at=time.time(),
                         provenance=self._capture_provenance(),
+                        ocr_crop=result.ocr_crop,
                     )
 
                     with self._lock:
@@ -2687,6 +3165,7 @@ class VisionService:
                                 acquisition_epoch=self._acquisition_epoch,
                                 captured_at=time.time(),
                                 provenance=self._capture_provenance(),
+                                ocr_crop=result.ocr_crop,
                             )
                             self._auto_capture_armed = True
                             self._best_lock_crop = result.crop.copy()
@@ -2801,10 +3280,7 @@ class VisionService:
                     locked
                     and self._auto_capture_enabled
                     and self._auto_capture_armed
-                    and (
-                        now - self._last_auto_capture_at
-                        >= self.CAPTURE_COOLDOWN_SECONDS
-                    )
+                    and self._auto_capture_cooldown_ready(now)
                 ):
                     self._attempt_auto_capture(reference, now)
 
@@ -2833,9 +3309,21 @@ class VisionService:
                     cv2.LINE_AA,
                 )
 
+                preview_frame = frame
+                preview_height, preview_width = frame.shape[:2]
+                if preview_width > self.PREVIEW_MAX_WIDTH:
+                    scale = self.PREVIEW_MAX_WIDTH / float(preview_width)
+                    preview_frame = cv2.resize(
+                        frame,
+                        (
+                            self.PREVIEW_MAX_WIDTH,
+                            max(1, int(round(preview_height * scale))),
+                        ),
+                        interpolation=cv2.INTER_AREA,
+                    )
                 ok_jpeg, jpeg = cv2.imencode(
                     ".jpg",
-                    frame,
+                    preview_frame,
                     [
                         int(cv2.IMWRITE_JPEG_QUALITY),
                         82,
@@ -2915,6 +3403,7 @@ class VisionService:
                                 "capture_selection": dict(
                                     self._capture_telemetry
                                 ),
+                                "preview_shape": list(preview_frame.shape),
                             }
                         )
 
@@ -2939,6 +3428,18 @@ class VisionService:
             self._running = False
 
             with self._lock:
+                while self._ptz_commands:
+                    command = self._ptz_commands.popleft()
+                    command["result"] = {
+                        "ok": False,
+                        "error": "camera_stopped",
+                        "message": "The camera stopped before the control completed.",
+                    }
+                    command["completed"].set()
+                self._ptz_status.update({
+                    "state": "offline",
+                    "message": "Start a camera to detect PTZ controls.",
+                })
                 self._status.update(
                     {
                         "running": False,

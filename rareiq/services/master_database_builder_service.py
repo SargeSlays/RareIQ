@@ -5,7 +5,6 @@ import queue
 import threading
 import time
 from dataclasses import dataclass, asdict
-from pathlib import Path
 from typing import Any
 
 from rareiq.core.storage import storage
@@ -18,6 +17,7 @@ class BuildTask:
     set_id: str
     set_name: str
     estimated_cards: int = 0
+    attempts: int = 0
 
 
 class MasterDatabaseBuilderService:
@@ -59,6 +59,7 @@ class MasterDatabaseBuilderService:
         self._started_perf = 0.0
         self._last_sample_perf = 0.0
         self._last_sample_cards = 0
+        self._refresh_lock = threading.Lock()
 
         self._state: dict[str, Any] = {
             "busy": False,
@@ -71,6 +72,7 @@ class MasterDatabaseBuilderService:
             "sets_queued": 0,
             "sets_completed": 0,
             "sets_failed": 0,
+            "failed_tasks": [],
             "current_set_processed": 0,
             "current_set_total": 0,
             "provider_health": {},
@@ -83,6 +85,8 @@ class MasterDatabaseBuilderService:
             "eta_seconds": None,
             "last_completed": None,
             "last_error": None,
+            "last_discovery_at": None,
+            "new_releases_added": 0,
             "started_at": None,
             "updated_at": time.time(),
             "storage": {
@@ -132,7 +136,17 @@ class MasterDatabaseBuilderService:
             result = dict(self._state)
         result["queue_remaining"] = self._tasks.qsize()
         result["visual_index"] = self.visual_index.status()
-        result["catalog"] = self.catalog_engine.status()
+        catalog = self.catalog_engine.status()
+        # Progress polling must stay small even when the worldwide catalog has
+        # thousands of set manifests. The full catalog endpoint remains
+        # available to screens that explicitly need per-set detail.
+        result["catalog"] = {
+            key: catalog.get(key)
+            for key in (
+                "busy", "provider", "sets", "cards", "images",
+                "coverage_percent", "last_import", "error",
+            )
+        }
         return result
 
     def discover(self) -> dict[str, Any]:
@@ -142,12 +156,137 @@ class MasterDatabaseBuilderService:
         sets = list(result.get("sets") or [])
         with self._lock:
             self._state["sets_discovered"] = len(sets)
+            self._state["last_discovery_at"] = time.time()
             self._state["updated_at"] = time.time()
         self._activity(
             f"Discovery complete. {len(sets)} provider set records found."
         )
         self._save_state()
         return result
+
+    def refresh_new_releases(self, *, start_if_idle: bool = True) -> dict[str, Any]:
+        """Reconcile live providers with the resumable queue.
+
+        Provider catalogs change while a worldwide build is running.  This
+        method deliberately appends only unseen provider/language/set keys so
+        a newly published expansion is picked up without resetting progress or
+        interrupting the set currently being downloaded.
+        """
+        if not self._refresh_lock.acquire(blocking=False):
+            return {"ok": False, "error": "Catalog discovery is already running."}
+        try:
+            discovery = self.master_database.discover_all()
+            discovered = list(discovery.get("sets") or [])
+            completed = self._completed_keys()
+            discovered_keys = {
+                "|".join(
+                    str(value or "").lower()
+                    for value in (
+                        item.get("provider"),
+                        item.get("language"),
+                        item.get("set_id"),
+                    )
+                )
+                for item in discovered
+                if item.get("provider") and item.get("set_id")
+            }
+            with self._tasks.mutex:
+                queued = {self._task_key(task) for task in self._tasks.queue}
+            with self._lock:
+                current = "|".join(str(value or "").lower() for value in (
+                    self._state.get("current_provider"),
+                    self._state.get("current_language"),
+                    self._state.get("current_set_id"),
+                ))
+                busy = bool(self._state.get("busy"))
+
+            additions: list[BuildTask] = []
+            for item in discovered:
+                task = BuildTask(
+                    provider=str(item.get("provider") or ""),
+                    language=str(item.get("language") or ""),
+                    set_id=str(item.get("set_id") or ""),
+                    set_name=str(item.get("set_name") or item.get("set_id") or ""),
+                    estimated_cards=int(item.get("card_count") or 0),
+                )
+                key = self._task_key(task)
+                if not task.provider or not task.set_id:
+                    continue
+                if key in completed or key in queued or key == current:
+                    continue
+                additions.append(task)
+                queued.add(key)
+
+            for task in additions:
+                self._tasks.put(task)
+            self._persist_queue()
+
+            now = time.time()
+            with self._lock:
+                self._state["sets_discovered"] = len(discovered)
+                # This is the total denominator, not a cumulative enqueue
+                # counter. Replacing it prevents restart-time freshness scans
+                # from making worldwide progress appear to move backwards.
+                self._state["sets_queued"] = len(discovered)
+                self._state["sets_completed"] = len(
+                    completed & discovered_keys
+                )
+                self._state["new_releases_added"] = int(self._state.get("new_releases_added") or 0) + len(additions)
+                self._state["last_discovery_at"] = now
+                self._state["updated_at"] = now
+
+            if additions:
+                names = ", ".join(task.set_name for task in additions[:6])
+                suffix = "…" if len(additions) > 6 else ""
+                self._activity(f"Freshness scan queued {len(additions)} new release records: {names}{suffix}")
+            else:
+                self._activity("Freshness scan complete; catalog is current with providers.")
+
+            if additions and start_if_idle and not busy:
+                self._begin_queued_worker()
+            return {
+                "ok": True,
+                "discovered": len(discovered),
+                "added": len(additions),
+                "sets": [asdict(task) for task in additions],
+                "provider_errors": list(discovery.get("errors") or []),
+            }
+        finally:
+            self._refresh_lock.release()
+
+    def _persist_queue(self) -> None:
+        with self._tasks.mutex:
+            pending = [asdict(task) for task in self._tasks.queue]
+        self.queue_path.write_text(
+            json.dumps(pending, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    def _begin_queued_worker(self) -> None:
+        """Start processing tasks appended by a background freshness scan."""
+        with self._lock:
+            if self._worker and self._worker.is_alive():
+                return
+            now = time.time()
+            self._state.update({
+                "busy": True,
+                "phase": "QUEUED",
+                "sets_failed": 0,
+                "failed_tasks": [],
+                "started_at": now,
+                "last_error": None,
+                "updated_at": now,
+            })
+        self._cancel.clear()
+        self._started_perf = time.perf_counter()
+        self._last_sample_perf = self._started_perf
+        self._last_sample_cards = int(self.catalog_engine.status().get("cards") or 0)
+        self._worker = threading.Thread(
+            target=self._run,
+            daemon=True,
+            name="rareiq-master-database-builder",
+        )
+        self._worker.start()
 
     def start(self, resume: bool = True) -> dict[str, Any]:
         with self._lock:
@@ -186,6 +325,7 @@ class MasterDatabaseBuilderService:
 
         discovered = list(discovery.get("sets") or [])
         completed_keys = self._completed_keys() if resume else set()
+        discovered_keys = set()
         tasks = []
 
         for item in discovered:
@@ -199,6 +339,7 @@ class MasterDatabaseBuilderService:
             key = self._task_key(task)
             if not task.provider or not task.set_id:
                 continue
+            discovered_keys.add(key)
             if resume and key in completed_keys:
                 continue
             tasks.append(task)
@@ -212,10 +353,7 @@ class MasterDatabaseBuilderService:
         for task in tasks:
             self._tasks.put(task)
 
-        self.queue_path.write_text(
-            json.dumps([asdict(task) for task in tasks], ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        self._persist_queue()
 
         self._cancel.clear()
         now = time.time()
@@ -227,8 +365,13 @@ class MasterDatabaseBuilderService:
             self._state.update({
                 "busy": True,
                 "phase": "QUEUED",
-                "sets_queued": len(tasks),
-                "sets_completed": 0,
+                # Progress remains worldwide and monotonic across resumes.
+                # `tasks` is only the remaining queue, not the denominator.
+                "sets_queued": len(discovered),
+                # Manifests can outlive a provider discovery record or come
+                # from an older provider. Count only records in this run's
+                # discovery so progress can never exceed its denominator.
+                "sets_completed": len(completed_keys & discovered_keys),
                 "sets_failed": 0,
                 "current_set_processed": 0,
                 "current_set_total": 0,
@@ -269,6 +412,124 @@ class MasterDatabaseBuilderService:
         )
         self._set_phase("COMPLETE")
         return result
+
+    def coverage(
+        self,
+        *,
+        query: str = "",
+        language: str = "",
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        """Return compact per-set download coverage for the operator UI."""
+        needle = str(query or "").strip().casefold()
+        wanted_language = str(language or "").strip().casefold()
+        rows: list[dict[str, Any]] = []
+        language_totals: dict[str, dict[str, int]] = {}
+
+        for path in self.catalog_engine.sets_dir.glob("*/manifest.json"):
+            try:
+                manifest = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            row_language = str(manifest.get("language") or "Unknown")
+            if wanted_language and row_language.casefold() != wanted_language:
+                continue
+            haystack = " ".join(str(manifest.get(key) or "") for key in (
+                "set_name", "set_id", "provider", "language",
+            )).casefold()
+            if needle and needle not in haystack:
+                continue
+            cards = int(manifest.get("cards") or 0)
+            images = int(manifest.get("images") or 0)
+            errors = len(manifest.get("errors") or [])
+            coverage = round(images / cards * 100, 1) if cards else 0.0
+            row = {
+                "provider": str(manifest.get("provider") or "unknown"),
+                "language": row_language,
+                "set_id": str(manifest.get("set_id") or ""),
+                "set_name": str(manifest.get("set_name") or manifest.get("set_id") or "Unknown set"),
+                "cards": cards,
+                "images": images,
+                "coverage_percent": coverage,
+                "download_complete": bool(manifest.get("download_complete")),
+                "errors": errors,
+            }
+            rows.append(row)
+            totals = language_totals.setdefault(row_language, {"sets": 0, "cards": 0, "images": 0})
+            totals["sets"] += 1
+            totals["cards"] += cards
+            totals["images"] += images
+
+        rows.sort(key=lambda item: (
+            not item["download_complete"],
+            item["coverage_percent"],
+            item["language"].casefold(),
+            item["set_name"].casefold(),
+        ))
+        return {
+            "ok": True,
+            "sets": rows[:max(1, min(500, int(limit)))],
+            "matching_sets": len(rows),
+            "languages": language_totals,
+        }
+
+    def set_options(self, *, limit: int = 2500) -> list[dict[str, Any]]:
+        """Return downloaded and queued sets for recognition-context controls."""
+        completed = self.coverage(limit=limit).get("sets") or []
+        rows: dict[tuple[str, str, str], dict[str, Any]] = {}
+        for item in completed:
+            key = (
+                str(item.get("provider") or "").casefold(),
+                str(item.get("language") or "").casefold(),
+                str(item.get("set_id") or "").casefold(),
+            )
+            rows[key] = {**item, "references_ready": bool(item.get("images"))}
+        with self._tasks.mutex:
+            queued = list(self._tasks.queue)
+        for task in queued:
+            key = (
+                str(task.provider).casefold(),
+                str(task.language).casefold(),
+                str(task.set_id).casefold(),
+            )
+            rows.setdefault(key, {
+                "provider": task.provider,
+                "language": task.language,
+                "set_id": task.set_id,
+                "set_name": task.set_name,
+                "cards": 0,
+                "images": 0,
+                "coverage_percent": 0.0,
+                "download_complete": False,
+                "references_ready": False,
+                "queued": True,
+            })
+        return sorted(rows.values(), key=lambda item: (
+            str(item.get("set_name") or "").casefold(),
+            str(item.get("language") or "").casefold(),
+        ))[:max(1, int(limit))]
+
+    def prioritize(self, query: str) -> dict[str, Any]:
+        """Move matching queued sets ahead without disturbing the active set."""
+        needle = str(query or "").strip().casefold()
+        if not needle:
+            return {"ok": False, "error": "Enter a set name or set ID."}
+        with self._tasks.mutex:
+            pending = list(self._tasks.queue)
+            matches = [task for task in pending if needle in f"{task.set_id} {task.set_name} {task.language}".casefold()]
+            if not matches:
+                return {"ok": False, "error": "No queued sets matched that search."}
+            others = [task for task in pending if task not in matches]
+            self._tasks.queue.clear()
+            self._tasks.queue.extend(matches + others)
+            self._tasks.not_empty.notify_all()
+        self._activity(f"Prioritized {len(matches)} queued set records matching '{query}'.")
+        return {
+            "ok": True,
+            "query": query,
+            "matches": len(matches),
+            "sets": [asdict(task) for task in matches[:25]],
+        }
 
 
     def _set_progress(self, payload: dict[str, Any]) -> None:
@@ -336,6 +597,14 @@ class MasterDatabaseBuilderService:
                             defer_indexes=True,
                             max_workers=8,
                         )
+                    elif task.provider == "simplifiedtcg":
+                        result = self.master_database._import_simplifiedtcg_set(
+                            task.set_id,
+                            task.language,
+                            progress_callback=self._set_progress,
+                            defer_indexes=True,
+                            max_workers=8,
+                        )
                     else:
                         result = {
                             "ok": False,
@@ -346,23 +615,32 @@ class MasterDatabaseBuilderService:
                         with self._lock:
                             self._state["sets_completed"] += 1
                             self._state["last_completed"] = task.set_name
+                            failed = [
+                                item for item in self._state.get("failed_tasks") or []
+                                if item.get("task_key") != self._task_key(task)
+                            ]
+                            self._state["failed_tasks"] = failed
+                            self._state["sets_failed"] = len(failed)
                         self._activity(
                             f"Completed {task.set_name}: "
                             f"{result.get('cards', 0)} cards, "
                             f"{result.get('images', 0)} images."
                         )
+                    elif self._requeue_transient_failure(
+                        task, str(result.get("error") or "")
+                    ):
+                        pass
                     else:
-                        with self._lock:
-                            self._state["sets_failed"] += 1
-                            self._state["last_error"] = result.get("error")
+                        self._record_task_failure(
+                            task, str(result.get("error") or "Unknown provider error")
+                        )
                         self._activity(
                             f"Failed {task.set_name}: {result.get('error')}"
                         )
                 except Exception as exc:
-                    with self._lock:
-                        self._state["sets_failed"] += 1
-                        self._state["last_error"] = str(exc)
-                    self._activity(f"Failed {task.set_name}: {exc}")
+                    if not self._requeue_transient_failure(task, str(exc)):
+                        self._record_task_failure(task, str(exc))
+                        self._activity(f"Failed {task.set_name}: {exc}")
 
                 self._update_metrics()
                 self._save_state()
@@ -407,6 +685,14 @@ class MasterDatabaseBuilderService:
         for path in self.catalog_engine.sets_dir.glob("*/manifest.json"):
             try:
                 manifest = json.loads(path.read_text(encoding="utf-8"))
+                # Older metadata-only imports wrote a manifest even when no
+                # reference artwork had been attempted.  Those records are
+                # useful for lookup, but must not make a resumable world build
+                # skip the images required by visual recognition.
+                if not manifest.get("download_complete"):
+                    continue
+                if int(manifest.get("cards") or 0) <= 0:
+                    continue
                 completed.add(
                     "|".join(
                         str(value or "").lower()
@@ -420,6 +706,59 @@ class MasterDatabaseBuilderService:
             except Exception:
                 continue
         return completed
+
+    def _requeue_transient_failure(self, task: BuildTask, error: str) -> bool:
+        """Retry short-lived provider failures without losing the set.
+
+        Permanent catalog misses still fail immediately. Retries go to the
+        back of the queue so a struggling provider cannot block healthy ones.
+        """
+        transient_markers = (
+            "429", "500", "502", "503", "504", "bad gateway",
+            "internal server error", "service unavailable", "timed out",
+            "timeout", "connection reset", "connection aborted",
+        )
+        if task.attempts >= 3 or not any(
+            marker in error.lower() for marker in transient_markers
+        ):
+            return False
+
+        retry = BuildTask(
+            provider=task.provider,
+            language=task.language,
+            set_id=task.set_id,
+            set_name=task.set_name,
+            estimated_cards=task.estimated_cards,
+            attempts=task.attempts + 1,
+        )
+        self._tasks.put(retry)
+        self._persist_queue()
+        with self._lock:
+            self._state["last_error"] = error
+        self._activity(
+            f"Retrying {task.set_name} later after transient provider error "
+            f"({retry.attempts}/3): {error}"
+        )
+        return True
+
+    def _record_task_failure(self, task: BuildTask, error: str) -> None:
+        """Persist the exact missing provider record for targeted retries."""
+        task_key = self._task_key(task)
+        failure = {
+            **asdict(task),
+            "task_key": task_key,
+            "error": error,
+            "failed_at": time.time(),
+        }
+        with self._lock:
+            failed = [
+                item for item in self._state.get("failed_tasks") or []
+                if item.get("task_key") != task_key
+            ]
+            failed.append(failure)
+            self._state["failed_tasks"] = failed[-250:]
+            self._state["sets_failed"] = len(self._state["failed_tasks"])
+            self._state["last_error"] = error
 
     @staticmethod
     def _task_key(task: BuildTask) -> str:

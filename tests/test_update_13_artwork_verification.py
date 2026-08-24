@@ -24,6 +24,18 @@ def patterned_card(seed: int = 7) -> np.ndarray:
     return card
 
 
+def test_artwork_continuity_fingerprint_ignores_footer_and_border_changes() -> None:
+    original = patterned_card()
+    changed = original.copy()
+    changed[:85] = 0
+    changed[380:] = 255
+    changed[:, :25] = 30
+    changed[:, 475:] = 30
+
+    assert ArtworkIndexService.artwork_fingerprint(changed) == ArtworkIndexService.artwork_fingerprint(original)
+    assert ArtworkIndexService.fingerprint(changed) != ArtworkIndexService.fingerprint(original)
+
+
 def service_with_records(tmp_path: Path, records: list[dict]) -> ArtworkIndexService:
     index = tmp_path / "artwork.json"
     index.write_text(json.dumps({"records": records}), encoding="utf-8")

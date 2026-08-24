@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 import json
-import shutil
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
 from rareiq.catalog_providers.pokemontcg_provider import PokemonTCGProvider
 from rareiq.catalog_providers.tcgdex_provider import TCGdexProvider
+from rareiq.catalog_providers.simplifiedtcg_provider import SimplifiedTCGProvider
 from rareiq.core.storage import storage
-from rareiq.core.provider_http import download_bytes
 
 
 class PokemonMasterDatabaseService:
@@ -20,6 +20,7 @@ class PokemonMasterDatabaseService:
         "English",
         "Japanese",
         "Traditional Chinese",
+        "Simplified Chinese",
         "French",
         "German",
         "Italian",
@@ -42,6 +43,7 @@ class PokemonMasterDatabaseService:
         self.providers = {
             "tcgdex": TCGdexProvider(),
             "pokemontcg": PokemonTCGProvider(),
+            "simplifiedtcg": SimplifiedTCGProvider(),
         }
 
         self._lock = threading.RLock()
@@ -298,6 +300,11 @@ class PokemonMasterDatabaseService:
                             set_id,
                             language,
                         )
+                    elif provider_id == "simplifiedtcg":
+                        result = self._import_simplifiedtcg_set(
+                            set_id,
+                            language,
+                        )
                     else:
                         raise RuntimeError(
                             f"Unsupported provider: {provider_id}"
@@ -379,59 +386,79 @@ class PokemonMasterDatabaseService:
         images_dir.mkdir(parents=True, exist_ok=True)
 
         normalized: list[dict[str, Any]] = []
+        errors: list[str] = []
         import httpx
 
-        with httpx.Client(timeout=35.0, follow_redirects=True) as client:
-            for card in cards:
-                images = card.get("images") or {}
-                image_url = images.get("large") or images.get("small")
-                image_path = images_dir / f"{card.get('id')}.png"
+        def process_card(card: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
+            image_error: str | None = None
+            images = card.get("images") or {}
+            image_url = images.get("large") or images.get("small")
+            image_path = images_dir / f"{card.get('id')}.png"
 
-                if image_url and not image_path.exists():
-                    response = client.get(image_url)
-                    response.raise_for_status()
-                    image_path.write_bytes(response.content)
+            if image_url and not image_path.exists():
+                try:
+                    with httpx.Client(
+                        timeout=httpx.Timeout(35.0, connect=10.0),
+                        follow_redirects=True,
+                    ) as client:
+                        response = client.get(image_url)
+                        response.raise_for_status()
+                        image_path.write_bytes(response.content)
+                except Exception as exc:
+                    image_error = f"{card.get('id')}: image {exc}"
 
-                number = str(card.get("number") or "")
-                printed_total = (
-                    (card.get("set") or {}).get("printedTotal")
-                    or payload.get("printedTotal")
-                    or payload.get("total")
-                )
-                collector_number = (
-                    f"{number}/{printed_total}"
-                    if printed_total else number
-                )
-                normalized.append({
-                    "id": card.get("id"),
-                    "name": card.get("name"),
-                    "printed_name": card.get("name"),
-                    "english_name": card.get("name"),
-                    "language": "English",
-                    "language_code": "en",
-                    "set_id": set_id,
-                    "set_name": payload.get("name"),
-                    "collector_number": collector_number,
-                    "local_id": number,
-                    "rarity": self.catalog_engine.infer_rarity(
-                        card.get("rarity"),
-                        collector_number,
-                        card.get("name"),
-                    ),
-                    "raw_rarity": card.get("rarity"),
-                    "category": card.get("supertype"),
-                    "hp": card.get("hp"),
-                    "types": card.get("types") or [],
-                    "illustrator": card.get("artist"),
-                    "regulation_mark": card.get("regulationMark"),
-                    "image_url": image_url,
-                    "reference_image_url": (
-                        f"/api/catalog-engine/image/en_{set_id}/"
-                        f"{image_path.name}"
-                    ),
-                    "local_image": str(image_path),
-                    "source": "Pokémon TCG API",
-                })
+            number = str(card.get("number") or "")
+            printed_total = (
+                (card.get("set") or {}).get("printedTotal")
+                or payload.get("printedTotal")
+                or payload.get("total")
+            )
+            collector_number = (
+                f"{number}/{printed_total}"
+                if printed_total else number
+            )
+            image_exists = image_path.exists()
+            return ({
+                "game_id": "pokemon",
+                "id": card.get("id"),
+                "name": card.get("name"),
+                "printed_name": card.get("name"),
+                "english_name": card.get("name"),
+                "language": "English",
+                "language_code": "en",
+                "set_id": set_id,
+                "set_name": payload.get("name"),
+                "collector_number": collector_number,
+                "local_id": number,
+                "rarity": self.catalog_engine.infer_rarity(
+                    card.get("rarity"),
+                    collector_number,
+                    card.get("name"),
+                ),
+                "raw_rarity": card.get("rarity"),
+                "category": card.get("supertype"),
+                "hp": card.get("hp"),
+                "types": card.get("types") or [],
+                "illustrator": card.get("artist"),
+                "regulation_mark": card.get("regulationMark"),
+                "image_url": image_url,
+                "reference_image_url": (
+                    f"/api/catalog-engine/image/en_{set_id}/"
+                    f"{image_path.name}"
+                    if image_exists else image_url
+                ),
+                "local_image": str(image_path) if image_exists else None,
+                "source": "Pokémon TCG API",
+            }, image_error)
+
+        workers = max(1, min(16, int(max_workers)))
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = [executor.submit(process_card, card) for card in cards]
+            for future in as_completed(futures):
+                record, image_error = future.result()
+                normalized.append(record)
+                if image_error:
+                    errors.append(image_error)
                 if progress_callback:
                     progress_callback({
                         "provider": "pokemontcg",
@@ -447,22 +474,32 @@ class PokemonMasterDatabaseService:
                         ),
                     })
 
+        normalized.sort(key=lambda item: str(item.get("local_id") or ""))
+
         (set_dir / "cards.json").write_text(
             json.dumps(normalized, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
         manifest = {
             "catalog_format": "RareIQ Master Catalog v1",
+            "game_id": "pokemon",
             "provider": "pokemontcg",
             "set_id": set_id,
             "set_name": payload.get("name"),
             "language": "English",
             "language_code": "en",
             "cards": len(normalized),
-            "images": len(normalized),
-            "coverage_percent": 100.0 if normalized else 0.0,
+            "images": sum(1 for item in normalized if item.get("local_image")),
+            "coverage_percent": (
+                round(
+                    sum(1 for item in normalized if item.get("local_image"))
+                    / len(normalized) * 100,
+                    2,
+                ) if normalized else 0.0
+            ),
             "imported_at": time.time(),
-            "errors": [],
+            "errors": errors,
+            "download_complete": True,
         }
         (set_dir / "manifest.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2),
@@ -480,7 +517,130 @@ class PokemonMasterDatabaseService:
             "set_name": payload.get("name"),
             "language": "English",
             "cards": len(normalized),
-            "images": len(normalized),
+            "images": manifest["images"],
             "coverage_percent": manifest["coverage_percent"],
             "index_status": index_status,
+        }
+
+    def _import_simplifiedtcg_set(
+        self,
+        set_id: str,
+        language: str,
+        *,
+        progress_callback: Any | None = None,
+        defer_indexes: bool = False,
+        max_workers: int = 8,
+    ) -> dict[str, Any]:
+        """Import an authentic mainland zh-cn set and its localized artwork."""
+        provider = self.providers["simplifiedtcg"]
+        payload = provider.fetch_set(language, set_id)
+        cards = list(payload.get("cards") or [])
+        set_name = str(payload.get("name") or set_id)
+        safe_set = self.catalog_engine._safe(set_id)
+        set_dir = self.catalog_engine.sets_dir / f"zh-cn_{safe_set}"
+        images_dir = storage.get_path("image_path") / "pokemon" / "zh-cn" / safe_set
+        set_dir.mkdir(parents=True, exist_ok=True)
+        images_dir.mkdir(parents=True, exist_ok=True)
+        normalized: list[dict[str, Any]] = []
+        errors: list[str] = []
+        import httpx
+
+        def process_card(card: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
+            card_id = str(card.get("id") or "")
+            image_url = str(card.get("image_url") or "")
+            image_path = images_dir / f"{self.catalog_engine._safe(card_id)}.png"
+            image_error: str | None = None
+            if image_url and not image_path.exists():
+                try:
+                    with httpx.Client(timeout=35.0, follow_redirects=True) as client:
+                        response = client.get(image_url)
+                        response.raise_for_status()
+                        image_path.write_bytes(response.content)
+                except Exception as exc:
+                    image_error = f"{card_id}: image {exc}"
+            exists = image_path.exists()
+            number = str(card.get("card_number") or "")
+            return ({
+                "game_id": "pokemon",
+                "id": f"simplifiedtcg-{set_id}-{card_id}",
+                "name": card.get("local_name") or card.get("name"),
+                "printed_name": card.get("local_name"),
+                "english_name": card.get("name"),
+                "language": "Simplified Chinese",
+                "language_code": "zh-cn",
+                "set_id": set_id,
+                "set_name": set_name,
+                "collector_number": number,
+                "local_id": number,
+                "rarity": self.catalog_engine.infer_rarity(
+                    card.get("rarity_label"), number, card.get("name")
+                ),
+                "raw_rarity": card.get("rarity_label"),
+                "category": "Pokemon" if card.get("pokedex_no") else None,
+                "pokedex_no": card.get("pokedex_no"),
+                "variant_type": card.get("variant_type"),
+                "variant_group_id": card.get("variant_group_id"),
+                "image_url": image_url,
+                "reference_image_url": (
+                    f"/api/catalog-engine/image/zh-cn_{safe_set}/{image_path.name}"
+                    if exists else image_url
+                ),
+                "local_image": str(image_path) if exists else None,
+                "dhash": self.catalog_engine._dhash(image_path) if exists else None,
+                "sha256": self.catalog_engine._sha256(image_path) if exists else None,
+                "source": "SimplifiedTCG",
+            }, image_error)
+
+        workers = max(1, min(16, int(max_workers)))
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = [executor.submit(process_card, card) for card in cards]
+            for future in as_completed(futures):
+                record, image_error = future.result()
+                normalized.append(record)
+                if image_error:
+                    errors.append(image_error)
+                if progress_callback:
+                    progress_callback({
+                        "provider": "simplifiedtcg",
+                        "language": "Simplified Chinese",
+                        "set_id": set_id,
+                        "set_name": set_name,
+                        "processed": len(normalized),
+                        "total": len(cards),
+                        "cards": len(normalized),
+                        "images": sum(1 for item in normalized if item.get("local_image")),
+                    })
+
+        normalized.sort(key=lambda item: str(item.get("local_id") or ""))
+        (set_dir / "cards.json").write_text(
+            json.dumps(normalized, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        images = sum(1 for item in normalized if item.get("local_image"))
+        manifest = {
+            "catalog_format": "RareIQ Master Catalog v1",
+            "game_id": "pokemon",
+            "provider": "simplifiedtcg",
+            "set_id": set_id,
+            "set_name": set_name,
+            "language": "Simplified Chinese",
+            "language_code": "zh-cn",
+            "cards": len(normalized),
+            "images": images,
+            "coverage_percent": round(images / len(normalized) * 100, 2) if normalized else 0.0,
+            "imported_at": time.time(),
+            "errors": errors,
+            "download_complete": True,
+        }
+        (set_dir / "manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        index_status: dict[str, Any] = {"deferred": True}
+        if not defer_indexes:
+            self.catalog_engine.rebuild_master_index()
+            index_status = self.catalog_engine.artwork_index.rebuild()
+        return {
+            "ok": True, "set_id": set_id, "set_name": set_name,
+            "language": "Simplified Chinese", "cards": len(normalized),
+            "images": images, "coverage_percent": manifest["coverage_percent"],
+            "errors": errors, "index_status": index_status,
         }

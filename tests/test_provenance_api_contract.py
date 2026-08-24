@@ -1,4 +1,8 @@
 from pathlib import Path
+import asyncio
+from types import SimpleNamespace
+
+from rareiq.web import server
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,6 +21,52 @@ def test_provenance_api_routes_are_minimal_and_structured():
         '@app.get("/api/provenance/events/{event_id}/assets/{asset_id}")',
     ):
         assert route in SERVER
+
+
+def test_next_clear_advances_backend_before_resetting_the_browser():
+    assert '@app.post("/api/recognition/clear")' in SERVER
+    assert "vision.prepare_next_card" in SERVER
+    assert '"type": "card_removed"' in SERVER
+    assert 'orchestrator._set_continuous_state(\n        "CHANGING"' in SERVER
+    start = SCRIPT.index("async function requestNextRecognition")
+    section = SCRIPT[start:start + 900]
+    assert 'fetch("/api/recognition/clear",{method:"POST"})' in section
+    assert section.index("await fetch") < section.index('resetRecognitionPresentation("operator_clear")')
+
+
+def test_next_clear_advances_generation_once_and_arms_changing(monkeypatch):
+    class FakeState:
+        def __init__(self):
+            self.generation = 9
+
+        def snapshot(self):
+            return {"generation": self.generation, "phase": "CHANGING"}
+
+    state = FakeState()
+    transitions = []
+    fake = SimpleNamespace(
+        camera_manager=SimpleNamespace(
+            vision=SimpleNamespace(
+                prepare_next_card=lambda: {
+                    "frame_id": 44,
+                    "auto_capture_armed": True,
+                }
+            )
+        ),
+        recognition_state=state,
+    )
+
+    def emit(event):
+        assert event["type"] == "card_removed"
+        state.generation += 1
+
+    fake._emit_from_thread = emit
+    fake._set_continuous_state = lambda value, **kwargs: transitions.append(value)
+    monkeypatch.setattr(server, "orchestrator", fake)
+    result = asyncio.run(server.clear_recognition())
+    assert result["recognition_state"]["generation"] == 10
+    assert transitions == ["CHANGING"]
+    assert result["vision"]["auto_capture_armed"] is True
 
 
 def test_recognition_event_integration_is_not_a_polling_capture_loop():

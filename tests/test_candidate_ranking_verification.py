@@ -101,3 +101,29 @@ def test_hash_only_candidate_is_capped_below_verified_candidate() -> None:
     failed = next(item for item in ranked if item["id"] == "hash-only")
     assert failed["fused_score"] <= 0.49
     assert failed["retrieval_only"] is True
+
+
+def test_chinese_printed_name_remains_ocr_evidence_with_english_display_name() -> None:
+    ranker = CandidateRankerService(RecognitionFusionService())
+    ranked = ranker.rank(
+        visual_candidates=[{
+            "id": "crocalor-157",
+            "name": "Crocalor",
+            "english_name": "Crocalor",
+            "printed_name": "炙烫鳄",
+            "collector_number": "157",
+            "language": "zh-cn",
+            "score": 0.79,
+            "source": "pokipair",
+            "verification_strong": True,
+        }],
+        ocr_payload={
+            "text": "炙烫鳄 HP 110",
+            "collector_number": None,
+            "language": "Chinese",
+        },
+        quality={"score": 0.46},
+    )
+    assert ranked[0]["name"] == "Crocalor"
+    assert ranked[0]["signals"]["ocr_name"] == 1.0
+    assert ranked[0]["signals"]["language"] == 1.0

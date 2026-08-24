@@ -26,5 +26,7 @@
       "status": "ready"
     }
   ],
-  "active_set_id": "all-loaded"
+  "active_set_id": "all-loaded",
+  "selection_mode": "auto",
+  "active_set_override": null
 }

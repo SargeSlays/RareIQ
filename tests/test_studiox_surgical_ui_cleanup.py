@@ -20,8 +20,12 @@ def test_command_bar_has_four_normal_flow_groups() -> None:
         assert toolbar.count(marker) == 1
     cleanup = CSS[CSS.index("/* Surgical UI cleanup") :]
     assert "grid-template-columns:" in cleanup
-    assert "position:absolute" not in cleanup
-    assert "margin:-" not in cleanup
+    compact_start = cleanup.index(
+        "body.studiox-ui4.studiox-premium .camera-source-compact-menu{"
+    )
+    command_menu = cleanup[compact_start:cleanup.index("}", compact_start)]
+    assert "position:absolute" not in command_menu
+    assert "margin:-" not in command_menu
 
 
 def test_viewer_controls_and_handlers_are_preserved_once() -> None:
@@ -48,17 +52,19 @@ def test_confidence_sources_are_labeled_separately() -> None:
 
 
 def test_provisional_is_a_badge_not_card_metadata() -> None:
-    assert 'id="identityVerdictBadge" hidden' in HTML
-    metadata = JS[JS.index('$("cardMeta").textContent = ['):JS.index("renderIdentityVerdictBadge", JS.index('$("cardMeta").textContent = ['))]
-    assert "PROVISIONAL" not in metadata
-    assert 'badge.textContent=verified?"EXACT MATCH":"PROVISIONAL"' in JS
+    assert 'id="identityVerdictBadge"' in HTML
+    assert 'id="identityVerdictBadge" aria-hidden="true" hidden' in HTML
+    assert '"Candidate only  |  Exact version unresolved"' in JS
+    assert '"WAITING FOR VERIFIED IDENTITY"' in JS
+    assert 'badge.textContent=verified?"EXACT MATCH":"CANDIDATE · VERIFYING"' in JS
 
 
 def test_sticky_actions_and_polished_empty_states() -> None:
     cleanup = CSS[CSS.index("/* Surgical UI cleanup") :]
     assert ".inspector-actions" in cleanup
     assert "position:sticky" in cleanup
-    assert "#approveButton{grid-column:1}" in cleanup
+    assert ".inspector-command-strip" in cleanup
+    assert "grid-template-columns:minmax(0,1.28fr) minmax(0,.82fr) minmax(0,1fr)" in cleanup
     assert "AI Grade is unavailable because no grading provider is connected." in JS
     assert "No verified market data is available for this card." in JS
     assert "Exact identity verified. No alternative candidates require review." in JS

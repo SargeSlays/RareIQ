@@ -6,7 +6,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-import cv2
 import httpx
 
 from rareiq.services.artwork_index_service import ArtworkIndexService

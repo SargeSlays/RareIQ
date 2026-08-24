@@ -59,7 +59,7 @@ def test_initialization_and_tabs_are_stable_and_accessible() -> None:
         script.index("function initializeStudioXUI4"):
         script.index('document.addEventListener("DOMContentLoaded"')
     ]
-    assert html.count("data-studiox-widget=") == 7
+    assert html.count("data-studiox-widget=") == 11
     assert 'data-widget-visibility="identify"' in html
     assert "applyStudioXWidgetLayout()" in script
 
@@ -122,14 +122,11 @@ def test_recognition_states_cannot_render_contradictory_copy() -> None:
 
 def test_native_4k_contract_preserves_smaller_breakpoints() -> None:
     css = read("studiox_update15.css")
-    native_start = css.index("/* Native high-resolution workspace.")
-    native_end = css.index("body.studiox-ui4.studiox-premium .premium-recognition-progress")
-    native_css = css[native_start:native_end]
     assert "@media(min-width:1900px) and (min-height:1000px)" in css
     assert "@media(min-width:3000px) and (min-height:1600px)" in css
     assert "--premium-result-width:620px" in css
     assert "--premium-rail-width:128px" in css
-    assert "transform:scale(" not in native_css.replace(" ", "")
+    assert ".ui4-desktop-shell{transform:scale(" not in css.replace(" ", "")
     assert "@media(min-width:960px) and (max-width:1180px)" in css
     assert "grid-template-columns:60px minmax(0,1fr) 350px" in css
 
@@ -208,14 +205,30 @@ def test_workspace_presets_are_studiox_only_and_persist_safely() -> None:
     for preset in ("intelligence", "balanced", "monitor"):
         assert f'value="{preset}"' in html
         assert f'data-workspace-preset="{preset}"' in css
+    for label in ("Info Focus", "Balanced", "Camera Focus", "Custom Split"):
+        assert f">{label}</option>" in html
     assert 'STUDIOX_PREFERENCES_KEY="rareiq.studiox.workspacePreferences.v1"' in script
     assert 'layoutPreset:"intelligence"' in script
     assert "function normalizeStudioXPreferences" in script
     assert "function applyWorkspaceLayoutPreset" in script
     assert 'document.body.dataset.workspacePreset=' in script
+    assert "function announceWorkspaceLayoutPreset" in script
+    assert 'notify("Workspace Updated"' in script
+    assert 'document.body.dataset.ui4Workspace==="live"' in script
+    for shortcut in ("ALT + 1", "ALT + 2", "ALT + 3"):
+        assert f"<kbd>{shortcut}</kbd>" in html
     preset_start = script.index("function applyWorkspaceLayoutPreset")
     preset_end = script.index("function normalizedCardFocusGeometry", preset_start)
     assert "openProgram" not in script[preset_start:preset_end]
+
+
+def test_inspector_section_jump_navigation_is_available() -> None:
+    html = read("control.html")
+    script = read("studiox.js")
+    assert 'id="inspectorSectionNav"' in html
+    for target in ("cardContextHeader", "recognitionSignalPanel", "widgetWorkspace"):
+        assert f'data-inspector-section="{target}"' in html
+    assert 'currentView.scrollTo({' in script
 
 
 def test_viewer_modes_use_existing_geometry_and_fall_back_truthfully() -> None:

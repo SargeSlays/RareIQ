@@ -19,8 +19,8 @@ def test_prelock_identity_is_compact_and_not_duplicate_verification_copy():
         "function renderLiveAnalysisTimeline",
         "function renderAuthoritativeCardContextHeader",
     )
-    assert "pending.hidden=recognized" in render
-    assert "header.hidden=!recognized" in render
+    assert "pending.hidden=showCardContext" in render
+    assert "header.hidden=!showCardContext" in render
     assert "presentation.placeholderTitle" not in HTML
 
 
@@ -76,7 +76,9 @@ def test_grade_market_and_candidates_hide_fake_content():
     assert "node.hidden=!hasMetrics" in market
     assert "Searching catalog candidates" in candidates
     assert "Exact identity verified. No alternative candidates require review." in candidates
-    assert "reviewButton.hidden=!(count>0&&context.presentation.key===\"review-needed\")" in candidates
+    assert "reviewButton.hidden=!correctionAvailable" in candidates
+    assert "correctButton.hidden=!correctionAvailable" in candidates
+    assert 'correctButton.textContent=context.verified?"Correct Match":"Review Match"' in candidates
 
 
 def test_auto_card_focus_respects_manual_hidden_and_is_stable():

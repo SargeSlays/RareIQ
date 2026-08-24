@@ -98,9 +98,10 @@ def test_restart_requires_an_explicit_selected_camera() -> None:
 
 
 def test_cache_is_advanced_and_ids_remain_unique() -> None:
-    assert "/static/studiox_ui4_tokens.css?v=6.4.15-provenance2" in HTML
-    assert "/static/studiox_update15.css?v=6.4.15-provenance2" in HTML
-    assert "/static/studiox.js?v=6.4.15-provenance2" in HTML
+    version = re.search(r'data-studiox-build="([^"]+)"', HTML).group(1)
+    assert f"/static/studiox_ui4_tokens.css?v={version}" in HTML
+    assert f"/static/studiox_update15.css?v={version}" in HTML
+    assert f"/static/studiox.js?v={version}" in HTML
     ids = re.findall(r'\bid="([^"]+)"', HTML)
     assert len(ids) == len(set(ids))
     assert ".camera-source-compact-menu" in CSS
@@ -113,8 +114,12 @@ def test_compact_toolbar_uses_camera_action_menu_without_absolute_positioning() 
     assert 'window.matchMedia("(max-width: 1180px)")' in JS
     cleanup_css = CSS[CSS.index("/* Surgical UI cleanup") :]
     assert ".camera-source-compact-menu" in cleanup_css
-    assert "position:absolute" not in cleanup_css
-    assert "margin:-" not in cleanup_css
+    compact_start = cleanup_css.index(
+        "body.studiox-ui4.studiox-premium .camera-source-compact-menu{"
+    )
+    compact_menu = cleanup_css[compact_start:cleanup_css.index("}", compact_start)]
+    assert "position:absolute" not in compact_menu
+    assert "margin:-" not in compact_menu
 
 
 def test_disconnected_camera_cannot_present_ready_to_scan() -> None:

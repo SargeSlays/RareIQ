@@ -162,6 +162,44 @@ def provenance(session, sequence, frame_id):
     }
 
 
+def test_operator_next_clear_rearms_one_fresh_acquisition(tmp_path):
+    service = VisionService(lambda event: None, tmp_path / "captures")
+    service._auto_capture_armed = False
+    service._acquisition_epoch = 4
+    service._last_accepted_provenance = provenance(2, 3, 3)
+    service._last_accepted_crop = np.zeros((1400, 1000, 3), dtype=np.uint8)
+    service._last_accepted_full_hash = 1
+    service._last_accepted_artwork_hash = 2
+    status = service.prepare_next_card()
+    assert service._acquisition_epoch == 5
+    assert service._auto_capture_armed is True
+    assert service._last_accepted_provenance is None
+    assert service._last_accepted_crop is None
+    assert service._empty_content_transition_seen is True
+    assert status["auto_capture_armed"] is True
+
+
+def test_new_card_epoch_bypasses_previous_card_capture_cooldown():
+    service = object.__new__(VisionService)
+    service._acquisition_epoch = 8
+    service._last_auto_capture_epoch = 7
+    service._last_auto_capture_at = 100.0
+
+    assert service._auto_capture_cooldown_ready(100.05) is True
+
+
+def test_same_card_epoch_keeps_duplicate_capture_cooldown():
+    service = object.__new__(VisionService)
+    service._acquisition_epoch = 8
+    service._last_auto_capture_epoch = 8
+    service._last_auto_capture_at = 100.0
+
+    assert service._auto_capture_cooldown_ready(100.05) is False
+    assert service._auto_capture_cooldown_ready(
+        100.0 + service.CAPTURE_COOLDOWN_SECONDS
+    ) is True
+
+
 def test_pre_removal_duplicate_pixels_are_rejected_then_new_content_is_used(
     tmp_path,
 ):
@@ -286,6 +324,27 @@ def test_low_texture_capture_remains_rejected():
     assert not result["accepted"]
     assert result["sharpness"] < 1.0
     assert "insufficient_texture" in result["rejection_reason"]
+
+
+def test_guarded_low_contrast_card_passes_only_with_strong_structure():
+    assert VisionService._capture_texture_supported(
+        pixel_stddev=26.3,
+        sharpness=18.4,
+        edge_density=0.027,
+        supported_sides=4,
+    ) is True
+    assert VisionService._capture_texture_supported(
+        pixel_stddev=26.3,
+        sharpness=18.4,
+        edge_density=0.027,
+        supported_sides=2,
+    ) is False
+    assert VisionService._capture_texture_supported(
+        pixel_stddev=26.3,
+        sharpness=4.0,
+        edge_density=0.027,
+        supported_sides=4,
+    ) is False
 
 
 def test_valid_horsea_like_capture_passes_quality_gate():
@@ -854,7 +913,7 @@ def test_polygon_mismatched_high_quality_sample_is_skipped():
     assert chosen is valid
 
 
-def test_rejected_sample_is_quarantined_and_next_sample_attempted_same_cycle(
+def test_rejected_fresh_sample_falls_back_to_older_sample_same_cycle(
     tmp_path, monkeypatch
 ):
     service = VisionService(lambda event: None, tmp_path)
@@ -875,7 +934,7 @@ def test_rejected_sample_is_quarantined_and_next_sample_attempted_same_cycle(
     def save(**kwargs):
         sample = kwargs["sample"]
         calls.append(sample.frame_id)
-        if sample.frame_id == 30:
+        if sample.frame_id == 31:
             service._last_capture_validation = {
                 "accepted": False, "rejection_reason": "polygon_mismatch"
             }
@@ -884,8 +943,8 @@ def test_rejected_sample_is_quarantined_and_next_sample_attempted_same_cycle(
 
     monkeypatch.setattr(service, "save_latest_crop", save)
     assert service._attempt_auto_capture(BASE_POLYGON, now=now) is True
-    assert calls == [30, 31]
-    assert service._capture_telemetry["last_accepted_frame_id"] == 31
+    assert calls == [31, 30]
+    assert service._capture_telemetry["last_accepted_frame_id"] == 30
     assert service._capture_telemetry["total_capture_rejections"] == 1
     assert not service._capture_quarantined_frame_ids
 

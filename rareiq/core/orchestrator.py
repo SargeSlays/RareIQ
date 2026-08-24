@@ -1,9 +1,9 @@
 from __future__ import annotations
 import asyncio
+import threading
 import time
 import cv2
 import numpy as np
-import uuid
 from collections import deque
 from pathlib import Path
 from typing import Any
@@ -12,7 +12,11 @@ from rareiq.core.events import EventBus
 from rareiq.core.recognition_state import RecognitionStateStore
 from rareiq.core.storage import storage
 from rareiq.services.session_service import SessionService
+from rareiq.services.collection_service import CollectionService
+from rareiq.services.inventory_service import InventoryService
 from rareiq.services.experience_service import ExperienceService
+from rareiq.services.multi_card_recognition_service import MultiCardRecognitionService
+from rareiq.services.artwork_index_service import ArtworkIndexService
 from rareiq.services.vision_service import VisionService
 from rareiq.services.camera_manager_service import CameraManagerService
 from rareiq.services.boot_manager_service import BootManagerService
@@ -44,9 +48,16 @@ from rareiq.services.learning_queue_service import LearningQueueService
 from rareiq.services.x7_benchmark_service import X7BenchmarkService
 from rareiq.services.brand_settings_service import BrandSettingsService
 from rareiq.services.overlay_state_service import OverlayStateService
+from rareiq.services.pokedex_service import PokedexService
+from rareiq.services.reveal_sequence_service import RevealSequenceService
+from rareiq.services.reaction_asset_service import ReactionAssetService
+from rareiq.services.pack_artwork_recognition_service import PackArtworkRecognitionService
+from rareiq.services.tcg_registry_service import TCGDefinition, TCGRegistryService
 
 
 class RareIQOrchestrator:
+    COLLECTOR_OCR_RETRY_TIMEOUT_SECONDS = 2.0
+
     def __init__(self, event_bus: EventBus, capture_dir: Path) -> None:
 
         self.event_bus = event_bus
@@ -58,6 +69,8 @@ class RareIQOrchestrator:
         cache_dir = storage.get_path("cache_path")
 
         self.sessions = SessionService(log_dir / "sessions")
+        self.collection = CollectionService(data_root / "collection.json")
+        self.inventory = InventoryService(data_root / "inventory.json")
 
         self._last_auto_crop_hash: int | None = None
         self._last_auto_card_signature: str | None = None
@@ -81,10 +94,21 @@ class RareIQOrchestrator:
         self._continuous_state_at = time.time()
         self._auto_capture_generation: int | None = None
         self._diagnostic_journal: deque[dict[str, Any]] = deque(maxlen=64)
+        self._pack_cycle: dict[str, Any] | None = None
+        self._pack_cycle_samples: deque[dict[str, Any]] = deque(maxlen=50)
         self._current_stream_session_id: int | None = None
         self._active_capture_attribution: dict[str, Any] | None = None
+        self._removal_finalize_card: dict[str, Any] | None = None
+        self._removal_finalize_generation: int | None = None
+        self._recognition_decision_generation: int | None = None
+        self._picked_region_context: dict[str, Any] | None = None
+        self._collector_retry_attempted_epoch: int | None = None
 
         self.experiences = ExperienceService()
+        self.reveal_sequence = RevealSequenceService(cache_dir / "reveal_sequence.json")
+        self.reaction_assets = ReactionAssetService(
+            data_root / "creator_assets", cache_dir / "reaction_assets.json"
+        )
         self.loop: asyncio.AbstractEventLoop | None = None
 
         raw_vision = VisionService(self._emit_from_thread, capture_dir)
@@ -100,7 +124,10 @@ class RareIQOrchestrator:
             self,
             cache_dir / "diagnostics",
         )
-        self.recognition = RecognitionService(self._emit_from_thread)
+        self.recognition = RecognitionService(
+            self._emit_from_thread,
+            temporal_path=cache_dir / "single_card_temporal.json",
+        )
         self.trigger_manager = TriggerManagerService(
             self.vision,
             self.recognition,
@@ -108,12 +135,32 @@ class RareIQOrchestrator:
         )
         self.trigger_manager.start()
         self.catalog = CatalogService(self._emit_from_thread, cache_dir / "catalog")
+        self.recognition.set_prediction_prefetcher(self.catalog.prefetch_predictions)
         self.cardgrader = CardGraderService(storage.get_path("grading_path"))
+
+        self.tcg_registry = TCGRegistryService((
+            TCGDefinition(
+                game_id="pokemon",
+                name="Pokémon Trading Card Game",
+                aliases=("pokemon", "pokémon", "ptcg"),
+                providers=("tcgdex", "pokemontcg", "simplifiedtcg"),
+                capabilities=(
+                    "catalog",
+                    "visual_recognition",
+                    "pack_recognition",
+                    "inventory",
+                    "localized_sets",
+                ),
+            ),
+        ), config_path=storage.get_path("config_path") / "tcg_selection.json")
 
         self.catalog_intelligence = CatalogIntelligenceService(
             data_root,
             self.recognition.artwork_index,
             shared_dropbox_link="https://www.dropbox.com/scl/fo/i8fwz3ktmh53ved36hdht/AHvdG4tiZ8w_PV-XfBFAAoM?rlkey=fxq3gpdgn8tui4nooqqr8cbbs&st=retasmap&dl=0",
+        )
+        self.recognition.set_catalog_resolver(
+            self.catalog_intelligence.resolve
         )
         self.pokemon_master_database = PokemonMasterDatabaseService(
             data_root,
@@ -185,10 +232,18 @@ class RareIQOrchestrator:
         )
         self.brand_settings = BrandSettingsService()
         self.overlay_state = OverlayStateService()
+        self.pokedex = PokedexService(cache_dir / "pokedex")
         self.recognition.set_intelligence_services(
             self.vision_optimizer,
             self.candidate_ranker,
             self.recognition_diagnostics,
+        )
+        self.pack_artwork_recognition = PackArtworkRecognitionService(
+            cache_dir / "pack_artwork"
+        )
+        self.multi_card_recognition = MultiCardRecognitionService(self.recognition)
+        self.recognition.set_exact_reference_resolver(
+            self.multi_card_recognition.resolve_exact_reference
         )
 
         self.recognition_state = RecognitionStateStore()
@@ -204,6 +259,7 @@ class RareIQOrchestrator:
 
         services = (
             getattr(self, "trigger_manager", None),
+            getattr(self, "catalog", None),
             getattr(self, "system_health", None),
             getattr(self, "job_queue", None),
             getattr(self, "index_activation", None),
@@ -211,6 +267,7 @@ class RareIQOrchestrator:
             getattr(self, "master_database_builder", None),
             getattr(self, "pokemon_auto_sync", None),
             getattr(self, "recognition", None),
+            getattr(self, "multi_card_recognition", None),
             getattr(self, "vision", None),
             getattr(self, "sessions", None),
         )
@@ -406,7 +463,7 @@ class RareIQOrchestrator:
             and int(payload.get("changed_frames") or 0) >= 6
             and (primary_identity_change or artwork_identity_change)
         )
-        if self._continuous_state == "RECOGNIZING":
+        if self._continuous_state == "RECOGNIZING" and not decisive:
             self._deferred_change_evidence = {
                 **payload,
                 "deferred_at": time.time(),
@@ -474,6 +531,7 @@ class RareIQOrchestrator:
         return {key: payload.get(key) for key in keys if key in payload}
 
     def _confirm_card_removed(self, payload: dict[str, Any]) -> None:
+        self._finalize_verified_card_on_removal()
         previous_generation = self._recognition_generation
         self._recognition_generation += 1
         self.recognition.invalidate_before(self._recognition_generation)
@@ -485,11 +543,20 @@ class RareIQOrchestrator:
         self._current_artwork_fingerprint = None
         self._last_submitted_crop_hash = None
         self._auto_capture_generation = None
+        self._removal_finalize_card = None
+        self._removal_finalize_generation = None
         self._set_continuous_state(
             "EMPTY",
             frame_id=payload.get("frame_id"),
             clear=True,
         )
+        removed_at = float(payload.get("timestamp") or time.time())
+        self._pack_cycle = {
+            "cycle_id": f"{self._recognition_generation}:{int(removed_at * 1000)}",
+            "removed_at": removed_at,
+            "removal_frame_id": payload.get("frame_id"),
+            "operator_clear": bool(payload.get("operator_clear")),
+        }
         self._append_diagnostic(
             event="generation_increment",
             reason="removal_confirmed",
@@ -498,9 +565,68 @@ class RareIQOrchestrator:
             new_generation=self._recognition_generation,
         )
 
+    def _finalize_verified_card_on_removal(self) -> dict[str, Any] | None:
+        card = getattr(self, "_removal_finalize_card", None)
+        generation = getattr(self, "_removal_finalize_generation", None)
+        decision_generation = getattr(
+            self, "_recognition_decision_generation", None
+        )
+        if (
+            not card
+            or generation != self._recognition_generation
+            or decision_generation == self._recognition_generation
+        ):
+            return None
+
+        session = self.sessions.add_card(dict(card))
+        self._record_collection_pull(card, session)
+        reveal = self._advance_reveal_sequence(card, bool(session.get("duplicate_suppressed")))
+        self._recognition_decision_generation = self._recognition_generation
+        self._removal_finalize_card = None
+        self._removal_finalize_generation = None
+        self._emit_from_thread({
+            "type": "card_confirmed",
+            "payload": {
+                "session": session,
+                "card": card,
+                "automatic": True,
+                "reason": "verified_card_removed",
+                "reveal_sequence": reveal,
+            },
+        })
+        self._append_diagnostic(
+            event="card_auto_finalized",
+            reason="verified_card_removed",
+        )
+        return session
+
+    def _record_collection_pull(
+        self,
+        card: dict[str, Any],
+        session: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        collection = getattr(self, "collection", None)
+        pull = session.get("last_added_card") or {}
+        if collection is None or session.get("duplicate_suppressed") or not pull.get("id"):
+            return None
+        return collection.record(card, str(pull["id"]))
+
+    def _advance_reveal_sequence(self, card: dict[str, Any], duplicate: bool) -> dict[str, Any] | None:
+        reveal_service = getattr(self, "reveal_sequence", None)
+        if reveal_service is None:
+            return None
+        return reveal_service.snapshot() if duplicate else reveal_service.advance(card)
+
     def _submit_captured_card(self, payload: dict[str, Any]) -> None:
         crop = payload.get("crop")
+        ocr_crop = payload.get("ocr_crop")
+        ocr_frames = tuple(payload.get("ocr_frames") or ())
         frame_id = payload.get("frame_id")
+        captured_at = float(
+            payload.get("capture_timestamp")
+            or payload.get("timestamp")
+            or time.time()
+        )
         event_epoch = int(payload.get("acquisition_epoch") or 0)
         provenance = dict(payload.get("provenance") or {})
         event_stream = provenance.get("stream_session_id")
@@ -541,7 +667,19 @@ class RareIQOrchestrator:
                 frame_id=frame_id,
             )
             return
-        crop = np.asarray(crop).copy()
+        # RecognitionService takes the single ownership snapshot immediately
+        # before launching its worker. Copying the same 4K arrays here as well
+        # doubled capture handoff cost without adding isolation.
+        crop = np.asarray(crop)
+        if ocr_crop is not None and getattr(ocr_crop, "size", 0):
+            ocr_crop = np.asarray(ocr_crop)
+        else:
+            ocr_crop = crop
+        collector_frames = tuple(
+            np.asarray(item)
+            for item in ocr_frames[:3]
+            if item is not None and getattr(item, "size", 0)
+        )
 
         current_hash = self._crop_dhash(crop)
         source = str(payload.get("source") or "auto")
@@ -561,6 +699,11 @@ class RareIQOrchestrator:
         if source == "manual":
             self._recognition_generation += 1
             self.recognition.invalidate_before(self._recognition_generation)
+        elif source == "collector-ocr-retry":
+            # This is another sample of the current physical card, not a new
+            # identity generation. Keeping the generation stable preserves the
+            # existing candidate until the stronger result replaces it.
+            pass
         elif self._continuous_state != "CHANGING":
             self._recognition_generation += 1
             self.recognition.invalidate_before(self._recognition_generation)
@@ -599,18 +742,38 @@ class RareIQOrchestrator:
         )
 
         generation = self._recognition_generation
+        cycle = getattr(self, "_pack_cycle", None)
+        if cycle is not None and cycle.get("capture_submitted_at") is None:
+            submitted_at = time.time()
+            cycle.update({
+                "generation": generation,
+                "capture_submitted_at": submitted_at,
+                "capture_frame_id": frame_id,
+                "removal_to_capture_ms": round(
+                    max(0.0, submitted_at - float(cycle["removed_at"])) * 1000,
+                    1,
+                ),
+            })
         result = self.recognition.submit_frame(
             crop,
             generation=generation,
             frame_id=frame_id,
             source=source,
+            captured_at=captured_at,
+            ocr_frame=ocr_crop,
+            collector_frames=collector_frames,
         )
         if result == "busy_queued":
             self._pending_recognition = {
                 "crop": crop.copy(),
+                "ocr_crop": ocr_crop.copy(),
+                "collector_frames": tuple(
+                    item.copy() for item in collector_frames
+                ),
                 "generation": generation,
                 "frame_id": frame_id,
                 "source": source,
+                "captured_at": captured_at,
                 "crop_path": payload.get("crop_path") or payload.get("path"),
                 "provenance": provenance,
                 "acquisition_epoch": event_epoch,
@@ -665,6 +828,197 @@ class RareIQOrchestrator:
             "reason": self._last_trigger_result,
         }
 
+    def recognize_picked_region(
+        self,
+        crop: np.ndarray,
+        slot: int,
+        *,
+        automatic_follow_up: bool = False,
+        polygon: list[list[float]] | None = None,
+    ) -> dict[str, Any]:
+        self._recognition_generation += 1
+        generation = self._recognition_generation
+        self.recognition.invalidate_before(generation)
+        result = self.recognition.submit_frame(
+            crop,
+            generation=generation,
+            frame_id=self.vision.status().get("frame_id"),
+            source=f"manual-picked-slot-{int(slot)}",
+            captured_at=time.time(),
+            ocr_frame=crop,
+            collector_frames=(crop,),
+        )
+        if result == "accepted":
+            self._active_job_generation = generation
+            self._picked_region_context = {
+                "slot": int(slot),
+                "generation": generation,
+                "fingerprint": ArtworkIndexService.variant_marker_fingerprint(crop),
+                "treatment_response": self.multi_card_recognition.treatment_response(crop),
+                "frame_id": self.vision.status().get("frame_id"),
+                "polygon": polygon,
+                "automatic_follow_up": bool(automatic_follow_up),
+            }
+            self._set_continuous_state("RECOGNIZING", present=True)
+        return {
+            "ok": result == "accepted",
+            "job_accepted": result == "accepted",
+            "reason": result,
+            "generation": generation,
+            "slot": int(slot),
+        }
+
+    def _schedule_picked_region_follow_up(self, payload: dict[str, Any]) -> None:
+        diagnostics = payload.get("exact_reference_diagnostics") or {}
+        context = getattr(self, "_picked_region_context", None) or {}
+        if (
+            payload.get("background_enrichment")
+            or
+            diagnostics.get("status") != "ambiguous"
+            or int(diagnostics.get("confirmation_progress") or 0) != 1
+            or context.get("automatic_follow_up")
+            or int(context.get("generation") or 0) != self._recognition_generation
+        ):
+            return
+        expected_generation = self._recognition_generation
+        slot = int(context.get("slot") or 0)
+        fingerprint = str(context.get("fingerprint") or "")
+        treatment_response = context.get("treatment_response") or (0.0, 0.0, 0.0)
+        original_frame_id = context.get("frame_id")
+        polygon = context.get("polygon")
+        self.recognition.update_exact_reference_follow_up("waiting-for-fresh-foil-sample")
+
+        def follow_up() -> None:
+            deadline = time.monotonic() + 4.0
+            while time.monotonic() < deadline and not self._shutting_down:
+                time.sleep(0.25)
+                if expected_generation != self._recognition_generation:
+                    return
+                frame = self.vision.latest_frame()
+                region = (
+                    self.multi_card_recognition.track_region(frame, polygon, 12)
+                    if polygon
+                    else None
+                )
+                if not region:
+                    self.recognition.update_exact_reference_follow_up("selected-card-lost")
+                    return
+                crop = region.get("crop")
+                if self.vision.status().get("frame_id") == original_frame_id:
+                    continue
+                current = ArtworkIndexService.variant_marker_fingerprint(crop)
+                distance = ArtworkIndexService.hamming(fingerprint, current)
+                response_distance = self.multi_card_recognition.treatment_response_distance(
+                    treatment_response,
+                    self.multi_card_recognition.treatment_response(crop),
+                )
+                if distance > 10 or (distance == 0 and response_distance < 1.25):
+                    continue
+                self.recognize_picked_region(
+                    crop,
+                    slot,
+                    automatic_follow_up=True,
+                    polygon=region.get("polygon"),
+                )
+                return
+            if expected_generation == self._recognition_generation:
+                self.recognition.update_exact_reference_follow_up("timed-out-safely")
+
+        threading.Thread(
+            target=follow_up,
+            name="rareiq-picked-card-follow-up",
+            daemon=True,
+        ).start()
+
+    def _schedule_collector_ocr_retry(self, payload: dict[str, Any]) -> bool:
+        """Capture one newer frame when footer OCR explicitly requests it."""
+        if (
+            payload.get("background_enrichment")
+            or not payload.get("collector_retry_recommended")
+            or self._pending_recognition is not None
+            or self._continuous_state in {"EMPTY", "LOST", "CHANGING"}
+        ):
+            return False
+        expected_generation = self._recognition_generation
+        expected_epoch = self._current_acquisition_epoch
+        if self._collector_retry_attempted_epoch == expected_epoch:
+            return False
+        self._collector_retry_attempted_epoch = expected_epoch
+        original_frame_id = int(payload.get("frame_id") or 0)
+        attribution = dict(
+            getattr(self, "_active_capture_attribution", None) or {}
+        )
+        original_provenance = dict(attribution.get("provenance") or {})
+        original_content_fingerprint = str(
+            original_provenance.get("content_fingerprint") or ""
+        )
+        self._append_diagnostic(
+            event="collector_ocr_retry_scheduled",
+            reason="newer_frame_requested",
+            frame_id=original_frame_id,
+            acquisition_epoch=expected_epoch,
+        )
+
+        def retry() -> None:
+            deadline = (
+                time.monotonic() + self.COLLECTOR_OCR_RETRY_TIMEOUT_SECONDS
+            )
+            while time.monotonic() < deadline and not self._shutting_down:
+                time.sleep(0.10)
+                if (
+                    expected_generation != self._recognition_generation
+                    or expected_epoch != self._current_acquisition_epoch
+                    or self._continuous_state in {"EMPTY", "LOST", "CHANGING"}
+                ):
+                    self._append_diagnostic(
+                        event="collector_ocr_retry_cancelled",
+                        reason="card_changed_or_removed",
+                        frame_id=original_frame_id,
+                    )
+                    return
+                camera_status = self.vision.status()
+                fresh_frame_id = int(camera_status.get("frame_id") or 0)
+                if fresh_frame_id <= original_frame_id:
+                    continue
+                fresh_provenance = dict(
+                    camera_status.get("camera_provenance") or {}
+                )
+                fresh_content_fingerprint = str(
+                    fresh_provenance.get("content_fingerprint")
+                    or camera_status.get("manager", {}).get("content_fingerprint")
+                    or ""
+                )
+                if (
+                    original_content_fingerprint
+                    and fresh_content_fingerprint == original_content_fingerprint
+                ):
+                    continue
+                result = self.vision.capture_fresh(source="collector-ocr-retry")
+                self._append_diagnostic(
+                    event="collector_ocr_retry_capture",
+                    reason=("captured" if result.get("ok") else result.get("reason") or "capture_failed"),
+                    frame_id=result.get("frame_id") or fresh_frame_id,
+                    acquisition_epoch=expected_epoch,
+                )
+                return
+            self._append_diagnostic(
+                event="collector_ocr_retry_timeout",
+                reason=(
+                    "no_changed_content"
+                    if original_content_fingerprint
+                    else "no_newer_frame"
+                ),
+                frame_id=original_frame_id,
+                acquisition_epoch=expected_epoch,
+            )
+
+        threading.Thread(
+            target=retry,
+            name="rareiq-collector-ocr-retry",
+            daemon=True,
+        ).start()
+        return True
+
     def _submit_pending_if_current(self) -> bool:
         pending = self._pending_recognition
         if not pending or pending["generation"] != self._recognition_generation:
@@ -674,6 +1028,9 @@ class RareIQOrchestrator:
             generation=pending["generation"],
             frame_id=pending["frame_id"],
             source=pending["source"],
+            captured_at=pending.get("captured_at"),
+            ocr_frame=pending.get("ocr_crop"),
+            collector_frames=pending.get("collector_frames"),
         )
         if result != "accepted":
             return False
@@ -699,6 +1056,7 @@ class RareIQOrchestrator:
                 result_generation=generation,
             )
             return
+        self._schedule_picked_region_follow_up(payload)
         error = payload.get("error")
         candidates = payload.get("candidates") or []
         name = payload.get("name_candidate")
@@ -709,6 +1067,33 @@ class RareIQOrchestrator:
         verification_state = str(
             payload.get("verification_state") or ""
         ).upper()
+        cycle = getattr(self, "_pack_cycle", None)
+        if cycle and int(cycle.get("generation") or -1) == generation:
+            now = time.time()
+            if candidates and cycle.get("first_candidate_at") is None:
+                cycle["first_candidate_at"] = now
+                cycle["removal_to_candidate_ms"] = round(
+                    max(0.0, now - float(cycle["removed_at"])) * 1000, 1
+                )
+                cycle["capture_to_candidate_ms"] = round(
+                    max(0.0, now - float(cycle["capture_submitted_at"])) * 1000,
+                    1,
+                )
+            if verification_state == "VERIFIED" and cycle.get("verified_at") is None:
+                cycle["verified_at"] = now
+                cycle["removal_to_verified_ms"] = round(
+                    max(0.0, now - float(cycle["removed_at"])) * 1000, 1
+                )
+                cycle["capture_to_verified_ms"] = round(
+                    max(0.0, now - float(cycle["capture_submitted_at"])) * 1000,
+                    1,
+                )
+                samples = getattr(self, "_pack_cycle_samples", None)
+                if samples is None:
+                    samples = deque(maxlen=50)
+                    self._pack_cycle_samples = samples
+                samples.append(dict(cycle))
+            payload["pack_cycle_timings"] = self._pack_cycle_snapshot()
 
         if error:
             self.pipeline_state.fail(
@@ -738,8 +1123,14 @@ class RareIQOrchestrator:
             for key in (
                 "collector_number",
                 "language",
+                "language_code",
                 "printed_name",
                 "name",
+                "english_name",
+                "canonical_name",
+                "pokemon_name",
+                "pricing_lookup_name",
+                "identity_override_key",
                 "set_id",
                 "set_name",
             ):
@@ -807,6 +1198,9 @@ class RareIQOrchestrator:
                 f"Current Card: {card.get('card_name')}",
             )
             self._last_trigger_result = "card_ready"
+            if verification_state == "VERIFIED" and not card.get("provisional"):
+                self._removal_finalize_card = dict(card)
+                self._removal_finalize_generation = generation
         else:
             self.pipeline_state.waiting(
                 "current_card",
@@ -844,6 +1238,7 @@ class RareIQOrchestrator:
         if deferred and deferred.get("generation") != generation:
             deferred = None
         self._submit_pending_if_current()
+        self._schedule_collector_ocr_retry(payload)
 
     @staticmethod
     def _provenance_metrics(payload: dict[str, Any]) -> dict[str, Any]:
@@ -884,7 +1279,37 @@ class RareIQOrchestrator:
             "diagnostic_journal": list(
                 getattr(self, "_diagnostic_journal", ())
             ),
+            "pack_cycle": self._pack_cycle_snapshot(),
         }
+
+    def _pack_cycle_snapshot(self) -> dict[str, Any] | None:
+        cycle = getattr(self, "_pack_cycle", None)
+        if not cycle:
+            return None
+        public_keys = (
+            "cycle_id", "generation", "removal_frame_id", "capture_frame_id",
+            "operator_clear", "removal_to_capture_ms",
+            "capture_to_candidate_ms", "removal_to_candidate_ms",
+            "capture_to_verified_ms", "removal_to_verified_ms",
+        )
+        snapshot = {
+            key: cycle.get(key) for key in public_keys if cycle.get(key) is not None
+        }
+        samples = list(getattr(self, "_pack_cycle_samples", ()))
+        completed = [
+            float(item["removal_to_verified_ms"])
+            for item in samples if item.get("removal_to_verified_ms") is not None
+        ]
+        if completed:
+            ordered = sorted(completed)
+            snapshot["sample_count"] = len(ordered)
+            snapshot["p50_removal_to_verified_ms"] = round(
+                ordered[int((len(ordered) - 1) * 0.50)], 1
+            )
+            snapshot["p95_removal_to_verified_ms"] = round(
+                ordered[int((len(ordered) - 1) * 0.95)], 1
+            )
+        return snapshot
 
     @staticmethod
     def _consume_publish_result(future: Any) -> None:
@@ -924,6 +1349,10 @@ class RareIQOrchestrator:
         candidate = unified.get("primary_candidate")
         if not candidate:
             return None
+        learned=self.learning_queue.correction_match(unified.get("artwork_fingerprint") or self._current_artwork_fingerprint or "",candidate)
+        if learned:
+            corrected=learned["candidate"]
+            candidate={**corrected,"source":"learned_operator_correction","operator_learned":True,"learned_match_type":learned["match_type"],"learned_fingerprint_distance":learned["distance"],"learned_evidence_agreement":learned["evidence_agreement"],"correction_id":learned["correction_id"],"fused_score":max(.99,float(corrected.get("fused_score") or corrected.get("score") or 0))}
 
         printed = (
             candidate.get("printed_name")
@@ -1008,17 +1437,56 @@ class RareIQOrchestrator:
             "confidence": confidence,
             "recognition_signature": signature,
             "recognition_revision": unified.get("revision"),
-            "provisional": bool(candidate.get("provisional")),
+            "provisional": bool(
+                candidate.get("provisional")
+                and not (
+                    unified.get("recognition_locked") is True
+                    and str(unified.get("verification_state") or "").upper()
+                    == "VERIFIED"
+                )
+            ),
         }
+
+    def _decision_recognition_card(self) -> dict[str, Any] | None:
+        """Return the current card or the backend's retained verified card.
+
+        Recognition enrichment may briefly publish a weaker follow-up result
+        after the UI has already rendered a verified card. The decision path
+        must use the backend-owned verified snapshot retained for automatic
+        removal, never fail merely because that transient refresh has no
+        primary candidate.
+        """
+        current = self._current_recognition_card()
+        if current:
+            return current
+        retained = getattr(self, "_removal_finalize_card", None)
+        retained_generation = getattr(
+            self, "_removal_finalize_generation", None
+        )
+        if (
+            retained
+            and retained_generation == self._recognition_generation
+        ):
+            return dict(retained)
+        return None
 
     async def confirm_recognition(
         self,
         automatic: bool = False,
         allow_unverified_test: bool = False,
+        card_override: dict[str, Any] | None = None,
     ):
-        card = self._current_recognition_card()
+        card = dict(card_override) if isinstance(card_override, dict) else self._decision_recognition_card()
         if not card:
             return {"ok": False, "error": "No recognition candidate is available."}
+
+        if automatic and card.get("operator_learned") and card.get("learned_match_type") == "approximate":
+            return {
+                "ok": False,
+                "error": "A learned near-match needs operator approval before it can be added.",
+                "reason": "learned_approximate_requires_review",
+                "card": card,
+            }
 
         recognition = self.recognition_state.refresh(
             vision=self.vision.status(),
@@ -1092,6 +1560,17 @@ class RareIQOrchestrator:
                 }
 
         session = self.sessions.add_card(card)
+        if card.get("operator_learned") and card.get("correction_id"):
+            self.learning_queue.record_correction_use(
+                card["correction_id"],
+                str(card.get("learned_match_type") or "exact"),
+                card.get("learned_fingerprint_distance"),
+            )
+        self._record_collection_pull(card, session)
+        reveal = self._advance_reveal_sequence(card, bool(session.get("duplicate_suppressed")))
+        self._recognition_decision_generation = self._recognition_generation
+        self._removal_finalize_card = None
+        self._removal_finalize_generation = None
 
         if automatic and not session.get("duplicate_suppressed"):
             self._last_auto_crop_hash = self._crop_dhash(self.vision.latest_crop())
@@ -1105,6 +1584,7 @@ class RareIQOrchestrator:
                 "card": card,
                 "automatic": automatic,
                 "experience": self.experiences.for_card(card),
+                "reveal_sequence": reveal,
             },
         )
         return {
@@ -1112,13 +1592,17 @@ class RareIQOrchestrator:
             "session": session,
             "card": card,
             "duplicate_suppressed": bool(session.get("duplicate_suppressed")),
+            "reveal_sequence": reveal,
         }
 
     async def reject_recognition(self):
-        card = self._current_recognition_card()
+        card = self._decision_recognition_card()
         if not card:
             return {"ok": False, "error": "No recognition candidate is available."}
         result = self.sessions.reject_card(card)
+        self._recognition_decision_generation = self._recognition_generation
+        self._removal_finalize_card = None
+        self._removal_finalize_generation = None
         await self.publish("card_rejected", result)
         return {"ok": True, **result}
 
@@ -1147,8 +1631,41 @@ class RareIQOrchestrator:
             ),
         }
 
+    async def start_session(self, **payload):
+        session = self.sessions.start(**payload)
+        self.reveal_sequence.next_pack()
+        await self.publish("session_started", {"session": session})
+        return session
+
+    async def next_pack(self):
+        session = self.sessions.next_pack()
+        reveal = self.reveal_sequence.next_pack()
+        await self.publish("session_updated", {"session": session, "reveal_sequence": reveal})
+        return session
+
+    async def previous_pack(self):
+        session = self.sessions.previous_pack()
+        await self.publish("session_updated", {"session": session})
+        return session
+
+    async def next_box(self):
+        session = self.sessions.next_box()
+        self.reveal_sequence.next_pack()
+        await self.publish("session_updated", {"session": session})
+        return session
+
+    async def previous_box(self):
+        session = self.sessions.previous_box()
+        await self.publish("session_updated", {"session": session})
+        return session
+
     async def undo(self):
-        s, removed = self.sessions.undo(); await self.publish("session_updated", {"session": s, "removed": removed}); return s
+        s, removed = self.sessions.undo()
+        collection = getattr(self, "collection", None)
+        if collection is not None and removed and removed.get("id"):
+            collection.remove_event(str(removed["id"]))
+        await self.publish("session_updated", {"session": s, "removed": removed})
+        return s
     async def close_session(self):
         s = self.sessions.close(); await self.publish("session_closed", {"session": s}); return s
 

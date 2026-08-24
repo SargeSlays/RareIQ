@@ -49,7 +49,10 @@ def test_live_timeline_is_truthful_and_locked_identity_replaces_it():
         assert HTML.count(f'data-analysis-step="{step}"') == 1
     assert 'const scanning=!recognized&&!["ready","exact-match"]' in JS
     assert "timeline.hidden=!scanning" in JS
-    assert "header.hidden=!recognized" in JS
+    assert 'const showCardContext=recognized||context.presentation.key==="set-mismatch"' in JS
+    assert "header.hidden=!showCardContext" in JS
+    assert 'reference_image_url:`/api/camera/crop.jpg?generation=${generation}`' in JS
+    assert 'authoritativeVerificationState==="SET_MISMATCH"' in JS
     assert "deriveLiveAnalysisSteps(context)" in JS
     assert "context.verified?\"complete\"" in JS
 
@@ -103,7 +106,7 @@ def test_next_clear_still_clears_stale_identity_and_media():
     assert "resetExtendedCardData()" in reset
     assert "previousCardId=null" in reset
     assert 'deriveRecognitionPresentation({phase:"IDLE"},null,[])' in reset
-    assert 'reaction.addEventListener("click",()=>resetRecognitionPresentation("operator_clear"))' in JS
+    assert 'requestNextRecognition().catch(error=>' in JS
 
 
 def test_accessibility_motion_and_unique_ids_contract():

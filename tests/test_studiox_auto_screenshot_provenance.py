@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -118,5 +119,6 @@ def test_cache_version_and_widget_contract() -> None:
     assert html.count('data-studiox-widget="auto-screenshot"') == 1
     assert 'data-widget-visibility="auto-screenshot"' in html
     assert '"auto-screenshot":"Auto Screenshot"' in script
-    assert "/static/studiox.js?v=6.4.15-provenance2" in html
-    assert "/static/studiox_update15.css?v=6.4.15-provenance2" in html
+    version = re.search(r'data-studiox-build="([^"]+)"', html).group(1)
+    assert f"/static/studiox.js?v={version}" in html
+    assert f"/static/studiox_update15.css?v={version}" in html

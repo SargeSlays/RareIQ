@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import cv2
@@ -105,6 +107,76 @@ def test_automatic_capture_dedupes_generation_and_new_generation_captures(servic
     assert settings["enabled"] is True
 
 
+def test_concurrent_automatic_capture_atomically_claims_one_generation(service, monkeypatch):
+    service.save_settings({**service.default_settings(), "enabled": True})
+    entered = threading.Event()
+    release = threading.Event()
+    original_write = service._write_image
+
+    def slow_write(*args, **kwargs):
+        entered.set()
+        assert release.wait(timeout=5)
+        return original_write(*args, **kwargs)
+
+    monkeypatch.setattr(service, "_write_image", slow_write)
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        first = executor.submit(service.evaluate_recognition, _snapshot(21))
+        assert entered.wait(timeout=5)
+        rest = [
+            executor.submit(service.evaluate_recognition, _snapshot(21))
+            for _ in range(7)
+        ]
+        release.set()
+        results = [first.result(timeout=5), *(item.result(timeout=5) for item in rest)]
+
+    assert sum(result.get("captured") is True for result in results) == 1
+    assert sum(result.get("duplicate") is True for result in results) == 7
+    assert len(service.list_events()) == 1
+
+
+def test_failed_automatic_claim_is_released_for_controlled_retry(service, monkeypatch):
+    service.save_settings({**service.default_settings(), "enabled": True})
+    original_write = service._write_image
+    attempts = 0
+
+    def fail_once(*args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise OSError("transient write failure")
+        return original_write(*args, **kwargs)
+
+    monkeypatch.setattr(service, "_write_image", fail_once)
+    failed = service.evaluate_recognition(_snapshot(22))
+    retried = service.evaluate_recognition(_snapshot(22))
+    assert failed["captured"] is False
+    assert retried["captured"] is True
+    assert len(service.list_events()) == 1
+
+
+def test_new_generation_card_and_active_source_are_independent(tmp_path):
+    context = {"slot_id": 1, "source_id": "camera-a", "display_name": "Camera A"}
+    service = ProvenanceCaptureService(
+        tmp_path / "provenance",
+        server_session_id="test",
+        frame_provider=lambda: _frame(),
+        crop_provider=lambda: None,
+        camera_context_provider=lambda: dict(context),
+    )
+    service.save_settings({**service.default_settings(), "enabled": True})
+    first = service.evaluate_recognition(_snapshot(30))
+    second_snapshot = _snapshot(31)
+    second_snapshot["primary_candidate"]["id"] = "card-b"
+    second_snapshot["primary_candidate"]["english_name"] = "Card B"
+    second = service.evaluate_recognition(second_snapshot)
+    context.update({"slot_id": 2, "source_id": "camera-b", "display_name": "Camera B"})
+    third = service.evaluate_recognition(_snapshot(32))
+    assert [first["captured"], second["captured"], third["captured"]] == [True, True, True]
+    assert [event["camera"]["source_id"] for event in reversed(service.list_events())] == [
+        "camera-a", "camera-a", "camera-b"
+    ]
+
+
 def test_full_frame_crop_checksum_dimensions_and_metadata(service):
     settings = {**service.default_settings(), "captureTypes": {"fullFrame": True, "cardFocus": True}}
     result = service.capture(trigger="manual", snapshot=_snapshot(), settings=settings)
@@ -124,6 +196,24 @@ def test_full_frame_crop_checksum_dimensions_and_metadata(service):
     crop = next(item for item in event["assets"] if item["type"] == "card_crop")
     assert (full["width"], full["height"]) == (320, 180)
     assert (crop["width"], crop["height"]) == (1000, 1400)
+
+
+def test_provenance_preserves_native_active_4k_frame(tmp_path):
+    frame = _frame(width=3840, height=2160)
+    service = ProvenanceCaptureService(
+        tmp_path / "provenance",
+        server_session_id="4k-test",
+        frame_provider=lambda: frame.copy(),
+        crop_provider=lambda: None,
+        camera_context_provider=lambda: {
+            "slot_id": 1,
+            "source_id": "camera-insta360",
+            "display_name": "Insta360 Link",
+        },
+    )
+    result = service.capture(trigger="manual", snapshot=_snapshot())
+    asset = result["event"]["assets"][0]
+    assert (asset["width"], asset["height"]) == (3840, 2160)
 
 
 def test_card_crop_is_not_created_without_valid_geometry(tmp_path):

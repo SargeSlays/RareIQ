@@ -143,6 +143,22 @@ def test_discovery_exposes_stable_identity_and_classification(tmp_path):
     assert manager.active_slot_id() == 1
 
 
+def test_fresh_live_frames_clear_stale_manager_error_state(tmp_path):
+    manager, vision, _, _ = build_manager(tmp_path)
+    manager._state = "error"
+    manager._message = "Camera worker is not running."
+    manager._last_error = "Vision worker exited."
+    vision.frame_id += 1
+
+    status = manager.status()
+
+    assert status["ok"] is True
+    assert status["manager"]["state"] == "running"
+    assert status["manager"]["worker_alive"] is True
+    assert status["manager"]["frame_fresh"] is True
+    assert status["manager"]["last_error"] is None
+
+
 def test_refresh_marks_missing_assigned_source_without_replacing_it(tmp_path):
     manager, vision, _, devices = build_manager(tmp_path)
     source_b = devices[1]["source_id"]
@@ -326,6 +342,9 @@ def test_real_session_pump_is_bounded_and_releases_exactly_once():
     session.stop()
     assert capture.releases == 1
     assert session.status()["worker_alive"] is False
+    assert session.status()["quality_policy"] == "staging_preview_efficient"
+    assert session.status()["requested_preview_resolution"] == [1280, 720]
+    assert session.status()["requested_preview_fps"] == 15
 
 
 def test_rapid_promotion_a_b_a_keeps_one_active_role(tmp_path):

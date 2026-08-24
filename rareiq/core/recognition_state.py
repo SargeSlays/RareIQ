@@ -23,6 +23,10 @@ class RecognitionSnapshot:
     name_candidate: str | None = None
     english_name: str | None = None
     collector_number: str | None = None
+    ocr_collector_number: str | None = None
+    ocr_printed_code: str | None = None
+    ocr_confidence: float = 0.0
+    identifier_reference_match: bool = False
     language: str | None = None
     overall_confidence: float = 0.0
     confidence: float = 0.0
@@ -32,6 +36,11 @@ class RecognitionSnapshot:
     pipeline_stages: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     stage_timings: dict[str, Any] = field(default_factory=dict)
     recognition_locked: bool = False
+    temporal_confirmation: bool = False
+    temporal_confirmation_count: int = 0
+    temporal_confirmation_progress: int = 0
+    temporal_confirmation_required: int = 2
+    exact_reference_diagnostics: dict[str, Any] = field(default_factory=dict)
     has_reference_evidence: bool = False
     verification_state: str = "SEARCHING"
     provisional_candidate: bool = False
@@ -108,10 +117,33 @@ class RecognitionStateStore:
         return f"{value}/high.webp"
 
     @staticmethod
+    def _operator_presentable(item: dict[str, Any]) -> bool:
+        """Keep retrieval hypotheses out of the operator-facing identity."""
+        if item.get("retrieval_only"):
+            return False
+        source = str(item.get("source") or "").strip().lower()
+        if source == "global_visual_index" and not (
+            item.get("set_locked_identity_agreement") is True
+            and float((item.get("signals") or {}).get("collector_number") or 0.0) >= 1.0
+        ):
+            return False
+        if source == "ocr_provisional":
+            return False
+        if source == "live_catalog" and not any((
+            item.get("verification_strong"),
+            item.get("printed_code_match"),
+            item.get("exact_reference_resolved"),
+            item.get("identity_verified"),
+            item.get("set_locked_catalog_lookup"),
+        )):
+            return False
+        return True
+
+    @staticmethod
     def _state_id(
         primary: dict[str, Any] | None,
         fingerprint: str | None,
-        revision: int,
+        generation: int,
     ) -> str:
         identity = {
             "candidate_id": (primary or {}).get("id"),
@@ -121,7 +153,7 @@ class RecognitionStateStore:
             "language": (primary or {}).get("language")
             or (primary or {}).get("language_code"),
             "fingerprint": fingerprint,
-            "revision": revision,
+            "generation": generation,
         }
         encoded = json.dumps(
             identity,
@@ -253,7 +285,10 @@ class RecognitionStateStore:
             seen.add(key)
             candidates.append(item)
 
-        primary = candidates[0] if candidates else None
+        primary = next(
+            (candidate for candidate in candidates if self._operator_presentable(candidate)),
+            None,
+        )
 
         # A provisional OCR guess must not outrank a real visual database
         # candidate that has matched reference artwork. OCR remains supporting
@@ -263,7 +298,7 @@ class RecognitionStateStore:
                 candidate
                 for candidate in candidates
                 if isinstance(candidate, dict)
-                and candidate.get("source") != "ocr_provisional"
+                and self._operator_presentable(candidate)
                 and (
                     candidate.get("reference_image_url")
                     or candidate.get("reference_image")
@@ -308,8 +343,35 @@ class RecognitionStateStore:
             ).strip()
 
             catalog_partner = None
+            wanted_language = str(
+                raw.get("language")
+                or (raw.get("active_set") or {}).get("language")
+                or catalog.get("query", {}).get("language")
+                or ""
+            ).strip().lower()
 
-            if isinstance(catalog.get("match"), dict):
+            def language_matches(item: dict[str, Any]) -> bool:
+                item_language = str(
+                    item.get("language") or item.get("language_code") or ""
+                ).strip().lower()
+                return bool(wanted_language) and (
+                    wanted_language == item_language
+                    or (wanted_language == "english" and item_language == "en")
+                    or (wanted_language == "en" and item_language == "english")
+                )
+
+            if wanted_number and wanted_language:
+                catalog_partner = next(
+                    (
+                        item for item in catalog_items
+                        if isinstance(item, dict)
+                        and str(item.get("collector_number") or "").strip() == wanted_number
+                        and language_matches(item)
+                    ),
+                    None,
+                )
+
+            if catalog_partner is None and isinstance(catalog.get("match"), dict):
                 catalog_partner = catalog.get("match")
 
             if catalog_partner is None and wanted_number:
@@ -332,6 +394,7 @@ class RecognitionStateStore:
 
             if catalog_partner is not None:
                 enriched = copy.deepcopy(primary)
+                aligned_language_variant = language_matches(catalog_partner)
 
                 for key in (
                     "english_name",
@@ -357,7 +420,12 @@ class RecognitionStateStore:
                 ):
                     value = catalog_partner.get(key)
                     if value not in (None, "", [], {}):
-                        if enriched.get(key) in (None, "", [], {}):
+                        if aligned_language_variant and key in {
+                            "language", "language_code", "reference_image",
+                            "reference_image_url", "image_url",
+                        }:
+                            enriched[key] = copy.deepcopy(value)
+                        elif enriched.get(key) in (None, "", [], {}):
                             enriched[key] = copy.deepcopy(value)
 
                 partner_name = str(
@@ -429,6 +497,53 @@ class RecognitionStateStore:
                 or primary.get("canonical_name")
                 or primary.get("name_en")
             )
+
+            primary_name = str(
+                primary.get("name")
+                or ""
+            ).strip()
+
+            primary_language = str(
+                primary.get("language_code")
+                or primary.get("language")
+                or ""
+            ).strip().lower()
+
+            primary_source = str(
+                primary.get("source")
+                or ""
+            ).strip().lower()
+
+            name_looks_like_filename = (
+                len(primary_name) > 70
+                or "-set-list-" in primary_name.lower()
+                or "-pokemon-" in primary_name.lower()
+                or "-pokipair-" in primary_name.lower()
+                or "-store-" in primary_name.lower()
+                or primary_name.lower().endswith(
+                    (
+                        ".jpg",
+                        ".jpeg",
+                        ".png",
+                        ".webp",
+                        ".avif",
+                    )
+                )
+            )
+
+            if (
+                not english_name
+                and primary_name
+                and not name_looks_like_filename
+                and primary_source == "pokipair"
+                and primary_language not in {
+                    "",
+                    "en",
+                    "english",
+                }
+            ):
+                english_name = primary_name
+
             wanted_number = str(primary.get("collector_number") or "")
             if not english_name and wanted_number:
                 for item in catalog_items:
@@ -449,6 +564,13 @@ class RecognitionStateStore:
             if english_name:
                 primary = copy.deepcopy(primary)
                 primary["english_name"] = english_name
+
+                if not primary.get("canonical_name"):
+                    primary["canonical_name"] = english_name
+
+                if not primary.get("pokemon_name"):
+                    primary["pokemon_name"] = english_name
+
                 candidates[0] = primary
 
         stages = tuple(copy.deepcopy(raw.get("pipeline_stages") or []))
@@ -460,11 +582,19 @@ class RecognitionStateStore:
 
         overall = self._number(raw.get("overall_confidence"))
         has_reference = bool(
-            raw.get("has_reference_evidence")
-            or (
-                primary
-                and not primary.get("provisional")
-                and self._image(primary)
+            primary
+            and (
+                raw.get("has_reference_evidence")
+                or (
+                    primary.get("set_locked_identity_agreement") is True
+                    and self._number(
+                        (primary.get("signals") or {}).get("collector_number")
+                    ) >= 1.0
+                )
+                or (
+                    not primary.get("provisional")
+                    and self._image(primary)
+                )
             )
         )
         verified = bool(raw.get("recognition_locked") and has_reference)
@@ -490,7 +620,7 @@ class RecognitionStateStore:
             phase = "VERIFIED"
 
         fingerprint = raw.get("artwork_fingerprint")
-        state_id = self._state_id(primary, fingerprint, self._revision)
+        state_id = self._state_id(primary, fingerprint, self._generation)
 
         return RecognitionSnapshot(
             revision=self._revision,
@@ -509,6 +639,12 @@ class RecognitionStateStore:
             ),
             english_name=english_name,
             collector_number=(primary or {}).get("collector_number") or number,
+            ocr_collector_number=raw.get("ocr_collector_number"),
+            ocr_printed_code=raw.get("ocr_printed_code"),
+            ocr_confidence=self._number(raw.get("confidence")),
+            identifier_reference_match=bool(
+                (raw.get("collector_ocr") or {}).get("reference_match")
+            ),
             language=(primary or {}).get("language") or raw.get("language"),
             overall_confidence=overall,
             confidence=self._number(raw.get("confidence")),
@@ -518,6 +654,13 @@ class RecognitionStateStore:
             pipeline_stages=stages,
             stage_timings=copy.deepcopy(raw.get("stage_timings") or {}),
             recognition_locked=verified,
+            temporal_confirmation=bool(raw.get("temporal_confirmation")),
+            temporal_confirmation_count=int(raw.get("temporal_confirmation_count") or 0),
+            temporal_confirmation_progress=int(raw.get("temporal_confirmation_progress") or 0),
+            temporal_confirmation_required=int(raw.get("temporal_confirmation_required") or 2),
+            exact_reference_diagnostics=copy.deepcopy(
+                raw.get("exact_reference_diagnostics") or {}
+            ),
             has_reference_evidence=has_reference,
             verification_state=(
                 "VERIFIED"

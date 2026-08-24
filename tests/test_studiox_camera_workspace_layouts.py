@@ -159,7 +159,7 @@ def test_source_ownership_and_explicit_activation_use_safe_paths() -> None:
 
 
 def test_live_build_marker_matches_cache_version() -> None:
-    version = "6.4.15-provenance2"
+    version = re.search(r'data-studiox-build="([^"]+)"', HTML).group(1)
     assert f'data-studiox-build="{version}"' in HTML
     assert f'/static/studiox.js?v={version}' in HTML
     assert f'/static/studiox_update15.css?v={version}' in HTML

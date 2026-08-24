@@ -171,6 +171,13 @@ class FakeCapture:
         self.set_calls.append((property_id, value))
         return True
 
+    def get(self, property_id: int) -> float:
+        if property_id == cv2.CAP_PROP_FPS:
+            return 30.0
+        if property_id == cv2.CAP_PROP_FOURCC:
+            return float(cv2.VideoWriter_fourcc(*"MJPG"))
+        return 0.0
+
     def read(self):
         self.read_count += 1
         if self.read_count == 1:
@@ -199,15 +206,22 @@ def test_requested_resolution_success(monkeypatch, tmp_path) -> None:
     status, capture = run_one_camera_frame(
         monkeypatch,
         tmp_path,
-        np.zeros((1080, 1920, 3), dtype=np.uint8),
+        np.zeros((2160, 3840, 3), dtype=np.uint8),
     )
 
-    assert (cv2.CAP_PROP_FRAME_WIDTH, 1920) in capture.set_calls
-    assert (cv2.CAP_PROP_FRAME_HEIGHT, 1080) in capture.set_calls
-    assert status["requested_resolution"] == [1920, 1080]
-    assert status["actual_resolution"] == [1920, 1080]
+    assert (cv2.CAP_PROP_FRAME_WIDTH, 3840) in capture.set_calls
+    assert (cv2.CAP_PROP_FRAME_HEIGHT, 2160) in capture.set_calls
+    assert (cv2.CAP_PROP_FPS, 30) in capture.set_calls
+    assert (cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG")) in capture.set_calls
+    assert status["requested_resolution"] == [3840, 2160]
+    assert status["requested_fps"] == 30
+    assert status["requested_fourcc"] == "MJPG"
+    assert status["actual_resolution"] == [3840, 2160]
+    assert status["actual_fps"] == 30.0
+    assert status["actual_fourcc"] == "MJPG"
     assert status["resolution_fallback"] is False
-    assert status["frame_shape"] == [1080, 1920, 3]
+    assert status["frame_shape"] == [2160, 3840, 3]
+    assert status["preview_shape"] == [1080, 1920, 3]
 
 
 def test_resolution_fallback_and_scan_zone_telemetry(
@@ -234,6 +248,17 @@ def test_resolution_fallback_and_scan_zone_telemetry(
         "right": 1152,
         "bottom": 662,
     }
+
+
+def test_preview_downscale_does_not_mutate_native_master(monkeypatch, tmp_path) -> None:
+    service = VisionService(lambda _event: None, tmp_path)
+    status, _capture = run_one_camera_frame(
+        monkeypatch,
+        tmp_path,
+        np.full((2160, 3840, 3), 73, dtype=np.uint8),
+    )
+    assert status["frame_shape"] == [2160, 3840, 3]
+    assert status["preview_shape"] == [1080, 1920, 3]
 
 
 def pytest_approx(value: float, *, abs: float):

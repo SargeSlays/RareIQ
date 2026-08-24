@@ -6,6 +6,7 @@ import re
 import shutil
 import threading
 import time
+from urllib.parse import quote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,13 @@ class CatalogIntelligenceService:
     """Builds and serves RareIQ's normalized, image-backed master catalog."""
 
     API_BASE = "https://api.tcgdex.net/v2"
+
+    @classmethod
+    def _tcgdex_url(cls, language_code: str, resource: str, resource_id: str) -> str:
+        language = quote(str(language_code or "en"), safe="")
+        kind = quote(str(resource or ""), safe="")
+        identifier = quote(str(resource_id or ""), safe="")
+        return f"{cls.API_BASE}/{language}/{kind}/{identifier}"
     LANGUAGE_MAP = {
         "English": "en",
         "Japanese": "ja",
@@ -51,6 +59,7 @@ class CatalogIntelligenceService:
         self._lock = threading.RLock()
         self._cards: list[dict[str, Any]] = []
         self._by_number: dict[str, list[dict[str, Any]]] = {}
+        self._by_set_local: dict[tuple[str, str], list[dict[str, Any]]] = {}
         self._status: dict[str, Any] = {
             "busy": False,
             "provider": "TCGdex + RareIQ Master Catalog",
@@ -189,6 +198,25 @@ class CatalogIntelligenceService:
             payload["set_manifests"] = self._set_summaries()
             return payload
 
+    def collection_reference_cards(self) -> list[dict[str, Any]]:
+        """Return the minimum immutable fields needed for collection checklists."""
+        with self._lock:
+            return [
+                {
+                    "game_id": card.get("game_id") or "pokemon",
+                    "card_name": card.get("english_name") or card.get("name"),
+                    "printed_name": card.get("printed_name"),
+                    "set_name": card.get("set_name"),
+                    "set_code": card.get("set_code") or card.get("set_id"),
+                    "collector_number": card.get("collector_number"),
+                    "language": card.get("language"),
+                    "reference_image_url": card.get("reference_image_url") or card.get("image_url"),
+                }
+                for card in self._cards
+                if card.get("collector_number")
+                and (card.get("set_code") or card.get("set_id") or card.get("set_name"))
+            ]
+
     def _set_summaries(self) -> list[dict[str, Any]]:
         summaries: list[dict[str, Any]] = []
         for path in sorted(self.sets_dir.glob("*/manifest.json")):
@@ -215,10 +243,19 @@ class CatalogIntelligenceService:
                 cards = []
 
         by_number: dict[str, list[dict[str, Any]]] = {}
+        by_set_local: dict[tuple[str, str], list[dict[str, Any]]] = {}
         for card in cards:
+            card.setdefault("game_id", "pokemon")
             number = str(card.get("collector_number") or "").lower()
             if number:
                 by_number.setdefault(number, []).append(card)
+            set_id = str(card.get("set_id") or card.get("set_code") or "").strip().casefold()
+            local_id = str(card.get("local_id") or "").strip()
+            if not local_id and number:
+                local_id = number.split("/", 1)[0]
+            local_digits = re.sub(r"\D", "", local_id).lstrip("0") or "0"
+            if set_id and local_digits:
+                by_set_local.setdefault((set_id, local_digits), []).append(card)
 
         images = sum(
             1 for card in cards
@@ -227,6 +264,7 @@ class CatalogIntelligenceService:
         with self._lock:
             self._cards = cards
             self._by_number = by_number
+            self._by_set_local = by_set_local
             self._status.update({
                 "sets": len(self._set_summaries()),
                 "cards": len(cards),
@@ -242,7 +280,10 @@ class CatalogIntelligenceService:
             try:
                 payload = json.loads(cards_path.read_text(encoding="utf-8"))
                 if isinstance(payload, list):
-                    cards.extend(payload)
+                    for card in payload:
+                        if isinstance(card, dict):
+                            card.setdefault("game_id", "pokemon")
+                            cards.append(card)
             except Exception:
                 continue
 
@@ -262,12 +303,61 @@ class CatalogIntelligenceService:
         if not number:
             return None
 
+        active_set = dict(recognition.get("active_set") or {})
+        wanted_set_ids = {
+            str(value or "").strip().casefold()
+            for value in (
+                recognition.get("set_id"),
+                recognition.get("set_name"),
+                active_set.get("id"),
+                active_set.get("set_id"),
+                active_set.get("name"),
+            )
+            if str(value or "").strip()
+        }
         candidates = list(self._by_number.get(number) or [])
+        wanted_game = str(recognition.get("game_id") or "pokemon").casefold()
+        candidates = [
+            card for card in candidates
+            if str(card.get("game_id") or "pokemon").casefold() == wanted_game
+        ]
+        observed_local = re.sub(
+            r"\D", "", number.split("/", 1)[0]
+        ).lstrip("0") or "0"
+        for set_id in wanted_set_ids:
+            for card in self._by_set_local.get((set_id, observed_local), []):
+                if card not in candidates:
+                    candidates.append(card)
+        if wanted_set_ids:
+            set_matches = [
+                card for card in candidates
+                if wanted_set_ids.intersection({
+                    str(card.get("set_id") or "").strip().casefold(),
+                    str(card.get("set_name") or "").strip().casefold(),
+                } - {""})
+            ]
+            if set_matches:
+                candidates = set_matches
         if not candidates:
             return None
 
-        language = str(recognition.get("language") or "").lower()
+        language = str(
+            recognition.get("language") or active_set.get("language") or ""
+        ).lower()
         name = str(recognition.get("name_candidate") or "").lower()
+
+        # A translated printing is a different catalog variant even when the
+        # artwork, set and collector number are identical.  Prefer the exact
+        # requested language before image availability can influence ranking.
+        if language:
+            language_matches = [
+                card for card in candidates
+                if language in str(card.get("language") or "").lower()
+                or language == str(card.get("language_code") or "").lower()
+                or (language == "english" and str(card.get("language_code") or "").lower() == "en")
+            ]
+            if language_matches:
+                candidates = language_matches
 
         def score(card: dict[str, Any]) -> float:
             value = 0.70
@@ -275,6 +365,12 @@ class CatalogIntelligenceService:
             printed = str(card.get("printed_name") or card.get("name") or "").lower()
             if language and language in card_language:
                 value += 0.12
+            card_set_ids = {
+                str(card.get("set_id") or "").strip().casefold(),
+                str(card.get("set_name") or "").strip().casefold(),
+            } - {""}
+            if wanted_set_ids and wanted_set_ids.intersection(card_set_ids):
+                value += 0.15
             if name and (name in printed or printed in name):
                 value += 0.12
             if card.get("local_image"):
@@ -286,6 +382,7 @@ class CatalogIntelligenceService:
         result["score"] = score(best)
         result["fused_score"] = result["score"]
         result["source"] = "rareiq_master_catalog"
+        result["set_locked_catalog_lookup"] = bool(wanted_set_ids)
         return result
 
     def import_tcgdex_set(
@@ -333,7 +430,7 @@ class CatalogIntelligenceService:
                 set_payload, _ = request_json(
                     client,
                     "GET",
-                    f"{self.API_BASE}/{language_code}/sets/{set_id}",
+                    self._tcgdex_url(language_code, "sets", set_id),
                 )
 
             briefs = list(set_payload.get("cards") or [])
@@ -366,7 +463,7 @@ class CatalogIntelligenceService:
                         detail, _ = request_json(
                             card_client,
                             "GET",
-                            f"{self.API_BASE}/{language_code}/cards/{card_id}",
+                            self._tcgdex_url(language_code, "cards", card_id),
                         )
                     except Exception as exc:
                         local_errors.append(f"{card_id}: metadata {exc}")
@@ -404,6 +501,7 @@ class CatalogIntelligenceService:
 
                 image_exists = image_path.exists()
                 normalized = {
+                    "game_id": "pokemon",
                     "id": card_id,
                     "name": source.get("name"),
                     "printed_name": source.get("name"),
@@ -484,6 +582,7 @@ class CatalogIntelligenceService:
             )
             manifest = {
                 "catalog_format": "RareIQ Master Catalog v1",
+                "game_id": "pokemon",
                 "provider": "tcgdex",
                 "set_id": set_id,
                 "set_name": set_name,
@@ -498,6 +597,9 @@ class CatalogIntelligenceService:
                 ),
                 "imported_at": time.time(),
                 "errors": errors,
+                # Means every card in this provider response was visited. It
+                # does not claim 100% coverage: providers may omit artwork.
+                "download_complete": True,
             }
             (set_dir / "manifest.json").write_text(
                 json.dumps(manifest, ensure_ascii=False, indent=2),

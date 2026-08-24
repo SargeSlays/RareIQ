@@ -11,7 +11,6 @@ import hashlib
 import json
 import os
 import threading
-import time
 import uuid
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -69,6 +68,7 @@ class ProvenanceCaptureService:
         self._lock = threading.RLock()
         self._inflight = False
         self._dedupe: dict[str, str] = {}
+        self._pending_dedupe: set[str] = set()
         self._events: dict[str, dict[str, Any]] = {}
         self._last_status: dict[str, Any] = {
             "state": "configured",
@@ -217,8 +217,18 @@ class ProvenanceCaptureService:
                     "duplicate": True,
                     "eventId": self._dedupe[dedupe_key],
                 }
+            if trigger != "manual" and dedupe_key in self._pending_dedupe:
+                return {
+                    "ok": True,
+                    "captured": False,
+                    "duplicate": True,
+                    "pending": True,
+                    "eventId": None,
+                }
             if self._inflight:
                 return {"ok": False, "captured": False, "reason": "capture_busy"}
+            if trigger != "manual":
+                self._pending_dedupe.add(dedupe_key)
             self._inflight = True
             self._last_status = {"state": "capturing", "event_id": None, "error": None}
         try:
@@ -285,6 +295,8 @@ class ProvenanceCaptureService:
             return {"ok": False, "captured": False, "reason": "capture_failed", "error": str(exc)}
         finally:
             with self._lock:
+                if trigger != "manual":
+                    self._pending_dedupe.discard(dedupe_key)
                 self._inflight = False
 
     def list_events(self, limit: int = 20) -> list[dict[str, Any]]:

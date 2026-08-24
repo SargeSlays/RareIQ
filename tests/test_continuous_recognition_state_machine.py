@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -48,10 +49,31 @@ class VisionDouble:
         return dict(self.fresh)
 
 
+class CatalogDouble:
+    def __init__(self):
+        self.submitted = []
+
+    def submit(self, payload):
+        self.submitted.append(dict(payload))
+
+
+class SessionDouble:
+    def __init__(self):
+        self.cards = []
+
+    def add_card(self, card):
+        self.cards.append(dict(card))
+        return {"card_count": len(self.cards)}
+
+
 def coordinator(results=None):
     obj = object.__new__(RareIQOrchestrator)
     obj.vision = VisionDouble()
     obj.recognition = RecognitionDouble(results)
+    obj.catalog = CatalogDouble()
+    obj.learning_queue = SimpleNamespace(
+        correction_match=lambda _fingerprint, _candidate: None
+    )
     obj.pipeline_state = PipelineStateService()
     obj.recognition_state = RecognitionStateStore()
     obj._continuous_state = "EMPTY"
@@ -354,6 +376,91 @@ def test_confirmed_removal_clears_visible_result_fields():
     state = obj.recognition_state.snapshot()
     assert state["continuous_state"] == "EMPTY"
     assert state["candidates"] == []
+
+
+def test_verified_card_is_finalized_once_when_removed():
+    obj = coordinator()
+    obj.sessions = SessionDouble()
+    events = []
+    obj._emit_from_thread = events.append
+    obj._removal_finalize_card = {
+        "card_name": "Crocalor",
+        "collector_number": "158",
+        "recognition_signature": "gem5:158:2303/07",
+    }
+    obj._removal_finalize_generation = obj._recognition_generation
+    obj._recognition_decision_generation = None
+
+    obj._confirm_card_removed({"frame_id": 4})
+    obj._confirm_card_removed({"frame_id": 5})
+
+    assert [card["collector_number"] for card in obj.sessions.cards] == ["158"]
+    assert events[0]["type"] == "card_confirmed"
+    assert events[0]["payload"]["reason"] == "verified_card_removed"
+
+
+def test_rejected_generation_is_not_auto_finalized_on_removal():
+    obj = coordinator()
+    obj.sessions = SessionDouble()
+    obj._emit_from_thread = lambda _event: None
+    obj._removal_finalize_card = {"card_name": "Crocalor"}
+    obj._removal_finalize_generation = obj._recognition_generation
+    obj._recognition_decision_generation = obj._recognition_generation
+
+    obj._confirm_card_removed({"frame_id": 4})
+
+    assert obj.sessions.cards == []
+
+
+def test_decision_uses_retained_verified_card_during_transient_empty_refresh():
+    obj = coordinator()
+    obj._current_recognition_card = lambda: None
+    obj._removal_finalize_card = {
+        "card_name": "Electrike",
+        "collector_number": "023/084",
+    }
+    obj._removal_finalize_generation = obj._recognition_generation
+
+    assert obj._decision_recognition_card() == {
+        "card_name": "Electrike",
+        "collector_number": "023/084",
+    }
+
+
+def test_decision_rejects_retained_card_from_prior_generation():
+    obj = coordinator()
+    obj._current_recognition_card = lambda: None
+    obj._removal_finalize_card = {"card_name": "Old Card"}
+    obj._removal_finalize_generation = obj._recognition_generation - 1
+
+    assert obj._decision_recognition_card() is None
+
+
+def test_verified_unified_state_clears_legacy_candidate_provisional_flag():
+    obj = coordinator()
+    obj.catalog.status = lambda: {}
+    obj.recognition_state = SimpleNamespace(refresh=lambda **_kwargs: {
+        "primary_candidate": {
+            "id": "me05-023",
+            "name": "Electrike",
+            "collector_number": "023/084",
+            "set_id": "me05",
+            "set_name": "Pitch Black",
+            "language": "English",
+            "source": "global_visual_index",
+            "provisional": True,
+            "score": 0.92,
+        },
+        "recognition_locked": True,
+        "verification_state": "VERIFIED",
+        "overall_confidence": 0.92,
+        "revision": 3,
+    })
+
+    card = obj._current_recognition_card()
+
+    assert card["card_name"] == "Electrike"
+    assert card["provisional"] is False
 
 
 def test_removed_and_returned_card_starts_fresh_cycle():

@@ -73,6 +73,15 @@ class GlobalVisualIndexService:
             feature /= norm
         return feature
 
+    @staticmethod
+    def _collector_key(value: Any) -> str:
+        raw = str(value or "").strip().casefold().replace(" ", "")
+        if not raw:
+            return ""
+        parts = raw.split("/", 1)
+        normalized = [part.lstrip("0") or "0" for part in parts]
+        return "/".join(normalized)
+
     def _load(self) -> None:
         try:
             if self.records_path.exists() and self.matrix_path.exists():
@@ -115,6 +124,7 @@ class GlobalVisualIndexService:
                 if not isinstance(card, dict):
                     continue
                 item = dict(card)
+                item.setdefault("game_id", "pokemon")
                 path_value = item.get("local_image")
                 path = Path(path_value) if path_value else None
 
@@ -186,6 +196,7 @@ class GlobalVisualIndexService:
                         image = cv2.imread(str(path))
                         feature = self._feature(image)
                         records.append({
+                            "game_id": card.get("game_id") or "pokemon",
                             "id": card.get("id"),
                             "name": card.get("name"),
                             "english_name": card.get("english_name"),
@@ -430,10 +441,44 @@ class GlobalVisualIndexService:
             and Path(str(card.get("local_image"))).exists()
         )
 
+    def text_search(self, query: str, *, limit: int = 24) -> list[dict[str, Any]]:
+        """Search the complete disk-first visual catalog by card metadata."""
+        needle = " ".join(str(query or "").strip().casefold().split())
+        if len(needle) < 2:
+            return []
+        tokens = needle.split()
+        with self._lock:
+            records = [dict(row) for row in self._records]
+        ranked: list[tuple[int, str, dict[str, Any]]] = []
+        for row in records:
+            name = str(row.get("english_name") or row.get("canonical_name") or row.get("printed_name") or row.get("name") or "").strip().casefold()
+            printed_name = str(row.get("printed_name") or "").strip().casefold()
+            collector = str(row.get("collector_number") or row.get("printed_code") or "").strip().casefold()
+            set_name = str(row.get("set_name") or "").strip().casefold()
+            set_id = str(row.get("set_id") or row.get("set_code") or "").strip().casefold()
+            language = str(row.get("language") or "").strip().casefold()
+            card_id = str(row.get("id") or "").strip().casefold()
+            haystack = " ".join((name, printed_name, collector, set_name, set_id, language, card_id))
+            if not all(token in haystack for token in tokens):
+                continue
+            score = (120 if needle in {card_id, collector} else 0)
+            score += 100 if needle in {name, printed_name} else 75 if name.startswith(needle) or printed_name.startswith(needle) else 55 if needle in name or needle in printed_name else 0
+            score += 35 if needle in {set_id, set_name} else 0
+            score += 30 if needle in collector else 0
+            score += sum(5 for token in tokens if token in name)
+            ranked.append((score, f"{name}|{set_id}|{collector}|{card_id}", row))
+        ranked.sort(key=lambda item: (-item[0], item[1]))
+        return [row for _, _, row in ranked[:max(1, min(100, int(limit)))]]
+
     def search_image(
         self,
         image: np.ndarray,
         limit: int = 25,
+        *,
+        set_id: str | None = None,
+        set_name: str | None = None,
+        language: str | None = None,
+        collector_number: str | None = None,
     ) -> dict[str, Any]:
         started = time.perf_counter()
         with self._lock:
@@ -447,16 +492,74 @@ class GlobalVisualIndexService:
                 "matches": [],
             }
 
+        wanted_sets = {
+            str(value or "").strip().casefold()
+            for value in (set_id, set_name)
+        } - {""}
+        wanted_language = str(language or "").strip().casefold()
+        wanted_collector = self._collector_key(collector_number)
+        filter_applied = bool(
+            wanted_sets
+            or (wanted_language and wanted_language not in {"any", "unknown"})
+            or wanted_collector
+        )
+        candidate_indices = np.asarray([
+            index
+            for index, record in enumerate(records)
+            if (
+                not wanted_sets
+                or bool(wanted_sets.intersection({
+                    str(record.get("set_id") or "").strip().casefold(),
+                    str(record.get("set_name") or "").strip().casefold(),
+                } - {""}))
+            )
+            and (
+                not wanted_language
+                or wanted_language in {"any", "unknown"}
+                or not str(
+                    record.get("language")
+                    or record.get("language_code")
+                    or ""
+                ).strip()
+                or str(
+                    record.get("language")
+                    or record.get("language_code")
+                    or ""
+                ).strip().casefold() == wanted_language
+            )
+            and (
+                not wanted_collector
+                or self._collector_key(
+                    record.get("collector_number") or record.get("printed_code")
+                ) == wanted_collector
+            )
+        ], dtype=np.int64)
+
+        if not len(candidate_indices):
+            return {
+                "ok": False,
+                "error": "No indexed references match the active set context.",
+                "matches": [],
+                "filtered_records": 0,
+                "total_records": len(records),
+                "set_filter_applied": filter_applied,
+                "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+            }
+
         query = self._feature(image)
-        scores = matrix @ query
-        count = min(max(1, int(limit)), len(records))
-        indices = np.argpartition(scores, -count)[-count:]
-        indices = indices[np.argsort(scores[indices])[::-1]]
+        candidate_scores = matrix[candidate_indices] @ query
+        count = min(max(1, int(limit)), len(candidate_indices))
+        local_indices = np.argpartition(candidate_scores, -count)[-count:]
+        local_indices = local_indices[
+            np.argsort(candidate_scores[local_indices])[::-1]
+        ]
+        indices = candidate_indices[local_indices]
+        ranked_scores = candidate_scores[local_indices]
 
         matches = []
-        for index in indices:
+        for index, raw_score in zip(indices, ranked_scores):
             record = dict(records[int(index)])
-            score = float(scores[int(index)])
+            score = float(raw_score)
             record["visual_score"] = max(0.0, min(1.0, score))
             record["score"] = record["visual_score"]
             record["fused_score"] = record["visual_score"]
@@ -466,5 +569,8 @@ class GlobalVisualIndexService:
         return {
             "ok": True,
             "matches": matches,
+            "filtered_records": len(candidate_indices),
+            "total_records": len(records),
+            "set_filter_applied": filter_applied,
             "latency_ms": round((time.perf_counter() - started) * 1000, 1),
         }
