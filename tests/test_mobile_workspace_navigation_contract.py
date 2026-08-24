@@ -32,6 +32,18 @@ def test_broadcast_navigation_keeps_existing_workspace_switch_handler() -> None:
     assert 'switchWorkspace(button.dataset.target)' in JS
 
 
+def test_product_navigation_exposes_one_truthful_current_workspace() -> None:
+    assert HTML.count('class="nav-button') == 11
+    assert HTML.count('aria-current="page"') == 1
+    assert 'type="button" class="nav-button active"' in HTML
+    section = JS[JS.index("function switchWorkspace") : JS.index("function voiceModPreferences")]
+    assert 'if(!targetWorkspace) return false;' in section
+    assert 'el.setAttribute("aria-hidden",active?"false":"true")' in section
+    assert 'el.setAttribute("aria-current","page")' in section
+    assert 'el.removeAttribute("aria-current")' in section
+    assert "return true;" in section
+
+
 def test_active_mobile_workspace_navigation_scrolls_into_view() -> None:
     section = JS[JS.index("function switchWorkspace") : JS.index("function voiceModPreferences")]
     assert 'window.matchMedia("(max-width: 959px)").matches' in section

@@ -1206,13 +1206,20 @@ async function toggleAutoCapture(){
 }
 
 function switchWorkspace(name){
+  const targetWorkspace=document.querySelector(`.workspace[data-workspace="${CSS.escape(name)}"]`);
+  if(!targetWorkspace) return false;
   document.body.dataset.ui4Workspace=name;
   if(name!=="live")setUI4HealthOpen(false);
   document.querySelectorAll(".workspace").forEach(el=>{
-    el.classList.toggle("active",el.dataset.workspace===name);
+    const active=el===targetWorkspace;
+    el.classList.toggle("active",active);
+    el.setAttribute("aria-hidden",active?"false":"true");
   });
   document.querySelectorAll(".nav-button").forEach(el=>{
-    el.classList.toggle("active",el.dataset.target===name);
+    const active=el.dataset.target===name;
+    el.classList.toggle("active",active);
+    if(active) el.setAttribute("aria-current","page");
+    else el.removeAttribute("aria-current");
   });
   const activeNavigationItem=document.querySelector(`.ui4-navigation-rail .nav-button[data-target="${CSS.escape(name)}"]`);
   if(activeNavigationItem&&window.matchMedia("(max-width: 959px)").matches){
@@ -1229,6 +1236,7 @@ function switchWorkspace(name){
   if(name==="ai") loadAiLab().catch(error=>notify("AI Lab Unavailable",error.message||String(error),"error"));
   if(name==="library") loadLibraryConsole().catch(error=>notify("Library Status Unavailable",error.message||String(error),"error"));
   if(name==="broadcast") Promise.all([loadProductionSwitcher(),loadProductionScenes(),loadProductionReplay(),loadProductionScreen(),loadOperatorHealth(),loadShowPreflight(),loadProductionSession(),loadRecordingSettings(),loadObsStatus(),loadBroadcastDestinations(),loadShowAnalytics(),loadCardShowAnalytics(),loadPackTracker(),loadPackEconomics(),loadBreakHistory()]).catch(error=>notify("Production Tools Unavailable",error.message||String(error),"error"));
+  return true;
 }
 
 function voiceModPreferences(){try{return JSON.parse(localStorage.getItem(VOICE_MOD_PREFERENCES_KEY)||"{}")||{}}catch(_error){return {}}}
