@@ -30,9 +30,9 @@
 <link rel="stylesheet" href="/static/studiox_61.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.8.8-provisional-identity">
-<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.48-library-console1">
+<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.49-settings-console1">
 <link rel="stylesheet" href="/static/pack_run_coach.css?v=6.8.8-provisional-identity">
-<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.48-library-console1"></script>
+<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.49-settings-console1"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><style id="ui4-unified-card-stage-overrides">
@@ -1743,19 +1743,18 @@ Choose a source from Manage Cameras</span>
 
   <section class="workspace" data-workspace="settings">
     <div class="full-shell">
-      <aside class="riq-surface side-nav">
-        <button class="active">Camera</button>
-        <button>Output</button>
-        <button>API Keys</button>
-        <button>Storage</button>
-        <button>Logs</button>
-        <button>Developer</button>
+      <aside class="riq-surface side-nav" id="settingsWorkspaceTabs" role="tablist" aria-label="Studio X settings views" aria-orientation="vertical">
+        <button class="active" id="settingsTabAppearance" type="button" role="tab" data-settings-view="appearance" aria-selected="true" aria-controls="settingsAppearance" tabindex="0">Appearance</button>
+        <button id="settingsTabMobile" type="button" role="tab" data-settings-view="mobile" aria-selected="false" aria-controls="settingsMobile" tabindex="-1">Mobile Access</button>
+        <button id="settingsTabRecognition" type="button" role="tab" data-settings-view="recognition" aria-selected="false" aria-controls="settingsRecognition" tabindex="-1">Recognition</button>
+        <button id="settingsTabHealth" type="button" role="tab" data-settings-view="health" aria-selected="false" aria-controls="settingsHealth" tabindex="-1">System Health</button>
+        <button id="settingsTabInterfaces" type="button" role="tab" data-settings-view="interfaces" aria-selected="false" aria-controls="settingsInterfaces" tabindex="-1">Interfaces</button>
       </aside>
       <div class="riq-surface content">
-        <h2>Settings</h2>
-        <p>Camera, outputs, storage, and advanced configuration.</p>
+        <h2 id="settingsConsoleTitle">Appearance</h2>
+        <p id="settingsConsoleDescription">Choose how RareIQ Studio looks on this device.</p>
 
-        <section class="card appearance-settings" aria-labelledby="appearanceTitle">
+        <section class="card appearance-settings settings-panel" id="settingsAppearance" role="tabpanel" aria-labelledby="settingsTabAppearance" tabindex="0">
           <div><h3 id="appearanceTitle">Appearance</h3><p>Choose how RareIQ Studio looks on this device.</p></div>
           <div class="theme-selector" role="radiogroup" aria-label="Color theme">
             <button type="button" data-theme-choice="dark" role="radio" aria-checked="false"><span>◐</span><b>Dark</b><small>Low-light studio</small></button>
@@ -1764,7 +1763,7 @@ Choose a source from Manage Cameras</span>
           </div>
         </section>
 
-        <section class="card mobile-access-settings" aria-labelledby="mobileAccessTitle" data-state="checking">
+        <section class="card mobile-access-settings settings-panel" id="settingsMobile" role="tabpanel" aria-labelledby="settingsTabMobile" tabindex="0" data-state="checking" hidden>
           <div class="mobile-access-heading"><span>MOBILE OPERATOR ACCESS</span><h3 id="mobileAccessTitle">Phone &amp; Tablet Connection</h3><p id="mobileAccessSummary">Checking this server's secure network mode.</p></div>
           <div class="mobile-access-facts" aria-live="polite">
             <span><small>SERVER MODE</small><strong id="mobileAccessMode">CHECKING</strong></span>
@@ -1777,7 +1776,7 @@ Choose a source from Manage Cameras</span>
           <p class="mobile-access-guidance" id="mobileAccessGuidance">Local-only mode is the secure default. Use the documented server-control setup when you are ready to pair a mobile device.</p>
         </section>
 
-        <section class="card card-handoff-settings" aria-labelledby="cardHandoffSettingsTitle">
+        <section class="card card-handoff-settings settings-panel" id="settingsRecognition" role="tabpanel" aria-labelledby="settingsTabRecognition" tabindex="0" hidden>
           <div><span>LIVE RECOGNITION</span><h3 id="cardHandoffSettingsTitle">Card Handoff</h3><p>Automatically prepare the next scan after a completed card leaves the camera.</p></div>
           <label class="card-handoff-toggle"><input id="automaticCardRemovalEnabled" type="checkbox"><i></i><span><b>Automatic clearing</b><small>Manual Next / Clear always remains available.</small></span></label>
           <label class="card-handoff-sensitivity"><span>Sensitivity</span><select id="automaticCardRemovalSensitivity"><option value="adaptive">Adaptive · learns your pace</option><option value="safe">Safe · 5 polls / 1.2s</option><option value="normal">Normal · 3 polls / 650ms</option><option value="fast">Fast · 2 polls / 300ms</option></select></label>
@@ -1785,6 +1784,7 @@ Choose a source from Manage Cameras</span>
           <output id="automaticCardRemovalSummary">Normal · waits for stable physical removal</output>
         </section>
 
+        <section class="settings-panel settings-health-panel" id="settingsHealth" role="tabpanel" aria-labelledby="settingsTabHealth" tabindex="0" hidden>
         <div class="health-grid" id="systemHealthGrid">
           <div class="health-card" data-health="camera"><div class="health-card-head"><h3>Camera Manager</h3><i class="health-dot"></i></div><strong>CHECKING</strong><p>Loading camera lifecycle status.</p></div>
           <div class="health-card" data-health="recognition"><div class="health-card-head"><h3>Recognition</h3><i class="health-dot"></i></div><strong>CHECKING</strong><p>Loading recognition status.</p></div>
@@ -1794,6 +1794,8 @@ Choose a source from Manage Cameras</span>
         </div>
 
         <div class="camera-manager-state" id="cameraManagerState">Camera Manager bootingÃ¢â‚¬Â¦</div>
+        </section>
+        <section class="settings-panel settings-interface-panel" id="settingsInterfaces" role="tabpanel" aria-labelledby="settingsTabInterfaces" tabindex="0" hidden>
         <div class="grid">
           <div class="card">
             <h3>Program View</h3>
@@ -1811,6 +1813,7 @@ Choose a source from Manage Cameras</span>
             <button class="riq-button" onclick="window.open('/legacy-control')">Open</button>
           </div>
         </div>
+        </section>
       </div>
     </div>
   </section>

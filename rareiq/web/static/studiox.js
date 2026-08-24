@@ -2616,6 +2616,54 @@ function initializeLibraryConsole(){
   setLibraryView(saved,{persist:false});
 }
 
+const SETTINGS_VIEW_KEY="rareiq.settings.view.v1";
+const SETTINGS_VIEW_COPY={
+  appearance:["Appearance","Choose how RareIQ Studio looks on this device."],
+  mobile:["Mobile Access","Review secure phone and tablet access for this RareIQ server."],
+  recognition:["Recognition Handoff","Configure only the operator-facing transition to the next card."],
+  health:["System Health","Read current camera, recognition, catalog, index, and storage status."],
+  interfaces:["Interfaces","Open clean output, stable Studio, or engineering diagnostics in separate windows."],
+};
+
+function setSettingsView(requested,{persist=true,focus=false}={}){
+  const tabs=$("settingsWorkspaceTabs"),workspace=document.querySelector('.workspace[data-workspace="settings"]');
+  if(!tabs||!workspace)return "appearance";
+  const view=Object.hasOwn(SETTINGS_VIEW_COPY,requested)?requested:"appearance";
+  workspace.dataset.settingsView=view;
+  tabs.querySelectorAll("[data-settings-view]").forEach(button=>{
+    const selected=button.dataset.settingsView===view;
+    button.classList.toggle("active",selected);
+    button.setAttribute("aria-selected",selected?"true":"false");
+    button.tabIndex=selected?0:-1;
+    if(selected&&focus)button.focus();
+  });
+  workspace.querySelectorAll(".settings-panel").forEach(panel=>{panel.hidden=panel.id!==`settings${view.charAt(0).toUpperCase()}${view.slice(1)}`});
+  const [title,description]=SETTINGS_VIEW_COPY[view];
+  setCardText("settingsConsoleTitle",title);
+  setCardText("settingsConsoleDescription",description);
+  workspace.querySelector(".full-shell>.content")?.scrollTo({top:0,behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});
+  if(persist){try{localStorage.setItem(SETTINGS_VIEW_KEY,view)}catch(_error){}}
+  return view;
+}
+
+function initializeSettingsConsole(){
+  const tabs=$("settingsWorkspaceTabs");
+  if(!tabs)return;
+  tabs.querySelectorAll("[data-settings-view]").forEach(button=>{
+    button.addEventListener("click",()=>setSettingsView(button.dataset.settingsView));
+    button.addEventListener("keydown",event=>{
+      const buttons=[...tabs.querySelectorAll("[data-settings-view]")],current=buttons.indexOf(button),key=event.key;
+      if(!["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Home","End"].includes(key))return;
+      event.preventDefault();
+      const backwards=key==="ArrowUp"||key==="ArrowLeft",next=key==="Home"?0:key==="End"?buttons.length-1:(current+(backwards?-1:1)+buttons.length)%buttons.length;
+      setSettingsView(buttons[next].dataset.settingsView,{focus:true});
+    });
+  });
+  let saved="appearance";
+  try{saved=localStorage.getItem(SETTINGS_VIEW_KEY)||"appearance"}catch(_error){}
+  setSettingsView(saved,{persist:false});
+}
+
 function setBroadcastWorkspaceView(requested,{persist=true,focus=false,scroll=true}={}){
   const workspace=document.querySelector('.workspace[data-workspace="broadcast"]');
   if(!workspace)return "live";
@@ -8711,6 +8759,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   initializeCreatorWorkspace();
   initializeAiLab();
   initializeLibraryConsole();
+  initializeSettingsConsole();
   initializeBroadcastWorkspace();
   loadTCGGames().then(loadRecognitionSets).catch(()=>loadRecognitionSets());
   $("tcgGameSelect")?.addEventListener("change",updateTCGSelection);

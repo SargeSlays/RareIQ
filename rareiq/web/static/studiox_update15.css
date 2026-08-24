@@ -10638,6 +10638,15 @@ html[data-theme="light"] .workspace[data-workspace="ai"] .side-nav [data-ai-lab-
 html[data-theme="light"] .workspace[data-workspace="library"] .side-nav [data-library-view][aria-selected="true"]{color:#183540}html[data-theme="light"] .workspace[data-workspace="library"] :is(.library-console-metrics article,.library-console-card,.library-maintenance-actions article,.library-operation-status,.library-provider-list article){border-color:#c7dbe3;background:#eef5f7}html[data-theme="light"] .workspace[data-workspace="library"] :is(.library-console-metrics strong,.library-console-card strong,.library-maintenance-actions strong,.library-provider-list strong){color:#213b47}
 @media(max-width:1200px){.workspace[data-workspace="library"] .library-console-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.workspace[data-workspace="library"] .library-maintenance-actions{grid-template-columns:1fr}.workspace[data-workspace="library"] .library-console-heading{align-items:stretch;flex-direction:column}.workspace[data-workspace="library"] .library-console-heading button{align-self:flex-start}}
 @media(max-width:540px){.workspace[data-workspace="library"] .library-console-metrics{grid-template-columns:1fr}.workspace[data-workspace="library"] .library-maintenance-actions article{align-items:stretch;flex-direction:column}.workspace[data-workspace="library"] .library-maintenance-actions button{align-self:flex-start}}
+.workspace[data-workspace="settings"] .settings-panel[hidden]{display:none!important}
+.workspace[data-workspace="settings"] .side-nav [data-settings-view]{cursor:pointer}
+.workspace[data-workspace="settings"] .side-nav [data-settings-view][aria-selected="true"]{border-color:rgba(67,202,233,.42);background:linear-gradient(135deg,rgba(29,157,190,.2),rgba(117,91,211,.16));color:var(--ui4-text,#dce9ef)}
+.workspace[data-workspace="settings"] .settings-panel{margin-bottom:0}
+.workspace[data-workspace="settings"] .settings-health-panel{display:grid;gap:14px}
+.workspace[data-workspace="settings"] .settings-interface-panel>.grid{margin:0}
+.workspace[data-workspace="settings"] [role="tabpanel"]:focus{outline:none}
+.workspace[data-workspace="settings"] [role="tabpanel"]:focus-visible{outline:2px solid rgba(94,221,247,.76);outline-offset:3px}
+html[data-theme="light"] .workspace[data-workspace="settings"] .side-nav [data-settings-view][aria-selected="true"]{color:#183540}
 html[data-theme="light"] body.studiox-ui4 .workspace[data-workspace="collection"] .content :is(
   .library-sync-stats>div,
   .collection-trend-layout>div,
