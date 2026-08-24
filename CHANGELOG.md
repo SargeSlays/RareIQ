@@ -1,6 +1,6 @@
 # Changelog
 
-## Studio X 6.4.17-dev — WAR Build Foundation
+## Studio X 6.4.17 — WAR Build Foundation
 
 ### Recognition
 

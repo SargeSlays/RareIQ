@@ -6,8 +6,8 @@ from rareiq.version import BUILD_DATE, CODENAME, PRODUCT_NAME, PROJECT_NAME, VER
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_development_version_payload_is_truthful_and_consistent():
-    assert VERSION == "6.4.17-dev"
+def test_release_version_payload_is_truthful_and_consistent():
+    assert VERSION == "6.4.17"
     assert CODENAME == "WAR Build Foundation"
     assert BUILD_DATE == "2026.08.23"
     assert version_payload() == {

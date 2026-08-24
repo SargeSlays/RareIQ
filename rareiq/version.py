@@ -1,4 +1,4 @@
-VERSION = "6.4.17-dev"
+VERSION = "6.4.17"
 CODENAME = "WAR Build Foundation"
 BUILD_DATE = "2026.08.23"
 PRODUCT_NAME = "RareIQ"
