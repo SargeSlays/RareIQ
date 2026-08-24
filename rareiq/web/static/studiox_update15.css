@@ -10550,6 +10550,7 @@ html[data-theme="light"] body.studiox-ui4 .broadcast-destinations{border-color:#
 /* Update 6.8.9 — mobile operator shell foundation.
    Desktop geometry remains authoritative above this breakpoint. */
 body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!important}
+body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recognition-workflow-prompt{display:none!important}
 @media(max-width:959px){
   html{overflow-x:hidden}
   body.studiox-ui4.studiox-premium{
@@ -10560,6 +10561,8 @@ body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!importan
     overflow-x:hidden!important;
     overflow-y:auto!important;
   }
+  body.studiox-ui4.studiox-premium[data-ui4-workspace]:not([data-ui4-workspace="live"]){padding-bottom:calc(70px + env(safe-area-inset-bottom,0px))!important}
+  body.studiox-ui4.studiox-premium[data-ui4-workspace]:not([data-ui4-workspace="live"]) .ui4-mobile-action-region{display:none!important}
   body.studiox-ui4.studiox-premium .ui4-desktop-shell{
     display:flex!important;
     flex-direction:column!important;

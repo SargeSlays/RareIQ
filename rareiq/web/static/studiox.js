@@ -1197,6 +1197,7 @@ async function toggleAutoCapture(){
 
 function switchWorkspace(name){
   document.body.dataset.ui4Workspace=name;
+  if(name!=="live")setUI4HealthOpen(false);
   document.querySelectorAll(".workspace").forEach(el=>{
     el.classList.toggle("active",el.dataset.workspace===name);
   });
