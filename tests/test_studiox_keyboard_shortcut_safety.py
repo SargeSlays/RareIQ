@@ -36,4 +36,3 @@ def test_creator_shortcuts_block_controls_and_key_repeat_without_losing_escape()
     assert "event.repeat" in creator
     assert 'event.code==="Space"&&!event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey' in creator
     assert 'event.key==="Escape"&&armed' in creator
-
