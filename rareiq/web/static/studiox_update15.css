@@ -9570,6 +9570,7 @@ body.studiox-ui4.studiox-premium[data-workspace-preset="intelligence"] .multi-ca
   body.studiox-ui4.studiox-premium[data-workspace-preset="intelligence"] .recognition-signal-panel .signal{padding:8px!important}
   body.studiox-ui4.studiox-premium[data-workspace-preset="intelligence"] .intelligence-tools-list{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
 body.studiox-ui4.studiox-premium[data-workspace-preset="intelligence"] .intelligence-tools-list>.tool-panel:first-child{grid-column:1/-1}
+}
 
 /* Voice Mod streamer app. */
 body.studiox-ui4 .voice-mod-workspace{padding:16px!important;overflow:auto}
@@ -10440,3 +10441,262 @@ html[data-theme=light] .pack-tuning-history{background:#f7fbfd}
 
 /* Update 6.8.5 — pack-only workflow chrome. */
 .pack-speed-run[hidden]{display:none!important}
+
+/* Update 6.8.9 — mobile operator shell foundation.
+   Desktop geometry remains authoritative above this breakpoint. */
+@media(max-width:959px){
+  html{overflow-x:hidden}
+  body.studiox-ui4.studiox-premium{
+    display:block!important;
+    width:100%!important;
+    min-height:100dvh!important;
+    padding:0 0 calc(66px + env(safe-area-inset-bottom,0px))!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-desktop-shell{
+    display:flex!important;
+    flex-direction:column!important;
+    width:100%!important;
+    height:auto!important;
+    min-height:calc(100dvh - 66px)!important;
+    overflow:visible!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-navigation-rail{
+    position:fixed!important;
+    z-index:220!important;
+    right:0!important;
+    bottom:0!important;
+    left:0!important;
+    display:flex!important;
+    flex-direction:row!important;
+    align-items:center!important;
+    width:100%!important;
+    height:calc(66px + env(safe-area-inset-bottom,0px))!important;
+    padding:4px 6px env(safe-area-inset-bottom,0px)!important;
+    gap:4px!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+    border-top:1px solid rgba(103,207,239,.18)!important;
+    border-right:0!important;
+    scrollbar-width:none!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-navigation-rail::-webkit-scrollbar{display:none!important}
+  body.studiox-ui4.studiox-premium .ui4-navigation-rail .ui4-rail-toggle{display:none!important}
+  body.studiox-ui4.studiox-premium .ui4-navigation-rail :is(.nav-button,.ui4-theme-toggle){
+    flex:0 0 54px!important;
+    display:grid!important;
+    grid-template-rows:34px auto!important;
+    place-items:center!important;
+    width:54px!important;
+    max-width:54px!important;
+    height:56px!important;
+    min-height:56px!important;
+    padding:3px!important;
+    border-radius:11px!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-navigation-rail .nav-app-icon{
+    width:32px!important;
+    height:32px!important;
+    border-radius:9px!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-navigation-rail :is(.nav-button,.ui4-theme-toggle)>b{
+    display:block!important;
+    max-width:50px!important;
+    overflow:hidden!important;
+    font-size:7px!important;
+    line-height:1!important;
+    text-overflow:ellipsis!important;
+    white-space:nowrap!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-center-column{
+    order:1!important;
+    display:grid!important;
+    grid-template-rows:auto auto!important;
+    width:100%!important;
+    height:auto!important;
+    min-height:0!important;
+    overflow:visible!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-command-bar{
+    position:sticky!important;
+    z-index:180!important;
+    top:0!important;
+    display:grid!important;
+    grid-template-rows:44px 64px!important;
+    width:100%!important;
+    height:108px!important;
+    min-height:108px!important;
+    margin:0!important;
+    overflow:hidden!important;
+    border-radius:0!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-command-bar>.appbar{
+    display:flex!important;
+    align-items:center!important;
+    width:100%!important;
+    height:44px!important;
+    min-height:44px!important;
+    padding:4px 8px!important;
+    overflow:hidden!important;
+    border-radius:0!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-command-bar .brand{
+    flex:0 0 38px!important;
+    display:flex!important;
+    width:38px!important;
+    min-width:38px!important;
+    height:36px!important;
+    padding:0!important;
+    border-right:0!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-command-bar .brand-logo-image{width:30px!important;height:30px!important}
+  body.studiox-ui4.studiox-premium .ui4-command-bar .brand-text,
+  body.studiox-ui4.studiox-premium .ui4-command-bar :is(.ai-pulse,.app-actions){display:none!important}
+  body.studiox-ui4.studiox-premium .ui4-command-bar .system-status-strip{
+    display:flex!important;
+    flex:1 1 auto!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+    gap:4px!important;
+    min-width:0!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-command-bar .state-chip{
+    flex:0 1 auto!important;
+    min-width:0!important;
+    height:30px!important;
+    padding:0 7px!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-command-bar .state-chip span{display:none!important}
+  body.studiox-ui4.studiox-premium .ui4-command-bar .state-chip b{font-size:8px!important;white-space:nowrap!important}
+  body.studiox-ui4.studiox-premium .ui4-command-bar .state-chip.optional{display:none!important}
+  body.studiox-ui4.studiox-premium .premium-command-bar{
+    display:flex!important;
+    align-items:stretch!important;
+    width:100%!important;
+    height:64px!important;
+    min-height:64px!important;
+    padding:4px 6px!important;
+    gap:5px!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+    scrollbar-width:thin!important;
+  }
+  body.studiox-ui4.studiox-premium .premium-command-bar>.command-group{
+    flex:0 0 142px!important;
+    width:142px!important;
+    height:56px!important;
+    min-height:56px!important;
+    padding:4px 6px!important;
+    overflow:hidden!important;
+  }
+  body.studiox-ui4.studiox-premium .premium-command-bar>.premium-source-control{flex-basis:230px!important;width:230px!important}
+  body.studiox-ui4.studiox-premium .premium-command-bar>.studiox-set-context-control{flex-basis:210px!important;width:210px!important}
+  body.studiox-ui4.studiox-premium .premium-command-bar>.premium-view-control{flex-basis:190px!important;width:190px!important}
+  body.studiox-ui4.studiox-premium .premium-command-bar>.premium-actions-control{flex-basis:132px!important;width:132px!important}
+  body.studiox-ui4.studiox-premium .premium-command-bar .command-group-label{font-size:7px!important}
+  body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!important}
+  body.studiox-ui4.studiox-premium .workspace-stage,
+  body.studiox-ui4.studiox-premium .workspace[data-workspace="live"]{
+    width:100%!important;
+    height:auto!important;
+    min-height:0!important;
+    overflow:visible!important;
+  }
+  body.studiox-ui4.studiox-premium .live-shell{
+    display:block!important;
+    width:100%!important;
+    height:auto!important;
+    min-height:0!important;
+    padding:6px!important;
+    overflow:visible!important;
+  }
+  body.studiox-ui4.studiox-premium .camera-workspace,
+  body.studiox-ui4.studiox-premium[data-workspace-density] .camera-workspace{
+    display:grid!important;
+    grid-template-rows:40px 44px auto!important;
+    width:100%!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    padding:4px!important;
+    overflow:hidden!important;
+  }
+  body.studiox-ui4.studiox-premium .camera-workspace-toolbar{
+    position:relative!important;
+    display:flex!important;
+    align-items:center!important;
+    height:40px!important;
+    min-height:40px!important;
+    gap:5px!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+    scrollbar-width:none!important;
+  }
+  body.studiox-ui4.studiox-premium .camera-workspace-toolbar::-webkit-scrollbar{display:none!important}
+  body.studiox-ui4.studiox-premium .camera-workspace-toolbar>.camera-view-overflow{flex:0 0 auto!important;min-width:0!important}
+  body.studiox-ui4.studiox-premium .camera-workspace-toolbar .camera-view-overflow-panel{
+    position:static!important;
+    display:flex!important;
+    align-items:center!important;
+    width:max-content!important;
+    padding:0!important;
+    gap:5px!important;
+    border:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+  }
+  body.studiox-ui4.studiox-premium .camera-workspace-toolbar .camera-view-overflow-panel>span,
+  body.studiox-ui4.studiox-premium .camera-workspace-toolbar>.camera-soundboard-pads{display:none!important}
+  body.studiox-ui4.studiox-premium .camera-workspace-toolbar :is(.camera-layout-buttons,.workspace-density-control){
+    display:flex!important;
+    flex:0 0 auto!important;
+    width:max-content!important;
+  }
+  body.studiox-ui4.studiox-premium .camera-workspace-toolbar :is(.camera-ptz-control,#manageCamerasButton){flex:0 0 auto!important}
+  body.studiox-ui4.studiox-premium .camera-workspace[data-camera-layout="single"] .viewer-inspection-header{
+    position:relative!important;
+    inset:auto!important;
+    width:100%!important;
+    height:44px!important;
+    min-height:44px!important;
+  }
+  body.studiox-ui4.studiox-premium .camera-workspace[data-camera-layout="single"] .camera-stage-inner{
+    position:relative!important;
+    inset:auto!important;
+    width:100%!important;
+    height:auto!important;
+    min-height:0!important;
+    aspect-ratio:16/9!important;
+  }
+  body.studiox-ui4.studiox-premium .camera-workspace>.ui4-diagnostics-drawer{
+    display:none!important;
+  }
+  body.studiox-ui4.studiox-premium .camera-workspace>.ui4-diagnostics-drawer.open{
+    position:fixed!important;
+    z-index:210!important;
+    inset:116px 6px calc(72px + env(safe-area-inset-bottom,0px)) 6px!important;
+    display:grid!important;
+    width:auto!important;
+    height:auto!important;
+    overflow:hidden!important;
+    border-radius:14px!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-inspector-column{
+    order:2!important;
+    display:block!important;
+    width:100%!important;
+    height:auto!important;
+    min-height:0!important;
+    padding:0 6px 8px!important;
+    overflow:visible!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-inspector-column>.inspector{
+    width:100%!important;
+    height:auto!important;
+    min-height:calc(100svh - 80px)!important;
+    max-height:none!important;
+    overflow:visible!important;
+    scrollbar-gutter:auto!important;
+  }
+}
