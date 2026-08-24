@@ -9,6 +9,10 @@ reports local-only versus authenticated-LAN mode, pairing readiness, and safe
 LAN URLs when available. It never displays the pairing token and cannot change
 the server binding.
 
+The operator shell also reports device-offline and server-unreachable states
+without starting another polling loop. **Retry Connection** probes the existing
+server only; it does not restart RareIQ or change remote-access configuration.
+
 ## Security boundary
 
 - LAN mode binds RareIQ to the workstation's wildcard network interface.

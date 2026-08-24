@@ -5817,6 +5817,48 @@ async function loadSystemHealth(){
   }catch{}
 }
 
+let serverConnectionState="connected";
+let serverConnectionHideTimer=0;
+function setServerConnectionState(state,detail=""){
+  const banner=$("serverConnectionBanner");
+  if(!banner)return;
+  window.clearTimeout(serverConnectionHideTimer);
+  const titles={offline:"DEVICE OFFLINE",unreachable:"RAREIQ UNREACHABLE",checking:"CHECKING CONNECTION",reconnected:"RAREIQ RECONNECTED",connected:"RAREIQ CONNECTED"};
+  const defaults={offline:"Reconnect this device to the network, then retry.",unreachable:"This browser cannot reach the RareIQ server.",checking:"Trying the existing RareIQ server connection.",reconnected:"Live operator updates have resumed.",connected:"The live operator session is available."};
+  serverConnectionState=state;
+  banner.dataset.state=state;
+  banner.hidden=state==="connected";
+  setCardText("serverConnectionTitle",titles[state]||titles.unreachable);
+  setCardText("serverConnectionDetail",detail||defaults[state]||defaults.unreachable);
+  const retry=$("serverConnectionRetry");
+  if(retry){retry.hidden=["connected","reconnected"].includes(state);retry.disabled=state==="checking"}
+  if(state==="reconnected")serverConnectionHideTimer=window.setTimeout(()=>setServerConnectionState("connected"),2400);
+}
+
+async function retryServerConnection(){
+  setServerConnectionState("checking");
+  try{
+    await api("/api/boot/ping",{timeoutMs:5000,retries:0});
+    setServerConnectionState("reconnected");
+  }catch(error){
+    setServerConnectionState(navigator.onLine===false?"offline":"unreachable",error.message||"");
+  }
+}
+
+function initializeServerConnectionStatus(){
+  $("serverConnectionRetry")?.addEventListener("click",retryServerConnection);
+  window.addEventListener("offline",()=>setServerConnectionState("offline"));
+  window.addEventListener("online",retryServerConnection);
+  document.addEventListener("rareiq:api-error",event=>{
+    if(event.detail?.error?.status)return;
+    setServerConnectionState(navigator.onLine===false?"offline":"unreachable",event.detail?.error?.message||"");
+  });
+  document.addEventListener("rareiq:api-end",()=>{
+    if(["offline","unreachable","checking"].includes(serverConnectionState))setServerConnectionState("reconnected");
+  });
+  if(navigator.onLine===false)setServerConnectionState("offline");
+}
+
 let mobileAccessUrl="";
 function renderMobileAccessStatus(status={}){
   const panel=document.querySelector(".mobile-access-settings");
@@ -8005,6 +8047,7 @@ function initializeStudioXUI4(){
 
 
 document.addEventListener("DOMContentLoaded",()=>{
+  initializeServerConnectionStatus();
   initializeWorkspaceReadiness();
   loadTCGGames().then(loadRecognitionSets).catch(()=>loadRecognitionSets());
   $("tcgGameSelect")?.addEventListener("change",updateTCGSelection);

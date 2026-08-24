@@ -2,6 +2,8 @@
 
 ## Studio X 6.4.18-dev — In development
 
+- Added event-driven mobile connection status with explicit offline,
+  server-unreachable, retrying, and reconnected states without another poller.
 - Added a read-only Studio X mobile-access readiness panel with safe LAN URL
   discovery and no secret exposure or in-app server-binding changes.
 - Added an installable mobile Studio X shell with phone/tablet navigation,
