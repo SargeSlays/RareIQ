@@ -11031,6 +11031,69 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
   }
 }
 
+/* Mobile Recent Scans is a bounded operator surface, not a desktop drawer
+   stretched over the full hidden inspector. */
+@media(max-width:959px){
+  body.studiox-ui4.studiox-premium .ui4-inspector-column:has(.inspector[data-primary-view="recent"]){
+    height:calc(100svh - 170px)!important;
+    min-height:0!important;
+    padding-bottom:4px!important;
+    overflow:hidden!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-inspector-column>.inspector[data-primary-view="recent"]{
+    height:100%!important;
+    min-height:0!important;
+    overflow:hidden!important;
+  }
+  body.studiox-ui4.studiox-premium .inspector[data-primary-view="recent"] .ui4-recent-scans-view{
+    inset:48px 4px 4px!important;
+    min-height:0!important;
+    overflow:hidden!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-recent-scans-view>.ui4-history-list{
+    min-height:0!important;
+    overflow-y:auto!important;
+    overscroll-behavior:contain!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-history-row{
+    grid-template-columns:44px minmax(0,1fr) auto!important;
+    min-height:68px!important;
+    gap:8px!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-history-thumb{
+    display:grid!important;
+    place-items:center!important;
+    width:40px!important;
+    height:56px!important;
+    overflow:hidden!important;
+    background:#05090d!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-history-thumb img{
+    display:block!important;
+    width:100%!important;
+    height:100%!important;
+    max-width:100%!important;
+    max-height:100%!important;
+    object-fit:contain!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-history-identity{
+    display:grid!important;
+    align-content:center!important;
+    gap:2px!important;
+    min-width:0!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-history-identity strong{font-size:12px!important}
+  body.studiox-ui4.studiox-premium .ui4-history-identity>span{font-size:9px!important}
+  body.studiox-ui4.studiox-premium .ui4-history-result{
+    display:grid!important;
+    align-content:center!important;
+    justify-items:end!important;
+    gap:3px!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-history-result b{font-size:11px!important}
+  body.studiox-ui4.studiox-premium .ui4-history-result time{font-size:9px!important}
+}
+
 /* Update 6.8.9 — short landscape operator mode.
    The mobile action deck replaces tall command chrome while camera and current
    card remain available side by side. */

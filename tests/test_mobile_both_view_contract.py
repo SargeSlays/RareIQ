@@ -8,7 +8,7 @@ HTML = (ROOT / "rareiq/web/static/control.html").read_text(encoding="utf-8-sig")
 
 def both_view_contract() -> str:
     start = CSS.index("/* Mobile Both view keeps")
-    end = CSS.index("/* Update 6.8.9", start)
+    end = CSS.index("/* Mobile Recent Scans is a bounded", start)
     return CSS[start:end]
 
 
