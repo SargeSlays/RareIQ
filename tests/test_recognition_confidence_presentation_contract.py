@@ -30,6 +30,23 @@ def test_review_needed_uses_fusion_confidence_not_a_fake_match_percentage():
     assert "confidence" in review
 
 
+def test_review_copy_skips_empty_conflicts_and_reports_real_evidence():
+    formatter = JS.split(
+        "function identityConflictPresentationDetail", 1
+    )[1].split("function deriveRecognitionPresentation", 1)[0]
+    assert "Boolean(observed&&catalog)" in formatter
+    assert 'comparisons.slice(0,2)' in formatter
+    assert "Observed ${label} ${observed}" in formatter
+    assert "conflicts with catalog value ${catalog}" in formatter
+    assert "Identity review required:" in formatter
+    assert "Observed identity evidence conflicts with the catalog candidate." in formatter
+
+    review = JS.split("function deriveRecognitionPresentation", 1)[1].split(
+        "function stabilizeRecognitionPresentation", 1
+    )[0]
+    assert "identityConflictPresentationDetail(snapshot,card)" in review
+
+
 def test_only_authoritative_verification_promotes_the_ring_to_match():
     shared = JS.split("function updateSharedCardContext", 1)[1].split(
         "function applyStudioXExactMatchMoment", 1

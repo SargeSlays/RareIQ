@@ -5910,6 +5910,39 @@ function recognitionCandidateConfidence(card={},fallback=0){
   );
 }
 
+function identityConflictPresentationDetail(snapshot={},card=null){
+  const conflicts=(
+    card?.identity_conflicts||snapshot?.identity_conflicts||[]
+  ).filter(conflict=>conflict&&typeof conflict==="object");
+  const labels={
+    collector_number:"collector number",
+    language:"language",
+    printed_name:"printed name",
+    printed_code:"printed code",
+  };
+  const comparisons=conflicts.filter(conflict=>{
+    const observed=String(conflict.observed??"").trim();
+    const catalog=String(conflict.catalog??"").trim();
+    return Boolean(observed&&catalog);
+  });
+  if(comparisons.length){
+    return comparisons.slice(0,2).map(conflict=>{
+      const field=String(conflict.field||"identity");
+      const label=labels[field]||field.replaceAll("_"," ");
+      const observed=String(conflict.observed).trim();
+      const catalog=String(conflict.catalog).trim();
+      return `Observed ${label} ${observed} conflicts with catalog value ${catalog}.`;
+    }).join(" ");
+  }
+  const reason=String(
+    conflicts.find(conflict=>String(conflict.reason||"").trim())?.reason||""
+  ).trim().replace(/[.]+$/u,"");
+  if(reason){
+    return `Identity review required: ${reason.charAt(0).toUpperCase()}${reason.slice(1)}.`;
+  }
+  return "Observed identity evidence conflicts with the catalog candidate.";
+}
+
 function deriveRecognitionPresentation(snapshot={},card=null,candidates=[]){
   const verificationState=String(snapshot?.verification_state||"").toUpperCase();
   const phase=verificationState==="SET_MISMATCH"
@@ -5958,11 +5991,7 @@ function deriveRecognitionPresentation(snapshot={},card=null,candidates=[]){
     return {key:"error",state:"error",title:"ERROR",detail:"Recognition is temporarily unavailable.",placeholderTitle:"Recognition Unavailable",confidence};
   }
   if(identityConflict&&hasCandidate){
-    const conflict=(card?.identity_conflicts||snapshot?.identity_conflicts||[])[0]||{};
-    const field=String(conflict.field||"identity").replaceAll("_"," ");
-    const observed=conflict.observed??"observed evidence";
-    const catalog=conflict.catalog??"catalog evidence";
-    return {key:"review-needed",state:"searching",title:"REVIEW NEEDED",detail:`Observed ${field} (${observed}) conflicts with the catalog (${catalog}).`,placeholderTitle:"Review Identity",confidence};
+    return {key:"review-needed",state:"searching",title:"REVIEW NEEDED",detail:identityConflictPresentationDetail(snapshot,card),placeholderTitle:"Review Identity",confidence};
   }
   if(verified){
     return {key:"exact-match",state:"matched",title:"EXACT MATCH",detail:"Identity verified against the active catalog.",placeholderTitle:"Exact Match",confidence};
