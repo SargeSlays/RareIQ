@@ -1204,6 +1204,10 @@ function switchWorkspace(name){
   document.querySelectorAll(".nav-button").forEach(el=>{
     el.classList.toggle("active",el.dataset.target===name);
   });
+  const activeNavigationItem=document.querySelector(`.ui4-navigation-rail .nav-button[data-target="${CSS.escape(name)}"]`);
+  if(activeNavigationItem&&window.matchMedia("(max-width: 959px)").matches){
+    window.requestAnimationFrame(()=>activeNavigationItem.scrollIntoView({behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth",block:"nearest",inline:"center"}));
+  }
   refreshWorkspaceReadiness(name).catch(()=>{});
   if(name==="collection") Promise.all([loadCollection(),loadLibrarySyncStatus()]).catch(error=>{
     notify("Collection Unavailable",error.message||String(error),"error");

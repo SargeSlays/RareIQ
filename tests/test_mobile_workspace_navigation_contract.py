@@ -30,3 +30,12 @@ def test_broadcast_navigation_keeps_existing_workspace_switch_handler() -> None:
     assert HTML.count('class="workspace" data-workspace="broadcast"') == 1
     assert HTML.count('data-target="broadcast"') == 1
     assert 'switchWorkspace(button.dataset.target)' in JS
+
+
+def test_active_mobile_workspace_navigation_scrolls_into_view() -> None:
+    section = JS[JS.index("function switchWorkspace") : JS.index("function voiceModPreferences")]
+    assert 'window.matchMedia("(max-width: 959px)").matches' in section
+    assert "activeNavigationItem.scrollIntoView" in section
+    assert 'block:"nearest"' in section
+    assert 'inline:"center"' in section
+    assert 'prefers-reduced-motion: reduce' in section
