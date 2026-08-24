@@ -22,6 +22,7 @@ def test_mobile_shell_keeps_primary_workspace_above_navigation() -> None:
     assert "position:fixed!important" in contract
     assert "bottom:0!important" in contract
     assert "overflow-x:auto!important" in contract
+    assert ".ui4-navigation-rail:before{display:none!important;content:none!important}" in contract
     assert "order:1!important" in contract
     assert "order:2!important" in contract
 
@@ -66,7 +67,7 @@ def test_mobile_camera_toolbar_scrolls_instead_of_overlapping() -> None:
 
 
 def test_mobile_shell_preserves_all_navigation_and_action_handlers() -> None:
-    assert HTML.count("shell=6.8.36-mobile-toasts1") == 2
+    assert HTML.count("shell=6.8.37-mobile-nav1") == 2
     assert HTML.count('class="nav-button') == 11
     for handler in (
         "selectCamera()",

@@ -10615,6 +10615,7 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
     border-right:0!important;
     scrollbar-width:none!important;
   }
+  body.studiox-ui4.studiox-premium .ui4-navigation-rail:before{display:none!important;content:none!important}
   body.studiox-ui4.studiox-premium .ui4-navigation-rail::-webkit-scrollbar{display:none!important}
   body.studiox-ui4.studiox-premium .ui4-navigation-rail .ui4-rail-toggle{display:none!important}
   body.studiox-ui4.studiox-premium .ui4-navigation-rail :is(.nav-button,.ui4-theme-toggle){
