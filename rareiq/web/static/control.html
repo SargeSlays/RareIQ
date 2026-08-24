@@ -30,9 +30,9 @@
 <link rel="stylesheet" href="/static/studiox_61.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.8.8-provisional-identity">
-<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.61-workspace-navigation1">
+<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.62-inspector-nav1">
 <link rel="stylesheet" href="/static/pack_run_coach.css?v=6.8.8-provisional-identity">
-<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.61-workspace-navigation1"></script>
+<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.62-inspector-nav1"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><style id="ui4-unified-card-stage-overrides">
@@ -566,8 +566,8 @@ Choose a source from Manage Cameras</span>
           <span>Database Match</span>
         </div>
         <div class="ui4-inspector-primary-tabs" role="tablist" aria-label="Inspector views">
-          <button type="button" role="tab" data-inspector-view="current" aria-selected="true"><i></i><span>Current Card</span><b id="currentCardLiveState">LIVE</b></button>
-          <button type="button" role="tab" data-inspector-view="recent" aria-selected="false"><span>Recent Scans</span><b id="recentScanCount">0</b></button>
+          <button type="button" id="inspectorCurrentTab" role="tab" data-inspector-view="current" aria-controls="inspectorCurrentPanel" aria-selected="true"><i></i><span>Current Card</span><b id="currentCardLiveState">LIVE</b></button>
+          <button type="button" id="inspectorRecentTab" role="tab" data-inspector-view="recent" aria-controls="inspectorRecentPanel" aria-selected="false"><span>Recent Scans</span><b id="recentScanCount">0</b></button>
         </div>
         <div class="single-card-control" id="singleCardControl">
         <section class="result-decision-strip" id="resultDecisionStrip" aria-label="Current recognition decision"><div class="result-decision-identity"><span id="decisionVerdict">WAITING FOR CARD</span><strong id="decisionCardName">No verified identity</strong><small><b id="decisionCollectorNumber">—</b><i></i><b id="decisionConfidence">0%</b> confidence</small></div><div class="card-removal-progress" id="cardRemovalProgress" role="progressbar" aria-label="Card removal confirmation" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden><span id="cardRemovalProgressLabel">Waiting for removal</span><i><b id="cardRemovalProgressBar"></b></i></div><div class="pack-speed-run" id="packSpeedRun" aria-label="Pack Speed run statistics"><span><b id="packRunCards">0</b><small>cards</small></span><span><b id="packRunAverage">—</b><small>average</small></span><span><b id="packRunSubsecond">—</b><small>under 1s</small></span><span class="pack-next-ready" id="packNextReady" data-state="idle"><b id="packNextReadyValue">Idle</b><small>next card</small></span><button id="packRunOpen" type="button" title="Show Pack Run history">⌄</button><button id="packRunReset" type="button" title="Start a new Pack Speed session">↻</button></div><div class="pack-run-detail" id="packRunDetail" hidden><header><div><b>PACK SESSION</b><span id="packRunSummary">No completed cards yet</span></div><button id="packRunClose" type="button" aria-label="Close Pack Run history">×</button></header><section class="pack-session-scoreboard" id="packSessionScoreboard" aria-label="Persistent pack session summary"><span><small>Elapsed</small><b id="packSessionElapsed">—</b></span><span><small>Fastest</small><b id="packSessionFastest">—</b></span><span><small>Slowest</small><b id="packSessionSlowest">—</b></span><span><small>Completed</small><b id="packSessionCompleted">0 cards</b></span></section><aside class="pack-run-coach" id="packRunCoach" data-stage="waiting"><div><b id="packRunCoachTitle">Waiting for pack data</b><span id="packRunCoachDetail">Complete two cards to receive a safe tuning recommendation.</span></div><button id="packRunCoachApply" type="button" hidden>Apply tuning</button></aside><div id="packRunRows"></div></div><label class="auto-add-verified-control" title="Automatically add verified cards and rearm after fast physical removal"><input id="autoAddVerifiedEnabled" type="checkbox"><span><b>Pack Speed</b><small>Auto-add + clear</small></span></label><div class="result-decision-actions"><button class="riq-button primary" id="decisionApproveButton" type="button">Approve</button><button class="riq-button danger" id="decisionRejectButton" type="button">Reject</button><button class="riq-button" id="decisionNextButton" type="button">Next</button></div></section>
@@ -585,7 +585,7 @@ Choose a source from Manage Cameras</span>
         </div>
 
         <nav class="inspector-section-nav" id="inspectorSectionNav" aria-label="Card information sections">
-          <button type="button" data-inspector-section="cardContextHeader">Card</button>
+          <button type="button" data-inspector-section="cardContextHeader" aria-current="true">Card</button>
           <button type="button" data-inspector-section="recognitionSignalPanel">Signals</button>
           <button type="button" data-inspector-section="widgetWorkspace">Tools</button>
         </nav>

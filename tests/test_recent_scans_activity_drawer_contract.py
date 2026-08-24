@@ -10,12 +10,12 @@ def test_recent_scans_render_with_compact_drawer_header_and_close_action():
     assert 'header.className="ui4-history-drawer-head"' in JS
     assert 'eyebrow.textContent="SESSION ACTIVITY"' in JS
     assert 'title.textContent="Recent Scans"' in JS
-    assert 'close.addEventListener("click",()=>setUI4InspectorView("current",false))' in JS
+    assert 'close.addEventListener("click",()=>setUI4InspectorView("current",false,true))' in JS
 
 
 def test_opening_history_keeps_live_workspace_mounted_under_drawer():
     assert "if(current) current.hidden=false" in JS
-    assert 'current?.setAttribute("aria-hidden","false")' in JS
+    assert 'current?.setAttribute("aria-hidden",String(ui4InspectorView!=="current"))' in JS
     drawer_css = CSS[CSS.index("Recent scans activity drawer") :]
     assert '.inspector[data-primary-view="recent"] .ui4-current-card-view{display:flex!important' in drawer_css
     assert "pointer-events:none" in drawer_css

@@ -6854,7 +6854,10 @@ function renderUI4RecentScanDetail(card){
   back.type="button";
   back.className="ui4-history-back";
   back.textContent="Back to Recent Scans";
-  back.addEventListener("click",()=>renderUI4RecentScans(ui4RecentScans));
+  back.addEventListener("click",()=>{
+    renderUI4RecentScans(ui4RecentScans);
+    requestAnimationFrame(()=>document.querySelector(".ui4-history-row")?.focus());
+  });
   const detail=document.createElement("article");
   detail.className="ui4-history-detail";
   const heading=document.createElement("div");
@@ -6890,8 +6893,9 @@ function renderUI4RecentScanDetail(card){
   live.type="button";
   live.className="ui4-return-live";
   live.textContent="Return to Live Card";
-  live.addEventListener("click",()=>setUI4InspectorView("current",false));
+  live.addEventListener("click",()=>setUI4InspectorView("current",false,true));
   view.append(back,detail,live);
+  requestAnimationFrame(()=>back.focus());
 }
 
 function renderUI4RecentScans(cards=[]){
@@ -6914,7 +6918,7 @@ function renderUI4RecentScans(cards=[]){
   close.type="button";
   close.setAttribute("aria-label","Close recent scans");
   close.textContent="×";
-  close.addEventListener("click",()=>setUI4InspectorView("current",false));
+  close.addEventListener("click",()=>setUI4InspectorView("current",false,true));
   header.append(heading,close);
   view.appendChild(header);
   if(!ui4RecentScans.length){
@@ -6987,7 +6991,7 @@ async function loadUI4RecentScans(){
   }
 }
 
-function setUI4InspectorView(name,loadHistory=true){
+function setUI4InspectorView(name,loadHistory=true,focusTab=false){
   ui4InspectorView=name==="recent"?"recent":"current";
   document.querySelectorAll("[data-inspector-view]").forEach(button=>{
     const selected=button.dataset.inspectorView===ui4InspectorView;
@@ -6999,12 +7003,13 @@ function setUI4InspectorView(name,loadHistory=true){
   const recent=document.querySelector(".ui4-recent-scans-view");
   if(current) current.hidden=false;
   if(recent) recent.hidden=ui4InspectorView!=="recent";
-  current?.setAttribute("aria-hidden","false");
+  current?.setAttribute("aria-hidden",String(ui4InspectorView!=="current"));
   recent?.setAttribute("aria-hidden",String(ui4InspectorView!=="recent"));
   document.querySelector(".inspector")?.setAttribute("data-primary-view",ui4InspectorView);
   syncMobileOperatorViewButtons();
   syncMobileOperatorDeck();
   if(ui4InspectorView==="recent"&&loadHistory) loadUI4RecentScans();
+  if(focusTab) requestAnimationFrame(()=>document.querySelector(`[data-inspector-view="${ui4InspectorView}"]`)?.focus());
 }
 
 function syncInspectorNavigationState(){
@@ -8689,8 +8694,14 @@ function initializeStudioXUI4(){
   const primaryTabs=inspector.querySelector(".ui4-inspector-primary-tabs");
   const currentView=document.createElement("div");
   currentView.className="ui4-current-card-view";
+  currentView.id="inspectorCurrentPanel";
+  currentView.setAttribute("role","tabpanel");
+  currentView.setAttribute("aria-labelledby","inspectorCurrentTab");
   const recentView=document.createElement("div");
   recentView.className="ui4-recent-scans-view";
+  recentView.id="inspectorRecentPanel";
+  recentView.setAttribute("role","tabpanel");
+  recentView.setAttribute("aria-labelledby","inspectorRecentTab");
   recentView.hidden=true;
   [...inspector.children].forEach(child=>{
     if(child!==primaryTabs&&!child.classList.contains("inspector-head")) currentView.appendChild(child);
@@ -8708,6 +8719,14 @@ function initializeStudioXUI4(){
   if($("inspectorMain")) $("inspectorMain").style.display="grid";
   primaryTabs?.querySelectorAll("[data-inspector-view]").forEach(button=>{
     button.addEventListener("click",()=>setUI4InspectorView(button.dataset.inspectorView));
+    button.addEventListener("keydown",event=>{
+      const tabs=[...primaryTabs.querySelectorAll("[data-inspector-view]")];
+      const current=tabs.indexOf(button);
+      if(!["ArrowLeft","ArrowRight","Home","End"].includes(event.key)) return;
+      event.preventDefault();
+      const next=event.key==="Home"?0:event.key==="End"?tabs.length-1:(current+(event.key==="ArrowRight"?1:-1)+tabs.length)%tabs.length;
+      setUI4InspectorView(tabs[next].dataset.inspectorView,true,true);
+    });
   });
 
   const widgetWorkspace=$("widgetWorkspace");

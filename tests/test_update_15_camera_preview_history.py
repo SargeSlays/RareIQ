@@ -43,11 +43,38 @@ def test_primary_inspector_views_are_accessible_and_current_is_default() -> None
     html = read("control.html")
     script = read("studiox.js")
     assert 'role="tablist" aria-label="Inspector views"' in html
-    assert 'role="tab" data-inspector-view="current" aria-selected="true"' in html
-    assert 'role="tab" data-inspector-view="recent" aria-selected="false"' in html
+    assert 'role="tab" data-inspector-view="current" aria-controls="inspectorCurrentPanel" aria-selected="true"' in html
+    assert 'role="tab" data-inspector-view="recent" aria-controls="inspectorRecentPanel" aria-selected="false"' in html
     assert 'setUI4InspectorView("current",false)' in script
     assert 'button.setAttribute("aria-selected",selected?"true":"false")' in script
     assert "button.tabIndex=selected?0:-1" in script
+    assert 'id="inspectorCurrentTab" role="tab"' in html
+    assert 'aria-controls="inspectorCurrentPanel"' in html
+    assert 'id="inspectorRecentTab" role="tab"' in html
+    assert 'aria-controls="inspectorRecentPanel"' in html
+    assert 'currentView.setAttribute("role","tabpanel")' in script
+    assert 'recentView.setAttribute("role","tabpanel")' in script
+
+
+def test_primary_inspector_tabs_support_roving_keyboard_navigation() -> None:
+    script = read("studiox.js")
+    initialization = script[script.index("const primaryTabs="):script.index("const widgetWorkspace=")]
+    for key in ("ArrowLeft", "ArrowRight", "Home", "End"):
+        assert f'"{key}"' in initialization
+    assert 'event.preventDefault()' in initialization
+    assert 'setUI4InspectorView(tabs[next].dataset.inspectorView,true,true)' in initialization
+
+
+def test_history_view_hides_live_content_from_assistive_technology_and_restores_focus() -> None:
+    script = read("studiox.js")
+    view = function_body(script, "setUI4InspectorView", "syncInspectorNavigationState")
+    detail = function_body(script, "renderUI4RecentScanDetail", "renderUI4RecentScans")
+    assert 'current?.setAttribute("aria-hidden",String(ui4InspectorView!=="current"))' in view
+    assert 'recent?.setAttribute("aria-hidden",String(ui4InspectorView!=="recent"))' in view
+    assert 'if(focusTab) requestAnimationFrame' in view
+    assert 'setUI4InspectorView("current",false,true)' in detail
+    assert 'requestAnimationFrame(()=>back.focus())' in detail
+    assert 'document.querySelector(".ui4-history-row")?.focus()' in detail
 
 
 def test_recent_scans_use_existing_history_once_and_render_newest_first() -> None:
