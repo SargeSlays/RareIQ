@@ -25,6 +25,13 @@ def test_spotify_redirect_copy_and_setup_handlers_are_unchanged() -> None:
     assert 'redirectUri=$("spotifyRedirectUri")?.value?.trim()||""' in JS
 
 
+def test_spotify_setup_uses_the_current_rareiq_port_until_configured() -> None:
+    assert "function spotifyRuntimeRedirectUri" in JS
+    assert 'const port=window.location.port||"8765"' in JS
+    assert '`http://127.0.0.1:${port}/api/spotify/callback`' in JS
+    assert 'payload.configured===true&&saved' in JS
+
+
 def test_spotify_redirect_and_copy_button_share_a_narrow_safe_grid() -> None:
     assert "grid-template-columns:minmax(0,1fr) auto" in CSS
     assert "body.studiox-ui4 .spotify-setup-card textarea" in CSS

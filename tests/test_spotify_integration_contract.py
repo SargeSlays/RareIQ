@@ -60,3 +60,25 @@ def test_spotify_dj_refinements_include_queue_modes_and_soundboard_ducking():
     assert 'spotifyDuckedVolume' in STUDIO
     assert '.spotify-queue-section' in CSS
     assert '.spotify-duck-control' in CSS
+
+
+def test_spotify_disconnected_state_disables_commands_without_blocking_setup():
+    assert "function setSpotifyAvailability" in STUDIO
+    for control_id in (
+        "spotifyShuffle",
+        "spotifyPrevious",
+        "spotifyPlay",
+        "spotifyNext",
+        "spotifyRepeat",
+        "spotifyDevice",
+        "spotifyVolume",
+        "spotifySearch",
+        "spotifyRefresh",
+        "spotifyToolPrevious",
+        "spotifyToolPlay",
+        "spotifyToolNext",
+    ):
+        assert f'"{control_id}"' in STUDIO
+    assert 'searchButton.disabled=!connected' in STUDIO
+    assert 'Complete the one-time setup above to connect Spotify.' in STUDIO
+    assert '.spotify-shell :is(button,input,select):disabled' in CSS

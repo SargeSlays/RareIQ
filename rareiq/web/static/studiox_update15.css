@@ -8836,6 +8836,7 @@ body.studiox-ui4 .spotify-duck-control{display:flex!important;align-items:center
 body.studiox-ui4 .spotify-duck-control input{accent-color:#58df83}
 body.studiox-ui4 .spotify-duck-control span{color:inherit!important;font-size:inherit!important;text-transform:none!important}
 body.studiox-ui4 .spotify-mini-player .spotify-duck-control{margin-top:1px}
+body.studiox-ui4 .spotify-shell :is(button,input,select):disabled,body.studiox-ui4 .spotify-mini-player button:disabled{cursor:not-allowed;opacity:.42;filter:saturate(.45)}body.studiox-ui4 .spotify-shell.spotify-disconnected .spotify-player-card{border-color:rgba(246,190,79,.16)}
 body.studiox-ui4 .spotify-results:empty:after{content:"No Spotify results available.";display:block;padding:18px;color:var(--ui4-muted);font-size:9px;text-align:center}
 @media(max-width:1450px){body.studiox-ui4 .spotify-browser{grid-template-columns:1fr 1fr}body.studiox-ui4 .spotify-queue-section{grid-column:1/-1}}
 @media(max-width:900px){body.studiox-ui4 .spotify-browser{grid-template-columns:1fr}body.studiox-ui4 .spotify-queue-section{grid-column:auto}}
