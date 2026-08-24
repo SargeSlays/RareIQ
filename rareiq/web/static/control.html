@@ -30,9 +30,9 @@
 <link rel="stylesheet" href="/static/studiox_61.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.8.8-provisional-identity">
-<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.69-shortcut-safety1">
+<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.70-sarge-advisor1">
 <link rel="stylesheet" href="/static/pack_run_coach.css?v=6.8.8-provisional-identity">
-<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.69-shortcut-safety1"></script>
+<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.70-sarge-advisor1"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><style id="ui4-unified-card-stage-overrides">
@@ -1674,6 +1674,7 @@ Choose a source from Manage Cameras</span>
         <button id="aiLabTabEmbeddings" type="button" role="tab" data-ai-lab-view="embeddings" aria-selected="false" aria-controls="aiLabEmbeddings" tabindex="-1">Embeddings</button>
         <button id="aiLabTabLearning" type="button" role="tab" data-ai-lab-view="learning" aria-selected="false" aria-controls="aiLabLearning" tabindex="-1">Learning Queue</button>
         <button id="aiLabTabBenchmarks" type="button" role="tab" data-ai-lab-view="benchmarks" aria-selected="false" aria-controls="aiLabBenchmarks" tabindex="-1">Benchmarks</button>
+        <button id="aiLabTabAdvisor" type="button" role="tab" data-ai-lab-view="advisor" aria-selected="false" aria-controls="aiLabAdvisor" tabindex="-1">Sarge AI</button>
       </aside>
       <div class="riq-surface content">
         <header class="ai-lab-heading"><div><h2 id="aiLabTitle">Recognition Engine</h2><p id="aiLabDescription">Current pipeline state, timings, candidate count, and card context.</p></div><button class="riq-button" id="aiLabRefresh" type="button">Refresh Diagnostics</button></header>
@@ -1696,6 +1697,26 @@ Choose a source from Manage Cameras</span>
         <section class="ai-lab-panel" id="aiLabBenchmarks" role="tabpanel" aria-labelledby="aiLabTabBenchmarks" tabindex="0" hidden>
           <div class="ai-lab-metrics"><article><span>Iterations</span><strong id="aiLabBenchmarkIterations">Unavailable</strong></article><article><span>Mean</span><strong id="aiLabBenchmarkMean">Unavailable</strong></article><article><span>P95</span><strong id="aiLabBenchmarkP95">Unavailable</strong></article><article><span>Maximum</span><strong id="aiLabBenchmarkMax">Unavailable</strong></article></div>
           <section class="ai-lab-card"><header><div><span>Latest saved run</span><strong>Fusion Benchmark</strong></div><b id="aiLabBenchmarkVerdict">NO RESULT</b></header><div class="ai-lab-stage-list" id="aiLabBenchmarkContributions"><p>No saved benchmark is available.</p></div></section>
+        </section>
+        <section class="ai-lab-panel sarge-advisor-panel" id="aiLabAdvisor" role="tabpanel" aria-labelledby="aiLabTabAdvisor" tabindex="0" hidden>
+          <div class="ai-lab-metrics"><article><span>Advisor</span><strong id="sargeAdvisorProvider">Checking</strong></article><article><span>Connection</span><strong id="sargeAdvisorConnection">Checking</strong></article><article><span>Context</span><strong id="sargeAdvisorContext">Live evidence</strong></article><article><span>Safety</span><strong id="sargeAdvisorSafety">Read only</strong></article></div>
+          <section class="ai-lab-card sarge-advisor-card">
+            <header><div><span>Operator intelligence</span><strong>Ask for a suggestion</strong></div><b id="sargeAdvisorBadge">LOCAL</b></header>
+            <p>Ask about the current card, recognition evidence, session flow, market readiness, or broadcast operation. Advice never approves cards or changes RareIQ by itself.</p>
+            <form id="sargeAdvisorForm" class="sarge-advisor-form">
+              <label for="sargeAdvisorQuestion">Question</label>
+              <textarea id="sargeAdvisorQuestion" rows="3" minlength="1" maxlength="800" placeholder="Why is this card still verifying?" required></textarea>
+              <div><label for="sargeAdvisorScope">Use context from</label><select id="sargeAdvisorScope"><option value="current-card">Current card</option><option value="recognition">Recognition</option><option value="session">Session</option><option value="inventory">Inventory</option><option value="broadcast">Broadcast</option><option value="general">Everything relevant</option></select><button class="riq-button primary" id="sargeAdvisorAsk" type="submit">Ask Advisor</button></div>
+            </form>
+            <div class="sarge-advisor-prompts" aria-label="Suggested questions"><button type="button" data-sarge-question="Why is this card not verified yet?">Why not verified?</button><button type="button" data-sarge-question="What should I do next?">What next?</button><button type="button" data-sarge-question="How can I improve this live session?">Improve this session</button><button type="button" data-sarge-question="Is this card ready for market pricing?">Market ready?</button></div>
+            <p class="sarge-advisor-status" id="sargeAdvisorStatus" role="status">Ready for a question.</p>
+          </section>
+          <section class="ai-lab-card sarge-advisor-response" id="sargeAdvisorResponse" hidden>
+            <header><div><span id="sargeAdvisorResponseSource">RareIQ Local Advisor</span><strong>Suggestion</strong></div><b>ADVISORY</b></header>
+            <p id="sargeAdvisorAnswer"></p>
+            <div class="sarge-advisor-columns"><section><h3>Evidence used</h3><ul id="sargeAdvisorEvidence"></ul></section><section><h3>Recommended next steps</h3><ul id="sargeAdvisorSuggestions"></ul></section></div>
+            <small>No images, filesystem paths, secrets, or raw database records are included in advisor context.</small>
+          </section>
         </section>
       </div>
     </div>

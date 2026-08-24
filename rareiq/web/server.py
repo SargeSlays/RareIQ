@@ -35,6 +35,7 @@ from rareiq.services.inventory_service import MAX_RECEIPT_DATA_URL_CHARS
 from rareiq.services.recording_service import RecordingService
 from rareiq.services.obs_service import ObsService
 from rareiq.services.broadcast_destination_service import BroadcastDestinationService
+from rareiq.services.sarge_advisor_service import SargeAdvisorService
 from rareiq.version import BUILD_DATE, CODENAME, VERSION, version_payload
 from rareiq.web.remote_access import (
     REMOTE_ACCESS_COOKIE,
@@ -303,6 +304,7 @@ async def json_api_exception_handler(request: Request, exc: Exception):
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 event_bus = EventBus()
 orchestrator = RareIQOrchestrator(event_bus, CAPTURE_DIR)
+sarge_advisor = SargeAdvisorService.from_environment()
 
 
 def _request_body_limit(request: Request) -> int | None:
@@ -465,6 +467,18 @@ class AutoCaptureRequest(BaseModel):
 
 class RecognitionToggleRequest(BaseModel):
     enabled: bool
+
+
+class AdvisorQuestionRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=800)
+    scope: Literal[
+        "current-card",
+        "recognition",
+        "session",
+        "inventory",
+        "broadcast",
+        "general",
+    ] = "general"
 
 class PackContextRenameRequest(BaseModel):
     label: str = Field(min_length=1, max_length=120)
@@ -2505,6 +2519,60 @@ async def intelligence_status():
         "learning_queue": orchestrator.learning_queue.status(),
         "visual_index": orchestrator.global_visual_index.status(),
     }
+
+
+def _advisor_context() -> dict[str, Any]:
+    snapshot = orchestrator.recognition_state.snapshot()
+    recognition = orchestrator.recognition.status()
+    camera_status = orchestrator.camera_manager.status()
+    manager = dict(camera_status.get("manager") or {})
+    vision = dict(camera_status.get("vision") or {})
+    session = orchestrator.sessions.snapshot()
+    current_card = orchestrator.backend_test.normalize_current_card(
+        recognition,
+        snapshot,
+    )
+    return {
+        "recognition": snapshot,
+        "card": current_card,
+        "camera": {
+            "state": manager.get("state"),
+            "health_reason": manager.get("health_reason"),
+            "frame_fresh": manager.get("frame_fresh"),
+            "resolution": vision.get("actual_resolution"),
+            "fps": vision.get("actual_fps"),
+            "visible": vision.get("visible"),
+            "stable": vision.get("stable"),
+            "detection_confidence": vision.get("detection_confidence"),
+            "lock_confidence": vision.get("lock_confidence"),
+        },
+        "session": session,
+        "broadcast": {
+            "active": PRODUCTION_SESSION.get("active") is True,
+            "recording_active": recording.status().get("active") is True,
+            "event_count": len(PRODUCTION_SESSION.get("events") or []),
+        },
+    }
+
+
+@app.get("/api/ai/advisor/status")
+async def advisor_status():
+    return {"ok": True, "advisor": sarge_advisor.status()}
+
+
+@app.post("/api/ai/advisor/ask")
+async def ask_advisor(request: AdvisorQuestionRequest):
+    try:
+        return await sarge_advisor.ask(
+            request.question,
+            _advisor_context(),
+            scope=request.scope,
+        )
+    except ValueError as exc:
+        return JSONResponse(
+            status_code=400,
+            content={"ok": False, "error": str(exc)},
+        )
 
 @app.post("/api/intelligence/benchmark")
 async def intelligence_benchmark():

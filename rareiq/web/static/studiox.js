@@ -2596,6 +2596,7 @@ const AI_LAB_COPY={
   embeddings:["Visual Embeddings","Read-only health and capacity for the active global visual index."],
   learning:["Learning Queue","Current human-review workload without modifying recognition data."],
   benchmarks:["Benchmarks","Latest saved fusion performance and weighted signal contributions."],
+  advisor:["Sarge AI Advisor","Ask for evidence-backed suggestions about the current RareIQ workflow."],
 };
 
 function setAiLabView(requested,{persist=true,focus=false}={}){
@@ -2674,15 +2675,64 @@ function renderAiLabBenchmark(payload={}){
   aiLabRows("aiLabBenchmarkContributions",Object.entries(contributions).map(([name,signal])=>[name.replaceAll("_"," "),`${Math.round(Number(signal.raw||0)*100)}% signal · ${(Number(signal.weighted||0)*100).toFixed(1)} weighted`]));
 }
 
+let sargeAdvisorInFlight=false;
+function renderSargeAdvisorStatus(payload={}){
+  const advisor=payload.advisor||{};
+  setCardText("sargeAdvisorProvider",advisor.provider||"RareIQ Local Advisor");
+  setCardText("sargeAdvisorConnection",advisor.configured?"Configured":"Local ready");
+  setCardText("sargeAdvisorContext","Live evidence");
+  setCardText("sargeAdvisorSafety",advisor.mutations_allowed===true?"Actions enabled":"Read only");
+  setCardText("sargeAdvisorBadge",advisor.configured?"SARGE CONNECTED":"LOCAL ADVISOR");
+  const status=$("sargeAdvisorStatus");
+  if(status&&!sargeAdvisorInFlight)status.textContent=advisor.configured?`Sarge AI configured at ${advisor.endpoint_host||"the operator endpoint"}.`:"Sarge AI is not configured yet. RareIQ's local evidence advisor is ready now.";
+}
+function sargeAdvisorList(hostId,items=[]){
+  const host=$(hostId);
+  if(!host)return;
+  host.replaceChildren(...(items.length?items:["No additional evidence was reported."]).map(value=>Object.assign(document.createElement("li"),{textContent:String(value)})));
+}
+function renderSargeAdvisorAnswer(payload={}){
+  const response=$("sargeAdvisorResponse");
+  if(response)response.hidden=false;
+  setCardText("sargeAdvisorResponseSource",payload.provider||"RareIQ Local Advisor");
+  setCardText("sargeAdvisorAnswer",payload.answer||"No suggestion was returned.");
+  sargeAdvisorList("sargeAdvisorEvidence",payload.evidence||[]);
+  sargeAdvisorList("sargeAdvisorSuggestions",payload.suggestions||[]);
+  setCardText("sargeAdvisorStatus",payload.source==="sarge_ai"?"Sarge AI answered using the current sanitized RareIQ context.":payload.fallback_reason?"Sarge AI was unavailable, so RareIQ returned local evidence-based guidance.":"RareIQ returned local evidence-based guidance.");
+}
+async function askSargeAdvisor(event=null){
+  event?.preventDefault?.();
+  if(sargeAdvisorInFlight)return null;
+  const question=$("sargeAdvisorQuestion")?.value?.trim()||"";
+  if(!question){$("sargeAdvisorQuestion")?.focus();return null;}
+  const button=$("sargeAdvisorAsk"),original=button?.textContent||"Ask Advisor";
+  sargeAdvisorInFlight=true;
+  if(button){button.disabled=true;button.textContent="Thinking…";}
+  setCardText("sargeAdvisorStatus","Reviewing the latest sanitized RareIQ evidence…");
+  try{
+    const payload=await api("/api/ai/advisor/ask",{method:"POST",body:JSON.stringify({question,scope:$("sargeAdvisorScope")?.value||"general"}),timeoutMs:30000});
+    renderSargeAdvisorAnswer(payload);
+    return payload;
+  }catch(error){
+    setCardText("sargeAdvisorStatus",error.message||"The advisor could not answer.");
+    notify("Advisor Unavailable",error.message||String(error),"error");
+    return null;
+  }finally{
+    sargeAdvisorInFlight=false;
+    if(button){button.disabled=false;button.textContent=original;}
+  }
+}
+
 async function loadAiLab(){
   const button=$("aiLabRefresh");
   if(button)button.disabled=true;
   try{
-    const [recognition,intelligence,benchmark]=await Promise.all([api("/api/recognition-state"),api("/api/intelligence/status"),api("/api/benchmarks/latest").catch(()=>({ok:false}))]);
+    const [recognition,intelligence,benchmark,advisor]=await Promise.all([api("/api/recognition-state"),api("/api/intelligence/status"),api("/api/benchmarks/latest").catch(()=>({ok:false})),api("/api/ai/advisor/status")]);
     renderAiLabRecognition(recognition);
     renderAiLabIntelligence(intelligence);
     renderAiLabBenchmark(benchmark);
-    return {recognition,intelligence,benchmark};
+    renderSargeAdvisorStatus(advisor);
+    return {recognition,intelligence,benchmark,advisor};
   }finally{if(button)button.disabled=false}
 }
 
@@ -2700,6 +2750,8 @@ function initializeAiLab(){
     });
   });
   $("aiLabRefresh")?.addEventListener("click",()=>loadAiLab().catch(error=>notify("AI Lab Unavailable",error.message||String(error),"error")));
+  $("sargeAdvisorForm")?.addEventListener("submit",askSargeAdvisor);
+  document.querySelectorAll("[data-sarge-question]").forEach(button=>button.addEventListener("click",()=>{if($("sargeAdvisorQuestion"))$("sargeAdvisorQuestion").value=button.dataset.sargeQuestion||"";$("sargeAdvisorForm")?.requestSubmit();}));
   let saved="recognition";
   try{saved=localStorage.getItem(AI_LAB_VIEW_KEY)||"recognition"}catch(_error){}
   setAiLabView(saved,{persist:false});

@@ -7,7 +7,7 @@ SCRIPT = (ROOT / "rareiq/web/static/studiox.js").read_text(encoding="utf-8")
 STYLES = (ROOT / "rareiq/web/static/studiox_update15.css").read_text(encoding="utf-8")
 
 
-def test_ai_lab_has_five_real_accessible_views():
+def test_ai_lab_has_six_real_accessible_views():
     assert 'id="aiLabTabs" role="tablist" aria-label="AI Lab views"' in CONTROL
     for view, panel in (
         ("recognition", "aiLabRecognition"),
@@ -15,6 +15,7 @@ def test_ai_lab_has_five_real_accessible_views():
         ("embeddings", "aiLabEmbeddings"),
         ("learning", "aiLabLearning"),
         ("benchmarks", "aiLabBenchmarks"),
+        ("advisor", "aiLabAdvisor"),
     ):
         assert f'data-ai-lab-view="{view}"' in CONTROL
         assert f'aria-controls="{panel}"' in CONTROL
@@ -25,6 +26,7 @@ def test_ai_lab_uses_only_existing_read_only_diagnostic_endpoints():
     assert 'api("/api/recognition-state")' in SCRIPT
     assert 'api("/api/intelligence/status")' in SCRIPT
     assert 'api("/api/benchmarks/latest")' in SCRIPT
+    assert 'api("/api/ai/advisor/status")' in SCRIPT
     ai_lab = SCRIPT[SCRIPT.index("async function loadAiLab"):SCRIPT.index("function initializeAiLab")]
     assert 'method:"POST"' not in ai_lab
     assert "setInterval" not in ai_lab
@@ -44,6 +46,7 @@ def test_ai_lab_reports_recognition_ocr_index_learning_and_benchmark_state():
         "aiLabIndexRecords",
         "aiLabLearningQueued",
         "aiLabBenchmarkP95",
+        "sargeAdvisorProvider",
     ):
         assert f'id="{element_id}"' in CONTROL
 
