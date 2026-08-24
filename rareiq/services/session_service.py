@@ -2,6 +2,8 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any
 import json
+import os
+import tempfile
 import time
 from pathlib import Path
 
@@ -9,6 +11,9 @@ from rareiq.models.session import BreakSession, CardPull
 
 
 class SessionService:
+    ATOMIC_REPLACE_ATTEMPTS = 5
+    ATOMIC_REPLACE_RETRY_SECONDS = 0.02
+
     def __init__(self, archive_dir: Path | None = None) -> None:
         self.archive_dir = archive_dir
         if self.archive_dir:
@@ -44,16 +49,36 @@ class SessionService:
     def _persist_active(self) -> None:
         if not self.state_path:
             return
-        temp = self.state_path.with_suffix(".tmp")
-        temp.write_text(
-            json.dumps(
-                self.current.public(),
-                indent=2,
-                ensure_ascii=False,
-            ),
-            encoding="utf-8",
-        )
-        temp.replace(self.state_path)
+        temporary_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                dir=self.state_path.parent,
+                prefix=f".{self.state_path.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as temporary:
+                temporary_path = Path(temporary.name)
+                json.dump(
+                    self.current.public(),
+                    temporary,
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                temporary.flush()
+                os.fsync(temporary.fileno())
+            for attempt in range(self.ATOMIC_REPLACE_ATTEMPTS):
+                try:
+                    os.replace(temporary_path, self.state_path)
+                    break
+                except PermissionError:
+                    if attempt + 1 >= self.ATOMIC_REPLACE_ATTEMPTS:
+                        raise
+                    time.sleep(self.ATOMIC_REPLACE_RETRY_SECONDS * (attempt + 1))
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
 
     def start(
         self,
