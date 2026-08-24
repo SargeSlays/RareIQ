@@ -30,9 +30,9 @@
 <link rel="stylesheet" href="/static/studiox_61.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.8.8-provisional-identity">
-<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.46-creator-workspace1">
+<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.47-ai-lab1">
 <link rel="stylesheet" href="/static/pack_run_coach.css?v=6.8.8-provisional-identity">
-<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.46-creator-workspace1"></script>
+<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.47-ai-lab1"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><style id="ui4-unified-card-stage-overrides">
@@ -1668,21 +1668,35 @@ Choose a source from Manage Cameras</span>
 
   <section class="workspace" data-workspace="ai">
     <div class="full-shell">
-      <aside class="riq-surface side-nav">
-        <button class="active">Recognition</button>
-        <button>OCR</button>
-        <button>Embeddings</button>
-        <button>Learning Queue</button>
-        <button>Benchmarks</button>
+      <aside class="riq-surface side-nav" id="aiLabTabs" role="tablist" aria-label="AI Lab views" aria-orientation="vertical">
+        <button class="active" id="aiLabTabRecognition" type="button" role="tab" data-ai-lab-view="recognition" aria-selected="true" aria-controls="aiLabRecognition" tabindex="0">Recognition</button>
+        <button id="aiLabTabOcr" type="button" role="tab" data-ai-lab-view="ocr" aria-selected="false" aria-controls="aiLabOcr" tabindex="-1">OCR</button>
+        <button id="aiLabTabEmbeddings" type="button" role="tab" data-ai-lab-view="embeddings" aria-selected="false" aria-controls="aiLabEmbeddings" tabindex="-1">Embeddings</button>
+        <button id="aiLabTabLearning" type="button" role="tab" data-ai-lab-view="learning" aria-selected="false" aria-controls="aiLabLearning" tabindex="-1">Learning Queue</button>
+        <button id="aiLabTabBenchmarks" type="button" role="tab" data-ai-lab-view="benchmarks" aria-selected="false" aria-controls="aiLabBenchmarks" tabindex="-1">Benchmarks</button>
       </aside>
       <div class="riq-surface content">
-        <h2>AI Lab</h2>
-        <p>Recognition, OCR, candidate search, and diagnostics.</p>
-        <div class="grid">
-          <div class="card"><h3>Recognition Engine</h3><p>Inspect pipeline and fusion state.</p></div>
-          <div class="card"><h3>Learning Queue</h3><p>Review rejected and corrected scans.</p></div>
-          <div class="card"><h3>Benchmarks</h3><p>Measure recognition performance.</p></div>
-        </div>
+        <header class="ai-lab-heading"><div><h2 id="aiLabTitle">Recognition Engine</h2><p id="aiLabDescription">Current pipeline state, timings, candidate count, and card context.</p></div><button class="riq-button" id="aiLabRefresh" type="button">Refresh Diagnostics</button></header>
+        <section class="ai-lab-panel" id="aiLabRecognition" role="tabpanel" aria-labelledby="aiLabTabRecognition" tabindex="0">
+          <div class="ai-lab-metrics"><article><span>Phase</span><strong id="aiLabRecognitionPhase">Waiting</strong></article><article><span>Generation</span><strong id="aiLabRecognitionGeneration">0</strong></article><article><span>Candidates</span><strong id="aiLabRecognitionCandidates">0</strong></article><article><span>Total Pipeline</span><strong id="aiLabRecognitionTotal">Unavailable</strong></article></div>
+          <section class="ai-lab-card"><header><div><span>Live recognition</span><strong id="aiLabRecognitionCard">No current card</strong></div><b id="aiLabRecognitionVerdict">IDLE</b></header><div class="ai-lab-stage-list" id="aiLabRecognitionStages"><p>Recognition stages will appear when a scan runs.</p></div></section>
+        </section>
+        <section class="ai-lab-panel" id="aiLabOcr" role="tabpanel" aria-labelledby="aiLabTabOcr" tabindex="0" hidden>
+          <div class="ai-lab-metrics"><article><span>Printed Code</span><strong id="aiLabOcrCode">Unavailable</strong></article><article><span>Collector Number</span><strong id="aiLabOcrCollector">Unavailable</strong></article><article><span>Language</span><strong id="aiLabOcrLanguage">Unavailable</strong></article><article><span>OCR Time</span><strong id="aiLabOcrTime">Unavailable</strong></article></div>
+          <section class="ai-lab-card"><header><div><span>Read-only evidence</span><strong>Latest OCR Handoff</strong></div><b id="aiLabOcrConfidence">No confidence</b></header><p id="aiLabOcrNote">OCR evidence appears after a valid rectified card reaches recognition.</p></section>
+        </section>
+        <section class="ai-lab-panel" id="aiLabEmbeddings" role="tabpanel" aria-labelledby="aiLabTabEmbeddings" tabindex="0" hidden>
+          <div class="ai-lab-metrics"><article><span>Index State</span><strong id="aiLabIndexState">Checking</strong></article><article><span>Records</span><strong id="aiLabIndexRecords">0</strong></article><article><span>Dimensions</span><strong id="aiLabIndexDimensions">0</strong></article><article><span>Latency</span><strong id="aiLabIndexLatency">Unavailable</strong></article></div>
+          <section class="ai-lab-card"><header><div><span>Visual retrieval</span><strong>Global Visual Index</strong></div><b id="aiLabIndexActivity">IDLE</b></header><p id="aiLabIndexNote">Loading index diagnostics…</p></section>
+        </section>
+        <section class="ai-lab-panel" id="aiLabLearning" role="tabpanel" aria-labelledby="aiLabTabLearning" tabindex="0" hidden>
+          <div class="ai-lab-metrics"><article><span>Queued Reviews</span><strong id="aiLabLearningQueued">0</strong></article><article><span>Index Coverage</span><strong id="aiLabLearningCoverage">0 records</strong></article></div>
+          <section class="ai-lab-card"><header><div><span>Human-in-the-loop</span><strong>Learning Queue</strong></div><b>READ ONLY</b></header><p>Rejected and corrected scans enter the existing learning queue. AI Lab reports its current size without changing recognition data.</p></section>
+        </section>
+        <section class="ai-lab-panel" id="aiLabBenchmarks" role="tabpanel" aria-labelledby="aiLabTabBenchmarks" tabindex="0" hidden>
+          <div class="ai-lab-metrics"><article><span>Iterations</span><strong id="aiLabBenchmarkIterations">Unavailable</strong></article><article><span>Mean</span><strong id="aiLabBenchmarkMean">Unavailable</strong></article><article><span>P95</span><strong id="aiLabBenchmarkP95">Unavailable</strong></article><article><span>Maximum</span><strong id="aiLabBenchmarkMax">Unavailable</strong></article></div>
+          <section class="ai-lab-card"><header><div><span>Latest saved run</span><strong>Fusion Benchmark</strong></div><b id="aiLabBenchmarkVerdict">NO RESULT</b></header><div class="ai-lab-stage-list" id="aiLabBenchmarkContributions"><p>No saved benchmark is available.</p></div></section>
+        </section>
       </div>
     </div>
   </section>

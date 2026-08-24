@@ -1216,6 +1216,7 @@ function switchWorkspace(name){
   if(name==="soundboard") loadSoundboard().catch(error=>notify("Soundboard Unavailable",error.message||String(error),"error"));
   if(name==="voice-mod") refreshVoiceModInputs().catch(error=>notify("Microphones Unavailable",error.message||String(error),"error"));
   if(name==="spotify") loadSpotify().catch(error=>renderSpotifyError(error.message||String(error)));
+  if(name==="ai") loadAiLab().catch(error=>notify("AI Lab Unavailable",error.message||String(error),"error"));
   if(name==="broadcast") Promise.all([loadProductionSwitcher(),loadProductionScenes(),loadProductionReplay(),loadProductionScreen(),loadOperatorHealth(),loadShowPreflight(),loadProductionSession(),loadRecordingSettings(),loadObsStatus(),loadBroadcastDestinations(),loadShowAnalytics(),loadCardShowAnalytics(),loadPackTracker(),loadPackEconomics(),loadBreakHistory()]).catch(error=>notify("Production Tools Unavailable",error.message||String(error),"error"));
 }
 
@@ -2260,7 +2261,8 @@ const WORKSPACE_READINESS={
   creator:{path:"/api/creator/reveal-sequence",label:"Creator tools",describe:payload=>payload?.state?.enabled===false?"Reveal engine disabled":"Reveal engine ready"},
   soundboard:{path:"/api/soundboard",label:"Soundboard",describe:payload=>`${payload?.pads?.length||0} of 50 pads configured`},
   spotify:{path:"/api/spotify/status",label:"Spotify DJ",describe:payload=>payload?.connected?"Connected and ready":"Connect Spotify to enable playback",state:payload=>payload?.connected?"ready":"setup"},
-  "ai-lab":{path:"/api/system/health",label:"AI Lab",describe:()=>"Diagnostics service online"},
+  ai:{path:"/api/system/health",label:"AI Lab",describe:payload=>payload?.ok?"Diagnostics service online":"Diagnostics need attention",state:payload=>payload?.ok?"ready":"setup"},
+  "ai-lab":{path:"/api/system/health",label:"AI Lab",describe:payload=>payload?.ok?"Diagnostics service online":"Diagnostics need attention",state:payload=>payload?.ok?"ready":"setup"},
   library:{path:"/api/master-builder/status",label:"Reference library",describe:payload=>`${payload?.builder?.sets_completed||0} of ${payload?.builder?.sets_discovered||0} sets synced`,state:payload=>payload?.builder?.busy?"working":"ready"},
   settings:{path:"/api/system/health",label:"System settings",describe:()=>"RareIQ services online"}
 };
@@ -2382,6 +2384,122 @@ const BROADCAST_WORKSPACE_PANELS={
   history:[".break-history-controls",".break-history",".production-report-actions"],
   setup:[".obs-diagnostic",".obs-bootstrap",".obs-control",".encoder-guide",".recording-settings"],
 };
+
+const AI_LAB_VIEW_KEY="rareiq.ai-lab.view.v1";
+const AI_LAB_COPY={
+  recognition:["Recognition Engine","Current pipeline state, timings, candidate count, and card context."],
+  ocr:["OCR Evidence","Latest printed-code, collector-number, language, and timing signals."],
+  embeddings:["Visual Embeddings","Read-only health and capacity for the active global visual index."],
+  learning:["Learning Queue","Current human-review workload without modifying recognition data."],
+  benchmarks:["Benchmarks","Latest saved fusion performance and weighted signal contributions."],
+};
+
+function setAiLabView(requested,{persist=true,focus=false}={}){
+  const tabs=$("aiLabTabs"),workspace=document.querySelector('.workspace[data-workspace="ai"]');
+  if(!tabs||!workspace)return "recognition";
+  const view=Object.hasOwn(AI_LAB_COPY,requested)?requested:"recognition";
+  workspace.dataset.aiLabView=view;
+  tabs.querySelectorAll("[data-ai-lab-view]").forEach(button=>{
+    const selected=button.dataset.aiLabView===view;
+    button.classList.toggle("active",selected);
+    button.setAttribute("aria-selected",selected?"true":"false");
+    button.tabIndex=selected?0:-1;
+    if(selected&&focus)button.focus();
+  });
+  workspace.querySelectorAll(".ai-lab-panel").forEach(panel=>{panel.hidden=panel.id!==`aiLab${view.charAt(0).toUpperCase()}${view.slice(1)}`});
+  const [title,description]=AI_LAB_COPY[view];
+  setCardText("aiLabTitle",title);
+  setCardText("aiLabDescription",description);
+  workspace.querySelector(".full-shell>.content")?.scrollTo({top:0,behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});
+  if(persist){try{localStorage.setItem(AI_LAB_VIEW_KEY,view)}catch(_error){}}
+  return view;
+}
+
+function aiLabRows(hostId,rows=[]){
+  const host=$(hostId);
+  if(!host)return;
+  host.replaceChildren(...(rows.length?rows.map(([label,value,state])=>{
+    const row=document.createElement("article"),name=document.createElement("span"),detail=document.createElement("strong");
+    name.textContent=label;
+    detail.textContent=value;
+    if(state)row.dataset.state=state;
+    row.append(name,detail);
+    return row;
+  }):[Object.assign(document.createElement("p"),{textContent:"No diagnostic evidence is available yet."})]));
+}
+
+function aiLabMilliseconds(value){const number=Number(value);return Number.isFinite(number)?`${number.toFixed(number>=10?1:2)} ms`:"Unavailable"}
+function aiLabConfidence(value){const number=Number(value);if(!Number.isFinite(number)||number<=0)return "No confidence";return `${Math.round(number<=1?number*100:number)}% confidence`}
+
+function renderAiLabRecognition(payload={}){
+  const state=payload.recognition_state||{},card=payload.current_card||{},timings=state.stage_timings||{},stages=Array.isArray(state.pipeline_stages)?state.pipeline_stages:[];
+  setCardText("aiLabRecognitionPhase",String(state.phase||"Waiting").replaceAll("_"," "));
+  setCardText("aiLabRecognitionGeneration",String(state.generation??0));
+  setCardText("aiLabRecognitionCandidates",String(state.candidate_count??card.candidate_count??0));
+  setCardText("aiLabRecognitionTotal",aiLabMilliseconds(timings.total_ms));
+  setCardText("aiLabRecognitionCard",card.card_name||card.printed_name||"No current card");
+  setCardText("aiLabRecognitionVerdict",String(state.verification_state||state.phase||"idle").replaceAll("_"," ").toUpperCase());
+  aiLabRows("aiLabRecognitionStages",stages.map(stage=>[stage.label||stage.key,String(stage.state||"waiting").replaceAll("_"," "),stage.state]));
+  setCardText("aiLabOcrCode",state.ocr_printed_code||"Unavailable");
+  setCardText("aiLabOcrCollector",state.ocr_collector_number||state.collector_number||"Unavailable");
+  setCardText("aiLabOcrLanguage",state.language||"Unavailable");
+  setCardText("aiLabOcrTime",aiLabMilliseconds(timings.ocr_ms));
+  setCardText("aiLabOcrConfidence",aiLabConfidence(state.ocr_confidence));
+  setCardText("aiLabOcrNote",state.ocr_printed_code||state.ocr_collector_number?"Values shown exactly as reported by the latest recognition handoff.":"OCR evidence appears after a valid rectified card reaches recognition.");
+}
+
+function renderAiLabIntelligence(payload={}){
+  const index=payload.visual_index||{},learning=payload.learning_queue||{};
+  setCardText("aiLabIndexState",index.ready?"READY":index.error?"ERROR":"NOT READY");
+  setCardText("aiLabIndexRecords",Number(index.records||0).toLocaleString());
+  setCardText("aiLabIndexDimensions",String(index.dimensions||0));
+  setCardText("aiLabIndexLatency",aiLabMilliseconds(index.latency_ms));
+  setCardText("aiLabIndexActivity",index.busy?"WORKING":index.ready?"READY":"IDLE");
+  setCardText("aiLabIndexNote",index.error||`${Number(index.records||0).toLocaleString()} records available in the existing index. Normal recognition never rebuilds it silently.`);
+  setCardText("aiLabLearningQueued",String(learning.queued||0));
+  setCardText("aiLabLearningCoverage",`${Number(index.records||0).toLocaleString()} records`);
+}
+
+function renderAiLabBenchmark(payload={}){
+  setCardText("aiLabBenchmarkIterations",payload.iterations==null?"Unavailable":Number(payload.iterations).toLocaleString());
+  setCardText("aiLabBenchmarkMean",aiLabMilliseconds(payload.mean_ms));
+  setCardText("aiLabBenchmarkP95",aiLabMilliseconds(payload.p95_ms));
+  setCardText("aiLabBenchmarkMax",aiLabMilliseconds(payload.max_ms));
+  setCardText("aiLabBenchmarkVerdict",payload.ok?"SAVED RESULT":"NO RESULT");
+  const contributions=payload.sample_result?.contributions||{};
+  aiLabRows("aiLabBenchmarkContributions",Object.entries(contributions).map(([name,signal])=>[name.replaceAll("_"," "),`${Math.round(Number(signal.raw||0)*100)}% signal · ${(Number(signal.weighted||0)*100).toFixed(1)} weighted`]));
+}
+
+async function loadAiLab(){
+  const button=$("aiLabRefresh");
+  if(button)button.disabled=true;
+  try{
+    const [recognition,intelligence,benchmark]=await Promise.all([api("/api/recognition-state"),api("/api/intelligence/status"),api("/api/benchmarks/latest").catch(()=>({ok:false}))]);
+    renderAiLabRecognition(recognition);
+    renderAiLabIntelligence(intelligence);
+    renderAiLabBenchmark(benchmark);
+    return {recognition,intelligence,benchmark};
+  }finally{if(button)button.disabled=false}
+}
+
+function initializeAiLab(){
+  const tabs=$("aiLabTabs");
+  if(!tabs)return;
+  tabs.querySelectorAll("[data-ai-lab-view]").forEach(button=>{
+    button.addEventListener("click",()=>setAiLabView(button.dataset.aiLabView));
+    button.addEventListener("keydown",event=>{
+      const buttons=[...tabs.querySelectorAll("[data-ai-lab-view]")],current=buttons.indexOf(button),key=event.key;
+      if(!["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Home","End"].includes(key))return;
+      event.preventDefault();
+      const backwards=key==="ArrowUp"||key==="ArrowLeft",next=key==="Home"?0:key==="End"?buttons.length-1:(current+(backwards?-1:1)+buttons.length)%buttons.length;
+      setAiLabView(buttons[next].dataset.aiLabView,{focus:true});
+    });
+  });
+  $("aiLabRefresh")?.addEventListener("click",()=>loadAiLab().catch(error=>notify("AI Lab Unavailable",error.message||String(error),"error")));
+  let saved="recognition";
+  try{saved=localStorage.getItem(AI_LAB_VIEW_KEY)||"recognition"}catch(_error){}
+  setAiLabView(saved,{persist:false});
+}
 
 function setBroadcastWorkspaceView(requested,{persist=true,focus=false,scroll=true}={}){
   const workspace=document.querySelector('.workspace[data-workspace="broadcast"]');
@@ -8476,6 +8594,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   initializeWorkspaceReadiness();
   initializeCollectionWorkspace();
   initializeCreatorWorkspace();
+  initializeAiLab();
   initializeBroadcastWorkspace();
   loadTCGGames().then(loadRecognitionSets).catch(()=>loadRecognitionSets());
   $("tcgGameSelect")?.addEventListener("change",updateTCGSelection);
