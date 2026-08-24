@@ -23,6 +23,11 @@ def test_obs_operator_panel_and_controls_exist():
     assert 'async function saveObsSettings' in JS
     assert 'async function obsCommand' in JS
     assert '.obs-control' in CSS
+    assert 'controlsEnabled=Boolean(obsState.enabled&&connected)' in JS
+    assert 'takeScene.disabled=!controlsEnabled||!names.length' in JS
+    assert 'streamToggle.disabled=!controlsEnabled' in JS
+    assert 'recordToggle.disabled=!controlsEnabled' in JS
+    assert '.obs-live-controls :is(button,select):disabled' in CSS
 
 
 def test_obs_bootstrap_has_dry_run_and_explicit_create():

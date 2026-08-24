@@ -10574,6 +10574,36 @@ html[data-theme="light"] .pack-economics input{
 html[data-theme="light"] .pack-economics :is(h3,strong,b){color:#183540}
 html[data-theme="light"] .pack-economics .economics-pack-rows>p{color:#607985}
 
+/* Broadcast history and setup: repair dormant light-theme selectors and make
+   disconnected external controls look as unavailable as they behave. */
+html[data-theme="light"] .break-history{
+  border-color:#d7e5e9;
+  background:linear-gradient(145deg,#fff,#edf5f8);
+  color:#183540;
+}
+html[data-theme="light"] .break-history-summary article,
+html[data-theme="light"] .history-metrics span{
+  border-color:#dbe7ea;
+  background:#f5fafc;
+}
+html[data-theme="light"] .break-history-list>article{border-color:#d7e5e9}
+html[data-theme="light"] .break-history :is(h3,strong,b){color:#183540}
+html[data-theme="light"] .break-history-list>p{color:#607985}
+html[data-theme="light"] .break-history-controls{
+  border-color:#d7e5e9;
+  background:#f7fbfd;
+}
+html[data-theme="light"] .break-history-controls :is(input,select){
+  border-color:#cfdee3;
+  background:#fff;
+  color:#183540;
+}
+.obs-live-controls :is(button,select):disabled{
+  opacity:.42;
+  cursor:not-allowed;
+  filter:saturate(.35);
+}
+
 /* Broadcast console: preserve every production module while exposing one
    operator task group at a time. */
 body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"].active{

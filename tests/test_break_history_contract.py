@@ -23,3 +23,4 @@ def test_break_history_ui_is_responsive_and_refreshable():
     assert "function renderBreakHistory" in JS
     assert "async function loadBreakHistory" in JS
     assert ".break-history" in CSS
+    assert 'html[data-theme="light"] .break-history{' in CSS
