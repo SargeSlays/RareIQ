@@ -110,3 +110,29 @@ def test_candidate_buttons_expose_truthful_evidence_states():
     assert "button.dataset.identityEvidence=evidence.state" in button
     assert "escapeHtml(evidence.label)" in button
     assert 'data-identity-evidence="recommended"' in CSS
+
+
+def test_correction_history_exposes_recorded_identity_provenance():
+    provenance = JS.split("function referenceCorrectionProvenance", 1)[1].split(
+        "async function revokeReferenceCorrection", 1
+    )[0]
+    assert "resolution.observed_identity" in provenance
+    assert "resolution.previous_catalog_identity" in provenance
+    assert "resolution.selected_identity||row.candidate" in provenance
+    assert '"Legacy correction · original review evidence was not recorded"' in provenance
+    history = JS.split("async function loadReferenceCorrectionHistory", 1)[1].split(
+        "function openReferenceLightbox", 1
+    )[0]
+    assert "escapeHtml(referenceCorrectionProvenance(row))" in history
+    assert 'class="reference-correction-provenance"' in history
+
+
+def test_correction_revocation_is_one_shot_and_reports_failure_truthfully():
+    revoke = JS.split("async function revokeReferenceCorrection", 1)[1].split(
+        "async function loadReferenceCorrectionHistory", 1
+    )[0]
+    assert "button?.disabled" in revoke
+    assert 'button.textContent="Revoking…"' in revoke
+    assert "result?.revoked!==true" in revoke
+    assert 'notify("Correction Not Reverted"' in revoke
+    assert "await loadReferenceCorrectionHistory()" in revoke

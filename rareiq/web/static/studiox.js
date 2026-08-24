@@ -7155,6 +7155,23 @@ function makeReferenceCandidateButton(candidate,{index=-1,catalog=false}={}){con
 function renderReferenceCandidates(){const host=$("referenceCandidateList"),candidates=window.__rareiqCardContext?.candidates||[];if(!host)return;host.replaceChildren(...(candidates.length?candidates.slice(0,12).map((candidate,index)=>makeReferenceCandidateButton(candidate,{index})):[Object.assign(document.createElement("p"),{textContent:"No suggested alternatives are available. Search the local library below."})]))}
 function renderReferenceCatalogResults(results=[]){const host=$("referenceCatalogResults");if(!host)return;host.hidden=false;host.replaceChildren(...(results.length?results.map(candidate=>makeReferenceCandidateButton(candidate,{catalog:true})):[Object.assign(document.createElement("p"),{textContent:"No local catalog cards matched that search."})]))}
 async function searchReferenceCatalog(event){event?.preventDefault();const query=String($("referenceCatalogSearchInput")?.value||"").trim();if(query.length<2){setCardText("referenceCatalogSearchStatus","Enter at least two characters");return}setCardText("referenceCatalogSearchStatus","Searching local card library…");const payload=await api(`/api/intelligence/catalog-search?q=${encodeURIComponent(query)}&limit=24`);window.__rareiqCatalogCorrectionResults=payload.results||[];renderReferenceCatalogResults(window.__rareiqCatalogCorrectionResults);setCardText("referenceCatalogSearchStatus",`${payload.count||0} catalog result${payload.count===1?"":"s"} · ${query}`)}
+function referenceCorrectionIdentityLabel(identity={}){return [identity.english_name||identity.name||identity.printed_name,identity.set_name,identity.collector_number,identity.language].filter(Boolean).join(" · ")}
+function referenceCorrectionProvenance(row={}){
+  const resolution=row.resolution||{},observed=referenceCorrectionIdentityLabel(resolution.observed_identity),previous=referenceCorrectionIdentityLabel(resolution.previous_catalog_identity),selected=referenceCorrectionIdentityLabel(resolution.selected_identity||row.candidate),source=resolution.selection_source==="catalog_search"?"catalog search":"ranked candidates";
+  if(!resolution.version)return "Legacy correction · original review evidence was not recorded";
+  return `${observed?`Observed ${observed}`:"Observed identity unavailable"} → ${selected||"selected identity unavailable"}${previous?` · replaced ${previous}`:""} · ${source}`;
+}
+async function revokeReferenceCorrection(row,button){
+  if(!row?.id||row.active===false||button?.disabled)return null;
+  const original=button.textContent;button.disabled=true;button.textContent="Revoking…";
+  try{
+    const result=await revokeLearnedCorrection(row.id);
+    if(result?.revoked!==true)throw new Error(result?.reason||"The correction could not be revoked.");
+    notify("Correction Reverted","Future scans will no longer use that learned identity.","success");
+    await loadReferenceCorrectionHistory();
+    return result;
+  }catch(error){button.disabled=false;button.textContent=original;notify("Correction Not Reverted",error.message||String(error),"error");return null}
+}
 async function loadReferenceCorrectionHistory(){
   const host=$("referenceCorrectionHistoryList"),stats=$("referenceCorrectionStats"),list=$("referenceCorrectionRows");
   if(!host||!stats||!list)return;
@@ -7164,8 +7181,8 @@ async function loadReferenceCorrectionHistory(){
   list.replaceChildren(...(rows.length?rows.map(row=>{
     const item=document.createElement("article"),candidate=row.candidate||{},undo=document.createElement("button"),uses=Number(row.times_applied||0),near=Number(row.approximate_applies||0),exact=Number(row.exact_applies||0);
     item.dataset.active=String(row.active!==false);item.dataset.risk=near>0?"review":"clear";
-    item.innerHTML=`<div><strong>${escapeHtml(candidate.english_name||candidate.name||candidate.printed_name||"Corrected identity")}</strong><span>${escapeHtml([candidate.set_name,candidate.collector_number,candidate.language].filter(Boolean).join(" · ")||"Identity details unavailable")}</span><small>Learned ${new Date(Number(row.created_at||0)*1000).toLocaleString()}${row.last_applied_at?` · last used ${new Date(Number(row.last_applied_at)*1000).toLocaleString()}`:""}</small></div><aside><b>${uses} use${uses===1?"":"s"}</b><span>${exact} exact · ${near} near</span>${near>0?"<em>Manual review</em>":"<em>Auto-safe</em>"}</aside>`;
-    undo.type="button";undo.className="riq-button";undo.textContent=row.active===false?"Revoked":"Undo learning";undo.disabled=row.active===false;undo.addEventListener("click",async()=>{await revokeLearnedCorrection(row.id);notify("Correction Reverted","Future scans will no longer use that learned identity.","success");loadReferenceCorrectionHistory()});item.append(undo);return item;
+    item.innerHTML=`<div><strong>${escapeHtml(candidate.english_name||candidate.name||candidate.printed_name||"Corrected identity")}</strong><span>${escapeHtml([candidate.set_name,candidate.collector_number,candidate.language].filter(Boolean).join(" · ")||"Identity details unavailable")}</span><small class="reference-correction-provenance">${escapeHtml(referenceCorrectionProvenance(row))}</small><small>Learned ${new Date(Number(row.created_at||0)*1000).toLocaleString()}${row.last_applied_at?` · last used ${new Date(Number(row.last_applied_at)*1000).toLocaleString()}`:""}</small></div><aside><b>${uses} use${uses===1?"":"s"}</b><span>${exact} exact · ${near} near</span>${near>0?"<em>Manual review</em>":"<em>Auto-safe</em>"}</aside>`;
+    undo.type="button";undo.className="riq-button";undo.textContent=row.active===false?"Revoked":"Undo learning";undo.disabled=row.active===false;undo.setAttribute("aria-label",row.active===false?"Correction revoked":`Undo learned correction for ${candidate.english_name||candidate.name||candidate.printed_name||"this identity"}`);undo.addEventListener("click",()=>revokeReferenceCorrection(row,undo));item.append(undo);return item;
   }):[Object.assign(document.createElement("p"),{textContent:"No operator corrections have been learned yet."})]));
 }
 function openReferenceLightbox(source,title="Card verification",meta="Compare against the live card"){
