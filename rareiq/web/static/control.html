@@ -30,9 +30,9 @@
 <link rel="stylesheet" href="/static/studiox_61.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.8.8-provisional-identity">
-<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.45-inventory-density1">
+<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.46-creator-workspace1">
 <link rel="stylesheet" href="/static/pack_run_coach.css?v=6.8.8-provisional-identity">
-<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.45-inventory-density1"></script>
+<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.46-creator-workspace1"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><style id="ui4-unified-card-stage-overrides">
@@ -1564,18 +1564,16 @@ Choose a source from Manage Cameras</span>
 
   <section class="workspace" data-workspace="creator">
     <div class="full-shell">
-      <aside class="riq-surface side-nav">
-        <button class="active">Brand</button>
-        <button>Overlays</button>
-        <button>Reactions</button>
-        <button>Themes</button>
-        <button>Sounds</button>
+      <aside class="riq-surface side-nav" id="creatorWorkspaceTabs" role="tablist" aria-label="Creator Studio views" aria-orientation="vertical">
+        <button class="active" id="creatorTabRules" type="button" role="tab" data-creator-view="rules" aria-selected="true" aria-controls="creatorRevealConfig" tabindex="0">Reveal Rules</button>
+        <button id="creatorTabLive" type="button" role="tab" data-creator-view="live" aria-selected="false" aria-controls="creatorRevealMonitor" tabindex="-1">Live State</button>
+        <button id="creatorTabAssets" type="button" role="tab" data-creator-view="assets" aria-selected="false" aria-controls="creatorAssetPanel" tabindex="-1">Asset Library</button>
       </aside>
       <div class="riq-surface content">
         <h2>Creator Studio</h2>
         <p>Audience-facing suspense, reactions, browser sources, and brand controls.</p>
         <div class="creator-reveal-layout">
-          <section class="card creator-reveal-config">
+          <section class="card creator-reveal-config" id="creatorRevealConfig" role="tabpanel" aria-labelledby="creatorTabRules" tabindex="0">
             <div><h3>Pack Suspense Engine</h3><p>Build anticipation card by card, then trigger a reaction for the verified hit.</p></div>
             <label><span>Enabled</span><input id="creatorRevealEnabled" type="checkbox" checked></label>
             <label><span>Build suspense</span><input id="creatorBuildSuspense" type="checkbox" checked></label>
@@ -1599,7 +1597,7 @@ Choose a source from Manage Cameras</span>
             <div class="creator-reveal-actions"><button class="riq-button" id="saveRevealSequence" type="button">Save Reveal Rules</button><button class="riq-button" id="creatorNextPack" type="button">Next Pack</button><a class="riq-button" href="/overlay/reveal-sequence" target="_blank" rel="noopener">Open 16:9 Source</a></div>
             <div class="creator-animation-previews"><span>Safe preview</span><button class="riq-button" type="button" data-animation-preview="low">Rare <kbd>Alt+1</kbd></button><button class="riq-button" type="button" data-animation-preview="medium">Big Hit <kbd>Alt+2</kbd></button><button class="riq-button" type="button" data-animation-preview="grail">Grail <kbd>Alt+3</kbd></button><small>Preview only — recognition and pack history stay untouched. Next Pack: <kbd>Alt+N</kbd></small></div>
           </section>
-          <section class="card creator-reveal-monitor">
+          <section class="card creator-reveal-monitor" id="creatorRevealMonitor" role="tabpanel" aria-labelledby="creatorTabLive" tabindex="0" hidden>
             <div><h3>Live Reveal State</h3><p id="creatorRevealPhase">Ready for pack 1</p></div>
             <strong id="creatorSuspenseValue">0%</strong>
             <div class="collection-progress-track"><i id="creatorSuspenseBar" style="width:0%"></i></div>
@@ -1611,7 +1609,7 @@ Choose a source from Manage Cameras</span>
             <small>Audio remains off until you provide and license a custom asset.</small>
           </section>
         </div>
-        <section class="card creator-assets">
+        <section class="card creator-assets" id="creatorAssetPanel" role="tabpanel" aria-labelledby="creatorTabAssets" tabindex="0" hidden>
           <div class="creator-assets-head"><div><h3>Reaction Asset Library</h3><p>Upload licensed effects, then explicitly map audio and visuals to each reveal tier.</p></div><label class="riq-button creator-upload">Add Asset<input id="creatorAssetUpload" type="file" accept="audio/mpeg,audio/wav,audio/ogg,image/png,image/jpeg,image/webp,image/gif"></label></div>
           <div class="creator-asset-library" id="creatorAssetLibrary"><p>No custom assets loaded.</p></div>
           <div class="creator-tier-mapping" id="creatorTierMapping"></div>

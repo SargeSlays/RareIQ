@@ -10616,6 +10616,17 @@ html[data-theme="light"] .break-history-controls :is(input,select){
   color:var(--ui4-text,#dce9ef);
 }
 html[data-theme="light"] .workspace[data-workspace="collection"] .side-nav [data-collection-view][aria-selected="true"]{color:#183540}
+.workspace[data-workspace="creator"] :is(.creator-reveal-layout,.creator-reveal-config,.creator-reveal-monitor,.creator-assets)[hidden]{display:none!important}
+.workspace[data-workspace="creator"] .creator-reveal-layout{grid-template-columns:minmax(0,1fr)}
+.workspace[data-workspace="creator"] .side-nav [data-creator-view]{cursor:pointer}
+.workspace[data-workspace="creator"] .side-nav [data-creator-view][aria-selected="true"]{
+  border-color:rgba(67,202,233,.42);
+  background:linear-gradient(135deg,rgba(29,157,190,.2),rgba(117,91,211,.16));
+  color:var(--ui4-text,#dce9ef);
+}
+.workspace[data-workspace="creator"] [role="tabpanel"]:focus{outline:none}
+.workspace[data-workspace="creator"] [role="tabpanel"]:focus-visible{outline:2px solid rgba(94,221,247,.76);outline-offset:3px}
+html[data-theme="light"] .workspace[data-workspace="creator"] .side-nav [data-creator-view][aria-selected="true"]{color:#183540}
 html[data-theme="light"] body.studiox-ui4 .workspace[data-workspace="collection"] .content :is(
   .library-sync-stats>div,
   .collection-trend-layout>div,

@@ -2324,6 +2324,55 @@ function initializeCollectionWorkspace(){
   setCollectionWorkspaceView(saved,{persist:false,scroll:false});
 }
 
+const CREATOR_WORKSPACE_VIEW_KEY="rareiq.creator.workspace.view.v1";
+const CREATOR_WORKSPACE_COPY={
+  rules:["Reveal Rules","Configure suspense, qualification thresholds, copy, and safe preview controls."],
+  live:["Live Reveal State","Monitor the current pack, qualification evidence, and recent reveal history."],
+  assets:["Reaction Asset Library","Upload licensed media and map explicit audio and visual reactions by tier."],
+};
+
+function setCreatorWorkspaceView(requested,{persist=true,focus=false}={}){
+  const workspace=document.querySelector('.workspace[data-workspace="creator"]'),tabs=$("creatorWorkspaceTabs");
+  if(!workspace||!tabs)return "rules";
+  const view=Object.hasOwn(CREATOR_WORKSPACE_COPY,requested)?requested:"rules",layout=workspace.querySelector(".creator-reveal-layout"),config=$("creatorRevealConfig"),monitor=$("creatorRevealMonitor"),assets=$("creatorAssetPanel");
+  workspace.dataset.creatorView=view;
+  if(layout)layout.hidden=view==="assets";
+  if(config)config.hidden=view!=="rules";
+  if(monitor)monitor.hidden=view!=="live";
+  if(assets)assets.hidden=view!=="assets";
+  tabs.querySelectorAll("[data-creator-view]").forEach(button=>{
+    const selected=button.dataset.creatorView===view;
+    button.classList.toggle("active",selected);
+    button.setAttribute("aria-selected",selected?"true":"false");
+    button.tabIndex=selected?0:-1;
+    if(selected&&focus)button.focus();
+  });
+  const [title,description]=CREATOR_WORKSPACE_COPY[view],content=workspace.querySelector(".full-shell>.content");
+  if(content?.querySelector(":scope>h2"))content.querySelector(":scope>h2").textContent=title;
+  if(content?.querySelector(":scope>p"))content.querySelector(":scope>p").textContent=description;
+  content?.scrollTo({top:0,behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});
+  if(persist){try{localStorage.setItem(CREATOR_WORKSPACE_VIEW_KEY,view)}catch(_error){}}
+  return view;
+}
+
+function initializeCreatorWorkspace(){
+  const tabs=$("creatorWorkspaceTabs");
+  if(!tabs)return;
+  tabs.querySelectorAll("[data-creator-view]").forEach(button=>{
+    button.addEventListener("click",()=>setCreatorWorkspaceView(button.dataset.creatorView));
+    button.addEventListener("keydown",event=>{
+      const buttons=[...tabs.querySelectorAll("[data-creator-view]")],current=buttons.indexOf(button),key=event.key;
+      if(!["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Home","End"].includes(key))return;
+      event.preventDefault();
+      const backwards=key==="ArrowUp"||key==="ArrowLeft",next=key==="Home"?0:key==="End"?buttons.length-1:(current+(backwards?-1:1)+buttons.length)%buttons.length;
+      setCreatorWorkspaceView(buttons[next].dataset.creatorView,{focus:true});
+    });
+  });
+  let saved="rules";
+  try{saved=localStorage.getItem(CREATOR_WORKSPACE_VIEW_KEY)||"rules"}catch(_error){}
+  setCreatorWorkspaceView(saved,{persist:false});
+}
+
 const BROADCAST_WORKSPACE_PANELS={
   live:[".workspace-readiness",".production-session-metadata",".production-session",".operator-health",".show-preflight",".production-switcher-shell"],
   destinations:[".broadcast-destinations"],
@@ -8426,6 +8475,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   initializeStudioXInstallPrompt();
   initializeWorkspaceReadiness();
   initializeCollectionWorkspace();
+  initializeCreatorWorkspace();
   initializeBroadcastWorkspace();
   loadTCGGames().then(loadRecognitionSets).catch(()=>loadRecognitionSets());
   $("tcgGameSelect")?.addEventListener("change",updateTCGSelection);

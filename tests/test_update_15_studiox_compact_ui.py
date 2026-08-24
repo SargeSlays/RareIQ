@@ -92,7 +92,7 @@ def test_update15_stylesheet_is_last_and_cache_busted() -> None:
     active_version = re.search(r'data-studiox-build="([^"]+)"', html).group(1)
     assert links[-3:] == [
         f"/static/studiox_ui4_tokens.css?v={active_version}",
-        f"/static/studiox_update15.css?v={active_version}&amp;shell=6.8.45-inventory-density1",
+        f"/static/studiox_update15.css?v={active_version}&amp;shell=6.8.46-creator-workspace1",
         f"/static/pack_run_coach.css?v={active_version}",
     ]
     assert f'/static/studiox.js?v={active_version}' in html
