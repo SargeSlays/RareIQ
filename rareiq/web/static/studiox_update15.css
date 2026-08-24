@@ -10631,7 +10631,7 @@ body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!importan
   body.studiox-ui4.studiox-premium .mobile-operator-view-switcher{
     grid-column:1/-1!important;
     display:grid!important;
-    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    grid-template-columns:repeat(4,minmax(0,1fr))!important;
     height:28px!important;
     padding:2px!important;
     gap:3px!important;

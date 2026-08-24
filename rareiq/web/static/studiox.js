@@ -6355,6 +6355,7 @@ function setUI4InspectorView(name,loadHistory=true){
   current?.setAttribute("aria-hidden","false");
   recent?.setAttribute("aria-hidden",String(ui4InspectorView!=="recent"));
   document.querySelector(".inspector")?.setAttribute("data-primary-view",ui4InspectorView);
+  syncMobileOperatorViewButtons();
   if(ui4InspectorView==="recent"&&loadHistory) loadUI4RecentScans();
 }
 
@@ -7866,8 +7867,25 @@ function syncMobileOperatorDeck(){
 function setMobileOperatorView(requested,{persist=true}={}){
   const view=["camera","both","card"].includes(requested)?requested:"both";
   document.body.dataset.mobileOperatorView=view;
-  document.querySelectorAll(".mobile-operator-view-switcher [data-mobile-operator-view]").forEach(button=>button.setAttribute("aria-pressed",button.dataset.mobileOperatorView===view?"true":"false"));
+  syncMobileOperatorViewButtons();
   if(persist){try{localStorage.setItem(MOBILE_OPERATOR_VIEW_KEY,view)}catch(_error){}}
+  return view;
+}
+
+function syncMobileOperatorViewButtons(){
+  const recent=ui4InspectorView==="recent";
+  document.querySelectorAll(".mobile-operator-view-switcher [data-mobile-operator-view]").forEach(button=>button.setAttribute("aria-pressed",!recent&&button.dataset.mobileOperatorView===document.body.dataset.mobileOperatorView?"true":"false"));
+  document.querySelector(".mobile-operator-view-switcher [data-mobile-operator-destination='recent-scans']")?.setAttribute("aria-pressed",recent?"true":"false");
+}
+
+function setMobileOperatorDestination(destination){
+  if(destination==="recent-scans"){
+    setMobileOperatorView("card");
+    setUI4InspectorView("recent");
+    return "recent-scans";
+  }
+  const view=setMobileOperatorView(destination);
+  setUI4InspectorView("current",false);
   return view;
 }
 
@@ -7899,7 +7917,8 @@ function initializeStudioXUI4(){
   $("mobileOperatorNext")?.addEventListener("click",()=>$("nextClearButton")?.click());
   $("mobileOperatorReconnect")?.addEventListener("click",()=>Promise.resolve().then(()=>reconnectCamera()).catch(error=>notify("Camera Reconnect Failed",error.message||String(error),"error")));
   $("mobileOperatorStatus")?.addEventListener("click",()=>setUI4HealthOpen(!ui4HealthOpen));
-  document.querySelectorAll(".mobile-operator-view-switcher [data-mobile-operator-view]").forEach(button=>button.addEventListener("click",()=>setMobileOperatorView(button.dataset.mobileOperatorView)));
+  document.querySelectorAll(".mobile-operator-view-switcher [data-mobile-operator-view]").forEach(button=>button.addEventListener("click",()=>setMobileOperatorDestination(button.dataset.mobileOperatorView)));
+  document.querySelector(".mobile-operator-view-switcher [data-mobile-operator-destination='recent-scans']")?.addEventListener("click",()=>setMobileOperatorDestination("recent-scans"));
   const observeStudioXTarget=(observer,target,options)=>{if(typeof Node==="undefined"||!(target instanceof Node))return false;try{observer.observe(target,options);return true}catch(error){console.warn("Studio X observer skipped",error);return false}};
   const decisionObserver=new MutationObserver(syncResultDecisionStrip);["cardName","cardCollectorNumber","confidenceRingValue","identityVerdictBadge","recognitionStateLabel","approveButton","rejectButton","nextClearButton"].forEach(id=>observeStudioXTarget(decisionObserver,$(id),{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["disabled","hidden"]}));
   const inspectorNavigationObserver=new MutationObserver(syncInspectorNavigationState);observeStudioXTarget(inspectorNavigationObserver,$("recognitionStateLabel"),{subtree:true,childList:true,characterData:true});syncResultDecisionStrip();syncInspectorNavigationState();

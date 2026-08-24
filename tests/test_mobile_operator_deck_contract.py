@@ -20,6 +20,7 @@ def test_mobile_operator_deck_has_unique_accessible_controls():
         "mobileOperatorViewCamera",
         "mobileOperatorViewBoth",
         "mobileOperatorViewCard",
+        "mobileOperatorViewScans",
     ):
         assert HTML.count(f'id="{element_id}"') == 1
     assert 'aria-label="Mobile operator controls"' in HTML
@@ -73,3 +74,12 @@ def test_mobile_workspace_switch_is_explicit_persistent_and_poll_free():
     assert "setInterval" not in section
     assert "fetch(" not in section
     assert 'id="mobileOperatorViewBoth" data-mobile-operator-view="both" aria-pressed="true"' in HTML
+
+
+def test_mobile_scans_delegates_to_existing_history_without_another_poll_loop():
+    section = JS[JS.index("function setMobileOperatorDestination") : JS.index("function syncResultDecisionStrip")]
+    assert 'setUI4InspectorView("recent")' in section
+    assert 'setUI4InspectorView("current",false)' in section
+    assert "setInterval" not in section
+    assert "fetch(" not in section
+    assert JS.count('/api/recent-pulls?limit=20') == 1
