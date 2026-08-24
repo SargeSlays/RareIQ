@@ -1716,8 +1716,33 @@ async def production_switcher_status():
     with PRODUCTION_SWITCHER_LOCK:
         return {"ok": True, **PRODUCTION_SWITCHER_STATE, "slots": orchestrator.camera_manager.camera_slots()}
 
+
+def _production_slot_is_ready(
+    slot_id: int,
+    slots: list[dict[str, Any]],
+) -> bool:
+    slot = next(
+        (item for item in slots if int(item.get("slot_id") or 0) == slot_id),
+        None,
+    )
+    return bool(slot and slot.get("source_id") and slot.get("connected"))
+
+
 @app.post("/api/production/switcher/preview")
 async def production_switcher_preview(request: ProductionSwitcherRequest):
+    slots = orchestrator.camera_manager.camera_slots()
+    if (
+        request.preview_slot is not None
+        and not _production_slot_is_ready(request.preview_slot, slots)
+    ):
+        return JSONResponse(
+            status_code=409,
+            content={
+                "ok": False,
+                "reason": "camera_slot_unavailable",
+                "slot_id": request.preview_slot,
+            },
+        )
     with PRODUCTION_SWITCHER_LOCK:
         if request.preview_slot is not None:
             PRODUCTION_SWITCHER_STATE["preview_slot"] = request.preview_slot
@@ -1728,11 +1753,22 @@ async def production_switcher_preview(request: ProductionSwitcherRequest):
         PRODUCTION_SWITCHER_STATE["updated_at"] = time.time()
         return {"ok": True, **PRODUCTION_SWITCHER_STATE}
 
+
 @app.post("/api/production/switcher/take")
 async def production_switcher_take(request: ProductionSwitcherRequest):
+    target = int(request.preview_slot or PRODUCTION_SWITCHER_STATE["preview_slot"])
+    slots = orchestrator.camera_manager.camera_slots()
+    if not _production_slot_is_ready(target, slots):
+        return JSONResponse(
+            status_code=409,
+            content={
+                "ok": False,
+                "reason": "camera_slot_unavailable",
+                "slot_id": target,
+            },
+        )
     with PRODUCTION_SWITCHER_LOCK:
         previous = int(PRODUCTION_SWITCHER_STATE["program_slot"])
-        target = int(request.preview_slot or PRODUCTION_SWITCHER_STATE["preview_slot"])
         transition = request.transition if request.transition in {"cut", "fade", "slide", "zoom"} else PRODUCTION_SWITCHER_STATE["transition"]
         duration = request.duration_ms if request.duration_ms is not None else PRODUCTION_SWITCHER_STATE["duration_ms"]
         PRODUCTION_SWITCHER_STATE.update({"program_slot": target, "preview_slot": previous, "transition": transition, "duration_ms": 0 if transition == "cut" else duration, "generation": int(PRODUCTION_SWITCHER_STATE["generation"]) + 1, "updated_at": time.time()})
