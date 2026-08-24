@@ -80,9 +80,62 @@ class LearningQueueService:
         except ValueError: return None
 
     @staticmethod
-    def _evidence_agreement(observed: dict[str, Any], learned: dict[str, Any]) -> int:
-        pairs=(("collector_number","collector_number"),("set_id","set_id"),("set_name","set_name"),("english_name","english_name"),("language","language"))
-        return sum(1 for left,right in pairs if str(observed.get(left) or "").strip().lower() and str(observed.get(left) or "").strip().lower()==str(learned.get(right) or "").strip().lower())
+    def _evidence_value(field: str, value: Any) -> str:
+        normalized = str(value or "").strip().lower()
+        if field == "language":
+            key = normalized.replace("_", "-")
+            return {
+                "chinese": "zh-cn",
+                "simplified chinese": "zh-cn",
+                "zh-cn": "zh-cn",
+                "english": "en",
+                "en": "en",
+            }.get(key, key)
+        if field == "collector_number":
+            compact = normalized.replace(" ", "")
+            return "/".join(
+                str(int(part)) if part.isdigit() else part
+                for part in compact.split("/")
+            )
+        return normalized
+
+    @classmethod
+    def _evidence_comparison(
+        cls,
+        observed: dict[str, Any],
+        learned: dict[str, Any],
+    ) -> tuple[int, int, int]:
+        pairs = (
+            ("collector_number", "collector_number"),
+            ("set_id", "set_id"),
+            ("set_name", "set_name"),
+            ("english_name", "english_name"),
+            ("printed_name", "printed_name"),
+            ("language", "language"),
+        )
+        agreements = conflicts = compared = 0
+        for left, right in pairs:
+            observed_value = cls._evidence_value(left, observed.get(left))
+            learned_raw = learned.get(right)
+            if right == "printed_name" and not learned_raw:
+                learned_raw = learned.get("name")
+            learned_value = cls._evidence_value(left, learned_raw)
+            if not observed_value or not learned_value:
+                continue
+            compared += 1
+            if observed_value == learned_value:
+                agreements += 1
+            else:
+                conflicts += 1
+        return agreements, conflicts, compared
+
+    @classmethod
+    def _evidence_agreement(
+        cls,
+        observed: dict[str, Any],
+        learned: dict[str, Any],
+    ) -> int:
+        return cls._evidence_comparison(observed, learned)[0]
 
     def correction_match(self, fingerprint: str, observed: dict[str, Any] | None = None) -> dict[str, Any] | None:
         key=str(fingerprint or "").strip().lower(); observed=observed or {}; best=None
@@ -91,9 +144,9 @@ class LearningQueueService:
             if row.get("active") is False or not isinstance(candidate,dict): continue
             distance=self._hamming(key,stored)
             if distance is None: continue
-            agreement=self._evidence_agreement(observed,candidate)
-            if distance==0 or (distance<=self.MAX_CORRECTION_DISTANCE and agreement>=2):
-                match={"candidate":dict(candidate),"correction_id":row.get("id"),"distance":distance,"match_type":"exact" if distance==0 else "approximate","evidence_agreement":agreement}
+            agreement,conflicts,compared=self._evidence_comparison(observed,candidate)
+            if (distance==0 and conflicts==0) or (distance<=self.MAX_CORRECTION_DISTANCE and agreement>=2 and conflicts==0):
+                match={"candidate":dict(candidate),"correction_id":row.get("id"),"distance":distance,"match_type":"exact" if distance==0 else "approximate","evidence_agreement":agreement,"evidence_conflicts":conflicts,"evidence_compared":compared}
                 if best is None or (distance,-agreement)<(best["distance"],-best["evidence_agreement"]): best=match
         return best
 

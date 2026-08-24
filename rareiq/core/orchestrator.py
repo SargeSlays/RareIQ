@@ -1350,10 +1350,14 @@ class RareIQOrchestrator:
         candidate = unified.get("primary_candidate")
         if not candidate:
             return None
-        learned=self.learning_queue.correction_match(unified.get("artwork_fingerprint") or self._current_artwork_fingerprint or "",candidate)
+        evidence=unified.get("identity_evidence") or {}
+        observed_identity=dict(evidence.get("observed") or {}) if isinstance(evidence,dict) else {}
+        if not any(value not in (None,"") for value in observed_identity.values()):
+            observed_identity=dict(candidate)
+        learned=self.learning_queue.correction_match(unified.get("artwork_fingerprint") or self._current_artwork_fingerprint or "",observed_identity)
         if learned:
             corrected=learned["candidate"]
-            candidate={**corrected,"source":"learned_operator_correction","operator_learned":True,"learned_match_type":learned["match_type"],"learned_fingerprint_distance":learned["distance"],"learned_evidence_agreement":learned["evidence_agreement"],"correction_id":learned["correction_id"],"fused_score":max(.99,float(corrected.get("fused_score") or corrected.get("score") or 0))}
+            candidate={**corrected,"source":"learned_operator_correction","operator_learned":True,"learned_match_type":learned["match_type"],"learned_fingerprint_distance":learned["distance"],"learned_evidence_agreement":learned["evidence_agreement"],"learned_evidence_conflicts":learned.get("evidence_conflicts",0),"learned_evidence_compared":learned.get("evidence_compared",0),"correction_id":learned["correction_id"],"fused_score":max(.99,float(corrected.get("fused_score") or corrected.get("score") or 0))}
 
         printed = (
             candidate.get("printed_name")
@@ -1438,6 +1442,21 @@ class RareIQOrchestrator:
             "confidence": confidence,
             "recognition_signature": signature,
             "recognition_revision": unified.get("revision"),
+            "operator_learned": bool(candidate.get("operator_learned")),
+            "learned_match_type": candidate.get("learned_match_type"),
+            "learned_fingerprint_distance": candidate.get(
+                "learned_fingerprint_distance"
+            ),
+            "learned_evidence_agreement": candidate.get(
+                "learned_evidence_agreement"
+            ),
+            "learned_evidence_conflicts": candidate.get(
+                "learned_evidence_conflicts"
+            ),
+            "learned_evidence_compared": candidate.get(
+                "learned_evidence_compared"
+            ),
+            "correction_id": candidate.get("correction_id"),
             "provisional": bool(
                 candidate.get("provisional")
                 and not (
