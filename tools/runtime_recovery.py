@@ -388,11 +388,11 @@ def windows_schedule(
     if keep < 1:
         raise RecoveryError("Snapshot retention must keep at least one verified snapshot.")
     project_root = Path(project_root).resolve()
-    python = project_root / ".venv" / "Scripts" / "python.exe"
+    pythonw = project_root / ".venv" / "Scripts" / "pythonw.exe"
     script = project_root / "tools" / "runtime_recovery.py"
-    if not python.is_file():
-        raise RecoveryError(f"RareIQ virtual-environment Python was not found: {python}")
-    task_command = f'"{python}" -B "{script}" scheduled-run --keep {keep}'
+    if not pythonw.is_file():
+        raise RecoveryError(f"RareIQ windowless virtual-environment Python was not found: {pythonw}")
+    task_command = f'"{pythonw}" -B "{script}" scheduled-run --keep {keep}'
     command = [
         "schtasks.exe", "/Create", "/TN", WINDOWS_TASK_NAME,
         "/TR", task_command, "/SC", "DAILY", "/ST", schedule_time,

@@ -291,9 +291,9 @@ def test_file_consistency_snapshot_tolerates_independent_source_updates(tmp_path
 
 def test_windows_schedule_is_dry_run_first_and_uses_no_shell(tmp_path):
     project = tmp_path / "RareIQ"
-    python = project / ".venv/Scripts/python.exe"
-    python.parent.mkdir(parents=True)
-    python.write_bytes(b"")
+    pythonw = project / ".venv/Scripts/pythonw.exe"
+    pythonw.parent.mkdir(parents=True)
+    pythonw.write_bytes(b"")
     (project / "tools").mkdir()
     (project / "tools/runtime_recovery.py").write_text("", encoding="utf-8")
     calls = []
@@ -311,6 +311,8 @@ def test_windows_schedule_is_dry_run_first_and_uses_no_shell(tmp_path):
     assert applied["installed"] is True
     assert command[0] == "schtasks.exe"
     assert "/RL" in command and "LIMITED" in command
+    assert "pythonw.exe" in command[5]
+    assert "python.exe" not in command[5]
     assert kwargs == {"check": False, "capture_output": True, "text": True}
     assert "shell" not in kwargs
 
