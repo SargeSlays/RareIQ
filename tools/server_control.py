@@ -10,6 +10,7 @@ import time
 import urllib.error
 import urllib.request
 import webbrowser
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,10 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 DEFAULT_START_TIMEOUT = 90.0
 DEFAULT_STOP_TIMEOUT = 30.0
+DEFAULT_WATCHDOG_MINUTES = 5
+AUTOSTART_VALUE_NAME = "RareIQ Server Auto Start"
+WATCHDOG_TASK_NAME = "RareIQ Server Watchdog"
+WINDOWS_RUN_KEY = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run"
 
 
 class ServerControlError(RuntimeError):
@@ -136,6 +141,49 @@ def _resolved_paths(project_root: Path, state_path: Path | None) -> tuple[Path, 
     return state_path, state_path.parent
 
 
+@contextmanager
+def _control_lock(state_path: Path, *, timeout: float = 15.0):
+    lock_path = state_path.with_name("server-control.lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = lock_path.open("a+b")
+    if handle.seek(0, os.SEEK_END) == 0:
+        handle.write(b"\0")
+        handle.flush()
+    deadline = time.monotonic() + timeout
+    locked = False
+    try:
+        while time.monotonic() < deadline:
+            try:
+                handle.seek(0)
+                if os.name == "nt":
+                    import msvcrt
+
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                locked = True
+                break
+            except OSError:
+                time.sleep(0.05)
+        if not locked:
+            raise ServerControlError("Another RareIQ server-control operation is already in progress.")
+        yield
+    finally:
+        if locked:
+            handle.seek(0)
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.close()
+
+
 def server_status(project_root: Path, *, state_path: Path | None = None) -> dict[str, Any]:
     project_root = Path(project_root).resolve()
     state_path, _log_root = _resolved_paths(project_root, state_path)
@@ -199,10 +247,22 @@ def start_server(
     timeout: float = DEFAULT_START_TIMEOUT,
     open_browser: bool = False,
     state_path: Path | None = None,
+    _lock_held: bool = False,
 ) -> dict[str, Any]:
     project_root = Path(project_root).resolve()
     host, port = _validate_binding(host, port)
     state_path, log_root = _resolved_paths(project_root, state_path)
+    if not _lock_held:
+        with _control_lock(state_path):
+            return start_server(
+                project_root,
+                host=host,
+                port=port,
+                timeout=timeout,
+                open_browser=open_browser,
+                state_path=state_path,
+                _lock_held=True,
+            )
     existing = server_status(project_root, state_path=state_path)
     if existing["state"] == "running":
         return {**existing, "already_running": True}
@@ -316,9 +376,19 @@ def stop_server(
     timeout: float = DEFAULT_STOP_TIMEOUT,
     force: bool = False,
     state_path: Path | None = None,
+    _lock_held: bool = False,
 ) -> dict[str, Any]:
     project_root = Path(project_root).resolve()
     state_path, _log_root = _resolved_paths(project_root, state_path)
+    if not _lock_held:
+        with _control_lock(state_path):
+            return stop_server(
+                project_root,
+                timeout=timeout,
+                force=force,
+                state_path=state_path,
+                _lock_held=True,
+            )
     current = server_status(project_root, state_path=state_path)
     if current["state"] == "stopped":
         return {**current, "already_stopped": True}
@@ -365,12 +435,31 @@ def restart_server(
     force: bool = False,
     open_browser: bool = False,
     state_path: Path | None = None,
+    _lock_held: bool = False,
 ) -> dict[str, Any]:
     state_path, _log_root = _resolved_paths(Path(project_root).resolve(), state_path)
+    if not _lock_held:
+        with _control_lock(state_path):
+            return restart_server(
+                project_root,
+                host=host,
+                port=port,
+                timeout=timeout,
+                force=force,
+                open_browser=open_browser,
+                state_path=state_path,
+                _lock_held=True,
+            )
     state = _load_state(state_path)
     selected_host = host or (str(state.get("host")) if state else DEFAULT_HOST)
     selected_port = port or (int(state.get("port")) if state else DEFAULT_PORT)
-    stopped = stop_server(project_root, timeout=DEFAULT_STOP_TIMEOUT, force=force, state_path=state_path)
+    stopped = stop_server(
+        project_root,
+        timeout=DEFAULT_STOP_TIMEOUT,
+        force=force,
+        state_path=state_path,
+        _lock_held=True,
+    )
     started = start_server(
         project_root,
         host=selected_host,
@@ -378,8 +467,95 @@ def restart_server(
         timeout=timeout,
         open_browser=open_browser,
         state_path=state_path,
+        _lock_held=True,
     )
     return {"stopped": stopped, "started": started}
+
+
+def ensure_server(
+    project_root: Path,
+    *,
+    timeout: float = DEFAULT_START_TIMEOUT,
+    state_path: Path | None = None,
+) -> dict[str, Any]:
+    project_root = Path(project_root).resolve()
+    state_path, _log_root = _resolved_paths(project_root, state_path)
+    state = _load_state(state_path)
+    current = server_status(project_root, state_path=state_path)
+    if current["state"] == "running":
+        return {**current, "action": "none", "already_running": True}
+    if current["state"] not in {"stopped", "stale"}:
+        raise ServerControlError(
+            f"Automatic recovery is blocked while server state is {current['state']}; operator review is required."
+        )
+    host = str(state.get("host")) if state else DEFAULT_HOST
+    port = int(state.get("port")) if state else DEFAULT_PORT
+    started = start_server(
+        project_root,
+        host=host,
+        port=port,
+        timeout=timeout,
+        state_path=state_path,
+    )
+    return {**started, "action": "started"}
+
+
+def windows_watchdog_schedule(
+    project_root: Path,
+    *,
+    interval_minutes: int = DEFAULT_WATCHDOG_MINUTES,
+    apply: bool = False,
+    runner=subprocess.run,
+) -> dict[str, Any]:
+    if not 1 <= int(interval_minutes) <= 60:
+        raise ServerControlError("Watchdog interval must be between 1 and 60 minutes.")
+    project_root = Path(project_root).resolve()
+    python = project_root / ".venv" / "Scripts" / "python.exe"
+    pythonw = project_root / ".venv" / "Scripts" / "pythonw.exe"
+    script = project_root / "tools" / "server_control.py"
+    if not python.is_file() or not pythonw.is_file() or not script.is_file():
+        raise ServerControlError("RareIQ runtime or server-control script is missing.")
+    task_command = f'"{python}" -B "{script}" ensure'
+    logon_command = f'"{pythonw}" -B "{script}" ensure'
+    commands = [
+        [
+            "reg.exe", "ADD", WINDOWS_RUN_KEY, "/v", AUTOSTART_VALUE_NAME,
+            "/t", "REG_SZ", "/d", logon_command, "/f",
+        ],
+        [
+            "schtasks.exe", "/Create", "/TN", WATCHDOG_TASK_NAME,
+            "/TR", task_command, "/SC", "MINUTE", "/MO", str(interval_minutes),
+            "/RL", "LIMITED", "/F",
+        ],
+    ]
+    report = {
+        "mode": "apply" if apply else "dry-run",
+        "logon_command": logon_command,
+        "task_command": task_command,
+        "interval_minutes": interval_minutes,
+        "autostart": {"mechanism": "current-user-run", "name": AUTOSTART_VALUE_NAME},
+        "watchdog_task": WATCHDOG_TASK_NAME,
+    }
+    if not apply:
+        return report
+    if os.name != "nt":
+        raise ServerControlError("Windows Task Scheduler is only available on Windows.")
+    outputs = []
+    for index, command in enumerate(commands):
+        completed = runner(command, check=False, capture_output=True, text=True)
+        if completed.returncode != 0:
+            if index == 1:
+                runner(
+                    ["reg.exe", "DELETE", WINDOWS_RUN_KEY, "/v", AUTOSTART_VALUE_NAME, "/f"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+            detail = (completed.stderr or completed.stdout or "unknown scheduler error").strip()
+            component = AUTOSTART_VALUE_NAME if index == 0 else WATCHDOG_TASK_NAME
+            raise ServerControlError(f"Could not install {component}: {detail}")
+        outputs.append(completed.stdout.strip())
+    return {**report, "installed": True, "scheduler_output": outputs}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -392,6 +568,8 @@ def main(argv: list[str] | None = None) -> int:
     start.add_argument("--timeout", type=float, default=DEFAULT_START_TIMEOUT)
     start.add_argument("--open", action="store_true", dest="open_browser")
     subparsers.add_parser("status")
+    ensure = subparsers.add_parser("ensure")
+    ensure.add_argument("--timeout", type=float, default=DEFAULT_START_TIMEOUT)
     stop = subparsers.add_parser("stop")
     stop.add_argument("--timeout", type=float, default=DEFAULT_STOP_TIMEOUT)
     stop.add_argument("--force", action="store_true")
@@ -401,6 +579,9 @@ def main(argv: list[str] | None = None) -> int:
     restart.add_argument("--timeout", type=float, default=DEFAULT_START_TIMEOUT)
     restart.add_argument("--force", action="store_true")
     restart.add_argument("--open", action="store_true", dest="open_browser")
+    schedule = subparsers.add_parser("schedule")
+    schedule.add_argument("--interval", type=int, default=DEFAULT_WATCHDOG_MINUTES)
+    schedule.add_argument("--apply", action="store_true")
     args = parser.parse_args(argv)
     try:
         if args.command == "start":
@@ -413,9 +594,11 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif args.command == "status":
             result = server_status(project_root)
+        elif args.command == "ensure":
+            result = ensure_server(project_root, timeout=args.timeout)
         elif args.command == "stop":
             result = stop_server(project_root, timeout=args.timeout, force=args.force)
-        else:
+        elif args.command == "restart":
             result = restart_server(
                 project_root,
                 host=args.host,
@@ -423,6 +606,12 @@ def main(argv: list[str] | None = None) -> int:
                 timeout=args.timeout,
                 force=args.force,
                 open_browser=args.open_browser,
+            )
+        else:
+            result = windows_watchdog_schedule(
+                project_root,
+                interval_minutes=args.interval,
+                apply=args.apply,
             )
     except ServerControlError as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, indent=2), file=sys.stderr)

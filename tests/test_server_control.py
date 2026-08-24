@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -14,6 +15,7 @@ def _project(tmp_path: Path) -> Path:
     python = project / ".venv/Scripts/python.exe"
     python.parent.mkdir(parents=True)
     python.write_bytes(b"")
+    (python.parent / "pythonw.exe").write_bytes(b"")
     (project / "app.py").write_text("", encoding="utf-8")
     return project
 
@@ -161,3 +163,113 @@ def test_server_run_binding_is_loopback_and_environment_configurable(monkeypatch
 
     assert calls[0][1]["host"] == "127.0.0.1"
     assert calls[0][1]["port"] == 9055
+
+
+def test_ensure_is_idempotent_for_running_server(tmp_path, monkeypatch):
+    project = _project(tmp_path)
+    state_path = tmp_path / "state/server.json"
+    _state(state_path)
+    monkeypatch.setattr(
+        control,
+        "server_status",
+        lambda *_args, **_kwargs: {"state": "running", "healthy": True, "pid": 4242},
+    )
+    monkeypatch.setattr(
+        control,
+        "start_server",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not restart")),
+    )
+
+    result = control.ensure_server(project, state_path=state_path)
+
+    assert result["action"] == "none"
+    assert result["already_running"] is True
+
+
+def test_ensure_recovers_stale_state_with_last_binding(tmp_path, monkeypatch):
+    project = _project(tmp_path)
+    state_path = tmp_path / "state/server.json"
+    _state(state_path)
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    payload["port"] = 9040
+    state_path.write_text(json.dumps(payload), encoding="utf-8")
+    monkeypatch.setattr(control, "server_status", lambda *_args, **_kwargs: {"state": "stale"})
+    starts = []
+
+    def start(*_args, **kwargs):
+        starts.append(kwargs)
+        return {"state": "running", "healthy": True}
+
+    monkeypatch.setattr(control, "start_server", start)
+
+    result = control.ensure_server(project, state_path=state_path)
+
+    assert result["action"] == "started"
+    assert starts[0]["host"] == "127.0.0.1"
+    assert starts[0]["port"] == 9040
+
+
+@pytest.mark.parametrize("state", ["unhealthy", "conflict", "unmanaged"])
+def test_ensure_never_replaces_ambiguous_or_unhealthy_process(tmp_path, monkeypatch, state):
+    project = _project(tmp_path)
+    state_path = tmp_path / "state/server.json"
+    _state(state_path)
+    monkeypatch.setattr(control, "server_status", lambda *_args, **_kwargs: {"state": state})
+
+    with pytest.raises(ServerControlError, match="operator review"):
+        control.ensure_server(project, state_path=state_path)
+
+
+def test_watchdog_schedule_is_dry_run_first_and_uses_shell_free_tasks(tmp_path):
+    project = _project(tmp_path)
+    (project / "tools").mkdir()
+    (project / "tools/server_control.py").write_text("", encoding="utf-8")
+    calls = []
+
+    def runner(command, **kwargs):
+        calls.append((command, kwargs))
+        return SimpleNamespace(returncode=0, stdout="SUCCESS", stderr="")
+
+    dry_run = control.windows_watchdog_schedule(project, interval_minutes=5, runner=runner)
+    assert dry_run["mode"] == "dry-run"
+    assert calls == []
+
+    applied = control.windows_watchdog_schedule(project, interval_minutes=5, apply=True, runner=runner)
+    assert applied["installed"] is True
+    assert len(calls) == 2
+    assert calls[0][0][0] == "reg.exe" and control.WINDOWS_RUN_KEY in calls[0][0]
+    assert "pythonw.exe" in calls[0][0][8]
+    assert calls[1][0][0] == "schtasks.exe" and "MINUTE" in calls[1][0]
+    assert all("shell" not in kwargs for _command, kwargs in calls)
+    assert " ensure" in calls[0][0][8]
+    assert " ensure" in calls[1][0][5]
+
+
+def test_watchdog_failure_rolls_back_new_logon_entry(tmp_path):
+    project = _project(tmp_path)
+    (project / "tools").mkdir()
+    (project / "tools/server_control.py").write_text("", encoding="utf-8")
+    calls = []
+
+    def runner(command, **kwargs):
+        calls.append((command, kwargs))
+        return SimpleNamespace(
+            returncode=1 if command[0] == "schtasks.exe" else 0,
+            stdout="",
+            stderr="watchdog denied" if command[0] == "schtasks.exe" else "",
+        )
+
+    with pytest.raises(ServerControlError, match="watchdog denied"):
+        control.windows_watchdog_schedule(project, apply=True, runner=runner)
+
+    assert [command[:2] for command, _kwargs in calls] == [
+        ["reg.exe", "ADD"],
+        ["schtasks.exe", "/Create"],
+        ["reg.exe", "DELETE"],
+    ]
+
+
+@pytest.mark.parametrize("interval", [0, 61, -1])
+def test_watchdog_schedule_rejects_unsafe_intervals(tmp_path, interval):
+    with pytest.raises(ServerControlError, match="between 1 and 60"):
+        control.windows_watchdog_schedule(tmp_path, interval_minutes=interval)
