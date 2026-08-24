@@ -11139,6 +11139,47 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
   }
   body.studiox-ui4.studiox-premium .ui4-history-result b{font-size:11px!important}
   body.studiox-ui4.studiox-premium .ui4-history-result time{font-size:9px!important}
+  body.studiox-ui4.studiox-premium .ui4-recent-scans-view:has(.ui4-history-detail){
+    grid-template-rows:auto auto auto!important;
+    align-content:start!important;
+    overflow-y:auto!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-history-detail{
+    display:grid!important;
+    grid-template-columns:82px minmax(0,1fr)!important;
+    grid-template-rows:auto auto auto auto!important;
+    grid-template-areas:
+      "art identity"
+      "art prices"
+      "art confidence"
+      "art timestamp"!important;
+    align-content:start!important;
+    align-items:start!important;
+    min-height:0!important;
+    padding:14px!important;
+    gap:6px 12px!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-history-detail>img{
+    grid-area:art!important;
+    width:82px!important;
+    max-height:118px!important;
+    align-self:start!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-history-detail-heading{grid-area:identity!important;align-self:start!important}
+  body.studiox-ui4.studiox-premium .ui4-history-detail-heading h3{font-size:18px!important;line-height:1.15!important}
+  body.studiox-ui4.studiox-premium .ui4-history-detail-heading p{font-size:10px!important;line-height:1.4!important}
+  body.studiox-ui4.studiox-premium .ui4-history-detail>.ui4-history-detail-prices{grid-area:prices!important;font-size:10px!important;line-height:1.4!important}
+  body.studiox-ui4.studiox-premium .ui4-history-detail>strong{grid-area:confidence!important;font-size:12px!important}
+  body.studiox-ui4.studiox-premium .ui4-history-detail>time{grid-area:timestamp!important;font-size:10px!important}
+  body.studiox-ui4.studiox-premium .ui4-history-detail:not(:has(>img)){
+    grid-template-columns:1fr!important;
+    grid-template-areas:"identity" "prices" "confidence" "timestamp"!important;
+  }
+  html[data-theme="light"] body.studiox-ui4.studiox-premium .ui4-history-detail-heading h3{color:#193745!important}
+  html[data-theme="light"] body.studiox-ui4.studiox-premium .ui4-history-detail-heading p{color:#536f7b!important}
+  html[data-theme="light"] body.studiox-ui4.studiox-premium .ui4-history-detail>.ui4-history-detail-prices{color:#267d66!important}
+  html[data-theme="light"] body.studiox-ui4.studiox-premium .ui4-history-detail>strong{color:#1d6b83!important}
+  html[data-theme="light"] body.studiox-ui4.studiox-premium .ui4-history-detail>time{color:#617985!important}
 }
 
 /* Mobile notifications sit above the fixed operator deck instead of covering

@@ -44,6 +44,25 @@ def test_mobile_recent_scan_identity_and_result_are_separate_columns() -> None:
     assert "justify-items:end!important" in contract
 
 
+def test_mobile_recent_scan_detail_is_content_sized_and_readable() -> None:
+    contract = mobile_history_contract()
+    assert '.ui4-recent-scans-view:has(.ui4-history-detail)' in contract
+    assert "grid-template-rows:auto auto auto!important" in contract
+    assert ".ui4-history-detail{\n    display:grid!important" in contract
+    assert '"art identity"' in contract
+    assert '"art prices"' in contract
+    assert "max-height:118px!important" in contract
+    assert ".ui4-history-detail:not(:has(>img))" in contract
+
+
+def test_light_mobile_recent_scan_detail_uses_truthful_readable_colors() -> None:
+    contract = mobile_history_contract()
+    assert ".ui4-history-detail-heading h3{color:#193745!important}" in contract
+    assert ".ui4-history-detail>.ui4-history-detail-prices{color:#267d66!important}" in contract
+    assert ".ui4-history-detail>strong{color:#1d6b83!important}" in contract
+    assert ".ui4-history-detail>time{color:#617985!important}" in contract
+
+
 def test_mobile_recent_scans_reuses_existing_history_and_return_to_live_flow() -> None:
     assert HTML.count('id="mobileOperatorViewScans"') == 1
     assert HTML.count('id="mobileOperatorHistoryLive"') == 1
