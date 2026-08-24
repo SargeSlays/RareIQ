@@ -58,10 +58,15 @@ def test_mobile_camera_toolbar_scrolls_instead_of_overlapping() -> None:
     assert "overflow-x:auto!important" in contract
     assert ".camera-view-overflow-panel" in contract
     assert "width:max-content!important" in contract
+    assert ".workspace-density-control button{" in contract
+    assert "font-size:0!important" in contract
+    for density, label in (("compact", "C"), ("balanced", "B"), ("focus", "F")):
+        assert f'button[data-workspace-density="{density}"]::after{{content:"{label}"}}' in contract
+        assert f'aria-label="{density.title()} density"' in HTML
 
 
 def test_mobile_shell_preserves_all_navigation_and_action_handlers() -> None:
-    assert HTML.count("shell=6.8.33-mobile-camera1") == 2
+    assert HTML.count("shell=6.8.34-mobile-toolbar1") == 2
     assert HTML.count('class="nav-button') == 11
     for handler in (
         "selectCamera()",

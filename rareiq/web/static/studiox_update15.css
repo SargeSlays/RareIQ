@@ -10959,6 +10959,20 @@ body.studiox-ui4[data-ui4-workspace]:not([data-ui4-workspace="live"]) .recogniti
     width:max-content!important;
   }
   body.studiox-ui4.studiox-premium .camera-workspace-toolbar :is(.camera-ptz-control,#manageCamerasButton){flex:0 0 auto!important}
+  body.studiox-ui4.studiox-premium .camera-workspace-toolbar .workspace-density-control button{
+    display:grid!important;
+    place-items:center!important;
+    overflow:hidden!important;
+    font-size:0!important;
+  }
+  body.studiox-ui4.studiox-premium .camera-workspace-toolbar .workspace-density-control button::after{
+    font-size:9px!important;
+    font-weight:900!important;
+    line-height:1!important;
+  }
+  body.studiox-ui4.studiox-premium .camera-workspace-toolbar .workspace-density-control button[data-workspace-density="compact"]::after{content:"C"}
+  body.studiox-ui4.studiox-premium .camera-workspace-toolbar .workspace-density-control button[data-workspace-density="balanced"]::after{content:"B"}
+  body.studiox-ui4.studiox-premium .camera-workspace-toolbar .workspace-density-control button[data-workspace-density="focus"]::after{content:"F"}
   body.studiox-ui4.studiox-premium .camera-workspace[data-camera-layout="single"] .viewer-inspection-header{
     position:relative!important;
     inset:auto!important;
