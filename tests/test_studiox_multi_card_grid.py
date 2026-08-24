@@ -83,9 +83,10 @@ def test_single_card_can_pick_one_numbered_region_from_crowded_table():
 def test_single_and_multi_card_capture_share_one_inflight_guard():
     assert "let recognitionCaptureInFlight = false" in JS
     assert "function setRecognitionCaptureBusy(busy)" in JS
-    assert JS.count("if(recognitionCaptureInFlight)return null") == 2
     single = JS[JS.index("async function captureCamera()"):JS.index("function startCameraStream")]
     multi = JS[JS.index("async function captureMultiCardGrid()"):JS.index("async function toggleMultiCardOutput")]
+    assert "if(recognitionMutationInFlight())return null" in single
+    assert "if(recognitionMutationInFlight())return null" in multi
     assert "setRecognitionCaptureBusy(true)" in single
     assert "finally{setRecognitionCaptureBusy(false);}" in single
     assert "setRecognitionCaptureBusy(true)" in multi

@@ -543,7 +543,7 @@ async function maybeAutoAddVerified(context){
   return result;
 }
 
-function recognitionMutationInFlight(){return recognitionDecisionInFlight||recognitionClearInFlight}
+function recognitionMutationInFlight(){return recognitionDecisionInFlight||recognitionClearInFlight||recognitionCaptureInFlight}
 function recognitionDecisionUrl(path){
   const stateId=String(window.__rareiqCardContext?.snapshot?.state_id||"");
   return stateId?`${path}?state_id=${encodeURIComponent(stateId)}`:path;
@@ -777,6 +777,7 @@ function isInteractiveShortcutTarget(target){
 }
 
 document.addEventListener("keydown",event=>{
+  if(event.defaultPrevented||event.isComposing) return;
   if(isTypingTarget(event.target)) return;
 
   if(event.key==="Escape"){
@@ -785,6 +786,7 @@ document.addEventListener("keydown",event=>{
     setRecognitionLatencyReportOpen(false);
     return;
   }
+  if(activeStudioXModal()) return;
   if(isInteractiveShortcutTarget(event.target)) return;
 
   const workspace=document.body.dataset.ui4Workspace;
@@ -793,7 +795,7 @@ document.addEventListener("keydown",event=>{
     const shortcut=event.key==="0"?"10":event.key;
     const pad=document.querySelector(`#soundboardAppGrid [data-soundboard-shortcut='${shortcut}']`);
     if(pad){event.preventDefault();pad.click();}
-  }else if(event.altKey&&document.body.dataset.ui4Workspace==="live"&&["1","2","3"].includes(event.key)){
+  }else if(!event.repeat&&event.altKey&&document.body.dataset.ui4Workspace==="live"&&["1","2","3"].includes(event.key)){
     event.preventDefault();
     const preset={"1":"intelligence","2":"balanced","3":"monitor"}[event.key];
     applyWorkspaceLayoutPreset(preset);
@@ -804,7 +806,7 @@ document.addEventListener("keydown",event=>{
     return;
   }else if(workspace==="live"&&event.key===" "&&!event.repeat){
     event.preventDefault();
-    captureCamera();
+    captureRecognitionMode();
   }else if(workspace==="live"&&event.key.toLowerCase()==="a"&&!event.repeat){
     operatorApprove();
   }else if(workspace==="live"&&event.key.toLowerCase()==="r"&&!event.repeat){
@@ -4105,7 +4107,7 @@ async function loadMultiCardStatus(){
 }
 
 async function captureMultiCardGrid(){
-  if(recognitionCaptureInFlight)return null;
+  if(recognitionMutationInFlight())return null;
   setRecognitionCaptureBusy(true);
   try{
   const uniqueVariants=Boolean($("multiCardUniqueVariants")?.checked);
@@ -4441,11 +4443,12 @@ function setRecognitionCaptureBusy(busy){
     if(busy){button.dataset.captureWasDisabled=String(button.disabled);button.disabled=true;}
     else{button.disabled=button.dataset.captureWasDisabled==="true";delete button.dataset.captureWasDisabled;}
   });
+  syncRecognitionMutationControls();
   syncMobileOperatorDeck();
 }
 
 async function captureCamera(){
-  if(recognitionCaptureInFlight)return null;
+  if(recognitionMutationInFlight())return null;
   setRecognitionCaptureBusy(true);
   setRecognitionState("searching","Saving current corrected card crop...");
   try{

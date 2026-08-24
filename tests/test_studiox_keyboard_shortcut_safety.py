@@ -15,10 +15,25 @@ def test_live_shortcuts_ignore_interactive_targets_modified_keys_and_repeats() -
     for selector in ('button', 'a[href]', 'summary', '[role="tab"]'):
         assert selector in SCRIPT
     assert "if(isInteractiveShortcutTarget(event.target)) return;" in keyboard
+    assert "if(event.defaultPrevented||event.isComposing) return;" in keyboard
+    assert "if(activeStudioXModal()) return;" in keyboard
     assert "const plainShortcut=!event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey;" in keyboard
     for action in ('event.key===" "', 'event.key.toLowerCase()==="a"', 'event.key.toLowerCase()==="r"'):
         assert f"{action}&&!event.repeat" in keyboard
     assert 'if(event.key==="Escape")' in keyboard
+    assert "captureRecognitionMode();" in keyboard
+    assert "captureCamera();" not in keyboard
+    assert '!event.repeat&&event.altKey&&document.body.dataset.ui4Workspace==="live"' in keyboard
+
+
+def test_capture_shares_the_card_mutation_busy_gate() -> None:
+    assert "function recognitionMutationInFlight(){return recognitionDecisionInFlight||recognitionClearInFlight||recognitionCaptureInFlight}" in SCRIPT
+    single = section("async function captureCamera()", "function startCameraStream")
+    multi = section("async function captureMultiCardGrid()", "async function toggleMultiCardOutput")
+    busy = section("function setRecognitionCaptureBusy", "async function captureCamera")
+    assert "if(recognitionMutationInFlight())return null;" in single
+    assert "if(recognitionMutationInFlight())return null;" in multi
+    assert "syncRecognitionMutationControls();" in busy
 
 
 def test_broadcast_shortcuts_cannot_fire_from_controls_or_browser_combinations() -> None:
