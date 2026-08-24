@@ -30,8 +30,8 @@ def test_next_clear_advances_backend_before_resetting_the_browser():
     assert 'orchestrator._set_continuous_state(\n        "CHANGING"' in SERVER
     start = SCRIPT.index("async function requestNextRecognition")
     section = SCRIPT[start:start + 900]
-    assert 'fetch("/api/recognition/clear",{method:"POST"})' in section
-    assert section.index("await fetch") < section.index('resetRecognitionPresentation("operator_clear")')
+    assert 'api("/api/recognition/clear",{method:"POST",body:"{}"})' in section
+    assert section.index("await api") < section.index('resetRecognitionPresentation("operator_clear")')
 
 
 def test_next_clear_advances_generation_once_and_arms_changing(monkeypatch):

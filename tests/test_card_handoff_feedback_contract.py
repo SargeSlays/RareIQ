@@ -15,7 +15,8 @@ def test_approval_and_rejection_enter_explicit_card_removal_state():
 
 def test_next_clear_wraps_existing_endpoint_with_ready_for_next_feedback():
     assert 'beginCardHandoff("cleared")' in JS
-    assert 'fetch("/api/recognition/clear"' in JS
+    assert 'api("/api/recognition/clear",{method:"POST",body:"{}"})' in JS
+    assert "if(recognitionMutationInFlight()) return null" in JS
     assert "completeCardHandoff();" in JS
     assert '"Present next card"' in JS
     assert '"Place the next card inside the scan zone."' in JS

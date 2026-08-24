@@ -3844,8 +3844,33 @@ async def previous_pack(): return {"ok":True,"session":await orchestrator.previo
 async def next_box(): return {"ok":True,"session":await orchestrator.next_box()}
 @app.post("/api/session/previous-box")
 async def previous_box(): return {"ok":True,"session":await orchestrator.previous_box()}
+def _stale_recognition_decision(state_id: str | None):
+    if not state_id:
+        return None
+    current = orchestrator.recognition_state.refresh(
+        vision=orchestrator.vision.status(),
+        recognition=orchestrator.recognition.status(),
+        catalog=orchestrator.catalog.status(),
+    )
+    current_state_id = str(current.get("state_id") or "")
+    if current_state_id == state_id:
+        return None
+    return JSONResponse(
+        status_code=409,
+        content={
+            "ok": False,
+            "error": "Recognition changed; review the current card again.",
+            "reason": "stale_recognition_state",
+            "expected_state_id": state_id,
+            "current_state_id": current_state_id,
+        },
+    )
+
+
 @app.post("/api/session/confirm-recognition")
-async def confirm_recognition():
+async def confirm_recognition(state_id: str | None = None):
+    if stale := _stale_recognition_decision(state_id):
+        return stale
     return await orchestrator.confirm_recognition(automatic=False)
 
 @app.post("/api/session/confirm-recognition-candidate")
@@ -3931,7 +3956,9 @@ async def test_auto_confirm_recognition(state_id: str | None = None):
     )
 
 @app.post("/api/session/reject-recognition")
-async def reject_recognition():
+async def reject_recognition(state_id: str | None = None):
+    if stale := _stale_recognition_decision(state_id):
+        return stale
     return await orchestrator.reject_recognition()
 
 @app.get("/api/session/status")

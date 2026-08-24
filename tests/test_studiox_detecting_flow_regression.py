@@ -63,7 +63,7 @@ def test_footer_and_actions_have_stable_rows():
         "function initializeStudioXUI4",
     )
     assert "button.disabled=!actionable" in update
-    assert '$("nextClearButton").disabled=false' in update
+    assert '$("nextClearButton").disabled=recognitionMutationInFlight()' in update
     assert 'onclick="operatorApprove()"' in HTML
     assert 'onclick="operatorReject()"' in HTML
 

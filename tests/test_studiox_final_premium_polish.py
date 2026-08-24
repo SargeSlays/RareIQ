@@ -101,7 +101,7 @@ def test_actions_are_hierarchical_and_safely_muted():
     update = section("function updateSharedCardContext", "function initializeStudioXUI4")
     assert '["approveButton","rejectButton","detailsButton"]' in update
     assert "button.disabled=!actionable" in update
-    assert '$("nextClearButton").disabled=false' in update
+    assert '$("nextClearButton").disabled=recognitionMutationInFlight()' in update
     assert 'onclick="operatorApprove()"' in HTML
     assert 'onclick="operatorReject()"' in HTML
 

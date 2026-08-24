@@ -331,6 +331,7 @@ function applyAuthoritativeSession(session={}){
 }
 
 let recognitionDecisionInFlight=false;
+let recognitionClearInFlight=false;
 let lastApprovedInventoryCard=null;
 let activeInventoryAllocationGroup="";
 const APPROVED_INVENTORY_KEY="rareiq.inventory.approvedIntake.v1";
@@ -542,21 +543,28 @@ async function maybeAutoAddVerified(context){
   return result;
 }
 
+function recognitionMutationInFlight(){return recognitionDecisionInFlight||recognitionClearInFlight}
+function recognitionDecisionUrl(path){
+  const stateId=String(window.__rareiqCardContext?.snapshot?.state_id||"");
+  return stateId?`${path}?state_id=${encodeURIComponent(stateId)}`:path;
+}
+function syncRecognitionMutationControls(){
+  const busy=recognitionMutationInFlight(),actionable=window.__rareiqCardContext?.verified===true;
+  ["approveButton","rejectButton","decisionApproveButton","decisionRejectButton"].forEach(id=>{if($(id))$(id).disabled=busy||!actionable});
+  ["nextClearButton","decisionNextButton","mobileOperatorNext","correctMatchButton"].forEach(id=>{if($(id))$(id).disabled=busy});
+  syncResultDecisionStrip();
+}
+
 async function runRecognitionDecision({buttonId,url,pendingLabel,successTitle,successDetail,activityTitle,quietReasons=[],silentSuccess=false}){
   const button=$(buttonId);
-  if(!button||button.disabled||recognitionDecisionInFlight) return null;
+  if(!button||button.disabled||recognitionMutationInFlight()) return null;
   const originalLabel=button.textContent;
   recognitionDecisionInFlight=true;
-  ["approveButton","rejectButton","decisionApproveButton","decisionRejectButton"].forEach(id=>{
-    const actionButton=$(id);
-    if(actionButton) actionButton.disabled=true;
-  });
-  button.disabled=true;
+  syncRecognitionMutationControls();
   button.textContent=pendingLabel;
   try{
-    const response=await fetch(url,{method:"POST"});
-    const payload=await response.json().catch(()=>({}));
-    if(!response.ok||payload.ok!==true){
+    const payload=await api(url,{method:"POST",body:"{}"});
+    if(payload.ok!==true){
       if(quietReasons.includes(payload.reason))return null;
       throw new Error(payload.error||payload.message||"The card action could not be completed.");
     }
@@ -573,11 +581,7 @@ async function runRecognitionDecision({buttonId,url,pendingLabel,successTitle,su
     recognitionDecisionInFlight=false;
     button.textContent=originalLabel;
     const context=window.__rareiqCardContext;
-    const actionable=context?.verified===true;
-    ["approveButton","rejectButton","decisionApproveButton","decisionRejectButton"].forEach(id=>{
-      const actionButton=$(id);
-      if(actionButton) actionButton.disabled=!actionable;
-    });
+    syncRecognitionMutationControls();
     renderPackSpeedAutomationState(context||{});
   }
 }
@@ -585,7 +589,7 @@ async function runRecognitionDecision({buttonId,url,pendingLabel,successTitle,su
 async function operatorApprove(){
   const result=await runRecognitionDecision({
     buttonId:"approveButton",
-    url:"/api/session/confirm-recognition",
+    url:recognitionDecisionUrl("/api/session/confirm-recognition"),
     pendingLabel:"Approving…",
     successTitle:"Card Approved",
     successDetail:"Added to the active session.",
@@ -598,7 +602,7 @@ async function operatorApprove(){
 async function operatorReject(){
   const result=await runRecognitionDecision({
     buttonId:"rejectButton",
-    url:"/api/session/reject-recognition",
+    url:recognitionDecisionUrl("/api/session/reject-recognition"),
     pendingLabel:"Rejecting…",
     successTitle:"Card Rejected",
     successDetail:"Recorded as rejected. Use Next / Clear when the card is removed.",
@@ -4808,15 +4812,28 @@ function resetRecognitionPresentation(reason="reset"){
 }
 
 async function requestNextRecognition(){
+  if(recognitionMutationInFlight()) return null;
+  const labels=new Map();
+  recognitionClearInFlight=true;
+  ["nextClearButton","decisionNextButton","mobileOperatorNext"].forEach(id=>{const button=$(id);if(button){labels.set(id,button.textContent);button.textContent="Clearing…"}});
+  syncRecognitionMutationControls();
   beginCardHandoff("cleared");
-  const response=await fetch("/api/recognition/clear",{method:"POST"});
-  const payload=await response.json().catch(()=>({}));
-  if(!response.ok||payload.ok!==true){
-    throw new Error(payload.message||payload.error||"Unable to clear recognition.");
+  try{
+    const payload=await api("/api/recognition/clear",{method:"POST",body:"{}"});
+    if(payload.ok!==true)throw new Error(payload.message||payload.error||"Unable to clear recognition.");
+    resetRecognitionPresentation("operator_clear");
+    completeCardHandoff();
+    return payload;
+  }catch(error){
+    delete document.body.dataset.cardHandoff;
+    renderCardRemovalProgress(0,"Waiting for removal",false);
+    notify("Next Card Failed",error instanceof Error?error.message:String(error),"error");
+    throw error;
+  }finally{
+    recognitionClearInFlight=false;
+    labels.forEach((label,id)=>{if($(id))$(id).textContent=label});
+    syncRecognitionMutationControls();
   }
-  resetRecognitionPresentation("operator_clear");
-  completeCardHandoff();
-  return payload;
 }
 
 function normalizeStudioXPreferences(value){
@@ -8614,12 +8631,12 @@ function updateSharedCardContext(context){
     window.__rareiqVisionTelemetry||{}
   );
   renderSecondaryWorkspaceBay(context);
-  const actionable=context.verified===true;
+  const actionable=context.verified===true&&!recognitionMutationInFlight();
   ["approveButton","rejectButton","detailsButton"].forEach(id=>{
     const button=$(id);
     if(button) button.disabled=!actionable;
   });
-  if($("nextClearButton")) $("nextClearButton").disabled=false;
+  if($("nextClearButton")) $("nextClearButton").disabled=recognitionMutationInFlight();
   queueMicrotask(()=>maybeAutoAddVerified(context).catch(error=>console.error("auto_add_verified_failed",error)));
   Object.entries(STUDIOX_WIDGET_RENDERERS).forEach(([id,renderer])=>{
     try{

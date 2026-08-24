@@ -133,9 +133,12 @@ def test_recognition_decisions_are_guarded_against_duplicate_submissions() -> No
     )
 
     assert "let recognitionDecisionInFlight=false" in script
-    assert "button.disabled||recognitionDecisionInFlight" in script
+    assert "let recognitionClearInFlight=false" in script
+    assert "button.disabled||recognitionMutationInFlight()" in script
     assert "recognitionDecisionInFlight=true" in script
     assert "recognitionDecisionInFlight=false" in script
+    assert "recognitionClearInFlight=true" in script
+    assert "recognitionClearInFlight=false" in script
     for button_id in (
         "approveButton",
         "rejectButton",
@@ -183,9 +186,10 @@ def test_operator_card_decisions_call_backend_and_use_authoritative_session() ->
         encoding="utf-8"
     )
 
-    assert 'url:"/api/session/confirm-recognition"' in script
-    assert 'url:"/api/session/reject-recognition"' in script
-    assert 'fetch(url,{method:"POST"})' in script
+    assert 'url:recognitionDecisionUrl("/api/session/confirm-recognition")' in script
+    assert 'url:recognitionDecisionUrl("/api/session/reject-recognition")' in script
+    assert 'const stateId=String(window.__rareiqCardContext?.snapshot?.state_id||"")' in script
+    assert 'const payload=await api(url,{method:"POST",body:"{}"})' in script
     assert "applyAuthoritativeSession(payload.session)" in script
     assert 'notify("Card Action Failed",detail,"error")' in script
 
