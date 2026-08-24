@@ -8,7 +8,7 @@ CSS = (STATIC / "studiox_update15.css").read_text(encoding="utf-8-sig")
 
 
 def test_light_current_card_and_signal_panels_use_readable_surfaces() -> None:
-    selector = 'html[data-theme="light"] body.studiox-ui4.studiox-premium :is(.premium-card-context-header,.recognition-signal-panel)'
+    selector = 'html[data-theme="light"] body.studiox-ui4.studiox-premium :is(.premium-card-context-header,.recognition-signal-panel,.studiox-widget)'
     assert selector in CSS
     section = CSS[CSS.index(selector) : CSS.index("body.studiox-ui4.studiox-premium .recognition-signal-title", CSS.index(selector))]
     assert "background:#f8fbfc!important" in section
