@@ -123,6 +123,33 @@ def test_remote_browser_must_pair_before_control_access(monkeypatch) -> None:
     assert status.json()["paired"] is True
 
 
+def test_remote_access_status_reports_safe_mobile_readiness_without_token(monkeypatch) -> None:
+    policy = _enabled_policy()
+    monkeypatch.setattr(server, "REMOTE_ACCESS", policy)
+    monkeypatch.setattr(server, "private_ipv4_addresses", lambda: ["192.168.1.25"])
+    client = TestClient(server.app, client=("127.0.0.1", 50000))
+
+    payload = client.get("/api/remote-access/status").json()
+
+    assert payload["mode"] == "authenticated-lan"
+    assert payload["token_configured"] is True
+    assert payload["pairing_required"] is True
+    assert payload["lan_urls"] == ["http://192.168.1.25:80/control"]
+    assert TOKEN not in str(payload)
+
+
+def test_local_only_status_never_publishes_a_mobile_url(monkeypatch) -> None:
+    monkeypatch.setattr(server, "REMOTE_ACCESS", RemoteAccessPolicy.from_environment("session", environment={}))
+    monkeypatch.setattr(server, "private_ipv4_addresses", lambda: ["192.168.1.25"])
+    client = TestClient(server.app, client=("127.0.0.1", 50000))
+
+    payload = client.get("/api/remote-access/status").json()
+
+    assert payload["mode"] == "local-only"
+    assert payload["pairing_required"] is False
+    assert payload["lan_urls"] == []
+
+
 def test_pairing_endpoint_throttles_repeated_failures(monkeypatch) -> None:
     monkeypatch.setattr(server, "REMOTE_ACCESS", _enabled_policy())
     monkeypatch.setattr(

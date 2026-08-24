@@ -4,6 +4,11 @@ RareIQ mobile access is an opt-in trusted-LAN mode. The default remains
 loopback-only, so another device cannot reach Studio X unless an operator
 explicitly enables authenticated LAN binding.
 
+Studio X Settings includes a read-only **Phone & Tablet Connection** card. It
+reports local-only versus authenticated-LAN mode, pairing readiness, and safe
+LAN URLs when available. It never displays the pairing token and cannot change
+the server binding.
+
 ## Security boundary
 
 - LAN mode binds RareIQ to the workstation's wildcard network interface.

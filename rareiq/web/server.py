@@ -40,6 +40,7 @@ from rareiq.web.remote_access import (
     PairingAttemptLimiter,
     RemoteAccessPolicy,
     is_loopback_client,
+    private_ipv4_addresses,
     validate_server_binding,
 )
 
@@ -263,9 +264,19 @@ async def remote_access_logout():
 @app.get("/api/remote-access/status")
 async def remote_access_status(request: Request):
     client_host = request.client.host if request.client else None
+    port = int(request.url.port or (443 if request.url.scheme == "https" else 80))
+    lan_urls = (
+        [f"{request.url.scheme}://{address}:{port}/control" for address in private_ipv4_addresses()]
+        if REMOTE_ACCESS.enabled
+        else []
+    )
     return {
         "ok": True,
         "enabled": REMOTE_ACCESS.enabled,
+        "mode": "authenticated-lan" if REMOTE_ACCESS.enabled else "local-only",
+        "token_configured": REMOTE_ACCESS.token_configured,
+        "pairing_required": REMOTE_ACCESS.enabled,
+        "lan_urls": lan_urls,
         "paired": REMOTE_ACCESS.authorizes(
             client_host,
             request.cookies.get(REMOTE_ACCESS_COOKIE),

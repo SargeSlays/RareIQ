@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import ipaddress
 import os
+import socket
 import threading
 import time
 from dataclasses import dataclass
@@ -126,11 +127,33 @@ def is_loopback_client(host: str | None) -> bool:
         return False
 
 
+def private_ipv4_addresses() -> list[str]:
+    """Return usable private LAN addresses without exposing interface metadata."""
+    addresses: set[str] = set()
+    try:
+        candidates = socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)
+    except OSError:
+        candidates = []
+    for candidate in candidates:
+        value = str(candidate[4][0] or "").strip()
+        try:
+            address = ipaddress.ip_address(value)
+        except ValueError:
+            continue
+        if address.version == 4 and address.is_private and not address.is_loopback and not address.is_link_local:
+            addresses.add(value)
+    return sorted(addresses, key=lambda value: tuple(int(part) for part in value.split(".")))
+
+
 @dataclass(frozen=True)
 class RemoteAccessPolicy:
     enabled: bool
     session_id: str
     _token: str
+
+    @property
+    def token_configured(self) -> bool:
+        return len(self._token) >= MIN_REMOTE_TOKEN_CHARS
 
     @classmethod
     def from_environment(

@@ -5817,6 +5817,54 @@ async function loadSystemHealth(){
   }catch{}
 }
 
+let mobileAccessUrl="";
+function renderMobileAccessStatus(status={}){
+  const panel=document.querySelector(".mobile-access-settings");
+  const enabled=status.enabled===true;
+  const urls=Array.isArray(status.lan_urls)?status.lan_urls.filter(value=>typeof value==="string"&&value.startsWith("http")):[];
+  mobileAccessUrl=enabled&&urls.length?urls[0]:"";
+  if(panel) panel.dataset.state=enabled?(mobileAccessUrl?"ready":"warning"):"local";
+  setCardText("mobileAccessMode",enabled?"AUTHENTICATED LAN":"LOCAL ONLY");
+  setCardText("mobileAccessPairing",enabled?(status.paired?"THIS DEVICE PAIRED":"PAIRING REQUIRED"):(status.token_configured?"READY · NOT ENABLED":"NOT CONFIGURED"));
+  setCardText("mobileAccessSummary",enabled?"Remote control is protected by per-server pairing.":"This RareIQ process accepts connections from this computer only.");
+  const addresses=$("mobileAccessAddresses");
+  if(addresses){
+    addresses.replaceChildren();
+    if(mobileAccessUrl){
+      urls.forEach(url=>{const code=document.createElement("code");code.textContent=url;addresses.append(code)});
+    }else{
+      const message=document.createElement("p");
+      message.textContent=enabled?"No private LAN address is currently available.":"No mobile URL is published while RareIQ is in local-only mode.";
+      addresses.append(message);
+    }
+  }
+  const copy=$("mobileAccessCopy");
+  if(copy) copy.disabled=!mobileAccessUrl;
+  setCardText("mobileAccessGuidance",enabled?"Open the mobile URL on the same trusted network, then pair with the secret shown only by the server setup command.":"To prepare access safely, run: python tools/server_control.py mobile-setup (dry-run by default). No setting on this page changes the server binding.");
+}
+async function loadMobileAccessStatus(){
+  const panel=document.querySelector(".mobile-access-settings");
+  if(panel) panel.dataset.state="checking";
+  try{
+    renderMobileAccessStatus(await api("/api/remote-access/status"));
+  }catch(error){
+    if(panel) panel.dataset.state="error";
+    setCardText("mobileAccessMode","UNAVAILABLE");
+    setCardText("mobileAccessPairing","UNKNOWN");
+    setCardText("mobileAccessSummary",error.message||"Remote access status could not be loaded.");
+  }
+}
+
+async function copyMobileAccessUrl(){
+  if(!mobileAccessUrl) return;
+  try{
+    await navigator.clipboard.writeText(mobileAccessUrl);
+    notify("Mobile URL Copied",mobileAccessUrl,"success");
+  }catch(error){
+    notify("Copy Failed",error.message||String(error),"error");
+  }
+}
+
 async function loadCameraManagerState(){
   try{
     const status=await api("/api/camera/status");
@@ -8000,6 +8048,9 @@ document.addEventListener("DOMContentLoaded",()=>{
   $("studioThemeToggle")?.addEventListener("click",()=>applyStudioTheme(document.documentElement.dataset.theme==="light"?"dark":"light",true));
   initializeAutoScreenshotConfiguration();
   initializeStudioXUI4();
+  loadMobileAccessStatus();
+  $("mobileAccessRefresh")?.addEventListener("click",loadMobileAccessStatus);
+  $("mobileAccessCopy")?.addEventListener("click",copyMobileAccessUrl);
   // Initial recognition/context rendering can clear the empty widget once.
   // Hydrate durable held intelligence after that startup pass settles.
   setTimeout(hydrateHeldRareIntelligence,300);

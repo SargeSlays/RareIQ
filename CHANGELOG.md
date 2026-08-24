@@ -2,6 +2,8 @@
 
 ## Studio X 6.4.18-dev — In development
 
+- Added a read-only Studio X mobile-access readiness panel with safe LAN URL
+  discovery and no secret exposure or in-app server-binding changes.
 - Added an installable mobile Studio X shell with phone/tablet navigation,
   safe-area handling, and truthful online-only home-screen metadata.
 - Added an opt-in authenticated LAN foundation for mobile Studio X access while
