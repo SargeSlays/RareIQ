@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import stat
 import subprocess
 import sys
 import uuid
@@ -255,6 +257,131 @@ def verify_release(archive_path: Path) -> dict[str, Any]:
     }
 
 
+def smoke_release(
+    archive_path: Path,
+    *,
+    python: Path | None = None,
+    node: Path | None = None,
+    work_root: Path | None = None,
+    keep: bool = False,
+    run_tests: bool = True,
+    runner=subprocess.run,
+) -> dict[str, Any]:
+    archive_path = Path(archive_path).resolve()
+    verification = verify_release(archive_path)
+    python = Path(python or sys.executable).resolve()
+    if not python.is_file():
+        raise ReleaseBuildError(f"Smoke-test Python was not found: {python}")
+    if node is not None:
+        node = Path(node).resolve()
+        if not node.is_file():
+            raise ReleaseBuildError(f"Smoke-test Node.js was not found: {node}")
+    work_root = Path(work_root or (archive_path.parent / "smoke-work")).resolve()
+    work_root.mkdir(parents=True, exist_ok=True)
+    extraction = work_root / f"smoke-{uuid.uuid4().hex}"
+    extraction.mkdir()
+    retained = False
+    checks: list[dict[str, Any]] = []
+    try:
+        with zipfile.ZipFile(archive_path, "r") as archive:
+            for info in archive.infolist():
+                path = PurePosixPath(info.filename)
+                mode = (info.external_attr >> 16) & 0xFFFF
+                if path.is_absolute() or ".." in path.parts or "\\" in info.filename:
+                    raise ReleaseBuildError(f"Release extraction path is unsafe: {info.filename}")
+                if stat.S_IFMT(mode) == stat.S_IFLNK:
+                    raise ReleaseBuildError(f"Release archive contains a symbolic link: {info.filename}")
+                destination = (extraction / Path(*path.parts)).resolve()
+                try:
+                    destination.relative_to(extraction)
+                except ValueError as exc:
+                    raise ReleaseBuildError(f"Release extraction escaped its root: {info.filename}") from exc
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                with archive.open(info, "r") as source, destination.open("xb") as target:
+                    shutil.copyfileobj(source, target)
+        install_root = extraction / f"RareIQ-{verification['release_version']}"
+        if not install_root.is_dir():
+            raise ReleaseBuildError("Extracted release root is missing.")
+        example = install_root / "storage_config.example.json"
+        if not example.is_file():
+            raise ReleaseBuildError("Release storage configuration example is missing.")
+        shutil.copyfile(example, install_root / "storage_config.json")
+        environment = os.environ.copy()
+        environment.update({
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONPATH": str(install_root),
+        })
+        commands: list[tuple[str, list[str]]] = [
+            (
+                "source_syntax",
+                [
+                    str(python), "-B", "-c",
+                    (
+                        "from pathlib import Path; "
+                        "from tools.release_check import check_python_syntax, check_javascript_syntax; "
+                        "root=Path.cwd(); "
+                        "print(check_python_syntax(root)); "
+                        f"print(check_javascript_syntax({str(node)!r}, require_node={node is not None!r}, root=root))"
+                    ),
+                ],
+            ),
+            (
+                "application_import",
+                [
+                    str(python), "-B", "-c",
+                    (
+                        "from rareiq.core.storage import storage; storage.initialize(); "
+                        "from rareiq.web.server import app; "
+                        "assert app.title.startswith('RareIQ v'); print(app.title)"
+                    ),
+                ],
+            ),
+        ]
+        if run_tests:
+            commands.append(("canonical_tests", [str(python), "-B", "-m", "pytest", "tests", "-q"]))
+        for label, command in commands:
+            completed = runner(
+                command,
+                cwd=install_root,
+                env=environment,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            checks.append({
+                "name": label,
+                "passed": completed.returncode == 0,
+                "returncode": completed.returncode,
+                "output_tail": (completed.stdout or "")[-2000:].strip(),
+                "error_tail": (completed.stderr or "")[-2000:].strip(),
+            })
+            if completed.returncode != 0:
+                raise ReleaseBuildError(
+                    f"Clean-install smoke check failed: {label}: "
+                    f"{(completed.stderr or completed.stdout or 'no output')[-2000:].strip()}"
+                )
+        retained = keep
+        return {
+            "passed": True,
+            "archive": str(archive_path),
+            "release_version": verification["release_version"],
+            "source_commit": verification["source_commit"],
+            "files": verification["files"],
+            "checks": checks,
+            "runtime_data_seeded_from_example": True,
+            "external_runtime_data_required": False,
+            "extraction_path": str(extraction) if keep else None,
+        }
+    finally:
+        if not retained:
+            try:
+                extraction.relative_to(work_root)
+            except ValueError as exc:
+                raise ReleaseBuildError("Smoke-test cleanup path escaped its work root.") from exc
+            shutil.rmtree(extraction, ignore_errors=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     project_root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description="Build or verify a deterministic RareIQ source release archive.")
@@ -264,9 +391,28 @@ def main(argv: list[str] | None = None) -> int:
     build.add_argument("--apply", action="store_true")
     verify = subparsers.add_parser("verify")
     verify.add_argument("archive", type=Path)
+    smoke = subparsers.add_parser("smoke")
+    smoke.add_argument("archive", type=Path)
+    smoke.add_argument("--python", type=Path, default=None)
+    smoke.add_argument("--node", type=Path, default=None)
+    smoke.add_argument("--work-root", type=Path, default=None)
+    smoke.add_argument("--keep", action="store_true")
+    smoke.add_argument("--skip-tests", action="store_true")
     try:
         args = parser.parse_args(argv)
-        result = build_release(project_root, output=args.output, apply=args.apply) if args.command == "build" else verify_release(args.archive)
+        if args.command == "build":
+            result = build_release(project_root, output=args.output, apply=args.apply)
+        elif args.command == "verify":
+            result = verify_release(args.archive)
+        else:
+            result = smoke_release(
+                args.archive,
+                python=args.python,
+                node=args.node,
+                work_root=args.work_root,
+                keep=args.keep,
+                run_tests=not args.skip_tests,
+            )
     except ReleaseBuildError as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, indent=2), file=sys.stderr)
         return 1

@@ -5,10 +5,11 @@ import json
 import subprocess
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from tools.build_release import ReleaseBuildError, build_release, verify_release
+from tools.build_release import ReleaseBuildError, build_release, smoke_release, verify_release
 
 
 def _git(project: Path, *args: str) -> None:
@@ -126,3 +127,52 @@ def test_release_verification_rejects_unmanifested_payload(tmp_path):
 
     with pytest.raises(ReleaseBuildError, match="unmanifested"):
         verify_release(output)
+
+
+def test_clean_install_smoke_extracts_safely_seeds_config_and_cleans_up(tmp_path):
+    project = _project(tmp_path)
+    archive = tmp_path / "release.zip"
+    build_release(project, output=archive, apply=True)
+    work_root = tmp_path / "smoke"
+    calls = []
+
+    def runner(command, **kwargs):
+        calls.append((command, kwargs))
+        assert (Path(kwargs["cwd"]) / "storage_config.json").is_file()
+        assert kwargs["env"]["PYTHONDONTWRITEBYTECODE"] == "1"
+        return SimpleNamespace(returncode=0, stdout="passed", stderr="")
+
+    report = smoke_release(
+        archive,
+        python=Path(__import__("sys").executable),
+        work_root=work_root,
+        runner=runner,
+    )
+
+    assert report["passed"] is True
+    assert report["external_runtime_data_required"] is False
+    assert [item["name"] for item in report["checks"]] == [
+        "source_syntax", "application_import", "canonical_tests"
+    ]
+    assert len(calls) == 3
+    assert list(work_root.iterdir()) == []
+
+
+def test_failed_clean_install_smoke_also_removes_disposable_install(tmp_path):
+    project = _project(tmp_path)
+    archive = tmp_path / "release.zip"
+    build_release(project, output=archive, apply=True)
+    work_root = tmp_path / "smoke"
+
+    def runner(_command, **_kwargs):
+        return SimpleNamespace(returncode=1, stdout="", stderr="simulated failure")
+
+    with pytest.raises(ReleaseBuildError, match="simulated failure"):
+        smoke_release(
+            archive,
+            python=Path(__import__("sys").executable),
+            work_root=work_root,
+            runner=runner,
+        )
+
+    assert list(work_root.iterdir()) == []
