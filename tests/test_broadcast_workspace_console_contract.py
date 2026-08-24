@@ -60,3 +60,13 @@ def test_broadcast_console_is_compact_sticky_and_responsive() -> None:
     assert "grid-template-columns:repeat(7,minmax(104px,1fr))!important" in CSS
     assert "overflow-x:auto!important" in CSS
     assert 'html[data-theme="light"] body.studiox-ui4 .broadcast-workspace-tabs' in CSS
+
+
+def test_live_control_adapts_its_hierarchy_to_session_state() -> None:
+    assert 'workspace.dataset.productionSession=active?"live":"idle"' in JS
+    assert '>.production-session-metadata{order:-85!important}' in CSS
+    assert '>.production-session{order:-80!important}' in CSS
+    assert '>.show-preflight{order:-80!important}' in CSS
+    assert '>.production-switcher-shell{order:-60!important}' in CSS
+    assert '[data-production-session="live"]>.production-session{order:-80!important;grid-column:1/-1!important}' in CSS
+    assert '[data-production-session="live"]>.production-switcher-shell{order:-70!important}' in CSS

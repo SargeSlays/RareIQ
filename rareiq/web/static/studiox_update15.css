@@ -10524,11 +10524,16 @@ body.studiox-ui4.studiox-premium .broadcast-workspace-tabs>button{
 body.studiox-ui4.studiox-premium .broadcast-workspace-tabs>button[aria-selected="true"]{border-color:rgba(101,218,244,.34)!important;background:linear-gradient(130deg,rgba(31,151,188,.28),rgba(100,75,209,.25))!important;color:#effcff!important;box-shadow:inset 0 0 0 1px rgba(112,222,247,.08)!important}
 body.studiox-ui4.studiox-premium .broadcast-workspace-tabs>button:focus-visible{outline:2px solid #72e4fa!important;outline-offset:2px!important}
 body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.workspace-readiness{order:-90!important}
-body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.operator-health{order:-80!important}
-body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.production-switcher-shell{order:-70!important}
-body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.production-session{order:-60!important}
-body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.show-preflight{order:-60!important}
-body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.production-session-metadata{order:-50!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.production-session-metadata{order:-85!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.production-session{order:-80!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.show-preflight{order:-80!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.operator-health{order:-70!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.production-switcher-shell{order:-60!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"][data-production-session="live"]>.operator-health{order:-85!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"][data-production-session="live"]>.production-session{order:-80!important;grid-column:1/-1!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"][data-production-session="live"]>.production-switcher-shell{order:-70!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"][data-production-session="live"]>.show-preflight{order:-60!important}
+body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"][data-production-session="live"]>.production-session-metadata{order:-50!important}
 @media(min-width:1300px){
   body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.production-session,
   body.studiox-ui4.studiox-premium .workspace[data-workspace="broadcast"]>.show-preflight{grid-column:span 6!important}
