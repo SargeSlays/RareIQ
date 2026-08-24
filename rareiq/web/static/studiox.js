@@ -7437,6 +7437,18 @@ function renderPriceAlert(alert){
   setCardText("priceAlertState",alert.triggered?`TRIGGERED · ${condition} ${cardMoney(alert.target,alert.currency)}`:`Watching ${condition} ${cardMoney(alert.target,alert.currency)}`);
 }
 function runStudioXWorkbenchAction(){const tab=document.body.dataset.workbenchTab||"card";if(tab==="card"||tab==="recognition"){switchDock("candidates");setUI4DiagnosticsOpen(true)}else if(tab==="stream")stopAllSoundboardAudio();else if(tab==="business"){refreshCurrentMarket()}else document.querySelector("#widgetManager>summary")?.click();}
+function openLiveSargeAdvisor(){
+  setStudioXWorkbenchTab("card");
+  syncStudioXWorkbenchContext();
+  studioXWidgetLayout=normalizeStudioXWidgetLayout(studioXWidgetLayout||loadStudioXWidgetLayout());
+  studioXWidgetLayout.hidden=studioXWidgetLayout.hidden.filter(id=>id!=="sarge-advisor");
+  studioXWidgetLayout.collapsed=studioXWidgetLayout.collapsed.filter(id=>id!=="sarge-advisor");
+  applyStudioXWidgetLayout({persist:true});
+  const widget=document.querySelector('[data-studiox-widget="sarge-advisor"]');
+  const behavior=window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches?"auto":"smooth";
+  widget?.scrollIntoView({block:"start",behavior});
+  window.setTimeout(()=>$("liveSargeAdvisorQuestion")?.focus(),behavior==="smooth"?280:0);
+}
 function setStudioXWorkbenchTab(tab,persist=true){const selected=STUDIOX_WORKBENCH_CATEGORIES[tab]?tab:"card",allowed=new Set(STUDIOX_WORKBENCH_CATEGORIES[selected]);document.body.dataset.workbenchTab=selected;document.querySelectorAll("[data-workbench-tab]").forEach(button=>button.setAttribute("aria-selected",String(button.dataset.workbenchTab===selected)));document.querySelectorAll("[data-studiox-widget]").forEach(widget=>{widget.classList.toggle("workbench-category-hidden",selected!=="all"&&!allowed.has(widget.dataset.studioxWidget));});if(persist)localStorage.setItem(STUDIOX_WORKBENCH_TAB_KEY,selected);}
 const STUDIOX_DEFAULT_WIDGET_LAYOUT={
   version:2,
@@ -8877,6 +8889,7 @@ function initializeStudioXUI4(){
   document.querySelectorAll("[data-workbench-tab]").forEach(button=>button.addEventListener("click",()=>setStudioXWorkbenchTab(button.dataset.workbenchTab)));
   document.querySelectorAll("[data-workbench-tab]").forEach(button=>button.addEventListener("click",syncStudioXWorkbenchContext));
   $("workbenchPrimaryAction")?.addEventListener("click",runStudioXWorkbenchAction);
+  $("workbenchSargeAction")?.addEventListener("click",openLiveSargeAdvisor);
   $("marketRefreshButton")?.addEventListener("click",refreshCurrentMarket);
   $("manualPriceForm")?.addEventListener("submit",saveManualPrice);
   $("marketProviderComparison")?.addEventListener("toggle",event=>{if(event.currentTarget.open)loadMarketResolutionHistory().catch(()=>{})});

@@ -11767,7 +11767,12 @@ body.studiox-ui4.studiox-premium .live-sarge-advisor-response>p{color:#e5f2f8;fo
 body.studiox-ui4.studiox-premium .live-sarge-advisor-response section{min-width:0;padding-top:7px;border-top:1px solid rgba(125,164,184,.14)}
 body.studiox-ui4.studiox-premium .live-sarge-advisor-response h4{margin:0 0 5px;color:#8da5b4;font-size:8px;letter-spacing:.09em;text-transform:uppercase}
 body.studiox-ui4.studiox-premium .live-sarge-advisor-response ul{display:grid;gap:4px;margin:0;padding-left:15px;color:#c4d3dc;font-size:10px;line-height:1.4}
+body.studiox-ui4.studiox-premium .studiox-workbench-context>div:first-child{display:grid;min-width:0;gap:3px}
+body.studiox-ui4.studiox-premium .studiox-workbench-actions{display:flex;flex:0 0 auto;align-items:center;gap:7px}
+body.studiox-ui4.studiox-premium .studiox-workbench-actions .sarge{border-color:rgba(103,215,245,.35);background:linear-gradient(120deg,rgba(47,176,211,.2),rgba(111,78,217,.22));color:#dff9ff}
+body.studiox-ui4.studiox-premium .studiox-workbench-actions .sarge:focus-visible{outline:2px solid #68dbf5;outline-offset:2px}
 html[data-theme="light"] body.studiox-ui4.studiox-premium .studiox-live-sarge{background:linear-gradient(135deg,#f3fbfd,#f7f5ff);border-color:rgba(21,137,169,.22)}
 html[data-theme="light"] body.studiox-ui4.studiox-premium .live-sarge-advisor-intro strong,html[data-theme="light"] body.studiox-ui4.studiox-premium .live-sarge-advisor-form :is(input,select),html[data-theme="light"] body.studiox-ui4.studiox-premium .live-sarge-advisor-response>p{color:#102735}
 html[data-theme="light"] body.studiox-ui4.studiox-premium .live-sarge-advisor-form :is(input,select),html[data-theme="light"] body.studiox-ui4.studiox-premium .live-sarge-advisor-response{background:rgba(255,255,255,.78)}
 @media(max-width:1180px){body.studiox-ui4.studiox-premium .live-sarge-advisor-response{grid-template-columns:1fr}}
+@media(max-width:600px){body.studiox-ui4.studiox-premium .studiox-workbench-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}body.studiox-ui4.studiox-premium .studiox-workbench-actions button{width:100%}}
