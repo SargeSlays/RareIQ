@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 HTML = (ROOT / "rareiq/web/static/control.html").read_text(encoding="utf-8")
 JS = (ROOT / "rareiq/web/static/studiox.js").read_text(encoding="utf-8")
+CSS = (ROOT / "rareiq/web/static/studiox_update15.css").read_text(encoding="utf-8")
 
 
 def test_verified_match_exposes_direct_correction_entry_points():
@@ -78,3 +79,34 @@ def test_review_dialog_explains_conflicts_and_uses_one_shot_mutation_guard():
     )[0]
     assert '"/api/session/reject-recognition?state_id="' not in rejection
     assert "/api/session/reject-recognition?state_id=${encodeURIComponent(stateId)}" in rejection
+
+
+def test_candidate_review_recommends_only_complete_observed_evidence_matches():
+    evidence = JS.split("function referenceCandidateEvidence", 1)[1].split(
+        "function syncReferenceIdentityConflict", 1
+    )[0]
+    assert 'compare("collector number"' in evidence
+    assert 'compare("language"' in evidence
+    assert 'recommended=checks.length>0&&agreements.length===checks.length' in evidence
+    assert 'state:recommended?"recommended"' in evidence
+    assert 'label:recommended?"EVIDENCE MATCH"' in evidence
+
+
+def test_evidence_recommendation_never_selects_or_approves_a_candidate():
+    evidence = JS.split("function referenceCandidateEvidence", 1)[1].split(
+        "function syncReferenceIdentityConflict", 1
+    )[0]
+    assert "referenceSelectedCandidate=" not in evidence
+    assert "referenceSelectedCatalogCandidate=" not in evidence
+    assert "approveReferenceSelection" not in evidence
+    assert "/api/session/" not in evidence
+
+
+def test_candidate_buttons_expose_truthful_evidence_states():
+    button = JS.split("function makeReferenceCandidateButton", 1)[1].split(
+        "function renderReferenceCandidates", 1
+    )[0]
+    assert "referenceCandidateEvidence(candidate)" in button
+    assert "button.dataset.identityEvidence=evidence.state" in button
+    assert "escapeHtml(evidence.label)" in button
+    assert 'data-identity-evidence="recommended"' in CSS

@@ -7103,13 +7103,29 @@ function referenceSelectedIdentity(){
 }
 function referenceIdentityKey(value){return String(value||"").trim().toLowerCase().replaceAll(" ","").split("/").map(part=>/^\d+$/.test(part)?String(Number(part)):part).join("/")}
 function referenceLanguageKey(value){const normalized=String(value||"").trim().toLowerCase().replaceAll("_","-");return {english:"en",en:"en",chinese:"zh-cn","simplified chinese":"zh-cn","zh-cn":"zh-cn"}[normalized]||normalized}
+function referenceCandidateEvidence(candidate){
+  const context=window.__rareiqCardContext||{},evidence=context.card?.identity_evidence||context.snapshot?.identity_evidence||{},observed=evidence.observed||{},checks=[];
+  const compare=(field,observedValue,candidateValue,normalize)=>{if(!observedValue)return;checks.push({field,observed:observedValue,candidate:candidateValue||null,agrees:Boolean(candidateValue)&&normalize(observedValue)===normalize(candidateValue)})};
+  compare("collector number",observed.collector_number,candidate?.collector_number||candidate?.number,referenceIdentityKey);
+  compare("language",observed.language,candidate?.language||candidate?.language_code,referenceLanguageKey);
+  const agreements=checks.filter(item=>item.agrees),conflicts=checks.filter(item=>item.candidate&&!item.agrees),missing=checks.filter(item=>!item.candidate),recommended=checks.length>0&&agreements.length===checks.length;
+  return {
+    recommended,
+    agreements:agreements.length,
+    conflicts:conflicts.length,
+    expected:checks.length,
+    state:recommended?"recommended":conflicts.length?"conflict":agreements.length?"partial":"unverified",
+    label:recommended?"EVIDENCE MATCH":conflicts.length?"EVIDENCE CONFLICT":agreements.length?`${agreements.length}/${checks.length} EVIDENCE`:(missing.length?"EVIDENCE INCOMPLETE":"NOT COMPARED")
+  };
+}
 function syncReferenceIdentityConflict(candidate=null){
   const host=$("referenceIdentityConflict"),context=window.__rareiqCardContext||{},evidence=context.card?.identity_evidence||context.snapshot?.identity_evidence||{},observed=evidence.observed||{};
   if(!host)return;
   const selected=candidate||referenceSelectedIdentity();
   if(!selected){
     const conflicts=context.card?.identity_conflicts||context.snapshot?.identity_conflicts||[];
-    host.textContent=conflicts.length?conflicts.map(item=>`Observed ${String(item.field||"identity").replaceAll("_"," ")} ${item.observed||"--"} conflicts with catalog ${item.catalog||"--"}.`).join(" "):"Select a candidate to compare with the observed card evidence.";
+    const candidates=context.candidates||[],recommended=candidates.find(item=>referenceCandidateEvidence(item).recommended),recommendation=recommended?` ${recommended.english_name||recommended.name||recommended.printed_name||"The highlighted candidate"} matches every available observed identity field; select it to compare.`:" No visible candidate matches every available observed identity field; search the local catalog if needed.";
+    host.textContent=conflicts.length?`${conflicts.map(item=>`Observed ${String(item.field||"identity").replaceAll("_"," ")} ${item.observed||"--"} conflicts with catalog ${item.catalog||"--"}.`).join(" ")}${recommendation}`:"Select a candidate to compare with the observed card evidence.";
     host.hidden=false;
     host.dataset.state=conflicts.length?"conflict":"waiting";
     return;
@@ -7135,7 +7151,7 @@ function syncReferenceVerification(){
   syncReferenceIdentityConflict(selected);
 }
 function selectReferenceCorrectionCandidate(candidate,{index=-1,catalog=false}={}){const source=multiCardReferenceImage(candidate);referenceSelectedCandidate=catalog?-1:index;referenceSelectedCatalogCandidate=catalog?candidate:null;if(source){$("referenceLightboxImage").src=source;$("referenceLightboxOpen").href=source}setCardText("referenceLightboxTitle",candidate.english_name||candidate.name||candidate.printed_name||"Selected candidate");setCardText("referenceLightboxMeta",[candidate.set_name,candidate.collector_number||candidate.printed_code,candidate.language].filter(Boolean).join(" · "));renderReferenceCandidates();renderReferenceCatalogResults(window.__rareiqCatalogCorrectionResults||[]);if($("referenceApprove"))$("referenceApprove").textContent="Approve selected";syncReferenceVerification()}
-function makeReferenceCandidateButton(candidate,{index=-1,catalog=false}={}){const button=document.createElement("button"),source=multiCardReferenceImage(candidate),selected=catalog?referenceSelectedCatalogCandidate&&(referenceSelectedCatalogCandidate.id===candidate.id):index===referenceSelectedCandidate;button.type="button";button.dataset.selected=String(Boolean(selected));button.innerHTML=`${source?`<img src="${escapeHtml(source)}" alt="">`:"<i></i>"}<span><strong>${escapeHtml(candidate.english_name||candidate.name||candidate.printed_name||"Candidate")}</strong><small>${escapeHtml([candidate.set_name,candidate.collector_number||candidate.printed_code,candidate.language].filter(Boolean).join(" · ")||"Identity details pending")}</small></span>${catalog?"<b>CATALOG</b>":`<b>${recentScanConfidence(candidate.fused_score??candidate.score??candidate.confidence??0)}%</b>`}`;button.addEventListener("click",()=>selectReferenceCorrectionCandidate(candidate,{index,catalog}));return button}
+function makeReferenceCandidateButton(candidate,{index=-1,catalog=false}={}){const button=document.createElement("button"),source=multiCardReferenceImage(candidate),selected=catalog?referenceSelectedCatalogCandidate&&(referenceSelectedCatalogCandidate.id===candidate.id):index===referenceSelectedCandidate,evidence=referenceCandidateEvidence(candidate);button.type="button";button.dataset.selected=String(Boolean(selected));button.dataset.identityEvidence=evidence.state;button.innerHTML=`${source?`<img src="${escapeHtml(source)}" alt="">`:"<i></i>"}<span><strong>${escapeHtml(candidate.english_name||candidate.name||candidate.printed_name||"Candidate")}</strong><small>${escapeHtml([candidate.set_name,candidate.collector_number||candidate.printed_code,candidate.language].filter(Boolean).join(" · ")||"Identity details pending")}</small><em>${escapeHtml(evidence.label)}</em></span>${catalog?"<b>CATALOG</b>":`<b>${recentScanConfidence(candidate.fused_score??candidate.score??candidate.confidence??0)}%</b>`}`;button.addEventListener("click",()=>selectReferenceCorrectionCandidate(candidate,{index,catalog}));return button}
 function renderReferenceCandidates(){const host=$("referenceCandidateList"),candidates=window.__rareiqCardContext?.candidates||[];if(!host)return;host.replaceChildren(...(candidates.length?candidates.slice(0,12).map((candidate,index)=>makeReferenceCandidateButton(candidate,{index})):[Object.assign(document.createElement("p"),{textContent:"No suggested alternatives are available. Search the local library below."})]))}
 function renderReferenceCatalogResults(results=[]){const host=$("referenceCatalogResults");if(!host)return;host.hidden=false;host.replaceChildren(...(results.length?results.map(candidate=>makeReferenceCandidateButton(candidate,{catalog:true})):[Object.assign(document.createElement("p"),{textContent:"No local catalog cards matched that search."})]))}
 async function searchReferenceCatalog(event){event?.preventDefault();const query=String($("referenceCatalogSearchInput")?.value||"").trim();if(query.length<2){setCardText("referenceCatalogSearchStatus","Enter at least two characters");return}setCardText("referenceCatalogSearchStatus","Searching local card library…");const payload=await api(`/api/intelligence/catalog-search?q=${encodeURIComponent(query)}&limit=24`);window.__rareiqCatalogCorrectionResults=payload.results||[];renderReferenceCatalogResults(window.__rareiqCatalogCorrectionResults);setCardText("referenceCatalogSearchStatus",`${payload.count||0} catalog result${payload.count===1?"":"s"} · ${query}`)}
