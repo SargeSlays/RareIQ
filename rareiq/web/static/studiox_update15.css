@@ -10798,3 +10798,103 @@ body.studiox-ui4.studiox-premium .ui4-mobile-action-region{display:none!importan
     scrollbar-gutter:auto!important;
   }
 }
+
+/* Update 6.8.9 — short landscape operator mode.
+   The mobile action deck replaces tall command chrome while camera and current
+   card remain available side by side. */
+@media(max-width:959px) and (orientation:landscape) and (max-height:600px){
+  body.studiox-ui4.studiox-premium{
+    height:100dvh!important;
+    min-height:0!important;
+    padding:0 0 calc(116px + env(safe-area-inset-bottom,0px))!important;
+    overflow:hidden!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-desktop-shell{
+    display:grid!important;
+    grid-template-columns:minmax(0,56fr) minmax(300px,44fr)!important;
+    grid-template-rows:minmax(0,1fr)!important;
+    width:100%!important;
+    height:calc(100dvh - 116px - env(safe-area-inset-bottom,0px))!important;
+    min-height:0!important;
+    overflow:hidden!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-center-column{
+    grid-column:1!important;
+    grid-row:1!important;
+    display:block!important;
+    width:100%!important;
+    height:100%!important;
+    min-height:0!important;
+    overflow:hidden!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-command-bar{display:none!important}
+  body.studiox-ui4.studiox-premium :is(.workspace-stage,.workspace[data-workspace="live"],.live-shell){
+    width:100%!important;
+    height:100%!important;
+    min-height:0!important;
+    overflow:hidden!important;
+  }
+  body.studiox-ui4.studiox-premium .live-shell{padding:4px!important}
+  body.studiox-ui4.studiox-premium .camera-workspace,
+  body.studiox-ui4.studiox-premium[data-workspace-density] .camera-workspace{
+    grid-template-rows:36px minmax(0,1fr)!important;
+    width:100%!important;
+    height:100%!important;
+    min-height:0!important;
+    padding:3px!important;
+  }
+  body.studiox-ui4.studiox-premium .camera-workspace-layout-control.camera-workspace-toolbar{display:none!important}
+  body.studiox-ui4.studiox-premium .camera-workspace>.pipeline-rail{display:none!important}
+  body.studiox-ui4.studiox-premium .camera-workspace[data-camera-layout="single"] .viewer-inspection-header{
+    height:36px!important;
+    min-height:36px!important;
+  }
+  body.studiox-ui4.studiox-premium .camera-workspace[data-camera-layout="single"] .camera-stage-inner{
+    width:100%!important;
+    height:100%!important;
+    max-height:100%!important;
+    aspect-ratio:auto!important;
+  }
+  body.studiox-ui4.studiox-premium .camera-workspace[data-camera-layout="single"] #cameraFeed{
+    width:100%!important;
+    height:100%!important;
+    object-fit:contain!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-inspector-column{
+    grid-column:2!important;
+    grid-row:1!important;
+    display:block!important;
+    width:100%!important;
+    height:100%!important;
+    min-height:0!important;
+    padding:4px 4px 4px 0!important;
+    overflow:hidden!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-inspector-column>.inspector{
+    width:100%!important;
+    height:100%!important;
+    min-height:0!important;
+    max-height:none!important;
+    padding:7px!important;
+    gap:7px!important;
+    overflow:auto!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-navigation-rail{
+    height:calc(50px + env(safe-area-inset-bottom,0px))!important;
+    padding:3px 6px env(safe-area-inset-bottom,0px)!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-navigation-rail :is(.nav-button,.ui4-theme-toggle){
+    grid-template-rows:28px auto!important;
+    width:48px!important;
+    max-width:48px!important;
+    height:44px!important;
+    min-height:44px!important;
+  }
+  body.studiox-ui4.studiox-premium .ui4-navigation-rail .nav-app-icon{width:27px!important;height:27px!important}
+  body.studiox-ui4.studiox-premium .ui4-mobile-action-region{
+    bottom:calc(54px + env(safe-area-inset-bottom,0px))!important;
+    min-height:56px!important;
+    padding:5px!important;
+  }
+  body.studiox-ui4.studiox-premium .mobile-operator-actions>button{min-height:44px!important}
+}
