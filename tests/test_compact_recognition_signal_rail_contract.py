@@ -9,6 +9,7 @@ CSS = (ROOT / "rareiq/web/static/studiox_update15.css").read_text(encoding="utf-
 def test_signal_rail_keeps_all_live_recognition_values():
     for element_id in (
         "confidenceRingValue",
+        "confidenceRingLabel",
         "visionValue",
         "ocrValue",
         "collectorValue",

@@ -250,12 +250,18 @@ function updateSessionStats(){
   if($("emptySessionCards")) $("emptySessionCards").textContent=`${sessionCards} cards`;
 }
 
-function updateConfidenceRing(value){
+function updateConfidenceRing(value,label="FUSION",verdict=""){
   const normalized=Math.max(0,Math.min(1,Number(value||0)));
   const percent=Math.round(normalized*100);
   const ring=$("confidenceRing");
-  if(ring) ring.style.setProperty("--confidence",String(percent));
+  const normalizedLabel=String(label||"FUSION").toUpperCase();
+  if(ring){
+    ring.style.setProperty("--confidence",String(percent));
+    ring.dataset.confidenceKind=normalizedLabel.toLowerCase();
+    ring.setAttribute("aria-label",`${normalizedLabel.toLowerCase()} confidence ${percent} percent${verdict?`; identity verdict ${verdict}`:""}`);
+  }
   if($("confidenceRingValue")) $("confidenceRingValue").textContent=`${percent}%`;
+  if($("confidenceRingLabel")) $("confidenceRingLabel").textContent=normalizedLabel;
 }
 
 const STUDIOX_MODAL_FOCUSABLE='button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -960,6 +966,11 @@ function applyRecognitionPresentation(presentation){
   const title=presentation?.title||"READY";
   const detail=presentation?.detail||"";
   const confidence=normalize(presentation?.confidence||0);
+  updateConfidenceRing(
+    confidence,
+    key==="exact-match"?"MATCH":"FUSION",
+    title
+  );
   const legacyState=
     key==="exact-match" ? "matched" :
     key==="error" ? "error" :
@@ -4891,7 +4902,7 @@ function resetRecognitionPresentation(reason="reset"){
   if($("cardMeta")) $("cardMeta").textContent="";
   if($("cardStatus")) $("cardStatus").textContent="READY";
   if($("confidence")) $("confidence").textContent="0%";
-  updateConfidenceRing(0);
+  updateConfidenceRing(0,"FUSION","READY");
   setSignal("vision",0);
   setSignal("ocr",0);
   setSignal("collector",0);
@@ -6333,7 +6344,7 @@ async function loadRecognition(){
         `RareIQ is <b>${phase.replaceAll("_"," ").toLowerCase()}</b>. Visual, OCR, and database signals are being fused.`
       );
     }else{
-      updateConfidenceRing(0);
+      updateConfidenceRing(0,"FUSION","READY");
 
       setCopilot(
         "STANDBY",
@@ -6607,7 +6618,7 @@ async function loadRecognition(){
       $("cardMeta").textContent="";
       $("cardArt").innerHTML="";
       resetExtendedCardData();
-      updateConfidenceRing(0);
+      updateConfidenceRing(0,"FUSION","READY");
     }
 
       if(cardId){
@@ -6622,7 +6633,7 @@ async function loadRecognition(){
       $("cardArt").classList.remove("is-provisional");
       $("cardStatus").textContent="VERIFYING";
       resetExtendedCardData();
-      updateConfidenceRing(0);
+      updateConfidenceRing(0,"FUSION","VERIFYING");
     }
 
     renderPipeline(
@@ -8903,7 +8914,7 @@ function updateSharedCardContext(context){
       normalize(context.visualConfidence||0),
       normalize(context.card?.fused_score??context.card?.score??0),
       normalize(context.snapshot?.overall_confidence??context.snapshot?.confidence??0)
-    ));
+    ),"MATCH","EXACT MATCH");
   }
   renderAuthoritativeCardContextHeader(context);
   applyStudioXViewerPresentation(
