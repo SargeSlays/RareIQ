@@ -95,13 +95,13 @@ class BroadcastDestinationService:
             "facebook",
             "Facebook",
             "OBS / RTMPS",
-            "Meta application and Page authorization",
-            ("page broadcast", "comments", "stream health"),
-            "conditional",
-            "Requires eligible Page access and Meta permissions.",
-            ("Meta developer application", "Eligible Facebook Page", "Page authorization and Live permissions"),
-            "Verify Page eligibility before authorizing the Meta connector.",
-            "Meta Page authorization and live-video status confirmation.",
+            "Read-only Page token and local route",
+            ("page identity", "exact encoder route"),
+            "first",
+            "Read-only Facebook Page and encoder-route monitor not configured.",
+            ("Meta developer application", "Facebook Page access token", "Expected Page ID", "Facebook RTMPS server and stream key configured in OBS"),
+            "Set the local Facebook connector environment, configure OBS, and check status.",
+            "Authenticated Page identity and exact OBS server/key confirmation; Meta does not expose read-only live-video status.",
         ),
         BroadcastPlatform(
             "tiktok",
@@ -134,10 +134,10 @@ class BroadcastDestinationService:
             "Eligible professional account",
             ("encoder destination",),
             "conditional",
-            "Live Producer availability depends on account eligibility.",
+            "Instagram's public publishing API does not expose Live Producer monitoring.",
             ("Eligible professional Instagram account", "Live Producer access", "RTMP destination configured outside RareIQ"),
             "Confirm Live Producer eligibility and configure the encoder destination.",
-            "Live Producer status; RareIQ has no general account connector configured.",
+            "No supported Instagram API currently supplies Live Producer route or live-status evidence.",
         ),
     )
 
@@ -313,6 +313,7 @@ class BroadcastDestinationService:
         live = ready and encoder_streaming and bool(evidence.get("platform_live"))
         state = "live" if live else "ready" if ready else "connected" if connected else "configured" if configured else "not_configured"
         state_label = "Live verified" if live else "Ready" if ready else "Connected" if connected else "Configured" if configured else "Not configured"
+        evidence_detail = str(evidence.get("connector_detail") or "").strip()[:300]
         destination.update(
             {
                 "state": state,
@@ -321,7 +322,7 @@ class BroadcastDestinationService:
                 "ready": ready,
                 "live": live,
                 "verified_at": verified_timestamp,
-                "connector_detail": (
+                "connector_detail": evidence_detail or (
                     "Platform and encoder route verified live."
                     if live
                     else "Platform destination and encoder route verified ready."

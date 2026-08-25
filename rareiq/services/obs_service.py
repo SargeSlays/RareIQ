@@ -201,6 +201,8 @@ class ObsService:
 
     @staticmethod
     def _stream_provider(*, service_name: str, server: str) -> str | None:
+        if "facebook" in service_name:
+            return "facebook"
         if "kick" in service_name:
             return "kick"
         if "rumble" in service_name:
@@ -227,6 +229,8 @@ class ObsService:
             or host.endswith(".upload.youtube.com")
         ):
             return "youtube"
+        if host == "live-api-s.facebook.com":
+            return "facebook"
         return None
 
     def cached_stream_route_probe(self) -> ObsStreamRouteProbe:

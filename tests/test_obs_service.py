@@ -188,6 +188,31 @@ def test_rumble_named_obs_service_supports_exact_private_route_matching() -> Non
     ) is False
 
 
+def test_facebook_obs_service_supports_exact_private_route_matching() -> None:
+    probe = ObsService._stream_route_from_response(
+        {
+            "streamServiceType": "rtmp_custom",
+            "streamServiceSettings": {
+                "service": "Facebook Live",
+                "server": "rtmps://live-api-s.facebook.com:443/rtmp",
+                "key": "facebook-key",
+            },
+        }
+    )
+
+    assert probe.provider == "facebook"
+    assert probe.matches_stream_route(
+        "facebook-key",
+        "rtmps://live-api-s.facebook.com/rtmp/",
+        provider="facebook",
+    )
+    assert not probe.matches_stream_route(
+        "facebook-key",
+        "rtmps://live-api-s.facebook.com/other",
+        provider="facebook",
+    )
+
+
 def test_non_twitch_route_cannot_match_even_with_the_same_key() -> None:
     probe = ObsStreamRouteProbe(
         inspected=True,

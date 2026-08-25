@@ -39,6 +39,7 @@ from rareiq.services.twitch_broadcast_connector import TwitchBroadcastConnector
 from rareiq.services.youtube_broadcast_connector import YouTubeBroadcastConnector
 from rareiq.services.kick_broadcast_connector import KickBroadcastConnector
 from rareiq.services.rumble_broadcast_connector import RumbleBroadcastConnector
+from rareiq.services.facebook_broadcast_connector import FacebookBroadcastConnector
 from rareiq.services.sarge_advisor_service import SargeAdvisorService
 from rareiq.version import BUILD_DATE, CODENAME, VERSION, version_payload
 from rareiq.web.remote_access import (
@@ -912,6 +913,7 @@ _twitch_broadcast_connector = TwitchBroadcastConnector.from_environment()
 _youtube_broadcast_connector = YouTubeBroadcastConnector.from_environment()
 _kick_broadcast_connector = KickBroadcastConnector.from_environment()
 _rumble_broadcast_connector = RumbleBroadcastConnector.from_environment()
+_facebook_broadcast_connector = FacebookBroadcastConnector.from_environment()
 _broadcast_connectors = {
     connector.platform_id: connector
     for connector in (
@@ -919,6 +921,7 @@ _broadcast_connectors = {
         _youtube_broadcast_connector,
         _kick_broadcast_connector,
         _rumble_broadcast_connector,
+        _facebook_broadcast_connector,
     )
     if connector is not None
 }
