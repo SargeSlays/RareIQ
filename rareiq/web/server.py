@@ -862,6 +862,7 @@ class ObsBootstrapRequest(BaseModel):
 
 PRODUCTION_SWITCHER_STATE: dict[str, Any] = {"program_slot": 1, "preview_slot": 2, "transition": "fade", "duration_ms": 500, "generation": 0, "updated_at": time.time()}
 PRODUCTION_SWITCHER_LOCK = threading.RLock()
+PRODUCTION_CAMERA_FRESHNESS_SECONDS = 2.0
 PRODUCTION_SCENE_PATH = BASE_DIR.parent.parent / "production_scenes.json"
 DEFAULT_PRODUCTION_SCENES = [
     {"id": "main-card", "name": "Main Card", "program_slot": 1, "preview_slot": 2, "transition": "fade", "duration_ms": 500, "spotify_action": "keep", "soundboard_action": "keep", "screen_action": "hide"},
@@ -1946,18 +1947,95 @@ def _connected_production_camera_count(slots: list[dict[str, Any]]) -> int:
     )
 
 
+def _program_camera_readiness(
+    slots: list[dict[str, Any]],
+    program_slot: int,
+    *,
+    now: float | None = None,
+) -> dict[str, Any]:
+    """Verify that the selected Program input owns a recent camera frame."""
+    checked_at = time.time() if now is None else float(now)
+    slot = next(
+        (item for item in slots if int(item.get("slot_id") or 0) == int(program_slot)),
+        None,
+    )
+    if slot is None:
+        return {
+            "ready": False,
+            "state": "fail",
+            "detail": f"Program input {program_slot} is unavailable",
+            "action": "Select a valid Program camera before starting the show",
+            "slot_id": int(program_slot),
+            "frame_age_seconds": None,
+        }
+    name = str(slot.get("display_name") or f"Camera {program_slot}")
+    if not slot.get("source_id"):
+        return {
+            "ready": False,
+            "state": "warn",
+            "detail": f"Program input {program_slot} has no assigned camera",
+            "action": "Assign and connect the Program camera",
+            "slot_id": int(program_slot),
+            "frame_age_seconds": None,
+        }
+    if not slot.get("connected"):
+        return {
+            "ready": False,
+            "state": "fail",
+            "detail": f"{name} is not connected on Program input {program_slot}",
+            "action": "Reconnect the Program camera before starting the show",
+            "slot_id": int(program_slot),
+            "frame_age_seconds": None,
+        }
+    try:
+        frame_age = max(0.0, checked_at - float(slot.get("last_frame_at")))
+    except (TypeError, ValueError):
+        frame_age = None
+    if frame_age is None or frame_age > PRODUCTION_CAMERA_FRESHNESS_SECONDS:
+        age_detail = "no frame timestamp" if frame_age is None else f"last frame {frame_age:.1f}s ago"
+        return {
+            "ready": False,
+            "state": "fail",
+            "detail": f"{name} is connected but stale ({age_detail})",
+            "action": "Refresh or reconnect the Program camera",
+            "slot_id": int(program_slot),
+            "frame_age_seconds": None if frame_age is None else round(frame_age, 3),
+        }
+    return {
+        "ready": True,
+        "state": "pass",
+        "detail": f"Program {program_slot} · {name} · fresh frame",
+        "action": "",
+        "slot_id": int(program_slot),
+        "frame_age_seconds": round(frame_age, 3),
+    }
+
+
 def _broadcast_go_live_readiness(
     destination_status: dict[str, Any],
     obs_status: dict[str, Any],
 ) -> dict[str, Any]:
     """Derive a truthful on-air verdict without inspecting secret settings."""
     summary = destination_status.get("summary") or {}
-    connector_ready = int(summary.get("ready") or 0) > 0
-    connector_live = int(summary.get("live") or 0) > 0
+    destinations = destination_status.get("destinations") or []
+    ready_destinations = sorted(
+        str(item.get("name") or item.get("id") or "Destination")
+        for item in destinations
+        if item.get("ready")
+    )
+    live_destinations = sorted(
+        str(item.get("name") or item.get("id") or "Destination")
+        for item in destinations
+        if item.get("live")
+    )
+    connector_ready = bool(ready_destinations) or int(summary.get("ready") or 0) > 0
+    connector_live = bool(live_destinations) or int(summary.get("live") or 0) > 0
     encoder_connected = bool(obs_status.get("connected"))
     ready = encoder_connected and connector_ready
     if ready:
-        detail = f'{int(summary.get("ready") or 0)} verified destination connector ready'
+        count = len(ready_destinations) or int(summary.get("ready") or 0)
+        names = f": {', '.join(ready_destinations)}" if ready_destinations else ""
+        detail = f"{count} verified destination{'s' if count != 1 else ''} ready{names}"
         action = ""
     elif not encoder_connected:
         detail = "OBS is not connected to RareIQ"
@@ -1968,8 +2046,11 @@ def _broadcast_go_live_readiness(
     return {
         "ready": ready,
         "encoder_connected": encoder_connected,
+        "encoder_streaming": bool(obs_status.get("streaming")),
         "connector_ready": connector_ready,
         "platform_live_verified": connector_live,
+        "ready_destinations": ready_destinations,
+        "live_destinations": live_destinations,
         "detail": detail,
         "action": action,
     }
@@ -2013,10 +2094,16 @@ async def production_preflight():
     record_status = recording.status()
     record_capabilities = recording.capabilities()
     obs_status = await asyncio.to_thread(obs.status)
+    await asyncio.to_thread(
+        broadcast_destinations.refresh_connectors,
+        obs_route=obs.cached_stream_route_probe(),
+    )
     destination_status = broadcast_destinations.snapshot(obs_status=obs_status)
     broadcast_readiness = _broadcast_go_live_readiness(destination_status, obs_status)
-    connected = _connected_production_camera_count(slots)
-    configured = sum(1 for slot in slots if slot.get("source_id"))
+    program_camera = _program_camera_readiness(
+        slots,
+        int(PRODUCTION_SWITCHER_STATE.get("program_slot", 1)),
+    )
     recognition_state = str(recognition.get("state") or recognition.get("status") or "ready").lower()
     replay_seconds = round(float(replay.get("buffered_frames", 0)) / max(1, float(replay.get("fps", 5))), 1)
     checks = []
@@ -2024,12 +2111,13 @@ async def production_preflight():
     def add(check_id: str, label: str, state: str, detail: str, action: str = ""):
         checks.append({"id": check_id, "label": label, "state": state, "detail": detail, "action": action if state != "pass" else ""})
 
-    if connected:
-        add("camera", "Camera input", "pass", f"{connected} camera source{'s' if connected != 1 else ''} online")
-    elif configured:
-        add("camera", "Camera input", "fail", f"0 of {configured} configured cameras online", "Reconnect a camera before starting the show")
-    else:
-        add("camera", "Camera input", "warn", "No saved camera slots", "Select and connect the show camera")
+    add(
+        "camera",
+        "Program camera",
+        program_camera["state"],
+        program_camera["detail"],
+        program_camera["action"],
+    )
 
     add("browser", "Browser outputs", "pass", "6 production-safe browser sources are available")
     add("scenes", "RareIQ scenes", "pass" if PRODUCTION_SCENES else "fail", f"{len(PRODUCTION_SCENES)} production scenes configured", "Create at least one production scene")
@@ -2071,11 +2159,13 @@ async def production_preflight():
             "on_air_verified": broadcast_readiness["platform_live_verified"],
             "broadcast": broadcast_readiness,
             "destination_summary": destination_status.get("summary") or {},
+            "program_camera": program_camera,
             "blockers": blockers,
             "warnings": warnings,
             "checks": checks,
             "checked_at": time.time(),
         },
+        "destinations": destination_status,
     }
 
 @app.get("/api/production/session")
