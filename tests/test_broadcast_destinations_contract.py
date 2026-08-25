@@ -18,6 +18,7 @@ def test_destinations_have_a_first_class_broadcast_view() -> None:
 
 def test_destination_state_uses_one_read_only_status_endpoint() -> None:
     assert '@app.get("/api/production/destinations")' in SERVER
+    assert "await asyncio.to_thread(broadcast_destinations.refresh_connectors)" in SERVER
     assert 'async function loadBroadcastDestinations(){try{const payload=await api("/api/production/destinations")' in JS
     section = JS[
         JS.index("function broadcastDestinationCard") :

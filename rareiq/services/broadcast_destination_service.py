@@ -47,13 +47,13 @@ class BroadcastDestinationService:
             "twitch",
             "Twitch",
             "OBS / RTMP",
-            "OAuth application",
-            ("channel metadata", "chat", "events", "stream health"),
+            "Read-only app token",
+            ("channel identity", "public live status"),
             "first",
-            "OAuth and EventSub connector not configured.",
-            ("Twitch developer application", "Authorized channel account", "OBS RTMP destination"),
-            "Create and authorize the Twitch connector.",
-            "Twitch account authorization plus EventSub and stream-status confirmation.",
+            "Read-only Twitch monitor not configured.",
+            ("Twitch developer application", "Local client credentials", "Channel login", "OBS RTMP destination configured separately"),
+            "Set the local Twitch connector environment and check status.",
+            "Twitch token, channel identity, and live-status confirmation; OBS route verification remains separate.",
         ),
         BroadcastPlatform(
             "youtube",
@@ -191,6 +191,21 @@ class BroadcastDestinationService:
             "destinations": destinations,
         }
 
+    def refresh_connectors(self) -> dict[str, bool]:
+        """Explicitly refresh registered connectors without changing snapshot I/O."""
+        results: dict[str, bool] = {}
+        for platform_id, connector in sorted(self._connectors.items()):
+            refresh = getattr(connector, "refresh", None)
+            if not callable(refresh):
+                results[platform_id] = False
+                continue
+            try:
+                refresh()
+                results[platform_id] = True
+            except Exception:
+                results[platform_id] = False
+        return results
+
     def _destination(
         self,
         platform: BroadcastPlatform,
@@ -311,7 +326,7 @@ class BroadcastDestinationService:
                     if live
                     else "Platform destination and encoder route verified ready."
                     if ready
-                    else "Platform account connected; destination route is not verified."
+                    else "Platform connector verified; destination route is not verified."
                     if connected
                     else "Connector configured; platform authorization is not verified."
                     if configured

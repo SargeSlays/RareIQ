@@ -35,6 +35,7 @@ from rareiq.services.inventory_service import MAX_RECEIPT_DATA_URL_CHARS
 from rareiq.services.recording_service import RecordingService
 from rareiq.services.obs_service import ObsService
 from rareiq.services.broadcast_destination_service import BroadcastDestinationService
+from rareiq.services.twitch_broadcast_connector import TwitchBroadcastConnector
 from rareiq.services.sarge_advisor_service import SargeAdvisorService
 from rareiq.version import BUILD_DATE, CODENAME, VERSION, version_payload
 from rareiq.web.remote_access import (
@@ -904,7 +905,14 @@ recording = RecordingService(
     config_path=storage.get_path("config_path") / "recording_settings.json",
 )
 obs = ObsService(BASE_DIR.parent.parent / "obs_settings.json")
-broadcast_destinations = BroadcastDestinationService()
+_twitch_broadcast_connector = TwitchBroadcastConnector.from_environment()
+broadcast_destinations = BroadcastDestinationService(
+    connectors=(
+        {"twitch": _twitch_broadcast_connector}
+        if _twitch_broadcast_connector is not None
+        else None
+    )
+)
 
 class LearningQueueRequest(BaseModel):
     scan_payload: dict[str, Any]
@@ -2083,6 +2091,7 @@ async def obs_status():
 @app.get("/api/production/destinations")
 async def production_destinations():
     """Report platform capabilities without inferring unverified live states."""
+    await asyncio.to_thread(broadcast_destinations.refresh_connectors)
     current_obs = await asyncio.to_thread(obs.status)
     return {
         "ok": True,

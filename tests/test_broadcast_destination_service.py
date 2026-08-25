@@ -13,6 +13,15 @@ class FakeConnector:
         return dict(self.evidence)
 
 
+class RefreshableConnector(FakeConnector):
+    def __init__(self, platform_id: str, evidence: dict | None = None):
+        super().__init__(platform_id, evidence)
+        self.refresh_count = 0
+
+    def refresh(self) -> None:
+        self.refresh_count += 1
+
+
 def connector_evidence(**overrides) -> dict:
     return {
         "platform_id": "twitch",
@@ -49,6 +58,10 @@ def test_destination_registry_exposes_all_requested_platforms() -> None:
         "needs_setup": 8,
     }
     assert payload["version"] == 2
+    twitch = payload["destinations"][0]
+    assert twitch["setup_method"] == "Read-only app token"
+    assert twitch["capabilities"] == ["channel identity", "public live status"]
+    assert "OBS route verification remains separate" in twitch["setup"]["verification_method"]
 
 
 def test_encoder_output_never_fabricates_platform_live_state() -> None:
@@ -218,3 +231,14 @@ def test_malformed_mismatched_and_failed_connectors_fail_closed() -> None:
         assert twitch["ready"] is False
         assert twitch["live"] is False
         assert twitch["connector"]["verification_source"] is None
+
+
+def test_connector_refresh_is_explicit_and_skips_cached_only_providers() -> None:
+    refreshable = RefreshableConnector("twitch", connector_evidence())
+    cached_only = FakeConnector("youtube", connector_evidence(platform_id="youtube"))
+    service = BroadcastDestinationService(
+        connectors={"twitch": refreshable, "youtube": cached_only}
+    )
+
+    assert service.refresh_connectors() == {"twitch": True, "youtube": False}
+    assert refreshable.refresh_count == 1
