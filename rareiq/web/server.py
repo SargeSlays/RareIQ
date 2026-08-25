@@ -1920,6 +1920,35 @@ def _connected_production_camera_count(slots: list[dict[str, Any]]) -> int:
     )
 
 
+def _broadcast_go_live_readiness(
+    destination_status: dict[str, Any],
+    obs_status: dict[str, Any],
+) -> dict[str, Any]:
+    """Derive a truthful on-air verdict without inspecting secret settings."""
+    summary = destination_status.get("summary") or {}
+    connector_ready = int(summary.get("ready") or 0) > 0
+    connector_live = int(summary.get("live") or 0) > 0
+    encoder_connected = bool(obs_status.get("connected"))
+    ready = encoder_connected and connector_ready
+    if ready:
+        detail = f'{int(summary.get("ready") or 0)} verified destination connector ready'
+        action = ""
+    elif not encoder_connected:
+        detail = "OBS is not connected to RareIQ"
+        action = "Connect OBS, then verify at least one platform destination"
+    else:
+        detail = "OBS is connected, but no platform destination is verified ready"
+        action = "Open Destinations and complete a verified platform connector"
+    return {
+        "ready": ready,
+        "encoder_connected": encoder_connected,
+        "connector_ready": connector_ready,
+        "platform_live_verified": connector_live,
+        "detail": detail,
+        "action": action,
+    }
+
+
 @app.get("/api/production/operator-health")
 async def production_operator_health():
     camera = orchestrator.camera_manager.status()
@@ -1958,6 +1987,8 @@ async def production_preflight():
     record_status = recording.status()
     record_capabilities = recording.capabilities()
     obs_status = await asyncio.to_thread(obs.status)
+    destination_status = broadcast_destinations.snapshot(obs_status=obs_status)
+    broadcast_readiness = _broadcast_go_live_readiness(destination_status, obs_status)
     connected = _connected_production_camera_count(slots)
     configured = sum(1 for slot in slots if slot.get("source_id"))
     recognition_state = str(recognition.get("state") or recognition.get("status") or "ready").lower()
@@ -1994,9 +2025,32 @@ async def production_preflight():
     else:
         add("obs", "OBS connection", "warn", "Optional integration is disabled", "Enable OBS only when this show uses it")
 
+    add(
+        "destinations",
+        "Broadcast destination",
+        "pass" if broadcast_readiness["ready"] else "warn",
+        broadcast_readiness["detail"],
+        broadcast_readiness["action"],
+    )
+
     blockers = [check for check in checks if check["state"] == "fail"]
     warnings = [check for check in checks if check["state"] == "warn"]
-    return {"ok": True, "preflight": {"ready": not blockers, "blockers": blockers, "warnings": warnings, "checks": checks, "checked_at": time.time()}}
+    local_ready = not blockers
+    return {
+        "ok": True,
+        "preflight": {
+            "ready": local_ready,
+            "local_ready": local_ready,
+            "broadcast_ready": local_ready and broadcast_readiness["ready"],
+            "on_air_verified": broadcast_readiness["platform_live_verified"],
+            "broadcast": broadcast_readiness,
+            "destination_summary": destination_status.get("summary") or {},
+            "blockers": blockers,
+            "warnings": warnings,
+            "checks": checks,
+            "checked_at": time.time(),
+        },
+    }
 
 @app.get("/api/production/session")
 async def production_session_status():
@@ -2070,6 +2124,16 @@ async def start_production_show(request: StartShowRequest):
     preflight = preflight_payload["preflight"]
     if not preflight["ready"]:
         return JSONResponse(status_code=409, content={"ok": False, "reason": "preflight_blocked", "preflight": preflight, "steps": []})
+    if request.start_obs_stream and not preflight.get("broadcast_ready"):
+        return JSONResponse(
+            status_code=409,
+            content={
+                "ok": False,
+                "reason": "broadcast_destination_unverified",
+                "preflight": preflight,
+                "steps": [],
+            },
+        )
 
     steps: list[dict[str, Any]] = []
     safe_state = await production_safe_recovery()
