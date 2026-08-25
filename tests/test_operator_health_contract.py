@@ -4,6 +4,8 @@ import rareiq.web.server as server
 from rareiq.web.server import (
     BROADCAST_RUNTIME_HEALTH_REFRESH_SECONDS,
     PRODUCTION_HEALTH_JOURNAL_LIMIT,
+    PRODUCTION_RISK_RESPONSE_GUIDANCE,
+    _acknowledge_production_health_incident,
     _connected_production_camera_count,
     _invalidate_broadcast_runtime_health,
     _record_production_risk_transitions,
@@ -22,6 +24,7 @@ CSS = (ROOT / "rareiq/web/static/studiox_update15.css").read_text(encoding="utf-
 def test_operator_health_and_safe_recovery_apis_exist():
     assert '@app.get("/api/production/operator-health")' in SERVER
     assert '@app.post("/api/production/safe")' in SERVER
+    assert '@app.post("/api/production/health/incidents/{incident_id}/acknowledge")' in SERVER
     assert 'camera_manager.session_statuses()' in SERVER
     operator_health = SERVER[
         SERVER.index("async def production_operator_health") :
@@ -112,6 +115,9 @@ def test_operator_dashboard_uses_real_health_fields():
     assert "LIVE SESSION AT RISK" in render
     assert "function renderOperatorHealthJournal" in JS
     assert "renderOperatorHealthJournal(payload.health_journal||[])" in JS
+    assert "async function acknowledgeOperatorHealthIncident" in JS
+    assert "/api/production/health/incidents/${encodeURIComponent(incidentId)}/acknowledge" in JS
+    assert 'acknowledge.addEventListener("click"' in JS
 
 
 def test_inactive_session_never_claims_an_on_air_risk() -> None:
@@ -138,15 +144,16 @@ def test_live_session_reports_stale_program_camera_without_auto_action() -> None
         program_camera={"ready": False, "detail": "Insta360 is connected but stale"},
     )
 
-    assert risks == [
-        {
-            "id": "program-camera",
-            "severity": "critical",
-            "title": "Program camera feed interrupted",
-            "detail": "Insta360 is connected but stale",
-            "action": "Reconnect the camera or take a verified alternate source",
-        }
-    ]
+    assert len(risks) == 1
+    assert risks[0] == {
+        "id": "program-camera",
+        "severity": "critical",
+        "title": "Program camera feed interrupted",
+        "detail": "Insta360 is connected but stale",
+        "action": "Reconnect the camera or take a verified alternate source",
+        "guidance": list(PRODUCTION_RISK_RESPONSE_GUIDANCE["program-camera"]),
+        "journal_key": "program-camera:unknown",
+    }
 
 
 def test_requested_obs_stream_loss_is_reported_without_false_platform_claims() -> None:
@@ -191,6 +198,27 @@ def test_verified_destination_route_loss_is_reported_only_while_streaming() -> N
 
     assert [risk["id"] for risk in risks] == ["destination-route"]
     assert "Twitch" in risks[0]["detail"]
+
+
+def test_every_production_risk_has_operator_guidance_without_auto_actions() -> None:
+    assert set(PRODUCTION_RISK_RESPONSE_GUIDANCE) == {
+        "program-camera",
+        "obs-connection",
+        "obs-stream",
+        "obs-recording",
+        "destination-route",
+    }
+    for steps in PRODUCTION_RISK_RESPONSE_GUIDANCE.values():
+        assert 3 <= len(steps) <= 4
+        assert all(isinstance(step, str) and step.endswith(".") for step in steps)
+    assert "obs.command" not in SERVER[
+        SERVER.index("def _acknowledge_production_health_incident") :
+        SERVER.index("def _broadcast_go_live_readiness")
+    ]
+    assert "camera_manager" not in SERVER[
+        SERVER.index("def _acknowledge_production_health_incident") :
+        SERVER.index("def _broadcast_go_live_readiness")
+    ]
 
 
 def test_runtime_watchdog_refresh_is_bounded() -> None:
@@ -271,19 +299,25 @@ def test_health_journal_records_only_meaningful_risk_transitions(monkeypatch) ->
         risks=[risk],
         now=101.0,
     )
-    updated = _record_production_risk_transitions(
+    noisy_detail = _record_production_risk_transitions(
         session_active=True,
         risks=[risk | {"detail": "OBS output remains stopped"}],
         now=102.0,
     )
+    updated = _record_production_risk_transitions(
+        session_active=True,
+        risks=[risk | {"detail": "A different verified route is missing", "journal_key": "obs-stream:route-b"}],
+        now=103.0,
+    )
     resolved = _record_production_risk_transitions(
         session_active=True,
         risks=[],
-        now=103.0,
+        now=104.0,
     )
 
     assert [entry["state"] for entry in opened] == ["active"]
     assert repeated == opened
+    assert noisy_detail == opened
     assert [entry["state"] for entry in updated] == ["active", "updated"]
     assert [entry["state"] for entry in resolved] == ["active", "updated", "resolved"]
     assert len(state["events"]) == 3
@@ -308,6 +342,7 @@ def test_health_journal_is_bounded_independently_of_session_events(monkeypatch) 
                 "title": "Program camera feed interrupted",
                 "detail": f"Frame evidence changed {index}",
                 "action": "Inspect Program camera",
+                "journal_key": f"program-camera:{index}",
             }],
             now=100.0 + index,
         )
@@ -338,6 +373,66 @@ def test_inactive_health_poll_does_not_create_incident_history(monkeypatch) -> N
     assert state["health_monitor"]["active_risks"] == {}
 
 
+def test_operator_acknowledgment_is_persistent_idempotent_and_does_not_clear_risk(monkeypatch) -> None:
+    state = {
+        "active": True,
+        "events": [],
+        "health_monitor": {"active_risks": {}, "journal": []},
+    }
+    monkeypatch.setattr(server, "PRODUCTION_SESSION", state)
+    monkeypatch.setattr(server, "_save_production_session", lambda: None)
+    journal = _record_production_risk_transitions(
+        session_active=True,
+        risks=[{
+            "id": "obs-stream",
+            "severity": "critical",
+            "title": "OBS stream output stopped",
+            "detail": "OBS reports no active stream",
+            "action": "Inspect OBS output health",
+            "guidance": list(PRODUCTION_RISK_RESPONSE_GUIDANCE["obs-stream"]),
+        }],
+        now=100.0,
+    )
+
+    first = _acknowledge_production_health_incident(journal[0]["id"], now=101.0)
+    repeated = _acknowledge_production_health_incident(journal[0]["id"], now=102.0)
+
+    assert first["ok"] is True
+    assert first["already_acknowledged"] is False
+    assert repeated["already_acknowledged"] is True
+    assert first["incident"]["acknowledged_at"] == 101.0
+    assert first["incident"]["acknowledged_by"] == "operator"
+    assert set(state["health_monitor"]["active_risks"]) == {"obs-stream"}
+    assert len(state["events"]) == 2
+    assert "underlying risk remains active" in state["events"][-1]["detail"]
+
+
+def test_acknowledgment_rejects_inactive_missing_and_resolved_incidents(monkeypatch) -> None:
+    state = {
+        "active": False,
+        "events": [],
+        "health_monitor": {
+            "active_risks": {},
+            "journal": [{"id": "resolved-1", "state": "resolved"}],
+        },
+    }
+    monkeypatch.setattr(server, "PRODUCTION_SESSION", state)
+    monkeypatch.setattr(server, "_save_production_session", lambda: None)
+    assert _acknowledge_production_health_incident("resolved-1", now=100.0) == {
+        "ok": False,
+        "reason": "session_inactive",
+    }
+    state["active"] = True
+    assert _acknowledge_production_health_incident("missing", now=100.0) == {
+        "ok": False,
+        "reason": "incident_not_found",
+    }
+    assert _acknowledge_production_health_incident("resolved-1", now=100.0) == {
+        "ok": False,
+        "reason": "incident_resolved",
+    }
+
+
 def test_show_start_records_only_operator_requested_output_intent() -> None:
     start = SERVER[
         SERVER.index("async def start_production_show") :
@@ -359,4 +454,6 @@ def test_operator_health_is_themable_and_responsive():
     assert '.operator-health-alert[hidden]{display:none}' in CSS
     assert '.operator-health-journal' in CSS
     assert '.operator-health-journal article[data-state="resolved"]' in CSS
+    assert '.operator-health-ack:focus-visible' in CSS
+    assert '.operator-health-journal details' in CSS
     assert 'html[data-theme="light"] body.studiox-ui4 .operator-health' in CSS

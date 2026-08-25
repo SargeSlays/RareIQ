@@ -47,6 +47,7 @@ def test_program_camera_passes_with_current_frame_and_truthful_identity() -> Non
     assert result == {
         "ready": True,
         "state": "pass",
+        "reason": "healthy",
         "detail": "Program 1 · Insta360 Link · fresh frame",
         "action": "",
         "slot_id": 1,

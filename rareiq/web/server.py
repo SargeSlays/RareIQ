@@ -936,6 +936,34 @@ BROADCAST_RUNTIME_HEALTH_REFRESH_SECONDS = 10.0
 BROADCAST_RUNTIME_HEALTH_LOCK = threading.RLock()
 BROADCAST_RUNTIME_HEALTH_STATE: dict[str, Any] = {"checked_at": 0.0}
 PRODUCTION_HEALTH_JOURNAL_LIMIT = 64
+PRODUCTION_RISK_RESPONSE_GUIDANCE: dict[str, tuple[str, ...]] = {
+    "program-camera": (
+        "Confirm the intended camera is still selected on Program.",
+        "Refresh or reconnect that source if its frame is stale.",
+        "Take a verified alternate source only after its preview is current.",
+        "Confirm Program is producing fresh frames before continuing.",
+    ),
+    "obs-connection": (
+        "Confirm OBS is running and its WebSocket server is available.",
+        "Verify RareIQ is connected to the intended OBS instance.",
+        "Confirm the correct Program scene before restoring output.",
+    ),
+    "obs-stream": (
+        "Inspect the OBS stream status and output error details.",
+        "Verify network health and the intended platform route.",
+        "Restart streaming only after the destination is confirmed.",
+    ),
+    "obs-recording": (
+        "Check available storage and the configured recording path.",
+        "Inspect the OBS encoder and recording output status.",
+        "Restart recording and confirm its timer and output file advance.",
+    ),
+    "destination-route": (
+        "Open Destinations and refresh connector evidence.",
+        "Confirm the exact account or channel expected for this show.",
+        "Verify both the OBS route and platform dashboard before trusting live status.",
+    ),
+}
 
 class LearningQueueRequest(BaseModel):
     scan_payload: dict[str, Any]
@@ -1967,6 +1995,7 @@ def _program_camera_readiness(
         return {
             "ready": False,
             "state": "fail",
+            "reason": "unavailable",
             "detail": f"Program input {program_slot} is unavailable",
             "action": "Select a valid Program camera before starting the show",
             "slot_id": int(program_slot),
@@ -1977,6 +2006,7 @@ def _program_camera_readiness(
         return {
             "ready": False,
             "state": "warn",
+            "reason": "unassigned",
             "detail": f"Program input {program_slot} has no assigned camera",
             "action": "Assign and connect the Program camera",
             "slot_id": int(program_slot),
@@ -1986,6 +2016,7 @@ def _program_camera_readiness(
         return {
             "ready": False,
             "state": "fail",
+            "reason": "disconnected",
             "detail": f"{name} is not connected on Program input {program_slot}",
             "action": "Reconnect the Program camera before starting the show",
             "slot_id": int(program_slot),
@@ -2000,6 +2031,7 @@ def _program_camera_readiness(
         return {
             "ready": False,
             "state": "fail",
+            "reason": "stale",
             "detail": f"{name} is connected but stale ({age_detail})",
             "action": "Refresh or reconnect the Program camera",
             "slot_id": int(program_slot),
@@ -2008,6 +2040,7 @@ def _program_camera_readiness(
     return {
         "ready": True,
         "state": "pass",
+        "reason": "healthy",
         "detail": f"Program {program_slot} · {name} · fresh frame",
         "action": "",
         "slot_id": int(program_slot),
@@ -2021,11 +2054,11 @@ def _production_session_risks(
     program_camera: dict[str, Any],
     output_intent: dict[str, Any] | None = None,
     broadcast_runtime: dict[str, Any] | None = None,
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     """Describe live-session hazards without taking corrective action."""
     if not session_active:
         return []
-    risks: list[dict[str, str]] = []
+    risks: list[dict[str, Any]] = []
     if not program_camera.get("ready"):
         risks.append({
             "id": "program-camera",
@@ -2033,6 +2066,8 @@ def _production_session_risks(
             "title": "Program camera feed interrupted",
             "detail": str(program_camera.get("detail") or "The selected Program input is not producing a fresh frame"),
             "action": "Reconnect the camera or take a verified alternate source",
+            "guidance": list(PRODUCTION_RISK_RESPONSE_GUIDANCE["program-camera"]),
+            "journal_key": f'program-camera:{program_camera.get("reason") or program_camera.get("state") or "unknown"}',
         })
     intent = output_intent or {}
     runtime = broadcast_runtime or {}
@@ -2047,6 +2082,8 @@ def _production_session_risks(
             "title": "OBS connection lost",
             "detail": "RareIQ cannot verify the requested OBS output",
             "action": "Restore OBS WebSocket connectivity and verify the Program output",
+            "guidance": list(PRODUCTION_RISK_RESPONSE_GUIDANCE["obs-connection"]),
+            "journal_key": "obs-connection",
         })
         return risks
     if wants_stream and not obs_status.get("streaming"):
@@ -2056,6 +2093,8 @@ def _production_session_risks(
             "title": "OBS stream output stopped",
             "detail": "The active show requested OBS streaming, but OBS reports no active stream",
             "action": "Inspect OBS output health before restarting the stream",
+            "guidance": list(PRODUCTION_RISK_RESPONSE_GUIDANCE["obs-stream"]),
+            "journal_key": "obs-stream",
         })
     if wants_recording and not obs_status.get("recording"):
         risks.append({
@@ -2064,6 +2103,8 @@ def _production_session_risks(
             "title": "OBS recording stopped",
             "detail": "The active show requested OBS recording, but OBS reports no active recording",
             "action": "Inspect OBS recording output and available storage",
+            "guidance": list(PRODUCTION_RISK_RESPONSE_GUIDANCE["obs-recording"]),
+            "journal_key": "obs-recording",
         })
     expected = {
         str(name)
@@ -2083,6 +2124,8 @@ def _production_session_risks(
             "title": "Verified destination route lost",
             "detail": f"No current connector evidence for: {', '.join(missing)}",
             "action": "Refresh destination status and verify the exact OBS route",
+            "guidance": list(PRODUCTION_RISK_RESPONSE_GUIDANCE["destination-route"]),
+            "journal_key": f'destination-route:{"|".join(missing)}',
         })
     return risks
 
@@ -2090,7 +2133,7 @@ def _production_session_risks(
 def _record_production_risk_transitions(
     *,
     session_active: bool,
-    risks: list[dict[str, str]],
+    risks: list[dict[str, Any]],
     now: float | None = None,
 ) -> list[dict[str, Any]]:
     """Persist only meaningful live health changes in the production timeline."""
@@ -2108,7 +2151,7 @@ def _record_production_risk_transitions(
         if not session_active:
             return json.loads(json.dumps(journal[-PRODUCTION_HEALTH_JOURNAL_LIMIT:]))
 
-        current: dict[str, dict[str, str]] = {}
+        current: dict[str, dict[str, Any]] = {}
         for risk in risks:
             risk_id = str(risk.get("id") or "").strip()
             if not risk_id:
@@ -2119,6 +2162,12 @@ def _record_production_risk_transitions(
                 "title": str(risk.get("title") or "Production health warning"),
                 "detail": str(risk.get("detail") or ""),
                 "action": str(risk.get("action") or ""),
+                "guidance": [
+                    str(step)
+                    for step in risk.get("guidance") or []
+                    if str(step).strip()
+                ][:6],
+                "journal_key": str(risk.get("journal_key") or risk_id),
             }
 
         transitions: list[dict[str, Any]] = []
@@ -2132,12 +2181,17 @@ def _record_production_risk_transitions(
                 "title": risk["title"],
                 "detail": risk["detail"],
                 "action": risk["action"],
+                "guidance": risk["guidance"],
+                "journal_key": risk["journal_key"],
                 "timestamp": observed_at,
             })
         for risk_id in sorted(current.keys() & previous.keys()):
             risk = current[risk_id]
             prior = previous[risk_id]
-            if risk != prior:
+            if any(
+                risk.get(field) != prior.get(field)
+                for field in ("severity", "title", "action", "guidance", "journal_key")
+            ):
                 transitions.append({
                     "id": uuid.uuid4().hex[:12],
                     "risk_id": risk_id,
@@ -2146,6 +2200,8 @@ def _record_production_risk_transitions(
                     "title": f'{risk["title"]} changed',
                     "detail": risk["detail"],
                     "action": risk["action"],
+                    "guidance": risk["guidance"],
+                    "journal_key": risk["journal_key"],
                     "timestamp": observed_at,
                 })
         for risk_id in sorted(previous.keys() - current.keys()):
@@ -2158,6 +2214,8 @@ def _record_production_risk_transitions(
                 "title": f'{risk.get("title") or "Production health warning"} restored',
                 "detail": "Health evidence returned to the expected state.",
                 "action": "No operator action required.",
+                "guidance": [],
+                "journal_key": str(risk.get("journal_key") or risk_id),
                 "timestamp": observed_at,
             })
 
@@ -2180,6 +2238,57 @@ def _record_production_risk_transitions(
         else:
             PRODUCTION_SESSION["health_monitor"] = monitor
         return json.loads(json.dumps(monitor.get("journal") or []))
+
+
+def _acknowledge_production_health_incident(
+    incident_id: str,
+    *,
+    now: float | None = None,
+) -> dict[str, Any]:
+    """Record human awareness without changing the underlying production state."""
+    acknowledged_at = time.time() if now is None else float(now)
+    safe_id = str(incident_id or "").strip()[:64]
+    with PRODUCTION_SESSION_LOCK:
+        if not PRODUCTION_SESSION.get("active"):
+            return {"ok": False, "reason": "session_inactive"}
+        monitor = PRODUCTION_SESSION.get("health_monitor")
+        journal = monitor.get("journal") if isinstance(monitor, dict) else None
+        if not isinstance(journal, list):
+            return {"ok": False, "reason": "incident_not_found"}
+        incident = next(
+            (entry for entry in reversed(journal) if str(entry.get("id") or "") == safe_id),
+            None,
+        )
+        if incident is None:
+            return {"ok": False, "reason": "incident_not_found"}
+        if incident.get("state") == "resolved":
+            return {"ok": False, "reason": "incident_resolved"}
+        if incident.get("acknowledged_at"):
+            return {
+                "ok": True,
+                "already_acknowledged": True,
+                "incident": json.loads(json.dumps(incident)),
+                "health_journal": json.loads(json.dumps(journal[-20:])),
+            }
+
+        incident["acknowledged_at"] = acknowledged_at
+        incident["acknowledged_by"] = "operator"
+        events = PRODUCTION_SESSION.setdefault("events", [])
+        events.append({
+            "id": uuid.uuid4().hex[:12],
+            "kind": "safety",
+            "title": f'Operator acknowledged {incident.get("title") or "production incident"}'[:80],
+            "detail": "Acknowledgment recorded; the underlying risk remains active until health evidence clears.",
+            "timestamp": acknowledged_at,
+        })
+        PRODUCTION_SESSION["events"] = events[-500:]
+        _save_production_session()
+        return {
+            "ok": True,
+            "already_acknowledged": False,
+            "incident": json.loads(json.dumps(incident)),
+            "health_journal": json.loads(json.dumps(journal[-20:])),
+        }
 
 
 def _broadcast_go_live_readiness(
@@ -2329,6 +2438,16 @@ async def production_operator_health():
         "production_screen_visible": bool((overlay.get("production_screen") or {}).get("visible")),
         "graphic_visible": bool((overlay.get("broadcast_graphic") or {}).get("visible")),
     }
+
+
+@app.post("/api/production/health/incidents/{incident_id}/acknowledge")
+async def acknowledge_production_health_incident(incident_id: str):
+    result = _acknowledge_production_health_incident(incident_id)
+    if result.get("ok"):
+        return result
+    status_code = 404 if result.get("reason") == "incident_not_found" else 409
+    return JSONResponse(status_code=status_code, content=result)
+
 
 @app.get("/api/production/preflight")
 async def production_preflight():
