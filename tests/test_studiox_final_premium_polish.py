@@ -78,7 +78,9 @@ def test_grade_market_and_candidates_hide_fake_content():
     assert "Exact identity verified. No alternative candidates require review." in candidates
     assert "reviewButton.hidden=!correctionAvailable" in candidates
     assert "correctButton.hidden=!correctionAvailable" in candidates
-    assert 'correctButton.textContent=context.verified?"Correct Match":"Review Match"' in candidates
+    assert 'const reviewLabel=catalogGapSearchAvailable' in candidates
+    assert 'correctButton.textContent=reviewLabel' in candidates
+    assert '"Search Catalog"' in candidates
 
 
 def test_auto_card_focus_respects_manual_hidden_and_is_stable():

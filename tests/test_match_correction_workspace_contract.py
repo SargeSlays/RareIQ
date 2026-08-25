@@ -12,8 +12,10 @@ def test_verified_match_exposes_direct_correction_entry_points():
     assert 'id="candidateReviewButton"' in HTML
     assert "function openMatchCorrectionWorkflow()" in JS
     assert 'correctButton.hidden=!correctionAvailable' in JS
-    assert 'correctButton.textContent=context.verified?"Correct Match":"Review Match"' in JS
-    assert 'reviewButton.textContent=context.verified?"Correct Match":"Review Candidates"' in JS
+    assert 'const reviewLabel=catalogGapSearchAvailable' in JS
+    assert 'correctButton.textContent=reviewLabel' in JS
+    assert '"Search Catalog"' in JS
+    assert 'reviewButton.textContent=catalogGapSearchAvailable?"Search Catalog":context.verified?"Correct Match":"Review Candidates"' in JS
 
 
 def test_correction_workflow_opens_alternatives_and_uses_learning_endpoint():

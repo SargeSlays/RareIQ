@@ -555,9 +555,9 @@ function recognitionDecisionUrl(path){
   return stateId?`${path}?state_id=${encodeURIComponent(stateId)}`:path;
 }
 function syncRecognitionMutationControls(){
-  const busy=recognitionMutationInFlight(),actionable=window.__rareiqCardContext?.verified===true;
+  const busy=recognitionMutationInFlight(),connectionUnavailable=["offline","unreachable","checking"].includes(serverConnectionState),actionable=window.__rareiqCardContext?.verified===true&&!connectionUnavailable;
   ["approveButton","rejectButton","decisionApproveButton","decisionRejectButton"].forEach(id=>{if($(id))$(id).disabled=busy||!actionable});
-  ["nextClearButton","decisionNextButton","mobileOperatorNext","correctMatchButton"].forEach(id=>{if($(id))$(id).disabled=busy});
+  ["nextClearButton","decisionNextButton","mobileOperatorNext","correctMatchButton"].forEach(id=>{if($(id))$(id).disabled=busy||connectionUnavailable});
   syncResultDecisionStrip();
 }
 
@@ -769,8 +769,18 @@ function completeCardHandoff(elapsedMs=null,method="removal"){
 }
 
 function operatorDetails(){
-  notify("Card Details","Detailed card intelligence view is queued.","info");
-  addActivity("Details Requested","Opening full card intelligence.");
+  setUI4InspectorView("current",false);
+  setStudioXWorkbenchTab("card");
+  studioXWidgetLayout=normalizeStudioXWidgetLayout(
+    studioXWidgetLayout||loadStudioXWidgetLayout()
+  );
+  studioXWidgetLayout.hidden=studioXWidgetLayout.hidden.filter(id=>id!=="details");
+  studioXWidgetLayout.collapsed=studioXWidgetLayout.collapsed.filter(id=>id!=="details");
+  applyStudioXWidgetLayout({persist:true});
+  const widget=document.querySelector('[data-studiox-widget="details"]');
+  widget?.scrollIntoView({behavior:"smooth",block:"nearest"});
+  widget?.querySelector(".studiox-widget-focus")?.focus({preventScroll:true});
+  addActivity("Card Details Opened","Showing the current card details workspace.");
 }
 
 function isTypingTarget(target){
@@ -4446,6 +4456,7 @@ function setCameraActionAvailability(connected){
 }
 
 function setCameraDisconnectedPresentation(camera,error=""){
+  const wasUnavailable=cameraConnectionAvailable===false;
   cameraConnectionAvailable=false;
   cameraConnectionFailure={camera,error:String(error||"")};
   markViewerOffline();
@@ -4459,7 +4470,7 @@ function setCameraDisconnectedPresentation(camera,error=""){
   setCameraStatus("CAMERA DISCONNECTED","var(--red)");
   setStateChip("cameraStateChip","error","DISCONNECTED");
   updateActiveCameraName(camera,"disconnected");
-  applyRecognitionPresentation({
+  const presentation={
     key:"error",
     state:"error",
     title:"DISCONNECTED",
@@ -4467,7 +4478,15 @@ function setCameraDisconnectedPresentation(camera,error=""){
     placeholderTitle:"Camera Disconnected",
     placeholderDetail:"Select a physical camera or refresh devices",
     confidence:0,
-  });
+  };
+  if(!wasUnavailable) resetRecognitionPresentation("camera_disconnected");
+  applyRecognitionPresentation(presentation);
+  updateSharedCardContext(deriveSharedCardContext(
+    presentation,
+    null,
+    {phase:"ERROR",card_present:false,camera_error:detail},
+    []
+  ));
   const recovery=$("cameraRecovery");
   if(recovery){
     recovery.classList.remove("suppressed","success");
@@ -6048,6 +6067,63 @@ function deriveRecognitionPresentation(snapshot={},card=null,candidates=[]){
   return {key:"ready",state:"idle",title:"READY",detail:"Place a card inside the scan zone.",placeholderTitle:"Ready for Card",confidence:0};
 }
 
+function deriveOperatorDecisionGuidance(context={}){
+  const presentation=context.presentation||{};
+  const key=String(presentation.key||"ready");
+  const title=String(presentation.title||"").toUpperCase();
+  if(context.verified===true&&key==="exact-match"){
+    return {
+      state:"verified",
+      copy:"Identity verified. Approve to add this card, Reject to exclude it, or review the match before deciding.",
+    };
+  }
+  if(title==="REFERENCE MISSING"){
+    return {
+      state:"catalog-required",
+      copy:"No matching local reference exists. Search the catalog from Review Match before approving anything.",
+    };
+  }
+  if(key==="set-mismatch"){
+    return {
+      state:"set-required",
+      copy:"Choose the correct set or switch Set to Auto, then let RareIQ verify the card again.",
+    };
+  }
+  if(key==="review-needed"){
+    return {
+      state:"review-required",
+      copy:"Observed identity evidence conflicts with the candidate. Review the match before making a decision.",
+    };
+  }
+  if(["detecting","scanning","candidate-found","verifying"].includes(key)){
+    return {
+      state:"processing",
+      copy:"Keep the card inside the scan zone while RareIQ finishes identity verification.",
+    };
+  }
+  if(key==="error"){
+    return {
+      state:"error",
+      copy:"Recognition is unavailable. Open Diagnostics before retrying or clearing the card.",
+    };
+  }
+  return {
+    state:"waiting",
+    copy:"Place one card inside the scan zone. Actions unlock only after identity verification.",
+  };
+}
+
+function renderOperatorDecisionGuidance(context={}){
+  const model=deriveOperatorDecisionGuidance(context);
+  const strip=$("resultDecisionStrip");
+  const guidance=$("decisionGuidance");
+  if(strip) strip.dataset.operatorState=model.state;
+  if(guidance&&guidance.textContent!==model.copy) guidance.textContent=model.copy;
+  if($("decisionApproveButton")) $("decisionApproveButton").title=context.verified===true?"Approve verified card (A)":"Approval requires a verified identity";
+  if($("decisionRejectButton")) $("decisionRejectButton").title=context.verified===true?"Reject verified card (R)":"Rejection requires a verified identity";
+  if($("decisionNextButton")) $("decisionNextButton").title="Clear the current recognition and prepare the next card";
+}
+
 function stabilizeRecognitionPresentation(presentation,snapshot={}){
   const next=presentation||{key:"ready"};
   const present=snapshot?.card_present===true||snapshot?.vision?.visible===true||snapshot?.vision?.vision?.visible===true;
@@ -6277,27 +6353,7 @@ async function loadRecognition(){
     }
     const clearInspector =
       ["EMPTY", "CHANGING"].includes(phase) ||
-      (phase === "LOST" && !snapshot?.card_present);
-
-    const hadVisibleCard = Boolean(
-      previousCardId &&
-      $("inspectorMain")?.style.display !== "none"
-    );
-
-
-    const missingCurrentCard =
-      !card &&
-      !candidates.length;
-
-    if(
-      hadVisibleCard &&
-      (
-        clearInspector ||
-        missingCurrentCard
-      )
-    ){
-      return;
-    }
+      (["IDLE", "READY", "LOST"].includes(phase) && snapshot?.card_present!==true);
 
     if (clearInspector) {
       snapshot.primary_candidate = null;
@@ -6346,22 +6402,6 @@ async function loadRecognition(){
           verifiedVisualCandidate
         ))
       ));
-
-      const provisionalName=String(
-        card?.english_name||card?.printed_name||card?.name||""
-      );
-      const provisionalLooksUnidentified=
-        !verified&&(
-          !provisionalName||
-          provisionalName.length>70||
-          provisionalName.includes("-Set-List-")||
-          provisionalName.includes("-Pokemon-")||
-          provisionalName.includes("-Pokipair-")||
-          /\.(jpg|jpeg|png|webp|avif)$/i.test(provisionalName)
-        );
-      if(hadVisibleCard&&provisionalLooksUnidentified){
-        return;
-      }
 
     const presentationSnapshot=rawVerifiedCurrent?{
       ...snapshot,
@@ -7284,15 +7324,16 @@ function openReferenceLightbox(source,title="Card verification",meta="Compare ag
 function closeReferenceLightbox(){const overlay=$("referenceLightbox");if(!overlay||overlay.hidden)return;overlay.hidden=true;document.body.classList.remove("reference-lightbox-open");leaveStudioXModal(overlay,$("cardArt"))}
 function openCurrentReferenceLightbox(){const image=$("cardArt")?.querySelector("img");if(!image)return;const meta=[$("cardSetName")?.textContent,$("cardCollectorNumber")?.textContent,$("cardLanguage")?.textContent].filter(value=>value&&value!=="--").join(" · ");openReferenceLightbox(image.currentSrc||image.src,$("cardName")?.textContent||"Card verification",meta||"Compare against the live card")}
 function openMatchCorrectionWorkflow(){
-  const context=window.__rareiqCardContext||{},candidates=referenceCorrectionCandidates(),image=$("cardArt")?.querySelector("img"),initial=context.card||candidates.find(candidate=>multiCardReferenceImage(candidate))||null,source=image?.currentSrc||image?.src||multiCardReferenceImage(initial);
+  const context=window.__rareiqCardContext||{},snapshot=context.snapshot||{},candidates=referenceCorrectionCandidates(),image=$("cardArt")?.querySelector("img"),initial=context.card||candidates.find(candidate=>multiCardReferenceImage(candidate))||null,lockedCapture=truthfulLockedCapture(context),generation=Number(snapshot.generation),cardPresent=snapshot.card_present===true||snapshot?.vision?.visible===true||snapshot?.vision?.vision?.visible===true,liveCrop=cardPresent&&Number.isFinite(generation)?`/api/camera/crop.jpg?generation=${generation}`:"",source=image?.currentSrc||image?.src||multiCardReferenceImage(initial)||lockedCapture?.url||liveCrop;
   if(!source){notify("Correction Unavailable","Wait for a catalog reference image before correcting the match.","error");return}
-  const title=initial?.english_name||initial?.name||initial?.printed_name||"Review identity";
-  const meta=[initial?.set_name,initial?.collector_number||initial?.printed_code,initial?.language].filter(Boolean).join(" · ")||"Compare candidates against the live crop";
+  const title=initial?.english_name||initial?.name||initial?.printed_name||"Search catalog identity";
+  const meta=[initial?.set_name,initial?.collector_number||initial?.printed_code||snapshot.ocr_collector_number,initial?.language||snapshot.language].filter(Boolean).join(" · ")||"Compare local catalog references against the validated live crop";
   openReferenceLightbox(source,title,meta);
   if($("referenceCandidates"))$("referenceCandidates").hidden=false;
   renderReferenceCandidates();
   if($("referenceApprove"))$("referenceApprove").textContent="Select the correct card";
   syncReferenceVerification();
+  requestAnimationFrame(()=>$("referenceCatalogSearchInput")?.focus());
 }
 async function approveReferenceSelection(){
   if(recognitionMutationInFlight())return null;
@@ -8658,6 +8699,7 @@ function renderMarketWidget(context){
 
 function renderCandidatesWidget(context){
   const count=context.candidates.length;
+  const snapshot=context.snapshot||{};
   const searching=!context.verified&&["detecting","scanning","candidate-found","verifying"].includes(context.presentation.key);
   setCardText(
     "candidateWidgetSummary",
@@ -8687,16 +8729,33 @@ function renderCandidatesWidget(context){
   );
   const reviewButton=$("candidateReviewButton");
   const correctButton=$("correctMatchButton");
-  const correctionAvailable=count>0&&Boolean(
-    context.card||context.candidates.some(candidate=>multiCardReferenceImage(candidate))
+  const generation=Number(snapshot.generation);
+  const cardPresent=snapshot.card_present===true||snapshot?.vision?.visible===true||snapshot?.vision?.vision?.visible===true;
+  const lockedCapture=truthfulLockedCapture(context);
+  const catalogGapSearchAvailable=Boolean(
+    context.presentation.title==="REFERENCE MISSING"&&
+    snapshot.state_id&&
+    cardPresent&&
+    (lockedCapture?.url||Number.isFinite(generation))
   );
+  const correctionAvailable=(count>0&&Boolean(
+    context.card||context.candidates.some(candidate=>multiCardReferenceImage(candidate))
+  ))||catalogGapSearchAvailable;
+  const reviewLabel=catalogGapSearchAvailable
+    ? "Search Catalog"
+    : context.verified
+    ? "Correct Match"
+    : "Review Match";
   if(reviewButton){
     reviewButton.hidden=!correctionAvailable;
-    reviewButton.textContent=context.verified?"Correct Match":"Review Candidates";
+    reviewButton.textContent=catalogGapSearchAvailable?"Search Catalog":context.verified?"Correct Match":"Review Candidates";
   }
   if(correctButton){
     correctButton.hidden=!correctionAvailable;
-    correctButton.textContent=context.verified?"Correct Match":"Review Match";
+    correctButton.textContent=reviewLabel;
+    correctButton.title=catalogGapSearchAvailable
+      ? "Search the local catalog using the current validated card crop"
+      : "Compare the current card against available catalog candidates";
   }
 }
 
@@ -8994,12 +9053,13 @@ function updateSharedCardContext(context){
     window.__rareiqVisionTelemetry||{}
   );
   renderSecondaryWorkspaceBay(context);
-  const actionable=context.verified===true&&!recognitionMutationInFlight();
+  const connectionUnavailable=["offline","unreachable","checking"].includes(serverConnectionState);
+  const actionable=context.verified===true&&!recognitionMutationInFlight()&&!connectionUnavailable;
   ["approveButton","rejectButton","detailsButton"].forEach(id=>{
     const button=$(id);
     if(button) button.disabled=!actionable;
   });
-  if($("nextClearButton")) $("nextClearButton").disabled=recognitionMutationInFlight();
+  if($("nextClearButton")) $("nextClearButton").disabled=recognitionMutationInFlight()||connectionUnavailable;
   queueMicrotask(()=>maybeAutoAddVerified(context).catch(error=>console.error("auto_add_verified_failed",error)));
   Object.entries(STUDIOX_WIDGET_RENDERERS).forEach(([id,renderer])=>{
     try{
@@ -9009,6 +9069,7 @@ function updateSharedCardContext(context){
       setStudioXWidgetState(id,"error");
     }
   });
+  renderOperatorDecisionGuidance(context);
   document.dispatchEvent(
     new CustomEvent("rareiq:card-context",{detail:context})
   );
