@@ -37,6 +37,7 @@ from rareiq.services.obs_service import ObsService
 from rareiq.services.broadcast_destination_service import BroadcastDestinationService
 from rareiq.services.twitch_broadcast_connector import TwitchBroadcastConnector
 from rareiq.services.youtube_broadcast_connector import YouTubeBroadcastConnector
+from rareiq.services.kick_broadcast_connector import KickBroadcastConnector
 from rareiq.services.sarge_advisor_service import SargeAdvisorService
 from rareiq.version import BUILD_DATE, CODENAME, VERSION, version_payload
 from rareiq.web.remote_access import (
@@ -908,11 +909,13 @@ recording = RecordingService(
 obs = ObsService(BASE_DIR.parent.parent / "obs_settings.json")
 _twitch_broadcast_connector = TwitchBroadcastConnector.from_environment()
 _youtube_broadcast_connector = YouTubeBroadcastConnector.from_environment()
+_kick_broadcast_connector = KickBroadcastConnector.from_environment()
 _broadcast_connectors = {
     connector.platform_id: connector
     for connector in (
         _twitch_broadcast_connector,
         _youtube_broadcast_connector,
+        _kick_broadcast_connector,
     )
     if connector is not None
 }

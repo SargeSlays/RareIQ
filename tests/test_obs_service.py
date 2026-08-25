@@ -126,6 +126,43 @@ def test_youtube_common_and_custom_routes_are_recognized() -> None:
     assert custom.provider == "youtube"
 
 
+def test_kick_route_requires_exact_private_server_and_key_match() -> None:
+    server = "rtmps://fa723fc1b171.global-contribute.live-video.net:443/app"
+    key = "kick-secret-key"
+    probe = ObsService._stream_route_from_response(
+        {
+            "streamServiceType": "rtmp_custom",
+            "streamServiceSettings": {"server": server, "key": key},
+        }
+    )
+
+    assert probe.provider == "kick"
+    assert probe.matches_stream_route(key, server, provider="kick") is True
+    assert probe.matches_stream_route("wrong", server, provider="kick") is False
+    assert probe.matches_stream_route(key, "rtmps://example.invalid/app", provider="kick") is False
+    assert key not in repr(probe)
+    assert server not in repr(probe)
+
+
+def test_kick_route_normalizes_default_rtmps_port_and_trailing_slash() -> None:
+    probe = ObsService._stream_route_from_response(
+        {
+            "streamServiceType": "rtmp_common",
+            "streamServiceSettings": {
+                "service": "KICK",
+                "server": "rtmps://stream.kick.com:443/app/",
+                "key": "private",
+            },
+        }
+    )
+
+    assert probe.matches_stream_route(
+        "private",
+        "rtmps://stream.kick.com/app",
+        provider="kick",
+    ) is True
+
+
 def test_non_twitch_route_cannot_match_even_with_the_same_key() -> None:
     probe = ObsStreamRouteProbe(
         inspected=True,

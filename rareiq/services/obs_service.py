@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import hmac
 import json
+import re
 import threading
 import socket
 import time
@@ -23,6 +24,7 @@ class ObsStreamRouteProbe:
     provider: str | None
     key_configured: bool
     _stream_key: str | None = field(default=None, repr=False, compare=False)
+    _server_url: str | None = field(default=None, repr=False, compare=False)
 
     def public_status(self) -> dict[str, Any]:
         return {
@@ -39,10 +41,56 @@ class ObsStreamRouteProbe:
         candidate = self._normalized_key(expected)
         return bool(actual and candidate and hmac.compare_digest(actual, candidate))
 
+    def matches_stream_route(
+        self,
+        expected_key: str,
+        expected_server: str,
+        *,
+        provider: str,
+    ) -> bool:
+        """Privately compare both encoder credentials without exposing either."""
+        if (
+            not self.inspected
+            or not self.connected
+            or self.provider not in (None, provider)
+        ):
+            return False
+        actual_key = self._normalized_key(self._stream_key)
+        candidate_key = self._normalized_key(expected_key)
+        actual_server = self._normalized_server(self._server_url)
+        candidate_server = self._normalized_server(expected_server)
+        return bool(
+            actual_key
+            and candidate_key
+            and actual_server
+            and candidate_server
+            and hmac.compare_digest(actual_key, candidate_key)
+            and hmac.compare_digest(actual_server, candidate_server)
+        )
+
     @staticmethod
     def _normalized_key(value: str | None) -> str:
         # Twitch documents bandwidth-test mode as a query suffix on the key.
         return str(value or "").strip().partition("?")[0]
+
+    @staticmethod
+    def _normalized_server(value: str | None) -> str:
+        raw = str(value or "").strip()
+        if not raw:
+            return ""
+        parsed = urlparse(raw if "://" in raw else f"rtmps://{raw}")
+        scheme = parsed.scheme.lower()
+        host = str(parsed.hostname or "").lower().rstrip(".")
+        if not scheme or not host:
+            return ""
+        try:
+            port = parsed.port
+        except ValueError:
+            return ""
+        default_port = 443 if scheme == "rtmps" else 1935 if scheme == "rtmp" else None
+        port_part = "" if port in (None, default_port) else f":{port}"
+        path = re.sub(r"/+", "/", parsed.path or "").rstrip("/")
+        return f"{scheme}://{host}{port_part}{path}"
 
     @classmethod
     def unavailable(cls) -> ObsStreamRouteProbe:
@@ -147,16 +195,24 @@ class ObsService:
             provider=provider,
             key_configured=bool(stream_key),
             _stream_key=stream_key or None,
+            _server_url=server or None,
         )
 
     @staticmethod
     def _stream_provider(*, service_name: str, server: str) -> str | None:
+        if "kick" in service_name:
+            return "kick"
         if "twitch" in service_name:
             return "twitch"
         if "youtube" in service_name:
             return "youtube"
         parsed = urlparse(server if "://" in server else f"//{server}")
         host = str(parsed.hostname or "").lower().rstrip(".")
+        if host in {
+            "stream.kick.com",
+            "fa723fc1b171.global-contribute.live-video.net",
+        }:
+            return "kick"
         if (
             host == "live.twitch.tv"
             or host.endswith(".contribute.live-video.net")

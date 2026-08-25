@@ -188,7 +188,12 @@ def test_collector_retry_does_not_reprocess_identical_camera_content():
         "generation": 5,
         "frame_id": 77,
     }) is True
-    time.sleep(0.3)
+    deadline = time.monotonic() + 1.0
+    while not any(
+        item.get("event") == "collector_ocr_retry_timeout"
+        for item in obj._diagnostic_journal
+    ) and time.monotonic() < deadline:
+        time.sleep(0.01)
 
     assert not hasattr(obj.vision, "capture_source")
     assert any(
