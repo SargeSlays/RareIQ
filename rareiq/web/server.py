@@ -885,7 +885,7 @@ PRODUCTION_SCENES = _load_production_scenes()
 PRODUCTION_SESSION_LOCK = threading.RLock()
 PRODUCTION_SESSION_PATH = BASE_DIR.parent.parent / "production_session.json"
 PRODUCTION_HISTORY_PATH = BASE_DIR.parent.parent / "production_history.json"
-PRODUCTION_SESSION: dict[str, Any] = {"active": False, "session_id": None, "started_at": 0.0, "ended_at": 0.0, "events": [], "metadata": {"name": "", "customer": "", "break_id": "", "operator_notes": ""}, "output_intent": {"obs_stream": False, "obs_recording": False, "verified_destinations": []}, "pack_economics": {"pack_cost": 0.0, "box_cost": 0.0, "packs_per_box": 1, "currency": "USD"}, "recording": {"configured": bool(os.getenv("RAREIQ_RECORDING_COMMAND")), "active": False, "mode": "hook"}}
+PRODUCTION_SESSION: dict[str, Any] = {"active": False, "session_id": None, "started_at": 0.0, "ended_at": 0.0, "events": [], "metadata": {"name": "", "customer": "", "break_id": "", "operator_notes": ""}, "output_intent": {"obs_stream": False, "obs_recording": False, "verified_destinations": []}, "health_monitor": {"active_risks": {}, "journal": []}, "pack_economics": {"pack_cost": 0.0, "box_cost": 0.0, "packs_per_box": 1, "currency": "USD"}, "recording": {"configured": bool(os.getenv("RAREIQ_RECORDING_COMMAND")), "active": False, "mode": "hook"}}
 def _save_production_session() -> None:
     temp = PRODUCTION_SESSION_PATH.with_suffix(".tmp")
     temp.write_text(json.dumps(PRODUCTION_SESSION, indent=2), encoding="utf-8")
@@ -935,6 +935,7 @@ broadcast_destinations = BroadcastDestinationService(
 BROADCAST_RUNTIME_HEALTH_REFRESH_SECONDS = 10.0
 BROADCAST_RUNTIME_HEALTH_LOCK = threading.RLock()
 BROADCAST_RUNTIME_HEALTH_STATE: dict[str, Any] = {"checked_at": 0.0}
+PRODUCTION_HEALTH_JOURNAL_LIMIT = 64
 
 class LearningQueueRequest(BaseModel):
     scan_payload: dict[str, Any]
@@ -2086,6 +2087,101 @@ def _production_session_risks(
     return risks
 
 
+def _record_production_risk_transitions(
+    *,
+    session_active: bool,
+    risks: list[dict[str, str]],
+    now: float | None = None,
+) -> list[dict[str, Any]]:
+    """Persist only meaningful live health changes in the production timeline."""
+    observed_at = time.time() if now is None else float(now)
+    with PRODUCTION_SESSION_LOCK:
+        monitor = PRODUCTION_SESSION.get("health_monitor")
+        if not isinstance(monitor, dict):
+            monitor = {"active_risks": {}, "journal": []}
+        previous = monitor.get("active_risks")
+        if not isinstance(previous, dict):
+            previous = {}
+        journal = monitor.get("journal")
+        if not isinstance(journal, list):
+            journal = []
+        if not session_active:
+            return json.loads(json.dumps(journal[-PRODUCTION_HEALTH_JOURNAL_LIMIT:]))
+
+        current: dict[str, dict[str, str]] = {}
+        for risk in risks:
+            risk_id = str(risk.get("id") or "").strip()
+            if not risk_id:
+                continue
+            current[risk_id] = {
+                "id": risk_id,
+                "severity": str(risk.get("severity") or "warning"),
+                "title": str(risk.get("title") or "Production health warning"),
+                "detail": str(risk.get("detail") or ""),
+                "action": str(risk.get("action") or ""),
+            }
+
+        transitions: list[dict[str, Any]] = []
+        for risk_id in sorted(current.keys() - previous.keys()):
+            risk = current[risk_id]
+            transitions.append({
+                "id": uuid.uuid4().hex[:12],
+                "risk_id": risk_id,
+                "state": "active",
+                "severity": risk["severity"],
+                "title": risk["title"],
+                "detail": risk["detail"],
+                "action": risk["action"],
+                "timestamp": observed_at,
+            })
+        for risk_id in sorted(current.keys() & previous.keys()):
+            risk = current[risk_id]
+            prior = previous[risk_id]
+            if risk != prior:
+                transitions.append({
+                    "id": uuid.uuid4().hex[:12],
+                    "risk_id": risk_id,
+                    "state": "updated",
+                    "severity": risk["severity"],
+                    "title": f'{risk["title"]} changed',
+                    "detail": risk["detail"],
+                    "action": risk["action"],
+                    "timestamp": observed_at,
+                })
+        for risk_id in sorted(previous.keys() - current.keys()):
+            risk = previous[risk_id]
+            transitions.append({
+                "id": uuid.uuid4().hex[:12],
+                "risk_id": risk_id,
+                "state": "resolved",
+                "severity": "clear",
+                "title": f'{risk.get("title") or "Production health warning"} restored',
+                "detail": "Health evidence returned to the expected state.",
+                "action": "No operator action required.",
+                "timestamp": observed_at,
+            })
+
+        monitor["active_risks"] = current
+        if transitions:
+            journal.extend(transitions)
+            monitor["journal"] = journal[-PRODUCTION_HEALTH_JOURNAL_LIMIT:]
+            events = PRODUCTION_SESSION.setdefault("events", [])
+            for transition in transitions:
+                events.append({
+                    "id": transition["id"],
+                    "kind": "safety",
+                    "title": transition["title"][:80],
+                    "detail": transition["detail"][:300],
+                    "timestamp": transition["timestamp"],
+                })
+            PRODUCTION_SESSION["events"] = events[-500:]
+            PRODUCTION_SESSION["health_monitor"] = monitor
+            _save_production_session()
+        else:
+            PRODUCTION_SESSION["health_monitor"] = monitor
+        return json.loads(json.dumps(monitor.get("journal") or []))
+
+
 def _broadcast_go_live_readiness(
     destination_status: dict[str, Any],
     obs_status: dict[str, Any],
@@ -2204,6 +2300,10 @@ async def production_operator_health():
         output_intent=output_intent,
         broadcast_runtime=broadcast_runtime,
     )
+    health_journal = _record_production_risk_transitions(
+        session_active=session_active,
+        risks=risks,
+    )
     return {
         "ok": True,
         "timestamp": time.time(),
@@ -2214,6 +2314,8 @@ async def production_operator_health():
         "broadcast_runtime": broadcast_runtime,
         "risks": risks,
         "risk_count": len(risks),
+        "health_journal": health_journal[-20:],
+        "active_risk_ids": [risk["id"] for risk in risks],
         "active_scene_id": PRODUCTION_SWITCHER_STATE.get("active_scene_id"),
         "camera": camera,
         "slots": slots,
@@ -2380,7 +2482,7 @@ async def bootstrap_obs(request: ObsBootstrapRequest):
 async def start_production_session(request: ProductionSessionMetadataRequest):
     with PRODUCTION_SESSION_LOCK:
         if PRODUCTION_SESSION["active"]: return {"ok": True, "session": dict(PRODUCTION_SESSION), "already_active": True}
-        PRODUCTION_SESSION.update({"active": True, "session_id": uuid.uuid4().hex, "started_at": time.time(), "ended_at": 0.0, "events": [], "metadata": request.model_dump(), "output_intent": {"obs_stream": False, "obs_recording": False, "verified_destinations": []}})
+        PRODUCTION_SESSION.update({"active": True, "session_id": uuid.uuid4().hex, "started_at": time.time(), "ended_at": 0.0, "events": [], "metadata": request.model_dump(), "output_intent": {"obs_stream": False, "obs_recording": False, "verified_destinations": []}, "health_monitor": {"active_risks": {}, "journal": []}})
         PRODUCTION_SESSION["recording"] = recording.start(PRODUCTION_SESSION["session_id"])
         _production_event("session", "Production session started", "Encoder recording active" if PRODUCTION_SESSION["recording"].get("active") else f'Event logging active; recording {PRODUCTION_SESSION["recording"].get("reason", "not configured")}')
         return {"ok": True, "session": dict(PRODUCTION_SESSION)}
