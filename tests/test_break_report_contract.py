@@ -10,6 +10,7 @@ def test_human_break_report_preserves_json_export():
     assert '@app.get("/api/production/session/report")' in SERVER
     assert 'id="productionSessionPrintReport"' in HTML
     assert 'href="/api/production/session/report"' in HTML
+    assert '"analytics": _production_session_analytics_payload(session)' in SERVER
 
 
 def test_break_report_is_printable_and_honest_about_unknown_values():
@@ -18,6 +19,9 @@ def test_break_report_is_printable_and_honest_about_unknown_values():
     assert "Minimum verified return" in SERVER
     assert "Missing prices are excluded, never treated as zero" in SERVER
     assert "All-time inventory sales are intentionally excluded" in SERVER
+    assert "Production Reliability" in SERVER
+    assert "Incident Lifecycle" in SERVER
+    assert "Platform Uptime" in SERVER
 
 
 def test_break_report_escapes_catalog_and_operator_text():

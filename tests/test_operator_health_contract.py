@@ -443,7 +443,7 @@ def test_show_start_records_only_operator_requested_output_intent() -> None:
     assert '"obs_recording": bool(request.start_obs_recording)' in start
     assert '"verified_destinations": list(' in start
     assert '_invalidate_broadcast_runtime_health()' in start
-    assert '"health_monitor": {"active_risks": {}, "journal": []}' in SERVER
+    assert '"health_monitor": {"active_risks": {}, "journal": [], "incident_history": []}' in SERVER
 
 
 def test_operator_health_is_themable_and_responsive():

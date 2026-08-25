@@ -885,7 +885,7 @@ PRODUCTION_SCENES = _load_production_scenes()
 PRODUCTION_SESSION_LOCK = threading.RLock()
 PRODUCTION_SESSION_PATH = BASE_DIR.parent.parent / "production_session.json"
 PRODUCTION_HISTORY_PATH = BASE_DIR.parent.parent / "production_history.json"
-PRODUCTION_SESSION: dict[str, Any] = {"active": False, "session_id": None, "started_at": 0.0, "ended_at": 0.0, "events": [], "metadata": {"name": "", "customer": "", "break_id": "", "operator_notes": ""}, "output_intent": {"obs_stream": False, "obs_recording": False, "verified_destinations": []}, "health_monitor": {"active_risks": {}, "journal": []}, "pack_economics": {"pack_cost": 0.0, "box_cost": 0.0, "packs_per_box": 1, "currency": "USD"}, "recording": {"configured": bool(os.getenv("RAREIQ_RECORDING_COMMAND")), "active": False, "mode": "hook"}}
+PRODUCTION_SESSION: dict[str, Any] = {"active": False, "session_id": None, "started_at": 0.0, "ended_at": 0.0, "events": [], "metadata": {"name": "", "customer": "", "break_id": "", "operator_notes": ""}, "output_intent": {"obs_stream": False, "obs_recording": False, "verified_destinations": []}, "health_monitor": {"active_risks": {}, "journal": [], "incident_history": []}, "pack_economics": {"pack_cost": 0.0, "box_cost": 0.0, "packs_per_box": 1, "currency": "USD"}, "recording": {"configured": bool(os.getenv("RAREIQ_RECORDING_COMMAND")), "active": False, "mode": "hook"}}
 def _save_production_session() -> None:
     temp = PRODUCTION_SESSION_PATH.with_suffix(".tmp")
     temp.write_text(json.dumps(PRODUCTION_SESSION, indent=2), encoding="utf-8")
@@ -936,6 +936,7 @@ BROADCAST_RUNTIME_HEALTH_REFRESH_SECONDS = 10.0
 BROADCAST_RUNTIME_HEALTH_LOCK = threading.RLock()
 BROADCAST_RUNTIME_HEALTH_STATE: dict[str, Any] = {"checked_at": 0.0}
 PRODUCTION_HEALTH_JOURNAL_LIMIT = 64
+PRODUCTION_HEALTH_INCIDENT_HISTORY_LIMIT = 128
 PRODUCTION_RISK_RESPONSE_GUIDANCE: dict[str, tuple[str, ...]] = {
     "program-camera": (
         "Confirm the intended camera is still selected on Program.",
@@ -2126,6 +2127,7 @@ def _production_session_risks(
             "action": "Refresh destination status and verify the exact OBS route",
             "guidance": list(PRODUCTION_RISK_RESPONSE_GUIDANCE["destination-route"]),
             "journal_key": f'destination-route:{"|".join(missing)}',
+            "affected_destinations": missing,
         })
     return risks
 
@@ -2141,22 +2143,25 @@ def _record_production_risk_transitions(
     with PRODUCTION_SESSION_LOCK:
         monitor = PRODUCTION_SESSION.get("health_monitor")
         if not isinstance(monitor, dict):
-            monitor = {"active_risks": {}, "journal": []}
+            monitor = {"active_risks": {}, "journal": [], "incident_history": []}
         previous = monitor.get("active_risks")
         if not isinstance(previous, dict):
             previous = {}
         journal = monitor.get("journal")
         if not isinstance(journal, list):
             journal = []
+        history = monitor.get("incident_history")
+        if not isinstance(history, list):
+            history = []
         if not session_active:
             return json.loads(json.dumps(journal[-PRODUCTION_HEALTH_JOURNAL_LIMIT:]))
 
-        current: dict[str, dict[str, Any]] = {}
+        observed: dict[str, dict[str, Any]] = {}
         for risk in risks:
             risk_id = str(risk.get("id") or "").strip()
             if not risk_id:
                 continue
-            current[risk_id] = {
+            observed[risk_id] = {
                 "id": risk_id,
                 "severity": str(risk.get("severity") or "warning"),
                 "title": str(risk.get("title") or "Production health warning"),
@@ -2168,58 +2173,109 @@ def _record_production_risk_transitions(
                     if str(step).strip()
                 ][:6],
                 "journal_key": str(risk.get("journal_key") or risk_id),
+                "affected_destinations": [
+                    str(name)
+                    for name in risk.get("affected_destinations") or []
+                    if str(name).strip()
+                ],
             }
 
         transitions: list[dict[str, Any]] = []
-        for risk_id in sorted(current.keys() - previous.keys()):
-            risk = current[risk_id]
-            transitions.append({
-                "id": uuid.uuid4().hex[:12],
-                "risk_id": risk_id,
-                "state": "active",
-                "severity": risk["severity"],
-                "title": risk["title"],
-                "detail": risk["detail"],
-                "action": risk["action"],
-                "guidance": risk["guidance"],
-                "journal_key": risk["journal_key"],
-                "timestamp": observed_at,
-            })
-        for risk_id in sorted(current.keys() & previous.keys()):
-            risk = current[risk_id]
-            prior = previous[risk_id]
-            if any(
-                risk.get(field) != prior.get(field)
-                for field in ("severity", "title", "action", "guidance", "journal_key")
-            ):
-                transitions.append({
-                    "id": uuid.uuid4().hex[:12],
+        active_risks: dict[str, dict[str, Any]] = {}
+        for risk_id in sorted(observed):
+            risk = observed[risk_id]
+            prior = previous.get(risk_id)
+            if not isinstance(prior, dict):
+                incident_id = uuid.uuid4().hex[:12]
+                active = risk | {
+                    "incident_id": incident_id,
+                    "started_at": observed_at,
+                    "acknowledged_at": None,
+                    "acknowledged_by": None,
+                }
+                transitions.append(active | {
+                    "id": incident_id,
                     "risk_id": risk_id,
-                    "state": "updated",
-                    "severity": risk["severity"],
-                    "title": f'{risk["title"]} changed',
-                    "detail": risk["detail"],
-                    "action": risk["action"],
-                    "guidance": risk["guidance"],
-                    "journal_key": risk["journal_key"],
+                    "state": "active",
                     "timestamp": observed_at,
                 })
-        for risk_id in sorted(previous.keys() - current.keys()):
+            else:
+                active = risk | {
+                    "incident_id": str(prior.get("incident_id") or uuid.uuid4().hex[:12]),
+                    "started_at": float(prior.get("started_at") or observed_at),
+                    "acknowledged_at": prior.get("acknowledged_at"),
+                    "acknowledged_by": prior.get("acknowledged_by"),
+                }
+                if any(
+                    risk.get(field) != prior.get(field)
+                    for field in (
+                        "severity",
+                        "title",
+                        "action",
+                        "guidance",
+                        "journal_key",
+                        "affected_destinations",
+                    )
+                ):
+                    transitions.append(active | {
+                        "id": uuid.uuid4().hex[:12],
+                        "risk_id": risk_id,
+                        "state": "updated",
+                        "title": f'{risk["title"]} changed',
+                        "timestamp": observed_at,
+                    })
+            active_risks[risk_id] = active
+
+        for risk_id in sorted(previous.keys() - observed.keys()):
             risk = previous[risk_id]
+            if not isinstance(risk, dict):
+                continue
+            started_at = float(risk.get("started_at") or observed_at)
+            acknowledged_at = risk.get("acknowledged_at")
+            duration = max(0.0, observed_at - started_at)
+            incident = {
+                "incident_id": str(risk.get("incident_id") or uuid.uuid4().hex[:12]),
+                "risk_id": risk_id,
+                "state": "resolved",
+                "severity": str(risk.get("severity") or "warning"),
+                "title": str(risk.get("title") or "Production health warning"),
+                "detail": str(risk.get("detail") or ""),
+                "action": str(risk.get("action") or ""),
+                "journal_key": str(risk.get("journal_key") or risk_id),
+                "affected_destinations": list(risk.get("affected_destinations") or []),
+                "started_at": started_at,
+                "acknowledged_at": acknowledged_at,
+                "acknowledged_by": risk.get("acknowledged_by"),
+                "resolved_at": observed_at,
+                "duration_seconds": round(duration, 3),
+                "acknowledgment_seconds": (
+                    round(max(0.0, float(acknowledged_at) - started_at), 3)
+                    if acknowledged_at
+                    else None
+                ),
+            }
+            history.append(incident)
             transitions.append({
                 "id": uuid.uuid4().hex[:12],
+                "incident_id": incident["incident_id"],
                 "risk_id": risk_id,
                 "state": "resolved",
                 "severity": "clear",
-                "title": f'{risk.get("title") or "Production health warning"} restored',
+                "title": f'{incident["title"]} restored',
                 "detail": "Health evidence returned to the expected state.",
                 "action": "No operator action required.",
                 "guidance": [],
-                "journal_key": str(risk.get("journal_key") or risk_id),
+                "journal_key": incident["journal_key"],
+                "affected_destinations": incident["affected_destinations"],
+                "started_at": started_at,
+                "acknowledged_at": acknowledged_at,
+                "resolved_at": observed_at,
+                "duration_seconds": incident["duration_seconds"],
                 "timestamp": observed_at,
             })
 
-        monitor["active_risks"] = current
+        monitor["active_risks"] = active_risks
+        monitor["incident_history"] = history[-PRODUCTION_HEALTH_INCIDENT_HISTORY_LIMIT:]
         if transitions:
             journal.extend(transitions)
             monitor["journal"] = journal[-PRODUCTION_HEALTH_JOURNAL_LIMIT:]
@@ -2231,6 +2287,9 @@ def _record_production_risk_transitions(
                     "title": transition["title"][:80],
                     "detail": transition["detail"][:300],
                     "timestamp": transition["timestamp"],
+                    "risk_id": transition.get("risk_id"),
+                    "incident_id": transition.get("incident_id"),
+                    "state": transition.get("state"),
                 })
             PRODUCTION_SESSION["events"] = events[-500:]
             PRODUCTION_SESSION["health_monitor"] = monitor
@@ -2263,7 +2322,17 @@ def _acknowledge_production_health_incident(
             return {"ok": False, "reason": "incident_not_found"}
         if incident.get("state") == "resolved":
             return {"ok": False, "reason": "incident_resolved"}
-        if incident.get("acknowledged_at"):
+        occurrence_id = str(incident.get("incident_id") or incident.get("id") or "")
+        occurrence_entries = [
+            entry
+            for entry in journal
+            if str(entry.get("incident_id") or entry.get("id") or "") == occurrence_id
+        ]
+        existing_ack = next(
+            (entry.get("acknowledged_at") for entry in occurrence_entries if entry.get("acknowledged_at")),
+            None,
+        )
+        if existing_ack:
             return {
                 "ok": True,
                 "already_acknowledged": True,
@@ -2271,8 +2340,14 @@ def _acknowledge_production_health_incident(
                 "health_journal": json.loads(json.dumps(journal[-20:])),
             }
 
-        incident["acknowledged_at"] = acknowledged_at
-        incident["acknowledged_by"] = "operator"
+        for entry in occurrence_entries:
+            entry["acknowledged_at"] = acknowledged_at
+            entry["acknowledged_by"] = "operator"
+        active_risks = monitor.get("active_risks") or {}
+        active_risk = active_risks.get(str(incident.get("risk_id") or ""))
+        if isinstance(active_risk, dict) and str(active_risk.get("incident_id") or "") == occurrence_id:
+            active_risk["acknowledged_at"] = acknowledged_at
+            active_risk["acknowledged_by"] = "operator"
         events = PRODUCTION_SESSION.setdefault("events", [])
         events.append({
             "id": uuid.uuid4().hex[:12],
@@ -2280,6 +2355,9 @@ def _acknowledge_production_health_incident(
             "title": f'Operator acknowledged {incident.get("title") or "production incident"}'[:80],
             "detail": "Acknowledgment recorded; the underlying risk remains active until health evidence clears.",
             "timestamp": acknowledged_at,
+            "risk_id": incident.get("risk_id"),
+            "incident_id": occurrence_id,
+            "state": "acknowledged",
         })
         PRODUCTION_SESSION["events"] = events[-500:]
         _save_production_session()
@@ -2601,7 +2679,7 @@ async def bootstrap_obs(request: ObsBootstrapRequest):
 async def start_production_session(request: ProductionSessionMetadataRequest):
     with PRODUCTION_SESSION_LOCK:
         if PRODUCTION_SESSION["active"]: return {"ok": True, "session": dict(PRODUCTION_SESSION), "already_active": True}
-        PRODUCTION_SESSION.update({"active": True, "session_id": uuid.uuid4().hex, "started_at": time.time(), "ended_at": 0.0, "events": [], "metadata": request.model_dump(), "output_intent": {"obs_stream": False, "obs_recording": False, "verified_destinations": []}, "health_monitor": {"active_risks": {}, "journal": []}})
+        PRODUCTION_SESSION.update({"active": True, "session_id": uuid.uuid4().hex, "started_at": time.time(), "ended_at": 0.0, "events": [], "metadata": request.model_dump(), "output_intent": {"obs_stream": False, "obs_recording": False, "verified_destinations": []}, "health_monitor": {"active_risks": {}, "journal": [], "incident_history": []}})
         PRODUCTION_SESSION["recording"] = recording.start(PRODUCTION_SESSION["session_id"])
         _production_event("session", "Production session started", "Encoder recording active" if PRODUCTION_SESSION["recording"].get("active") else f'Event logging active; recording {PRODUCTION_SESSION["recording"].get("reason", "not configured")}')
         return {"ok": True, "session": dict(PRODUCTION_SESSION)}
@@ -2716,10 +2794,289 @@ async def add_production_session_event(request: ProductionEventRequest):
     with PRODUCTION_SESSION_LOCK:
         return {"ok": True, "event": _production_event(request.kind, request.title, request.detail), "session": dict(PRODUCTION_SESSION)}
 
+
+def _merged_interval_seconds(
+    intervals: list[tuple[float, float]],
+    *,
+    lower: float,
+    upper: float,
+) -> float:
+    normalized = sorted(
+        (max(lower, float(start)), min(upper, float(end)))
+        for start, end in intervals
+        if float(end) > float(start)
+    )
+    merged: list[list[float]] = []
+    for start, end in normalized:
+        if end <= start:
+            continue
+        if not merged or start > merged[-1][1]:
+            merged.append([start, end])
+        else:
+            merged[-1][1] = max(merged[-1][1], end)
+    return round(sum(end - start for start, end in merged), 3)
+
+
+def _production_health_analytics(
+    session: dict[str, Any],
+    *,
+    now: float | None = None,
+) -> dict[str, Any]:
+    checked_at = time.time() if now is None else float(now)
+    started_at = float(session.get("started_at") or 0.0)
+    ended_at = (
+        checked_at
+        if session.get("active")
+        else float(session.get("ended_at") or started_at)
+    )
+    if started_at:
+        ended_at = max(started_at, ended_at)
+    duration = max(0.0, ended_at - started_at) if started_at else 0.0
+    monitor = session.get("health_monitor") or {}
+    completed = [
+        dict(incident)
+        for incident in monitor.get("incident_history") or []
+        if isinstance(incident, dict)
+    ]
+    active: list[dict[str, Any]] = []
+    active_incident_cutoff = ended_at if started_at else checked_at
+    for risk_id, risk in (monitor.get("active_risks") or {}).items():
+        if not isinstance(risk, dict):
+            continue
+        risk_started = float(risk.get("started_at") or checked_at)
+        acknowledged_at = risk.get("acknowledged_at")
+        active.append({
+            "incident_id": str(risk.get("incident_id") or risk_id),
+            "risk_id": str(risk_id),
+            "state": "active",
+            "severity": str(risk.get("severity") or "warning"),
+            "title": str(risk.get("title") or "Production health warning"),
+            "detail": str(risk.get("detail") or ""),
+            "action": str(risk.get("action") or ""),
+            "journal_key": str(risk.get("journal_key") or risk_id),
+            "affected_destinations": list(risk.get("affected_destinations") or []),
+            "started_at": risk_started,
+            "acknowledged_at": acknowledged_at,
+            "acknowledged_by": risk.get("acknowledged_by"),
+            "resolved_at": None,
+            "duration_seconds": round(max(0.0, active_incident_cutoff - risk_started), 3),
+            "acknowledgment_seconds": (
+                round(max(0.0, float(acknowledged_at) - risk_started), 3)
+                if acknowledged_at
+                else None
+            ),
+        })
+    incidents = sorted(
+        completed + active,
+        key=lambda incident: (
+            float(incident.get("started_at") or 0.0),
+            str(incident.get("incident_id") or ""),
+        ),
+    )
+
+    def uptime_metric(
+        *,
+        requested: bool,
+        risk_ids: set[str],
+        destination: str | None = None,
+    ) -> dict[str, Any]:
+        if not requested:
+            return {
+                "requested": False,
+                "status": "not_requested",
+                "uptime_seconds": None,
+                "downtime_seconds": None,
+                "uptime_percent": None,
+            }
+        intervals: list[tuple[float, float]] = []
+        for incident in incidents:
+            risk_id = str(incident.get("risk_id") or "")
+            if risk_id not in risk_ids:
+                continue
+            if destination and risk_id == "destination-route":
+                affected = {
+                    str(name)
+                    for name in incident.get("affected_destinations") or []
+                    if str(name).strip()
+                }
+                if affected and destination not in affected:
+                    continue
+            incident_start = float(incident.get("started_at") or started_at or checked_at)
+            incident_end = float(incident.get("resolved_at") or ended_at or checked_at)
+            intervals.append((incident_start, incident_end))
+        downtime = _merged_interval_seconds(
+            intervals,
+            lower=started_at,
+            upper=ended_at,
+        ) if started_at else 0.0
+        uptime = max(0.0, duration - downtime)
+        percent = round((uptime / duration) * 100.0, 2) if duration > 0 else 100.0
+        return {
+            "requested": True,
+            "status": "healthy" if downtime <= 0 else "degraded",
+            "uptime_seconds": round(uptime, 3),
+            "downtime_seconds": round(downtime, 3),
+            "uptime_percent": percent,
+        }
+
+    intent = session.get("output_intent") or {}
+    wants_stream = bool(intent.get("obs_stream"))
+    wants_recording = bool(intent.get("obs_recording"))
+    destinations = sorted({
+        str(name)
+        for name in intent.get("verified_destinations") or []
+        if str(name).strip()
+    })
+    uptime = {
+        "program_camera": uptime_metric(
+            requested=bool(started_at),
+            risk_ids={"program-camera"},
+        ),
+        "obs_connection": uptime_metric(
+            requested=wants_stream or wants_recording,
+            risk_ids={"obs-connection"},
+        ),
+        "obs_stream": uptime_metric(
+            requested=wants_stream,
+            risk_ids={"obs-connection", "obs-stream"},
+        ),
+        "obs_recording": uptime_metric(
+            requested=wants_recording,
+            risk_ids={"obs-connection", "obs-recording"},
+        ),
+        "destination_route": uptime_metric(
+            requested=wants_stream and bool(destinations),
+            risk_ids={"obs-connection", "obs-stream", "destination-route"},
+        ),
+    }
+    platform_uptime = {
+        destination: uptime_metric(
+            requested=wants_stream,
+            risk_ids={"obs-connection", "obs-stream", "destination-route"},
+            destination=destination,
+        )
+        for destination in destinations
+    }
+    acknowledgment_times = [
+        float(incident["acknowledgment_seconds"])
+        for incident in incidents
+        if incident.get("acknowledgment_seconds") is not None
+    ]
+    recovery_times = [
+        float(incident.get("duration_seconds") or 0.0)
+        for incident in completed
+        if incident.get("resolved_at")
+    ]
+    unresolved = [incident for incident in incidents if incident.get("state") == "active"]
+    acknowledged_count = sum(1 for incident in incidents if incident.get("acknowledged_at"))
+    if not started_at:
+        quality_status = "no_session"
+        quality_summary = "No production session has been started."
+    elif unresolved:
+        quality_status = "attention"
+        quality_summary = f"{len(unresolved)} production incident{'s remain' if len(unresolved) != 1 else ' remains'} unresolved."
+    elif incidents:
+        quality_status = "recovered"
+        quality_summary = f"All {len(incidents)} recorded production incident{'s were' if len(incidents) != 1 else ' was'} resolved."
+    else:
+        quality_status = "clean"
+        quality_summary = "No production health incidents were recorded."
+    return {
+        "checked_at": checked_at,
+        "duration_seconds": round(duration, 3),
+        "incident_count": len(incidents),
+        "resolved_incident_count": len(completed),
+        "unresolved_incident_count": len(unresolved),
+        "acknowledged_incident_count": acknowledged_count,
+        "acknowledgment_coverage_percent": (
+            round((acknowledged_count / len(incidents)) * 100.0, 1)
+            if incidents
+            else 100.0
+        ),
+        "average_acknowledgment_seconds": (
+            round(sum(acknowledgment_times) / len(acknowledgment_times), 3)
+            if acknowledgment_times
+            else None
+        ),
+        "average_recovery_seconds": (
+            round(sum(recovery_times) / len(recovery_times), 3)
+            if recovery_times
+            else None
+        ),
+        "incident_lifecycles": incidents,
+        "unresolved_incidents": unresolved,
+        "uptime": uptime,
+        "platform_uptime": platform_uptime,
+        "session_quality": {
+            "status": quality_status,
+            "summary": quality_summary,
+        },
+    }
+
+
+def _production_session_analytics_payload(
+    session: dict[str, Any],
+    *,
+    now: float | None = None,
+) -> dict[str, Any]:
+    health = _production_health_analytics(session, now=now)
+    events = list(session.get("events") or [])
+    counts: dict[str, int] = {}
+    camera_usage: dict[str, int] = {}
+    scene_usage: dict[str, int] = {}
+    incident_events: list[dict[str, Any]] = []
+    for event in events:
+        kind = str(event.get("kind") or "other")
+        counts[kind] = counts.get(kind, 0) + 1
+        title = str(event.get("title") or "")
+        if kind == "camera":
+            camera_usage[title] = camera_usage.get(title, 0) + 1
+        if kind == "scene":
+            scene_name = title.removeprefix("Scene: ")
+            scene_usage[scene_name] = scene_usage.get(scene_name, 0) + 1
+        if kind in {"incident", "safety"}:
+            incident_events.append(event)
+    cue_times = [
+        float(event.get("timestamp") or 0)
+        for event in events
+        if event.get("kind") in {"scene", "camera", "graphic", "replay", "screen"}
+    ]
+    intervals = [b - a for a, b in zip(cue_times, cue_times[1:]) if b >= a]
+    return {
+        **health,
+        "total_events": len(events),
+        "counts": counts,
+        "camera_usage": camera_usage,
+        "scene_usage": scene_usage,
+        "incidents": incident_events,
+        "average_cue_interval_seconds": (
+            round(sum(intervals) / len(intervals), 1)
+            if intervals
+            else 0
+        ),
+        "recording_verified": bool((session.get("recording") or {}).get("verified")),
+        "started_at": float(session.get("started_at") or 0),
+        "ended_at": (
+            float(session.get("ended_at") or session.get("started_at") or 0)
+            if not session.get("active")
+            else None
+        ),
+    }
+
+
 @app.get("/api/production/session/report")
 async def production_session_report():
     with PRODUCTION_SESSION_LOCK:
-        payload = {"schema": "rareiq-production-report-v1", "generated_at": time.time(), "session": dict(PRODUCTION_SESSION), "recording": recording.status(), "switcher": dict(PRODUCTION_SWITCHER_STATE), "camera_slots": orchestrator.camera_manager.camera_slots()}
+        session = json.loads(json.dumps(PRODUCTION_SESSION))
+    payload = {
+        "schema": "rareiq-production-report-v1",
+        "generated_at": time.time(),
+        "session": session,
+        "analytics": _production_session_analytics_payload(session),
+        "recording": recording.status(),
+        "switcher": dict(PRODUCTION_SWITCHER_STATE),
+        "camera_slots": orchestrator.camera_manager.camera_slots(),
+    }
     return Response(json.dumps(payload, indent=2), media_type="application/json", headers={"Content-Disposition": f'attachment; filename="rareiq-production-{PRODUCTION_SESSION.get("session_id") or "report"}.json"'})
 
 @app.get("/production/session/report")
@@ -2727,7 +3084,8 @@ async def production_session_print_report():
     economics = _pack_economics_payload()
     history = list(orchestrator.reveal_sequence.snapshot().get("history") or [])
     with PRODUCTION_SESSION_LOCK:
-        session = dict(PRODUCTION_SESSION); events = list(session.get("events") or [])
+        session = json.loads(json.dumps(PRODUCTION_SESSION)); events = list(session.get("events") or [])
+    analytics = _production_session_analytics_payload(session)
     started = float(session.get("started_at") or 0); ended = time.time() if session.get("active") else float(session.get("ended_at") or started)
     valued = []
     for card in history:
@@ -2740,29 +3098,30 @@ async def production_session_print_report():
     top_rows = "".join(f'<tr><td>{html.escape(str(card.get("card_name") or "Unknown card"))}</td><td>{html.escape(str(card.get("set_name") or "Unknown set"))}</td><td>{html.escape(str(card.get("card_number") or "—"))}</td><td>{money(card["market_value"])}</td></tr>' for card in valued[:10]) or '<tr><td colspan="4">No cards with verified market pricing.</td></tr>'
     pack_rows = "".join(f'<tr><td>Pack {int(pack["pack_number"])}</td><td>{int(pack["cards"])}</td><td>{money(pack["cost"])}</td><td>{money(pack["verified_return"])}</td><td>{money(pack["verified_margin"])}</td><td>{int(pack["unresolved_cards"])}</td></tr>' for pack in economics.get("packs") or []) or '<tr><td colspan="6">No pack history recorded.</td></tr>'
     incident_rows = "".join(f'<li><b>{html.escape(str(event.get("title") or "Event"))}</b><span>{html.escape(str(event.get("detail") or ""))}</span></li>' for event in events if event.get("kind") in {"incident", "safety"}) or '<li>No incidents recorded.</li>'
+    def uptime_text(metric: dict[str, Any]) -> str:
+        value = metric.get("uptime_percent")
+        return "Not requested" if value is None else f"{float(value):.2f}%"
+    uptime = analytics.get("uptime") or {}
+    quality = analytics.get("session_quality") or {}
+    lifecycle_rows = "".join(
+        f'<tr class="{"warning" if incident.get("state") == "active" else ""}"><td>{html.escape(str(incident.get("title") or incident.get("risk_id") or "Incident"))}</td><td>{html.escape(str(incident.get("state") or "unknown").upper())}</td><td>{float(incident.get("duration_seconds") or 0):.1f}s</td><td>{"—" if incident.get("acknowledgment_seconds") is None else f"{float(incident.get("acknowledgment_seconds") or 0):.1f}s"}</td></tr>'
+        for incident in analytics.get("incident_lifecycles") or []
+    ) or '<tr><td colspan="4">No production health incidents recorded.</td></tr>'
+    platform_rows = "".join(
+        f'<tr><td>{html.escape(str(name))}</td><td>{uptime_text(metric)}</td><td>{float(metric.get("downtime_seconds") or 0):.1f}s</td></tr>'
+        for name, metric in (analytics.get("platform_uptime") or {}).items()
+    ) or '<tr><td colspan="3">No verified platform output was requested.</td></tr>'
     status = "Minimum verified return — unpriced cards excluded" if economics["unresolved_cards"] else "Complete verified valuation"
     document = f'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>RareIQ Break Report</title><style>:root{{color-scheme:dark}}*{{box-sizing:border-box}}body{{margin:0;background:#06111a;color:#eaf7ff;font:14px Inter,Segoe UI,sans-serif}}main{{max-width:1100px;margin:auto;padding:42px}}header{{display:flex;justify-content:space-between;gap:24px;align-items:end;border-bottom:2px solid #42d5f5;padding-bottom:22px}}h1{{font-size:38px;margin:4px 0}}h2{{font-size:19px;margin:0 0 14px}}.eyebrow,.label{{color:#58daf5;text-transform:uppercase;letter-spacing:.14em;font-size:11px}}.actions{{display:flex;gap:8px}}button,a{{border:1px solid #25516a;border-radius:9px;padding:10px 14px;background:#102b3c;color:#eaf7ff;text-decoration:none;cursor:pointer}}.metrics{{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:24px 0}}.metric,section{{border:1px solid #18384a;border-radius:16px;background:#091b27;padding:18px}}.metric strong{{display:block;font-size:24px;margin-top:8px}}.warning{{color:#ffd06a}}.positive{{color:#62e8b3}}.negative{{color:#ff8c9c}}section{{margin:16px 0}}table{{width:100%;border-collapse:collapse}}th,td{{text-align:left;padding:11px;border-bottom:1px solid #18384a}}th{{color:#809cab;font-size:10px;letter-spacing:.1em}}ul{{padding:0;list-style:none}}li{{display:grid;gap:4px;padding:10px 0;border-bottom:1px solid #18384a}}li span,footer{{color:#8da5b3}}footer{{margin-top:24px;font-size:11px}}@media(max-width:760px){{main{{padding:18px}}header{{align-items:start;flex-direction:column}}.metrics{{grid-template-columns:repeat(2,1fr)}}.table-wrap{{overflow:auto}}}}@media print{{:root{{color-scheme:light}}body{{background:#fff;color:#12212b}}main{{padding:20px;max-width:none}}.actions{{display:none}}.metric,section{{background:#fff;border-color:#cddbe3;break-inside:avoid}}th,td,li{{border-color:#dbe5ea}}footer,li span{{color:#536772}}}}</style></head><body><main><header><div><div class="eyebrow">RareIQ Production Intelligence</div><h1>Break Report</h1><span>Session {html.escape(str(session.get("session_id") or "not started"))}</span></div><div class="actions"><a href="/api/production/session/report">JSON data</a><button onclick="window.print()">Print / Save PDF</button></div></header><div class="metrics"><article class="metric"><span class="label">Duration</span><strong>{elapsed}</strong></article><article class="metric"><span class="label">Opened Packs</span><strong>{economics["opened_packs"]}</strong></article><article class="metric"><span class="label">Cards Revealed</span><strong>{len(history)}</strong></article><article class="metric"><span class="label">Production Events</span><strong>{len(events)}</strong></article><article class="metric"><span class="label">Total Cost</span><strong>{money(economics["total_cost"])}</strong></article><article class="metric"><span class="label">Verified Return</span><strong>{money(economics["verified_return"])}</strong></article><article class="metric"><span class="label">Break Even</span><strong>{economics["break_even_percent"]}%</strong></article><article class="metric"><span class="label">Verified Margin</span><strong class="{'positive' if economics['verified_margin'] >= 0 else 'negative'}">{money(economics["verified_margin"])}</strong></article></div><section><h2>Pack Economics</h2><p class="{'warning' if economics['unresolved_cards'] else 'positive'}">{status}. {economics['unresolved_cards']} card(s) remain unpriced.</p><div class="table-wrap"><table><thead><tr><th>Pack</th><th>Cards</th><th>Cost</th><th>Verified Return</th><th>Margin</th><th>Unpriced</th></tr></thead><tbody>{pack_rows}</tbody></table></div></section><section><h2>Strongest Verified Pulls</h2><div class="table-wrap"><table><thead><tr><th>Card</th><th>Set</th><th>Number</th><th>Verified Value</th></tr></thead><tbody>{top_rows}</tbody></table></div></section><section><h2>Operator Incidents</h2><ul>{incident_rows}</ul></section><footer>Values reflect available verified pricing at report generation time. Missing prices are excluded, never treated as zero. All-time inventory sales are intentionally excluded from this break’s margin.</footer></main></body></html>'''
+    reliability_section = f'''<section><h2>Production Reliability</h2><p class="{"warning" if analytics.get("unresolved_incident_count") else "positive"}">{html.escape(str(quality.get("summary") or "No production session data."))}</p><div class="table-wrap"><table><thead><tr><th>Signal</th><th>Uptime</th><th>Downtime</th></tr></thead><tbody><tr><td>Program camera</td><td>{uptime_text(uptime.get("program_camera") or {})}</td><td>{float((uptime.get("program_camera") or {}).get("downtime_seconds") or 0):.1f}s</td></tr><tr><td>OBS stream</td><td>{uptime_text(uptime.get("obs_stream") or {})}</td><td>{float((uptime.get("obs_stream") or {}).get("downtime_seconds") or 0):.1f}s</td></tr><tr><td>OBS recording</td><td>{uptime_text(uptime.get("obs_recording") or {})}</td><td>{float((uptime.get("obs_recording") or {}).get("downtime_seconds") or 0):.1f}s</td></tr><tr><td>Verified destinations</td><td>{uptime_text(uptime.get("destination_route") or {})}</td><td>{float((uptime.get("destination_route") or {}).get("downtime_seconds") or 0):.1f}s</td></tr></tbody></table></div></section><section><h2>Incident Lifecycle</h2><div class="table-wrap"><table><thead><tr><th>Incident</th><th>Status</th><th>Duration</th><th>Acknowledged</th></tr></thead><tbody>{lifecycle_rows}</tbody></table></div></section><section><h2>Platform Uptime</h2><div class="table-wrap"><table><thead><tr><th>Destination</th><th>Uptime</th><th>Downtime</th></tr></thead><tbody>{platform_rows}</tbody></table></div></section>'''
+    document = document.replace("<section><h2>Operator Incidents</h2>", reliability_section + "<section><h2>Operator Incidents</h2>", 1)
     return HTMLResponse(document, headers={"Cache-Control": "no-store"})
 
 @app.get("/api/production/session/analytics")
 async def production_session_analytics():
     with PRODUCTION_SESSION_LOCK:
-        events = list(PRODUCTION_SESSION.get("events") or [])
-        started = float(PRODUCTION_SESSION.get("started_at") or 0)
-        ended = time.time() if PRODUCTION_SESSION.get("active") else float(PRODUCTION_SESSION.get("ended_at") or started)
-    counts: dict[str, int] = {}
-    camera_usage: dict[str, int] = {}
-    scene_usage: dict[str, int] = {}
-    incidents: list[dict[str, Any]] = []
-    for event in events:
-        kind = str(event.get("kind") or "other"); counts[kind] = counts.get(kind, 0) + 1
-        title = str(event.get("title") or "")
-        if kind == "camera": camera_usage[title] = camera_usage.get(title, 0) + 1
-        if kind == "scene": scene_usage[title.removeprefix("Scene: ")] = scene_usage.get(title.removeprefix("Scene: "), 0) + 1
-        if kind in {"incident", "safety"}: incidents.append(event)
-    cue_times = [float(event.get("timestamp") or 0) for event in events if event.get("kind") in {"scene", "camera", "graphic", "replay", "screen"}]
-    intervals = [b - a for a, b in zip(cue_times, cue_times[1:]) if b >= a]
-    return {"ok": True, "analytics": {"duration_seconds": max(0, ended - started) if started else 0, "total_events": len(events), "counts": counts, "camera_usage": camera_usage, "scene_usage": scene_usage, "incidents": incidents, "average_cue_interval_seconds": round(sum(intervals) / len(intervals), 1) if intervals else 0, "recording_verified": bool((PRODUCTION_SESSION.get("recording") or {}).get("verified")), "started_at": started, "ended_at": ended}}
+        session = json.loads(json.dumps(PRODUCTION_SESSION))
+    return {"ok": True, "analytics": _production_session_analytics_payload(session)}
 
 @app.get("/api/production/session/card-analytics")
 async def production_card_analytics():
@@ -2848,7 +3207,9 @@ def _archive_current_production_session() -> dict[str, Any] | None:
         except (TypeError, ValueError): value = 0
         if value > 0 and (not strongest or value > strongest["market_value"]): strongest = {"card_name": str(card.get("card_name") or "Unknown card"), "set_name": str(card.get("set_name") or "Unknown set"), "card_number": str(card.get("card_number") or ""), "market_value": value, "reference_image_url": str(card.get("reference_image_url") or "")}
     started = float(PRODUCTION_SESSION.get("started_at") or 0); ended = float(PRODUCTION_SESSION.get("ended_at") or started); metadata = dict(PRODUCTION_SESSION.get("metadata") or {})
-    snapshot = {"session_id": session_id, "started_at": started, "ended_at": ended, "duration_seconds": max(0, ended-started), "cards_revealed": len(cards), "average_seconds_between_cards": round(sum(intervals)/len(intervals), 1) if intervals else 0, "event_count": len(PRODUCTION_SESSION.get("events") or []), "recording_verified": bool((PRODUCTION_SESSION.get("recording") or {}).get("verified")), "economics": economics, "strongest_pull": strongest}
+    session_snapshot = json.loads(json.dumps(PRODUCTION_SESSION))
+    production_analytics = _production_session_analytics_payload(session_snapshot, now=ended)
+    snapshot = {"session_id": session_id, "started_at": started, "ended_at": ended, "duration_seconds": max(0, ended-started), "cards_revealed": len(cards), "average_seconds_between_cards": round(sum(intervals)/len(intervals), 1) if intervals else 0, "event_count": len(PRODUCTION_SESSION.get("events") or []), "recording_verified": bool((PRODUCTION_SESSION.get("recording") or {}).get("verified")), "economics": economics, "strongest_pull": strongest, "production_analytics": production_analytics, "unresolved_incidents": int(production_analytics.get("unresolved_incident_count") or 0)}
     snapshot["metadata"] = metadata
     history = _load_production_history(); index = next((i for i,item in enumerate(history) if item.get("session_id") == session_id), -1)
     if index >= 0: history[index] = snapshot
@@ -2860,7 +3221,7 @@ def _archive_current_production_session() -> dict[str, Any] | None:
 async def production_session_history():
     history = list(reversed(_load_production_history()))
     completed = [item for item in history if item.get("ended_at")]
-    return {"ok": True, "history": completed, "summary": {"completed_sessions": len(completed), "opened_packs": sum(int((item.get("economics") or {}).get("opened_packs") or 0) for item in completed), "cards_revealed": sum(int(item.get("cards_revealed") or 0) for item in completed), "total_cost": round(sum(float((item.get("economics") or {}).get("total_cost") or 0) for item in completed), 2), "verified_return": round(sum(float((item.get("economics") or {}).get("verified_return") or 0) for item in completed), 2), "verified_margin": round(sum(float((item.get("economics") or {}).get("verified_margin") or 0) for item in completed), 2), "unresolved_cards": sum(int((item.get("economics") or {}).get("unresolved_cards") or 0) for item in completed)}}
+    return {"ok": True, "history": completed, "summary": {"completed_sessions": len(completed), "opened_packs": sum(int((item.get("economics") or {}).get("opened_packs") or 0) for item in completed), "cards_revealed": sum(int(item.get("cards_revealed") or 0) for item in completed), "total_cost": round(sum(float((item.get("economics") or {}).get("total_cost") or 0) for item in completed), 2), "verified_return": round(sum(float((item.get("economics") or {}).get("verified_return") or 0) for item in completed), 2), "verified_margin": round(sum(float((item.get("economics") or {}).get("verified_margin") or 0) for item in completed), 2), "unresolved_cards": sum(int((item.get("economics") or {}).get("unresolved_cards") or 0) for item in completed), "unresolved_incidents": sum(int(item.get("unresolved_incidents") or 0) for item in completed)}}
 
 @app.get("/api/production/session/history/{session_id}")
 async def production_session_history_detail(session_id: str):
@@ -2872,9 +3233,14 @@ async def production_session_history_detail(session_id: str):
 async def archived_production_session_report(session_id: str):
     snapshot = next((item for item in _load_production_history() if str(item.get("session_id")) == session_id), None)
     if not snapshot: return HTMLResponse("<h1>Archived session not found</h1>", status_code=404)
-    economics = dict(snapshot.get("economics") or {}); pull = snapshot.get("strongest_pull") or {}; currency = html.escape(str((economics.get("settings") or {}).get("currency") or "USD")); money = lambda value: f'{currency} {float(value or 0):,.2f}'
+    economics = dict(snapshot.get("economics") or {}); pull = snapshot.get("strongest_pull") or {}; production_analytics = snapshot.get("production_analytics") or {}; currency = html.escape(str((economics.get("settings") or {}).get("currency") or "USD")); money = lambda value: f'{currency} {float(value or 0):,.2f}'
     ended = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(float(snapshot.get("ended_at") or 0))); unresolved = int(economics.get("unresolved_cards") or 0); margin = float(economics.get("verified_margin") or 0)
     document = f'''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Archived RareIQ Break</title><style>:root{{color-scheme:dark}}*{{box-sizing:border-box}}body{{margin:0;background:#06111a;color:#eaf7ff;font:14px Inter,Segoe UI,sans-serif}}main{{max-width:900px;margin:auto;padding:42px}}header{{border-bottom:2px solid #42d5f5;padding-bottom:20px}}h1{{font-size:38px;margin:5px 0}}.eyebrow,label{{color:#55d9f4;text-transform:uppercase;letter-spacing:.13em;font-size:11px}}.actions{{position:absolute;right:42px;top:42px}}button{{padding:10px 14px;border:1px solid #28546b;border-radius:9px;background:#102b3c;color:#fff}}.grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0}}article,section{{padding:18px;border:1px solid #19394a;border-radius:15px;background:#091b27}}article strong{{display:block;font-size:25px;margin-top:8px}}section{{margin-top:15px}}.warning{{color:#ffd06a}}.positive{{color:#62e8b3}}.negative{{color:#ff8c9c}}p{{color:#91a8b5}}@media(max-width:650px){{main{{padding:18px}}.actions{{position:static;margin-bottom:16px}}.grid{{grid-template-columns:repeat(2,1fr)}}}}@media print{{:root{{color-scheme:light}}body{{background:#fff;color:#12212b}}main{{padding:10px}}.actions{{display:none}}article,section{{background:#fff;border-color:#d4e1e7}}}}</style></head><body><main><div class="actions"><button onclick="window.print()">Print / Save PDF</button></div><header><div class="eyebrow">Frozen Historical Snapshot</div><h1>RareIQ Break Report</h1><span>{html.escape(ended)} · {html.escape(session_id)}</span></header><div class="grid"><article><label>Cards</label><strong>{int(snapshot.get("cards_revealed") or 0)}</strong></article><article><label>Packs</label><strong>{int(economics.get("opened_packs") or 0)}</strong></article><article><label>Duration</label><strong>{int(float(snapshot.get("duration_seconds") or 0)//60)}m</strong></article><article><label>Cost</label><strong>{money(economics.get("total_cost"))}</strong></article><article><label>Verified Return</label><strong>{money(economics.get("verified_return"))}</strong></article><article><label>Verified Margin</label><strong class="{'positive' if margin >= 0 else 'negative'}">{money(margin)}</strong></article></div><section><h2>Valuation Status</h2><p class="{'warning' if unresolved else 'positive'}">{'Minimum verified value' if unresolved else 'Complete verified valuation'} · {unresolved} unpriced card(s)</p></section><section><h2>Strongest Verified Pull</h2><h3>{html.escape(str(pull.get("card_name") or "No verified pull"))}</h3><p>{html.escape(str(pull.get("set_name") or ""))} {html.escape(str(pull.get("card_number") or ""))} · {money(pull.get("market_value")) if pull else 'Value unavailable'}</p></section><footer><p>This report is generated from a frozen end-of-session snapshot. It does not recalculate against current live scans or inventory.</p></footer></main></body></html>'''
+    quality = production_analytics.get("session_quality") or {}
+    uptime = production_analytics.get("uptime") or {}
+    uptime_value = lambda key: "Not requested" if (uptime.get(key) or {}).get("uptime_percent") is None else f'{float((uptime.get(key) or {}).get("uptime_percent") or 0):.2f}%'
+    reliability = f'''<section><h2>Production Reliability</h2><p class="{"warning" if production_analytics.get("unresolved_incident_count") else "positive"}">{html.escape(str(quality.get("summary") or "Historical reliability metrics were not recorded for this session."))}</p><div class="grid"><article><label>Program</label><strong>{uptime_value("program_camera")}</strong></article><article><label>OBS Stream</label><strong>{uptime_value("obs_stream")}</strong></article><article><label>Recording</label><strong>{uptime_value("obs_recording")}</strong></article><article><label>Destinations</label><strong>{uptime_value("destination_route")}</strong></article><article><label>Incidents</label><strong>{int(production_analytics.get("incident_count") or 0)}</strong></article><article><label>Unresolved</label><strong>{int(production_analytics.get("unresolved_incident_count") or 0)}</strong></article></div></section>'''
+    document = document.replace("<footer>", reliability + "<footer>", 1)
     return HTMLResponse(document, headers={"Cache-Control": "no-store"})
 
 @app.post("/api/production/safe")
