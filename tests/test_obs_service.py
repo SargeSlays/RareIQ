@@ -163,6 +163,31 @@ def test_kick_route_normalizes_default_rtmps_port_and_trailing_slash() -> None:
     ) is True
 
 
+def test_rumble_named_obs_service_supports_exact_private_route_matching() -> None:
+    probe = ObsService._stream_route_from_response(
+        {
+            "streamServiceType": "rtmp_common",
+            "streamServiceSettings": {
+                "service": "Rumble",
+                "server": "rtmps://ingest.example/live?route=primary",
+                "key": "private",
+            },
+        }
+    )
+
+    assert probe.provider == "rumble"
+    assert probe.matches_stream_route(
+        "private",
+        "rtmps://ingest.example:443/live?route=primary",
+        provider="rumble",
+    ) is True
+    assert probe.matches_stream_route(
+        "private",
+        "rtmps://ingest.example/live?route=secondary",
+        provider="rumble",
+    ) is False
+
+
 def test_non_twitch_route_cannot_match_even_with_the_same_key() -> None:
     probe = ObsStreamRouteProbe(
         inspected=True,

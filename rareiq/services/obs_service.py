@@ -81,7 +81,7 @@ class ObsStreamRouteProbe:
         parsed = urlparse(raw if "://" in raw else f"rtmps://{raw}")
         scheme = parsed.scheme.lower()
         host = str(parsed.hostname or "").lower().rstrip(".")
-        if not scheme or not host:
+        if not scheme or not host or parsed.username or parsed.password or parsed.fragment:
             return ""
         try:
             port = parsed.port
@@ -90,7 +90,8 @@ class ObsStreamRouteProbe:
         default_port = 443 if scheme == "rtmps" else 1935 if scheme == "rtmp" else None
         port_part = "" if port in (None, default_port) else f":{port}"
         path = re.sub(r"/+", "/", parsed.path or "").rstrip("/")
-        return f"{scheme}://{host}{port_part}{path}"
+        query_part = f"?{parsed.query}" if parsed.query else ""
+        return f"{scheme}://{host}{port_part}{path}{query_part}"
 
     @classmethod
     def unavailable(cls) -> ObsStreamRouteProbe:
@@ -202,6 +203,8 @@ class ObsService:
     def _stream_provider(*, service_name: str, server: str) -> str | None:
         if "kick" in service_name:
             return "kick"
+        if "rumble" in service_name:
+            return "rumble"
         if "twitch" in service_name:
             return "twitch"
         if "youtube" in service_name:

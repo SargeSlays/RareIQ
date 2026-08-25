@@ -22,6 +22,7 @@ def test_destination_state_uses_one_read_only_status_endpoint() -> None:
     assert "obs_route=obs.cached_stream_route_probe()" in SERVER
     assert "YouTubeBroadcastConnector.from_environment()" in SERVER
     assert "KickBroadcastConnector.from_environment()" in SERVER
+    assert "RumbleBroadcastConnector.from_environment()" in SERVER
     assert 'async function loadBroadcastDestinations(){try{const payload=await api("/api/production/destinations")' in JS
     section = JS[
         JS.index("function broadcastDestinationCard") :
