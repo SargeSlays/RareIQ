@@ -153,6 +153,8 @@ class ObsService:
     def _stream_provider(*, service_name: str, server: str) -> str | None:
         if "twitch" in service_name:
             return "twitch"
+        if "youtube" in service_name:
+            return "youtube"
         parsed = urlparse(server if "://" in server else f"//{server}")
         host = str(parsed.hostname or "").lower().rstrip(".")
         if (
@@ -161,6 +163,11 @@ class ObsService:
             or host.endswith(".contribute.video.net")
         ):
             return "twitch"
+        if (
+            host.endswith(".rtmp.youtube.com")
+            or host.endswith(".upload.youtube.com")
+        ):
+            return "youtube"
         return None
 
     def cached_stream_route_probe(self) -> ObsStreamRouteProbe:

@@ -101,6 +101,31 @@ def test_custom_twitch_ingest_hosts_are_recognized_without_exposing_server() -> 
         assert server not in repr(probe.public_status())
 
 
+def test_youtube_common_and_custom_routes_are_recognized() -> None:
+    common = ObsService._stream_route_from_response(
+        {
+            "streamServiceType": "rtmp_common",
+            "streamServiceSettings": {
+                "service": "YouTube - RTMPS",
+                "server": "auto",
+                "key": "private",
+            },
+        }
+    )
+    custom = ObsService._stream_route_from_response(
+        {
+            "streamServiceType": "rtmp_custom",
+            "streamServiceSettings": {
+                "server": "rtmps://a.rtmp.youtube.com/live2",
+                "key": "private",
+            },
+        }
+    )
+
+    assert common.provider == "youtube"
+    assert custom.provider == "youtube"
+
+
 def test_non_twitch_route_cannot_match_even_with_the_same_key() -> None:
     probe = ObsStreamRouteProbe(
         inspected=True,

@@ -63,6 +63,14 @@ def test_destination_registry_exposes_all_requested_platforms() -> None:
     assert twitch["capabilities"] == ["channel identity", "public live status"]
     assert "Broadcaster token with stream-key read scope" in twitch["setup"]["requirements"]
     assert "OBS route verification remains separate" in twitch["setup"]["verification_method"]
+    youtube = payload["destinations"][1]
+    assert youtube["setup_method"] == "Read-only Google OAuth"
+    assert youtube["capabilities"] == [
+        "channel identity",
+        "broadcast status",
+        "exact encoder route",
+    ]
+    assert "Offline refresh token with YouTube read-only scope" in youtube["setup"]["requirements"]
 
 
 def test_encoder_output_never_fabricates_platform_live_state() -> None:

@@ -36,6 +36,7 @@ from rareiq.services.recording_service import RecordingService
 from rareiq.services.obs_service import ObsService
 from rareiq.services.broadcast_destination_service import BroadcastDestinationService
 from rareiq.services.twitch_broadcast_connector import TwitchBroadcastConnector
+from rareiq.services.youtube_broadcast_connector import YouTubeBroadcastConnector
 from rareiq.services.sarge_advisor_service import SargeAdvisorService
 from rareiq.version import BUILD_DATE, CODENAME, VERSION, version_payload
 from rareiq.web.remote_access import (
@@ -906,12 +907,17 @@ recording = RecordingService(
 )
 obs = ObsService(BASE_DIR.parent.parent / "obs_settings.json")
 _twitch_broadcast_connector = TwitchBroadcastConnector.from_environment()
-broadcast_destinations = BroadcastDestinationService(
-    connectors=(
-        {"twitch": _twitch_broadcast_connector}
-        if _twitch_broadcast_connector is not None
-        else None
+_youtube_broadcast_connector = YouTubeBroadcastConnector.from_environment()
+_broadcast_connectors = {
+    connector.platform_id: connector
+    for connector in (
+        _twitch_broadcast_connector,
+        _youtube_broadcast_connector,
     )
+    if connector is not None
+}
+broadcast_destinations = BroadcastDestinationService(
+    connectors=_broadcast_connectors or None
 )
 
 class LearningQueueRequest(BaseModel):
