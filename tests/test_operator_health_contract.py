@@ -1,8 +1,12 @@
 from pathlib import Path
 
+import rareiq.web.server as server
 from rareiq.web.server import (
+    BROADCAST_RUNTIME_HEALTH_REFRESH_SECONDS,
     _connected_production_camera_count,
+    _invalidate_broadcast_runtime_health,
     _production_session_risks,
+    _refresh_broadcast_runtime_health,
 )
 
 
@@ -24,6 +28,8 @@ def test_operator_health_and_safe_recovery_apis_exist():
     assert "program_camera = _program_camera_readiness(slots, program_slot)" in operator_health
     assert '"program_camera": program_camera' in operator_health
     assert '"session_active": session_active' in operator_health
+    assert '"output_intent": output_intent' in operator_health
+    assert '"broadcast_runtime": broadcast_runtime' in operator_health
     assert '"risks": risks' in operator_health
     assert 'instant_replay.snapshot()' in SERVER
     assert 'instant_replay.stop_playback()' in SERVER
@@ -96,7 +102,8 @@ def test_operator_dashboard_uses_real_health_fields():
     assert 'programCamera.detail||payload.active_scene_id' in render
     assert "const unhealthy=!programReady" in render
     assert 'alert.hidden=!sessionActive||!criticalRisk' in render
-    assert '"LIVE SESSION AT RISK"' in render
+    assert 'alert.dataset.riskCount=String(risks.length)' in render
+    assert "LIVE SESSION AT RISK" in render
 
 
 def test_inactive_session_never_claims_an_on_air_risk() -> None:
@@ -132,6 +139,113 @@ def test_live_session_reports_stale_program_camera_without_auto_action() -> None
             "action": "Reconnect the camera or take a verified alternate source",
         }
     ]
+
+
+def test_requested_obs_stream_loss_is_reported_without_false_platform_claims() -> None:
+    risks = _production_session_risks(
+        session_active=True,
+        program_camera={"ready": True},
+        output_intent={"obs_stream": True, "verified_destinations": ["Twitch"]},
+        broadcast_runtime={
+            "obs": {"connected": True, "streaming": False, "recording": False},
+            "readiness": {"ready_destinations": ["Twitch"]},
+        },
+    )
+
+    assert [risk["id"] for risk in risks] == ["obs-stream"]
+    assert "reports no active stream" in risks[0]["detail"]
+
+
+def test_requested_obs_connection_loss_collapses_stream_and_recording_risks() -> None:
+    risks = _production_session_risks(
+        session_active=True,
+        program_camera={"ready": True},
+        output_intent={"obs_stream": True, "obs_recording": True},
+        broadcast_runtime={"obs": {"connected": False}},
+    )
+
+    assert [risk["id"] for risk in risks] == ["obs-connection"]
+
+
+def test_verified_destination_route_loss_is_reported_only_while_streaming() -> None:
+    intent = {"obs_stream": True, "verified_destinations": ["Twitch", "YouTube Live"]}
+    runtime = {
+        "obs": {"connected": True, "streaming": True, "recording": False},
+        "readiness": {"ready_destinations": ["YouTube Live"]},
+    }
+
+    risks = _production_session_risks(
+        session_active=True,
+        program_camera={"ready": True},
+        output_intent=intent,
+        broadcast_runtime=runtime,
+    )
+
+    assert [risk["id"] for risk in risks] == ["destination-route"]
+    assert "Twitch" in risks[0]["detail"]
+
+
+def test_runtime_watchdog_refresh_is_bounded() -> None:
+    assert BROADCAST_RUNTIME_HEALTH_REFRESH_SECONDS == 10.0
+    operator_health = SERVER[
+        SERVER.index("def _refresh_broadcast_runtime_health") :
+        SERVER.index('@app.get("/api/production/operator-health")')
+    ]
+    assert "checked_at - cached_at < BROADCAST_RUNTIME_HEALTH_REFRESH_SECONDS" in operator_health
+    assert "broadcast_destinations.refresh_connectors(" in operator_health
+    assert "obs.status()" in operator_health
+
+
+def test_runtime_watchdog_reuses_fresh_evidence(monkeypatch) -> None:
+    calls = {"obs": 0, "connectors": 0}
+
+    class FakeObs:
+        def status(self):
+            calls["obs"] += 1
+            return {"enabled": True, "connected": True, "streaming": True, "recording": False}
+
+        def cached_stream_route_probe(self):
+            return object()
+
+    class FakeDestinations:
+        def refresh_connectors(self, *, obs_route=None):
+            assert obs_route is not None
+            calls["connectors"] += 1
+            return {"twitch": True}
+
+        def snapshot(self, *, obs_status=None):
+            assert obs_status["connected"] is True
+            return {
+                "summary": {"ready": 1, "live": 1},
+                "destinations": [
+                    {"id": "twitch", "name": "Twitch", "ready": True, "live": True}
+                ],
+            }
+
+    monkeypatch.setattr(server, "obs", FakeObs())
+    monkeypatch.setattr(server, "broadcast_destinations", FakeDestinations())
+    _invalidate_broadcast_runtime_health()
+    first = _refresh_broadcast_runtime_health(now=100.0)
+    cached = _refresh_broadcast_runtime_health(now=105.0)
+    refreshed = _refresh_broadcast_runtime_health(now=111.0)
+    _invalidate_broadcast_runtime_health()
+
+    assert calls == {"obs": 2, "connectors": 2}
+    assert first == cached
+    assert refreshed["checked_at"] == 111.0
+    assert refreshed["readiness"]["live_destinations"] == ["Twitch"]
+
+
+def test_show_start_records_only_operator_requested_output_intent() -> None:
+    start = SERVER[
+        SERVER.index("async def start_production_show") :
+        SERVER.index('@app.post("/api/production/session/metadata")')
+    ]
+    assert 'PRODUCTION_SESSION["output_intent"]' in start
+    assert '"obs_stream": bool(request.start_obs_stream)' in start
+    assert '"obs_recording": bool(request.start_obs_recording)' in start
+    assert '"verified_destinations": list(' in start
+    assert '_invalidate_broadcast_runtime_health()' in start
 
 
 def test_operator_health_is_themable_and_responsive():

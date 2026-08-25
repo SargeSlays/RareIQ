@@ -885,7 +885,7 @@ PRODUCTION_SCENES = _load_production_scenes()
 PRODUCTION_SESSION_LOCK = threading.RLock()
 PRODUCTION_SESSION_PATH = BASE_DIR.parent.parent / "production_session.json"
 PRODUCTION_HISTORY_PATH = BASE_DIR.parent.parent / "production_history.json"
-PRODUCTION_SESSION: dict[str, Any] = {"active": False, "session_id": None, "started_at": 0.0, "ended_at": 0.0, "events": [], "metadata": {"name": "", "customer": "", "break_id": "", "operator_notes": ""}, "pack_economics": {"pack_cost": 0.0, "box_cost": 0.0, "packs_per_box": 1, "currency": "USD"}, "recording": {"configured": bool(os.getenv("RAREIQ_RECORDING_COMMAND")), "active": False, "mode": "hook"}}
+PRODUCTION_SESSION: dict[str, Any] = {"active": False, "session_id": None, "started_at": 0.0, "ended_at": 0.0, "events": [], "metadata": {"name": "", "customer": "", "break_id": "", "operator_notes": ""}, "output_intent": {"obs_stream": False, "obs_recording": False, "verified_destinations": []}, "pack_economics": {"pack_cost": 0.0, "box_cost": 0.0, "packs_per_box": 1, "currency": "USD"}, "recording": {"configured": bool(os.getenv("RAREIQ_RECORDING_COMMAND")), "active": False, "mode": "hook"}}
 def _save_production_session() -> None:
     temp = PRODUCTION_SESSION_PATH.with_suffix(".tmp")
     temp.write_text(json.dumps(PRODUCTION_SESSION, indent=2), encoding="utf-8")
@@ -932,6 +932,9 @@ _broadcast_connectors = {
 broadcast_destinations = BroadcastDestinationService(
     connectors=_broadcast_connectors or None
 )
+BROADCAST_RUNTIME_HEALTH_REFRESH_SECONDS = 10.0
+BROADCAST_RUNTIME_HEALTH_LOCK = threading.RLock()
+BROADCAST_RUNTIME_HEALTH_STATE: dict[str, Any] = {"checked_at": 0.0}
 
 class LearningQueueRequest(BaseModel):
     scan_payload: dict[str, Any]
@@ -2015,19 +2018,72 @@ def _production_session_risks(
     *,
     session_active: bool,
     program_camera: dict[str, Any],
+    output_intent: dict[str, Any] | None = None,
+    broadcast_runtime: dict[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     """Describe live-session hazards without taking corrective action."""
-    if not session_active or program_camera.get("ready"):
+    if not session_active:
         return []
-    return [
-        {
+    risks: list[dict[str, str]] = []
+    if not program_camera.get("ready"):
+        risks.append({
             "id": "program-camera",
             "severity": "critical",
             "title": "Program camera feed interrupted",
             "detail": str(program_camera.get("detail") or "The selected Program input is not producing a fresh frame"),
             "action": "Reconnect the camera or take a verified alternate source",
-        }
-    ]
+        })
+    intent = output_intent or {}
+    runtime = broadcast_runtime or {}
+    obs_status = runtime.get("obs") or {}
+    readiness = runtime.get("readiness") or {}
+    wants_stream = bool(intent.get("obs_stream"))
+    wants_recording = bool(intent.get("obs_recording"))
+    if (wants_stream or wants_recording) and not obs_status.get("connected"):
+        risks.append({
+            "id": "obs-connection",
+            "severity": "critical",
+            "title": "OBS connection lost",
+            "detail": "RareIQ cannot verify the requested OBS output",
+            "action": "Restore OBS WebSocket connectivity and verify the Program output",
+        })
+        return risks
+    if wants_stream and not obs_status.get("streaming"):
+        risks.append({
+            "id": "obs-stream",
+            "severity": "critical",
+            "title": "OBS stream output stopped",
+            "detail": "The active show requested OBS streaming, but OBS reports no active stream",
+            "action": "Inspect OBS output health before restarting the stream",
+        })
+    if wants_recording and not obs_status.get("recording"):
+        risks.append({
+            "id": "obs-recording",
+            "severity": "critical",
+            "title": "OBS recording stopped",
+            "detail": "The active show requested OBS recording, but OBS reports no active recording",
+            "action": "Inspect OBS recording output and available storage",
+        })
+    expected = {
+        str(name)
+        for name in intent.get("verified_destinations") or []
+        if str(name).strip()
+    }
+    current = {
+        str(name)
+        for name in readiness.get("ready_destinations") or []
+        if str(name).strip()
+    }
+    missing = sorted(expected - current)
+    if wants_stream and obs_status.get("streaming") and missing:
+        risks.append({
+            "id": "destination-route",
+            "severity": "critical",
+            "title": "Verified destination route lost",
+            "detail": f"No current connector evidence for: {', '.join(missing)}",
+            "action": "Refresh destination status and verify the exact OBS route",
+        })
+    return risks
 
 
 def _broadcast_go_live_readiness(
@@ -2075,6 +2131,51 @@ def _broadcast_go_live_readiness(
     }
 
 
+def _invalidate_broadcast_runtime_health() -> None:
+    with BROADCAST_RUNTIME_HEALTH_LOCK:
+        BROADCAST_RUNTIME_HEALTH_STATE.clear()
+        BROADCAST_RUNTIME_HEALTH_STATE["checked_at"] = 0.0
+
+
+def _refresh_broadcast_runtime_health(
+    *,
+    force: bool = False,
+    now: float | None = None,
+) -> dict[str, Any]:
+    """Refresh OBS and destination evidence at a bounded live-session cadence."""
+    checked_at = time.time() if now is None else float(now)
+    with BROADCAST_RUNTIME_HEALTH_LOCK:
+        cached_at = float(BROADCAST_RUNTIME_HEALTH_STATE.get("checked_at") or 0.0)
+        if (
+            not force
+            and cached_at > 0
+            and checked_at - cached_at < BROADCAST_RUNTIME_HEALTH_REFRESH_SECONDS
+        ):
+            return json.loads(json.dumps(BROADCAST_RUNTIME_HEALTH_STATE))
+        obs_status = obs.status()
+        connector_refresh = broadcast_destinations.refresh_connectors(
+            obs_route=obs.cached_stream_route_probe(),
+        )
+        destination_status = broadcast_destinations.snapshot(obs_status=obs_status)
+        readiness = _broadcast_go_live_readiness(destination_status, obs_status)
+        BROADCAST_RUNTIME_HEALTH_STATE.clear()
+        BROADCAST_RUNTIME_HEALTH_STATE.update({
+            "checked_at": checked_at,
+            "obs": {
+                "enabled": bool(obs_status.get("enabled")),
+                "connected": bool(obs_status.get("connected")),
+                "streaming": bool(obs_status.get("streaming")),
+                "recording": bool(obs_status.get("recording")),
+                "current_scene": obs_status.get("current_scene"),
+                "diagnostic": obs_status.get("diagnostic") or {},
+            },
+            "readiness": readiness,
+            "destination_summary": destination_status.get("summary") or {},
+            "connector_refresh": connector_refresh,
+        })
+        return json.loads(json.dumps(BROADCAST_RUNTIME_HEALTH_STATE))
+
+
 @app.get("/api/production/operator-health")
 async def production_operator_health():
     camera = orchestrator.camera_manager.status()
@@ -2088,9 +2189,20 @@ async def production_operator_health():
     program_camera = _program_camera_readiness(slots, program_slot)
     with PRODUCTION_SESSION_LOCK:
         session_active = bool(PRODUCTION_SESSION.get("active"))
+        output_intent = dict(PRODUCTION_SESSION.get("output_intent") or {})
+    watches_external_output = bool(
+        output_intent.get("obs_stream") or output_intent.get("obs_recording")
+    )
+    broadcast_runtime = (
+        await asyncio.to_thread(_refresh_broadcast_runtime_health)
+        if session_active and watches_external_output
+        else {}
+    )
     risks = _production_session_risks(
         session_active=session_active,
         program_camera=program_camera,
+        output_intent=output_intent,
+        broadcast_runtime=broadcast_runtime,
     )
     return {
         "ok": True,
@@ -2098,6 +2210,8 @@ async def production_operator_health():
         "program_slot": program_slot,
         "program_camera": program_camera,
         "session_active": session_active,
+        "output_intent": output_intent,
+        "broadcast_runtime": broadcast_runtime,
         "risks": risks,
         "risk_count": len(risks),
         "active_scene_id": PRODUCTION_SWITCHER_STATE.get("active_scene_id"),
@@ -2249,7 +2363,10 @@ async def update_obs_settings(request: ObsSettingsRequest):
 async def obs_command(request: ObsCommandRequest):
     if request.action not in {"start-stream", "stop-stream", "start-record", "stop-record", "set-scene"}:
         return JSONResponse(status_code=400, content={"ok": False, "reason": "unsupported_obs_action"})
-    try: return {"ok": True, "obs": await asyncio.to_thread(obs.command, request.action, request.scene)}
+    try:
+        result = await asyncio.to_thread(obs.command, request.action, request.scene)
+        _invalidate_broadcast_runtime_health()
+        return {"ok": True, "obs": result}
     except (RuntimeError, ValueError, OSError) as exc: return JSONResponse(status_code=409, content={"ok": False, "reason": str(exc)})
 
 @app.post("/api/production/obs/bootstrap")
@@ -2263,7 +2380,7 @@ async def bootstrap_obs(request: ObsBootstrapRequest):
 async def start_production_session(request: ProductionSessionMetadataRequest):
     with PRODUCTION_SESSION_LOCK:
         if PRODUCTION_SESSION["active"]: return {"ok": True, "session": dict(PRODUCTION_SESSION), "already_active": True}
-        PRODUCTION_SESSION.update({"active": True, "session_id": uuid.uuid4().hex, "started_at": time.time(), "ended_at": 0.0, "events": [], "metadata": request.model_dump()})
+        PRODUCTION_SESSION.update({"active": True, "session_id": uuid.uuid4().hex, "started_at": time.time(), "ended_at": 0.0, "events": [], "metadata": request.model_dump(), "output_intent": {"obs_stream": False, "obs_recording": False, "verified_destinations": []}})
         PRODUCTION_SESSION["recording"] = recording.start(PRODUCTION_SESSION["session_id"])
         _production_event("session", "Production session started", "Encoder recording active" if PRODUCTION_SESSION["recording"].get("active") else f'Event logging active; recording {PRODUCTION_SESSION["recording"].get("reason", "not configured")}')
         return {"ok": True, "session": dict(PRODUCTION_SESSION)}
@@ -2291,6 +2408,16 @@ async def start_production_show(request: StartShowRequest):
     steps.append({"id": "safe", "state": "pass", "detail": "Main Card selected; overlays, replay, and reveal automation reset"})
     metadata = ProductionSessionMetadataRequest(**request.model_dump(exclude={"start_obs_stream", "start_obs_recording"}))
     session_payload = await start_production_session(metadata)
+    with PRODUCTION_SESSION_LOCK:
+        PRODUCTION_SESSION["output_intent"] = {
+            "obs_stream": bool(request.start_obs_stream),
+            "obs_recording": bool(request.start_obs_recording),
+            "verified_destinations": list(
+                (preflight.get("broadcast") or {}).get("ready_destinations") or []
+            ),
+        }
+        _save_production_session()
+    _invalidate_broadcast_runtime_health()
     steps.append({"id": "session", "state": "pass", "detail": "Production event logging started"})
     recording_state = session_payload["session"].get("recording") or {}
     steps.append({"id": "recording", "state": "pass" if recording_state.get("active") else "skip", "detail": "Local recording started" if recording_state.get("active") else "Local recording not configured; session logging remains active"})
