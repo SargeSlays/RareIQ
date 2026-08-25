@@ -20,6 +20,9 @@ def test_rare_intelligence_uses_verified_canonical_card():
     assert "normalize_current_card" in endpoint
     assert '"name": canonical.get("card_name")' in endpoint
     assert "profile_verified = True" in endpoint
+    assert "RareIQOrchestrator._identity_is_authoritative(current)" in endpoint
+    assert '"on_air": bool(overlay.get("pokedex_on_air")) and profile_verified' in endpoint
+    assert '"broadcast_eligible": profile_verified' in endpoint
 
 
 def test_live_api_only_publishes_authoritative_current_card():
@@ -33,6 +36,18 @@ def test_live_api_only_publishes_authoritative_current_card():
     runtime = service.split("def runtime_snapshot", 1)[1]
     runtime = runtime.split("def smoke_test", 1)[0]
     assert '"current_card": self.authoritative_current_card(' in runtime
+
+
+def test_legacy_overlay_state_cannot_accept_a_candidate_as_current_card():
+    endpoint = SERVER.split("async def update_overlay_state", 1)[1]
+    endpoint = endpoint.split('@app.post("/api/overlay/reset")', 1)[0]
+    assert 'state.pop("current_card", None)' in endpoint
+    assert '"state": _broadcast_overlay_state()' in endpoint
+
+    overlay = (
+        ROOT / "rareiq" / "web" / "static" / "overlay_v3.js"
+    ).read_text(encoding="utf-8")
+    assert 'state.current_card_status==="verified"' in overlay
 
 
 def test_latency_total_cannot_be_less_than_visible_stages():

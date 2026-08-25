@@ -338,6 +338,8 @@ class BackendTestService:
             return None
         if state.get("result_current") is False:
             return None
+        if state.get("has_reference_evidence") is not True:
+            return None
         return card
 
     def runtime_snapshot(self) -> dict[str, Any]:

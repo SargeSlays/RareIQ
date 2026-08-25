@@ -143,7 +143,11 @@ def test_verified_consistent_identity_remains_authoritative() -> None:
             "verification_state": "VERIFIED",
             "candidates": [candidate],
         },
-        state={"candidates": [candidate], "result_current": True},
+        state={
+            "candidates": [candidate],
+            "result_current": True,
+            "has_reference_evidence": True,
+        },
     )
 
     assert card is not None

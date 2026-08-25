@@ -30,6 +30,35 @@ def test_normalized_card_contract():
     assert card["confidence"] == 0.95
 
 
+def test_authoritative_card_requires_local_reference_evidence():
+    service = object.__new__(BackendTestService)
+    service.orchestrator = None
+    recognition = {
+        "database_match": {
+            "id": "card-1",
+            "name": "Test Card",
+            "number": "12/100",
+            "set": "Test Set",
+            "language": "English",
+        },
+        "recognition_locked": True,
+        "verification_state": "VERIFIED",
+    }
+    safe_state = {
+        "recognition_locked": True,
+        "verification_state": "VERIFIED",
+        "identity_consistent": True,
+        "result_current": True,
+        "has_reference_evidence": True,
+    }
+
+    assert service.authoritative_current_card(recognition, safe_state) is not None
+    assert service.authoritative_current_card(
+        recognition,
+        {**safe_state, "has_reference_evidence": False},
+    ) is None
+
+
 def test_session_round_trip():
     original = BreakSession.create(
         customer="Jon",

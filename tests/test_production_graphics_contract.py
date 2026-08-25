@@ -27,6 +27,14 @@ def test_broadcast_workspace_controls_lower_thirds_and_card_graphics():
     assert 'function productionGraphicPayload()' in STUDIO
     assert 'function sendProductionGraphic' in STUDIO
     assert 'function fillProductionGraphicFromCard' in STUDIO
+    fill = STUDIO.split('function fillProductionGraphicFromCard', 1)[1].split(
+        'let spotifyState', 1
+    )[0]
+    assert 'isAuthoritativelyVerified' in fill
+    assert 'window.__rareiqCardContext' in fill
+    assert 'latestState' not in fill
+    assert 'primary_candidate' not in fill
+    assert 'Verified Card Required' in fill
     assert '.production-graphics-layout' in CSS
     assert 'previewLayout.dataset.graphicState=action' in STUDIO
     assert '.production-graphics-layout::after' in CSS
@@ -41,3 +49,14 @@ def test_transparent_browser_source_animates_and_auto_hides():
     assert 'duration_ms' in OVERLAY
     assert 'data-style' in OVERLAY
     assert 'data-kind' in OVERLAY
+
+
+def test_card_graphics_are_bound_to_verified_backend_identity():
+    assert 'def _bind_card_graphic_identity(' in SERVER
+    assert 'def _sanitize_card_graphic(' in SERVER
+    assert 'identity_state_id' in SERVER
+    assert 'verified_current_card_required' in SERVER
+    status = SERVER.split(
+        'async def production_graphics_status', 1
+    )[1].split('@app.post("/api/production/graphics/preview")', 1)[0]
+    assert '_sanitize_card_graphic' in status

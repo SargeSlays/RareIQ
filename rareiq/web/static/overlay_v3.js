@@ -12,8 +12,8 @@ async function tick(){
     const [brandResult,stateResult]=await Promise.all([loadJson("/api/brand"),loadJson("/api/overlay/state")]);
     applyBrand(brandResult.brand||{});
     const state=stateResult.state||{};
-    const card=state.current_card||{};
-    if($("cardName"))$("cardName").textContent=card.name||"Ready for next pull";
+    const card=state.current_card_status==="verified"?(state.current_card||{}):{};
+    if($("cardName"))$("cardName").textContent=card.card_name||card.english_name||card.name||"Ready for next pull";
     if($("cardMeta"))$("cardMeta").textContent=[card.set_name,card.collector_number,card.rarity].filter(Boolean).join(" • ")||"RareIQ is watching";
     if($("cardPrice"))$("cardPrice").textContent=card.market_price?`$${Number(card.market_price).toFixed(2)}`:"WAITING";
     if($("packValue"))$("packValue").textContent=`$${Number(state.pack_total||0).toFixed(2)}`;

@@ -1496,15 +1496,121 @@ async def get_brand_settings():
 async def save_brand_settings(request: BrandSettingsRequest):
     return orchestrator.brand_settings.save(request.settings)
 
+
+def _broadcast_identity_context() -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    snapshot = orchestrator.recognition_state.snapshot()
+    card = orchestrator.backend_test.authoritative_current_card(
+        orchestrator.recognition.status(),
+        snapshot,
+    )
+    if not RareIQOrchestrator._identity_is_authoritative(snapshot):
+        card = None
+    return card, snapshot
+
+
+def _compose_broadcast_overlay_state(
+    persisted: dict[str, Any],
+    card: dict[str, Any] | None,
+    snapshot: dict[str, Any],
+) -> dict[str, Any]:
+    state = dict(persisted)
+    state["current_card"] = dict(card) if card else None
+    state["current_card_status"] = (
+        "verified"
+        if card
+        else str(snapshot.get("verification_state") or "empty").casefold()
+    )
+    state["current_card_state_id"] = snapshot.get("state_id") if card else None
+    state["current_card_generation"] = snapshot.get("generation") if card else None
+    return state
+
+
+def _broadcast_overlay_state() -> dict[str, Any]:
+    card, snapshot = _broadcast_identity_context()
+    return _compose_broadcast_overlay_state(
+        orchestrator.overlay_state.get(),
+        card,
+        snapshot,
+    )
+
+
+def _bind_card_graphic_identity(
+    graphic: dict[str, Any],
+    card: dict[str, Any] | None,
+    snapshot: dict[str, Any],
+) -> dict[str, Any]:
+    result = dict(graphic)
+    if str(result.get("kind") or "").casefold() != "card":
+        return result
+    if not card or not RareIQOrchestrator._identity_is_authoritative(snapshot):
+        raise HTTPException(
+            status_code=409,
+            detail="A verified current card is required for a card graphic.",
+        )
+    result.update({
+        "title": (
+            card.get("english_name")
+            or card.get("card_name")
+            or card.get("printed_name")
+            or "Verified Card"
+        ),
+        "subtitle": " · ".join(
+            str(value)
+            for value in (
+                card.get("set_name"),
+                card.get("collector_number"),
+            )
+            if value not in (None, "")
+        ) or "Verified current card",
+        "image_url": card.get("reference_image_url") or "",
+        "identity_verified": True,
+        "identity_state_id": str(snapshot.get("state_id") or ""),
+        "identity_generation": int(snapshot.get("generation") or 0),
+        "identity_card_id": card.get("card_id") or card.get("id"),
+    })
+    return result
+
+
+def _sanitize_card_graphic(
+    graphic: dict[str, Any],
+    card: dict[str, Any] | None,
+    snapshot: dict[str, Any],
+) -> dict[str, Any]:
+    result = dict(graphic)
+    if str(result.get("kind") or "").casefold() != "card":
+        return result
+    current_state_id = str(snapshot.get("state_id") or "")
+    eligible = bool(
+        card
+        and RareIQOrchestrator._identity_is_authoritative(snapshot)
+        and result.get("identity_verified") is True
+        and str(result.get("identity_state_id") or "") == current_state_id
+    )
+    result["safety_status"] = "verified" if eligible else "blocked"
+    if not eligible:
+        result.update({
+            "visible": False,
+            "preview": False,
+            "suppression_reason": "verified_current_card_required",
+        })
+    return result
+
 @app.get("/api/overlay/state")
 async def get_overlay_state():
-    return {"ok": True, "state": orchestrator.overlay_state.get()}
+    return {"ok": True, "state": _broadcast_overlay_state()}
 
 @app.post("/api/overlay/state")
 async def update_overlay_state(request: OverlayStateRequest):
+    state = dict(request.state)
+    ignored_fields = []
+    if "current_card" in state:
+        state.pop("current_card", None)
+        ignored_fields.append("current_card")
+    orchestrator.overlay_state.update(state)
     return {
         "ok": True,
-        "state": orchestrator.overlay_state.update(request.state),
+        "state": _broadcast_overlay_state(),
+        "ignored_fields": ignored_fields,
     }
 
 @app.post("/api/overlay/reset")
@@ -1513,17 +1619,28 @@ async def reset_overlay_state():
 
 @app.get("/api/production/graphics")
 async def production_graphics_status():
-    return {"ok": True, "graphic": orchestrator.overlay_state.get().get("broadcast_graphic")}
+    stored = dict(
+        orchestrator.overlay_state.get().get("broadcast_graphic") or {}
+    )
+    card, snapshot = _broadcast_identity_context()
+    graphic = _sanitize_card_graphic(stored, card, snapshot)
+    if graphic != stored:
+        orchestrator.overlay_state.update({"broadcast_graphic": graphic})
+    return {"ok": True, "graphic": graphic}
 
 @app.post("/api/production/graphics/preview")
 async def preview_production_graphic(request: BroadcastGraphicRequest):
-    graphic = request.model_dump() | {"visible": False, "preview": True, "generation": int(orchestrator.overlay_state.get().get("broadcast_graphic", {}).get("generation", 0)) + 1}
+    card, snapshot = _broadcast_identity_context()
+    graphic = _bind_card_graphic_identity(request.model_dump(), card, snapshot)
+    graphic |= {"visible": False, "preview": True, "generation": int(orchestrator.overlay_state.get().get("broadcast_graphic", {}).get("generation", 0)) + 1}
     state = orchestrator.overlay_state.update({"broadcast_graphic": graphic})
     return {"ok": True, "graphic": state["broadcast_graphic"]}
 
 @app.post("/api/production/graphics/take")
 async def take_production_graphic(request: BroadcastGraphicRequest):
-    graphic = request.model_dump() | {"visible": True, "preview": False, "shown_at": time.time(), "generation": int(orchestrator.overlay_state.get().get("broadcast_graphic", {}).get("generation", 0)) + 1}
+    card, snapshot = _broadcast_identity_context()
+    graphic = _bind_card_graphic_identity(request.model_dump(), card, snapshot)
+    graphic |= {"visible": True, "preview": False, "shown_at": time.time(), "generation": int(orchestrator.overlay_state.get().get("broadcast_graphic", {}).get("generation", 0)) + 1}
     state = orchestrator.overlay_state.update({"broadcast_graphic": graphic})
     return {"ok": True, "graphic": state["broadcast_graphic"]}
 
@@ -2278,11 +2395,7 @@ async def current_pokedex_entry():
         None,
     )
     current = orchestrator.recognition_state.snapshot()
-    verified = bool(
-        current.get("recognition_locked") is True
-        and current.get("verification_state") == "VERIFIED"
-        and current.get("result_current") is not False
-    )
+    verified = RareIQOrchestrator._identity_is_authoritative(current)
     candidate = selected_verified_slot.get("card") if selected_verified_slot else None
     profile_verified = bool(candidate)
     if not candidate and not selected_slots and verified:
@@ -2333,7 +2446,8 @@ async def current_pokedex_entry():
                 "identity": None,
                 "provisional": True,
                 "held": False,
-                "on_air": bool(overlay.get("pokedex_on_air")),
+                "on_air": False,
+                "broadcast_eligible": False,
                 "theme": theme,
             }
         held = overlay.get("pokedex_current")
@@ -2350,7 +2464,8 @@ async def current_pokedex_entry():
             "status": "empty",
             "pokemon": None,
             "identity": None,
-            "on_air": bool(overlay.get("pokedex_on_air")),
+            "on_air": False,
+            "broadcast_eligible": False,
             "theme": theme,
         }
     result = await asyncio.to_thread(orchestrator.pokedex.resolve, candidate)
@@ -2369,15 +2484,34 @@ async def current_pokedex_entry():
         "provisional": not profile_verified,
         "held": False,
         "reveal": reveal,
-        "on_air": bool(overlay.get("pokedex_on_air")),
+        "on_air": bool(overlay.get("pokedex_on_air")) and profile_verified,
+        "broadcast_eligible": profile_verified,
         "theme": theme,
     }
-    orchestrator.overlay_state.update({"pokedex_current": response})
+    if profile_verified:
+        orchestrator.overlay_state.update({"pokedex_current": response})
     return response
 
 @app.post("/api/pokedex/on-air", include_in_schema=False)
 @app.post("/api/rare-intelligence/on-air")
 async def set_pokedex_on_air(request: PokedexOverlayRequest):
+    if request.enabled:
+        card, snapshot = _broadcast_identity_context()
+        held = orchestrator.overlay_state.get().get("pokedex_current")
+        held_verified = bool(
+            isinstance(held, dict)
+            and held.get("provisional") is False
+            and (held.get("identity") or {}).get("verified") is True
+        )
+        if not card and (snapshot.get("card_present") or not held_verified):
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "ok": False,
+                    "reason": "verified_current_card_required",
+                    "on_air": False,
+                },
+            )
     state = orchestrator.overlay_state.update({"pokedex_on_air": request.enabled})
     return {"ok": True, "on_air": bool(state.get("pokedex_on_air")), "state": state}
 
