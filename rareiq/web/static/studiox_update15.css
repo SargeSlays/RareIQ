@@ -11871,3 +11871,15 @@ html[data-theme="light"] body.studiox-ui4.studiox-premium .live-sarge-advisor-in
 html[data-theme="light"] body.studiox-ui4.studiox-premium .live-sarge-advisor-form :is(input,select),html[data-theme="light"] body.studiox-ui4.studiox-premium .live-sarge-advisor-response{background:rgba(255,255,255,.78)}
 @media(max-width:1180px){body.studiox-ui4.studiox-premium .live-sarge-advisor-response{grid-template-columns:1fr}}
 @media(max-width:600px){body.studiox-ui4.studiox-premium .studiox-workbench-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}body.studiox-ui4.studiox-premium .studiox-workbench-actions button{width:100%}}
+
+/* Camera workspace production health: role and recovery remain truthful per tile. */
+body.studiox-ui4.studiox-premium .camera-tile-status[data-state="connected"]{color:#65e8bd!important}
+body.studiox-ui4.studiox-premium .camera-tile-status[data-state="degraded"]{color:#ffd16d!important}
+body.studiox-ui4.studiox-premium .camera-tile-status[data-state="connecting"]{color:#79dff5!important}
+body.studiox-ui4.studiox-premium .camera-tile-status[data-state="unavailable"],
+body.studiox-ui4.studiox-premium .camera-tile-status[data-state="disconnected"]{color:#ff8fa3!important}
+body.studiox-ui4.studiox-premium .camera-tile-status[data-state="unassigned"]{color:rgba(196,215,226,.56)!important}
+body.studiox-ui4.studiox-premium .camera-slot-badge[data-role="active"]{color:#66e9bd!important;border-color:rgba(87,224,178,.32)!important;background:rgba(38,132,102,.18)!important}
+body.studiox-ui4.studiox-premium .camera-reconnect-control:not([hidden]){display:inline-flex!important;align-items:center;justify-content:center;width:90px;padding-inline:10px;border-color:rgba(255,143,163,.34)!important;color:#ffc1cc!important;background:rgba(135,44,63,.16)!important}
+body.studiox-ui4.studiox-premium .camera-reconnect-control[aria-busy="true"]{cursor:progress;opacity:.68}
+@media(max-width:2199px){body.studiox-ui4.studiox-premium .camera-reconnect-control:not([hidden]){width:74px}}

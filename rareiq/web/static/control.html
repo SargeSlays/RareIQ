@@ -30,9 +30,9 @@
 <link rel="stylesheet" href="/static/studiox_61.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.8.8-provisional-identity">
-<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.92-live-operator1">
+<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.8-provisional-identity&amp;shell=6.8.93-camera-workspace1">
 <link rel="stylesheet" href="/static/pack_run_coach.css?v=6.8.8-provisional-identity">
-<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.92-live-operator1"></script>
+<script defer src="/static/studiox.js?v=6.8.8-provisional-identity&amp;shell=6.8.93-camera-workspace1"></script>
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon-192.png">
     <link rel="apple-touch-icon" href="/static/apple-touch-icon.png"><style id="ui4-unified-card-stage-overrides">
@@ -416,7 +416,7 @@ body.studiox-ui4 #inspectorMain .card-art {
           <button type="button" id="manageCamerasButton">Manage Cameras</button>
         </div>
         <div class="viewer-inspection-header camera-tile-header" id="viewerInspectionHeader" aria-label="Current viewer context">
-          <div class="camera-tile-heading camera-tile-identity"><b>CAMERA 1</b><span class="camera-slot-badge">ACTIVE</span><em id="cameraSlot1Connection" class="camera-tile-status">CONNECTING</em></div>
+          <div class="camera-tile-heading camera-tile-identity"><b>CAMERA 1</b><span id="cameraSlot1Role" class="camera-slot-badge">ACTIVE</span><em id="cameraSlot1Connection" class="camera-tile-status" data-state="connecting">CONNECTING</em></div>
           <i class="rareiq-orb-signature" aria-hidden="true"></i>
           <label class="camera-tile-control camera-tile-source-control camera-source-control"><span>Source</span><select id="cameraSlot1Source" aria-label="Camera 1 source"><option value="">Select a camera</option></select></label>
           <label class="camera-tile-control camera-tile-side-control camera-side-control"><span>Side</span><select id="cameraSlot1Side" aria-label="Camera 1 player side"><option value="unassigned">Unassigned</option><option value="player-1">Player 1</option><option value="player-2">Player 2</option></select></label>
@@ -452,8 +452,8 @@ body.studiox-ui4 #inspectorMain .card-art {
           <header class="secondary-bay-header camera-tile-header">
             <div class="secondary-bay-title camera-tile-identity">
               <span>Camera 2</span>
-              <b id="secondaryBayBadge">STAGING</b>
-              <em id="cameraSlot2Connection" class="camera-tile-status">NOT CONNECTED</em>
+              <b id="secondaryBayBadge" class="camera-slot-badge">STAGING</b>
+              <em id="cameraSlot2Connection" class="camera-tile-status" data-state="unassigned">NOT ASSIGNED</em>
             </div>
             <label class="secondary-bay-control secondary-source-control camera-tile-control camera-source-control">
               <span>Source</span>
@@ -469,6 +469,7 @@ body.studiox-ui4 #inspectorMain .card-art {
                 <option value="player-2">Player 2</option>
               </select>
             </label>
+            <button type="button" class="camera-reconnect-control" data-reconnect-camera-slot="2" title="Reconnect Camera 2" hidden>Reconnect</button>
             <button type="button" id="promoteStagingButton" class="camera-activate-control" data-promote-camera-slot="2" title="Activate staging camera for recognition" disabled>Activate</button>
           </header>
           <div class="secondary-bay-content">
@@ -490,20 +491,20 @@ Choose a source from Manage Cameras</span>
 
         <section id="cameraWorkspaceSlot3" class="camera-workspace-staging-tile" data-camera-slot="3" aria-label="Camera 3 staging tile" hidden>
           <header class="camera-tile-header">
-            <div class="camera-tile-identity"><b>CAMERA 3</b><span class="camera-slot-badge">STAGING</span><em id="cameraSlot3Connection" class="camera-tile-status">NOT CONNECTED</em></div>
+            <div class="camera-tile-identity"><b>CAMERA 3</b><span id="cameraSlot3Role" class="camera-slot-badge">STAGING</span><em id="cameraSlot3Connection" class="camera-tile-status" data-state="unassigned">NOT ASSIGNED</em></div>
             <label class="camera-tile-control camera-source-control"><span>Source</span><select id="cameraSlot3Source" aria-label="Camera 3 source"><option value="">No camera selected</option></select></label>
             <label class="camera-tile-control camera-side-control"><span>Side</span><select id="cameraSlot3Side" aria-label="Camera 3 player side"><option value="unassigned">Unassigned</option><option value="player-1">Player 1</option><option value="player-2">Player 2</option></select></label>
-            <button type="button" id="promoteCameraSlot3" class="camera-activate-control" data-promote-camera-slot="3" disabled>Activate</button>
+            <button type="button" class="camera-reconnect-control" data-reconnect-camera-slot="3" title="Reconnect Camera 3" hidden>Reconnect</button><button type="button" id="promoteCameraSlot3" class="camera-activate-control" data-promote-camera-slot="3" disabled>Activate</button>
           </header>
           <div class="camera-workspace-staging-surface" role="status"><img id="cameraSlot3Preview" class="camera-slot-preview" alt="Camera 3 preview" hidden><i class="rareiq-orb-signature" aria-hidden="true"></i><strong>CAMERA 3</strong><span>No camera selected<br>Choose a source from Manage Cameras</span></div>
         </section>
 
         <section id="cameraWorkspaceSlot4" class="camera-workspace-staging-tile" data-camera-slot="4" aria-label="Camera 4 staging tile" hidden>
           <header class="camera-tile-header">
-            <div class="camera-tile-identity"><b>CAMERA 4</b><span class="camera-slot-badge">STAGING</span><em id="cameraSlot4Connection" class="camera-tile-status">NOT CONNECTED</em></div>
+            <div class="camera-tile-identity"><b>CAMERA 4</b><span id="cameraSlot4Role" class="camera-slot-badge">STAGING</span><em id="cameraSlot4Connection" class="camera-tile-status" data-state="unassigned">NOT ASSIGNED</em></div>
             <label class="camera-tile-control camera-source-control"><span>Source</span><select id="cameraSlot4Source" aria-label="Camera 4 source"><option value="">No camera selected</option></select></label>
             <label class="camera-tile-control camera-side-control"><span>Side</span><select id="cameraSlot4Side" aria-label="Camera 4 player side"><option value="unassigned">Unassigned</option><option value="player-1">Player 1</option><option value="player-2">Player 2</option></select></label>
-            <button type="button" id="promoteCameraSlot4" class="camera-activate-control" data-promote-camera-slot="4" disabled>Activate</button>
+            <button type="button" class="camera-reconnect-control" data-reconnect-camera-slot="4" title="Reconnect Camera 4" hidden>Reconnect</button><button type="button" id="promoteCameraSlot4" class="camera-activate-control" data-promote-camera-slot="4" disabled>Activate</button>
           </header>
           <div class="camera-workspace-staging-surface" role="status"><img id="cameraSlot4Preview" class="camera-slot-preview" alt="Camera 4 preview" hidden><i class="rareiq-orb-signature" aria-hidden="true"></i><strong>CAMERA 4</strong><span>No camera selected<br>Choose a source from Manage Cameras</span></div>
         </section>

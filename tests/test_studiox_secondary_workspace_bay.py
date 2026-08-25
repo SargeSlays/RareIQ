@@ -45,7 +45,7 @@ def test_staging_is_independent_and_source_pair_is_safe():
     staging = JS[JS.index("function setSecondaryStagingSource"):JS.index("async function promoteSecondaryStagingSource")]
     assert "resetRecognitionPresentation" not in staging
     assert "ensureCameraStarted" not in staging
-    assert "secondaryBayPreferences.stagingSource===secondaryBayPreferences.activeSource" in JS
+    assert "cameraDeviceKeyFromValue(secondaryBayPreferences.stagingSource)===cameraDeviceKeyFromValue(secondaryBayPreferences.activeSource)" in JS
     assert "secondaryBayPreferences.stagingSource=null" in JS
     active = JS[JS.index("async function selectCamera"):JS.index("async function startSelectedCamera")]
     assert 'resetRecognitionPresentation("active_source_changed")' in active

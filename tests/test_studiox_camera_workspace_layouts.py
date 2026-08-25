@@ -51,7 +51,8 @@ def test_staging_changes_are_presentation_only_and_promotion_is_explicit() -> No
     assert "resetRecognitionPresentation" not in staging
     promote = section("async function promoteCameraWorkspaceSlot", "function normalizeSecondaryBayPreferences")
     assert 'await api(`/api/camera-slots/${slot}/activate`,{method:"POST"})' in promote
-    assert 'cameraWorkspacePreferences.activeSlot=slot' in promote
+    assert 'syncCameraWorkspaceSlotStates(result.slots||[],{force:true})' in promote
+    assert 'cameraWorkspacePreferences.activeSlot=slot' not in promote
     assert "resetRecognitionPresentation" not in promote
 
 
@@ -152,7 +153,8 @@ def test_source_ownership_and_explicit_activation_use_safe_paths() -> None:
     assert 'await selectCamera()' in section("async function setActiveCameraWorkspaceSource", "function normalizeSecondaryBayPreferences")
     staging = section("function setCameraWorkspaceSource", "function setCameraWorkspaceSide")
     assert "selectCamera()" not in staging
-    assert "const owner=[1,2,3,4].find" in staging
+    assert "cameraWorkspaceSourceOwner(value,slot)" in staging
+    assert "cameraDeviceKeyFromValue" in JS
     assert '$("promoteStagingButton")?.addEventListener("click",()=>promoteCameraWorkspaceSlot(2))' in JS
     assert "clone.disabled=true" in JS
     assert "— missing" in JS

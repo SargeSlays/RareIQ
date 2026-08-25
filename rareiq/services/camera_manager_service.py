@@ -510,10 +510,23 @@ class CameraManagerService:
                 source = self._sources.get(str(source_id)) if source_id else None
                 if slot == active_slot:
                     vision = self.vision.status()
+                    frame_at = vision.get("frame_timestamp")
+                    provenance = dict(vision.get("camera_provenance") or {})
                     session_state = {
                         "connected": bool(vision.get("running") and not vision.get("error")),
                         "state": "connected" if vision.get("running") and not vision.get("error") else "disconnected",
-                        "last_frame_at": vision.get("frame_timestamp"),
+                        "last_frame_at": frame_at,
+                        "frame_age_seconds": (
+                            None if frame_at is None
+                            else max(0.0, time.time() - float(frame_at))
+                        ),
+                        "frame_id": vision.get("frame_id"),
+                        "worker_alive": bool(self.vision.worker_alive()),
+                        "subscribers": None,
+                        "quality_policy": "active_recognition_full_resolution",
+                        "requested_preview_resolution": vision.get("requested_resolution"),
+                        "requested_preview_fps": None,
+                        "stream_session_id": provenance.get("stream_session_id"),
                         "error": vision.get("error"),
                     }
                 elif source_id and source_id in self._sessions:
@@ -540,6 +553,18 @@ class CameraManagerService:
                     "connected": session_state["connected"],
                     "preview_capability": bool(source_id),
                     "last_frame_at": session_state.get("last_frame_at"),
+                    "frame_age_seconds": session_state.get("frame_age_seconds"),
+                    "frame_id": session_state.get("frame_id"),
+                    "worker_alive": session_state.get("worker_alive"),
+                    "subscribers": session_state.get("subscribers"),
+                    "quality_policy": session_state.get("quality_policy"),
+                    "requested_preview_resolution": session_state.get(
+                        "requested_preview_resolution"
+                    ),
+                    "requested_preview_fps": session_state.get(
+                        "requested_preview_fps"
+                    ),
+                    "stream_session_id": session_state.get("stream_session_id"),
                     "error": session_state.get("error"),
                 })
             return output

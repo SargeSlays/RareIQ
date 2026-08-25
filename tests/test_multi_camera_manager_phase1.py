@@ -225,6 +225,40 @@ def test_same_physical_device_through_another_backend_is_rejected(tmp_path):
         raise AssertionError("one physical camera was opened through two backends")
 
 
+def test_windows_interface_guid_does_not_create_a_second_physical_camera() -> None:
+    directshow = {
+        "index": 1,
+        "backend": 700,
+        "name": "Insta360 Link",
+        "path": r"\\?\usb#vid_2e1a&pid_4c01&mi_00#7&1af71f6&0&0000#{65e8773d-8f56-11d0-a3b9-00a0c9223196}\global",
+        "vid": 0x2E1A,
+        "pid": 0x4C01,
+    }
+    msmf = {
+        **directshow,
+        "backend": 1400,
+        "path": r"\\?\usb#vid_2e1a&pid_4c01&mi_00#7&1af71f6&0&0000#{e5323777-f976-4f5b-9b55-b94699c46e44}\global",
+    }
+    assert camera_source_id(directshow) != camera_source_id(msmf)
+    assert camera_device_key(directshow) == camera_device_key(msmf)
+
+
+def test_camera_slot_status_exposes_live_health_without_opening_another_handle(tmp_path):
+    manager, _, sessions, devices = build_manager(tmp_path)
+    manager.assign_slot(2, devices[1]["source_id"])
+    active, staging = manager.camera_slots()[:2]
+    for slot in (active, staging):
+        assert "frame_age_seconds" in slot
+        assert "frame_id" in slot
+        assert "worker_alive" in slot
+        assert "quality_policy" in slot
+        assert "requested_preview_resolution" in slot
+        assert "requested_preview_fps" in slot
+        assert "stream_session_id" in slot
+    assert active["quality_policy"] == "active_recognition_full_resolution"
+    assert staging["source_id"] in sessions
+
+
 def test_explicit_promotion_is_atomic_and_clears_once(tmp_path):
     manager, vision, sessions, devices = build_manager(tmp_path)
     source_a, source_b = devices[0]["source_id"], devices[1]["source_id"]

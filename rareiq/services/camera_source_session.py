@@ -8,6 +8,7 @@ never opens hardware. Physical-camera validation should run uvicorn without
 from __future__ import annotations
 
 import hashlib
+import re
 import threading
 import time
 from typing import Any, Callable
@@ -42,8 +43,18 @@ def camera_source_id(camera: dict[str, Any]) -> str:
 
 def camera_device_key(camera: dict[str, Any]) -> str:
     """Identify physical ownership independently of the selected backend."""
+    path = str(camera.get("path") or "").strip().lower()
+    # Windows can expose one physical camera through multiple media backends.
+    # The trailing interface-class GUID differs between DSHOW and MSMF even
+    # though the USB instance path identifies the same hardware.
+    canonical_path = re.sub(
+        r"#\{[0-9a-f-]+\}\\global$",
+        "",
+        path,
+        flags=re.IGNORECASE,
+    )
     hardware = (
-        str(camera.get("path") or "").strip().lower(),
+        canonical_path,
         str(camera.get("vid") or "").strip().lower(),
         str(camera.get("pid") or "").strip().lower(),
     )

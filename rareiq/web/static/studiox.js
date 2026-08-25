@@ -4,6 +4,8 @@ const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g,character=>({
 let selectedCamera = null;
 let cameraStreamStarted = false;
 let cameraSourceActionInFlight = false;
+const cameraWorkspaceSlotActions=new Set();
+let cameraWorkspaceStateSignature="";
 let previousCardId = null;
 let autoCaptureEnabled = true;
 let recognitionCaptureInFlight = false;
@@ -4302,6 +4304,7 @@ function decodeCameraValue(value){
 function cameraOptionValue(camera,index=0){
   return encodeURIComponent(JSON.stringify({
     source_id:camera?.source_id||null,
+    device_key:camera?.device_key||null,
     index:Number(camera?.index??index),
     backend:Number(camera?.backend??700),
     name:camera?.name||`Camera ${index+1}`
@@ -4310,6 +4313,11 @@ function cameraOptionValue(camera,index=0){
 
 function sourceIdFromCameraValue(value){
   return decodeCameraValue(value)?.source_id||null;
+}
+
+function cameraDeviceKeyFromValue(value){
+  const camera=decodeCameraValue(value);
+  return camera?.device_key||camera?.source_id||null;
 }
 
 function sortCameraDevices(cameras=[]){
@@ -4517,8 +4525,9 @@ async function selectCamera(){
   readSelectedCamera();
   secondaryBayPreferences.activeSource=$("cameraSelect")?.value||null;
   cameraWorkspacePreferences.sources["1"]=$("cameraSelect")?.value||null;
+  const activeDeviceKey=cameraDeviceKeyFromValue(cameraWorkspacePreferences.sources["1"]);
   [2,3,4].forEach(slot=>{
-    if(cameraWorkspacePreferences.sources[String(slot)]===cameraWorkspacePreferences.sources["1"]){
+    if(activeDeviceKey&&cameraDeviceKeyFromValue(cameraWorkspacePreferences.sources[String(slot)])===activeDeviceKey){
       cameraWorkspacePreferences.sources[String(slot)]=null;
       if(slot===2) secondaryBayPreferences.stagingSource=null;
     }
@@ -5040,27 +5049,57 @@ function saveCameraWorkspacePreferences(){
   try{localStorage.setItem(CAMERA_WORKSPACE_KEY,JSON.stringify(cameraWorkspacePreferences));}catch{}
 }
 
-async function refreshCameraSlotState(){
-  try{
-    const result=await api("/api/camera-slots");
-    (result.slots||[]).forEach(slot=>{
-      const id=String(slot.slot_id);
-      cameraWorkspaceSlotStates[id]=slot;
-      cameraWorkspacePreferences.sources[id]=slot.source
-        ?cameraOptionValue(slot.source,slot.slot_id-1)
-        :null;
-      cameraWorkspacePreferences.sides[id]=slot.side||"unassigned";
-      if(slot.role==="active"){
-        cameraWorkspacePreferences.activeSlot=slot.slot_id;
-        const active=$("cameraSelect");
-        const value=cameraWorkspacePreferences.sources[id];
-        if(active&&value&&[...active.options].some(option=>option.value===value)) active.value=value;
+function cameraWorkspaceSourceOwner(value,slot){
+  const identity=cameraDeviceKeyFromValue(value);
+  if(!identity) return null;
+  return [1,2,3,4].find(other=>{
+    if(other===slot) return false;
+    return cameraDeviceKeyFromValue(cameraWorkspacePreferences.sources[String(other)])===identity;
+  })||null;
+}
+
+function cameraWorkspaceSlotSignature(slots=[]){
+  return JSON.stringify(slots.map(slot=>[
+    slot.slot_id,slot.source_id,slot.role,slot.side,slot.connection_state,
+    slot.connected,slot.frame_id,slot.worker_alive,slot.error
+  ]));
+}
+
+function syncCameraWorkspaceSlotStates(slots=[],options={}){
+  if(!Array.isArray(slots)||!slots.length) return false;
+  const signature=cameraWorkspaceSlotSignature(slots);
+  const changed=signature!==cameraWorkspaceStateSignature;
+  slots.forEach(slot=>{
+    const id=String(slot.slot_id);
+    cameraWorkspaceSlotStates[id]=slot;
+    cameraWorkspacePreferences.sources[id]=slot.source
+      ?cameraOptionValue(slot.source,slot.slot_id-1)
+      :null;
+    cameraWorkspacePreferences.sides[id]=slot.side||"unassigned";
+    if(slot.role==="active"){
+      cameraWorkspacePreferences.activeSlot=slot.slot_id;
+      const active=$("cameraSelect");
+      const value=cameraWorkspacePreferences.sources[id];
+      if(active&&value&&[...active.options].some(option=>option.value===value)){
+        active.value=value;
+        selectedCamera=decodeCameraValue(value);
       }
-      if(slot.slot_id===2) secondaryBayPreferences.stagingSource=cameraWorkspacePreferences.sources[id];
-    });
+    }
+    if(slot.slot_id===2) secondaryBayPreferences.stagingSource=cameraWorkspacePreferences.sources[id];
+  });
+  cameraWorkspaceStateSignature=signature;
+  if(changed||options.force){
     saveSecondaryBayPreferences();
     saveCameraWorkspacePreferences();
     renderCameraWorkspace();
+  }
+  return changed;
+}
+
+async function refreshCameraSlotState(){
+  try{
+    const result=await api("/api/camera-slots");
+    syncCameraWorkspaceSlotStates(result.slots||[],{force:true});
     return result;
   }catch{
     return null;
@@ -5090,7 +5129,7 @@ function syncCameraWorkspaceSourceOptions(){
       const options=child.tagName==="OPTGROUP"?[...child.children]:[child];
       options.filter(option=>option.value).forEach(option=>{
         const clone=option.cloneNode(true);
-        const owner=[1,2,3,4].find(other=>other!==slot&&cameraWorkspacePreferences.sources[String(other)]===clone.value);
+        const owner=cameraWorkspaceSourceOwner(clone.value,slot);
         if(owner){
           clone.disabled=true;
           clone.textContent=`${clone.textContent} — Camera ${owner}`;
@@ -5126,7 +5165,7 @@ function renderCameraWorkspace(){
     button.setAttribute("aria-pressed",String(selected));
   });
   if($("cameraSlot1Side")) $("cameraSlot1Side").value=cameraWorkspacePreferences.sides["1"];
-  if($("cameraSlot1Connection")) $("cameraSlot1Connection").textContent=cameraConnectionAvailable===true?"CONNECTED":cameraConnectionAvailable===false?"DISCONNECTED":"CONNECTING";
+  renderCameraWorkspaceSlotStatus(1);
   if($("cameraSlot2Side")) $("cameraSlot2Side").value=cameraWorkspacePreferences.sides["2"];
   [3,4].forEach(slot=>{
     const tile=$(`cameraWorkspaceSlot${slot}`);
@@ -5134,10 +5173,7 @@ function renderCameraWorkspace(){
     if(tile) tile.hidden=!visible.has(slot);
     if($(`cameraSlot${slot}Side`)) $(`cameraSlot${slot}Side`).value=cameraWorkspacePreferences.sides[String(slot)];
     if($(`promoteCameraSlot${slot}`)) $(`promoteCameraSlot${slot}`).disabled=!source;
-    const connectionState=cameraWorkspaceSlotStates[String(slot)]?.connection_state;
-    if($(`cameraSlot${slot}Connection`)) $(`cameraSlot${slot}Connection`).textContent=source
-      ?String(connectionState||"connecting").toUpperCase()
-      :"NOT CONNECTED";
+    renderCameraWorkspaceSlotStatus(slot);
     const preview=$(`cameraSlot${slot}Preview`);
     if(preview){
       if(source){
@@ -5171,10 +5207,50 @@ function renderCameraWorkspace(){
   });
   const bay=$("secondaryWorkspaceBay");
   if(bay) bay.hidden=!visible.has(2);
-  if($("cameraSlot2Connection")) $("cameraSlot2Connection").textContent=cameraWorkspacePreferences.sources["2"]
-    ?String(cameraWorkspaceSlotStates["2"]?.connection_state||"connecting").toUpperCase()
-    :"NOT CONNECTED";
+  renderCameraWorkspaceSlotStatus(2);
   syncCameraWorkspaceSourceOptions();
+}
+
+function cameraWorkspaceConnectionPresentation(slot){
+  const state=cameraWorkspaceSlotStates[String(slot)]||{};
+  const assigned=Boolean(cameraWorkspacePreferences.sources[String(slot)]||state.source_id);
+  const raw=assigned?String(state.connection_state||"connecting").toLowerCase():"unassigned";
+  const key=raw==="connected"?"connected":raw==="degraded"?"degraded":
+    ["connecting","starting","discovering"].includes(raw)?"connecting":
+    raw==="unavailable"?"unavailable":raw==="unassigned"?"unassigned":"disconnected";
+  const labels={connected:"LIVE",degraded:"STALLED",connecting:"CONNECTING",unavailable:"UNAVAILABLE",unassigned:"NOT ASSIGNED",disconnected:"OFFLINE"};
+  return {state,key,label:labels[key],assigned};
+}
+
+function renderCameraWorkspaceSlotStatus(slot){
+  const snapshot=cameraWorkspaceSlotStates[String(slot)]||{};
+  const presentation=cameraWorkspaceConnectionPresentation(slot);
+  const status=$(`cameraSlot${slot}Connection`);
+  const role=slot===2?$("secondaryBayBadge"):$(`cameraSlot${slot}Role`);
+  const roleName=String(snapshot.role||(slot===cameraWorkspacePreferences.activeSlot?"active":"staging")).toLowerCase();
+  if(role){
+    role.textContent=roleName==="active"?"ACTIVE":"STAGING";
+    role.dataset.role=roleName;
+  }
+  if(status){
+    status.textContent=presentation.label;
+    status.dataset.state=presentation.key;
+    const age=Number(snapshot.frame_age_seconds);
+    const ageDetail=Number.isFinite(age)?` · frame ${age<1?"<1":Math.round(age)}s ago`:"";
+    status.title=`${snapshot.display_name||`Camera ${slot}`} · ${presentation.label}${ageDetail}${snapshot.error?` · ${snapshot.error}`:""}`;
+  }
+  document.querySelectorAll(`[data-reconnect-camera-slot="${slot}"]`).forEach(button=>{
+    const actionKey=`reconnect-${slot}`;
+    button.hidden=!presentation.assigned||presentation.key==="connected"||presentation.key==="connecting";
+    button.disabled=cameraWorkspaceSlotActions.has(actionKey);
+    button.setAttribute("aria-busy",String(cameraWorkspaceSlotActions.has(actionKey)));
+  });
+  const promote=slot===2?$("promoteStagingButton"):$(`promoteCameraSlot${slot}`);
+  if(promote){
+    promote.hidden=presentation.assigned&&["degraded","unavailable","disconnected"].includes(presentation.key);
+    promote.disabled=!presentation.assigned||roleName==="active"||cameraWorkspaceSlotActions.has(`activate-${slot}`);
+    promote.textContent=cameraWorkspaceSlotActions.has(`activate-${slot}`)?"Activating…":roleName==="active"?"Active":"Activate";
+  }
 }
 
 function setCameraWorkspaceLayout(layout){
@@ -5186,65 +5262,114 @@ function setCameraWorkspaceLayout(layout){
 
 async function setCameraWorkspaceSource(slot,value){
   if(slot===1) return;
-  const owner=[1,2,3,4].find(other=>other!==slot&&cameraWorkspacePreferences.sources[String(other)]===value);
+  const actionKey=`assign-${slot}`;
+  if(cameraWorkspaceSlotActions.has(actionKey)){renderCameraWorkspace();return;}
+  const owner=cameraWorkspaceSourceOwner(value,slot);
   if(value&&owner){
+    notify("Camera Already Assigned",`That physical camera is already assigned to Camera ${owner}.`,"warning");
     renderCameraWorkspace();
     return;
   }
+  const previous=cameraWorkspacePreferences.sources[String(slot)];
+  const previousStaging=secondaryBayPreferences.stagingSource;
+  cameraWorkspaceSlotActions.add(actionKey);
   cameraWorkspacePreferences.sources[String(slot)]=value||null;
   if(slot===2){
     secondaryBayPreferences.stagingSource=value||null;
     saveSecondaryBayPreferences();
   }
-  saveCameraWorkspacePreferences();
+  renderCameraWorkspace();
   try{
-    await api(`/api/camera-slots/${slot}/source`,{
+    const result=await api(`/api/camera-slots/${slot}/source`,{
       method:"PUT",
       body:JSON.stringify({
         source_id:sourceIdFromCameraValue(value),
         side:cameraWorkspacePreferences.sides[String(slot)]
       })
     });
+    syncCameraWorkspaceSlotStates([result.slot],{force:true});
+    notify(value?"Camera Assigned":"Camera Cleared",value?`Camera ${slot} is ready as a staging source.`:`Camera ${slot} is unassigned.`,"success");
   }catch(error){
-    cameraWorkspacePreferences.sources[String(slot)]=null;
-    showToast(error.message||"Could not assign camera.");
+    cameraWorkspacePreferences.sources[String(slot)]=previous;
+    if(slot===2) secondaryBayPreferences.stagingSource=previousStaging;
+    notify("Camera Assignment Failed",error.message||"Could not assign camera.","error");
+  }finally{
+    cameraWorkspaceSlotActions.delete(actionKey);
   }
   renderCameraWorkspace();
 }
 
 async function setCameraWorkspaceSide(slot,value){
-  cameraWorkspacePreferences.sides[String(slot)]=["player-1","player-2"].includes(value)?value:"unassigned";
-  saveCameraWorkspacePreferences();
+  const next=["player-1","player-2"].includes(value)?value:"unassigned";
+  const previous=cameraWorkspacePreferences.sides[String(slot)];
+  const actionKey=`side-${slot}`;
+  if(cameraWorkspaceSlotActions.has(actionKey)) return;
+  cameraWorkspaceSlotActions.add(actionKey);
+  cameraWorkspacePreferences.sides[String(slot)]=next;
   const source=cameraWorkspacePreferences.sources[String(slot)];
   if(source){
     try{
-      await api(`/api/camera-slots/${slot}/source`,{
+      const result=await api(`/api/camera-slots/${slot}/source`,{
         method:"PUT",
         body:JSON.stringify({
           source_id:sourceIdFromCameraValue(source),
           side:cameraWorkspacePreferences.sides[String(slot)]
         })
       });
+      syncCameraWorkspaceSlotStates([result.slot],{force:true});
     }catch(error){
-      showToast(error.message||"Could not update camera side.");
+      cameraWorkspacePreferences.sides[String(slot)]=previous;
+      notify("Camera Side Not Saved",error.message||"Could not update camera side.","error");
     }
+  }else{
+    saveCameraWorkspacePreferences();
   }
+  cameraWorkspaceSlotActions.delete(actionKey);
+  renderCameraWorkspace();
 }
 
 async function promoteCameraWorkspaceSlot(slot){
   const active=$("cameraSelect");
   const source=cameraWorkspacePreferences.sources[String(slot)];
   if(!active||!source||source===active.value) return;
+  const actionKey=`activate-${slot}`;
+  if(cameraWorkspaceSlotActions.has(actionKey)) return;
+  cameraWorkspaceSlotActions.add(actionKey);
+  renderCameraWorkspace();
   try{
-    await api(`/api/camera-slots/${slot}/activate`,{method:"POST"});
-    cameraWorkspacePreferences.activeSlot=slot;
-    active.value=source;
-    saveCameraWorkspacePreferences();
-    await refreshCameraSlotState();
+    const result=await api(`/api/camera-slots/${slot}/activate`,{method:"POST"});
+    syncCameraWorkspaceSlotStates(result.slots||[],{force:true});
     cameraStreamStarted=false;
     startCameraStream();
+    notify("Active Camera Changed",`Camera ${slot} is now the recognition source.`,"success");
   }catch(error){
-    showToast(error.message||"Could not activate camera.");
+    await refreshCameraSlotState();
+    notify("Camera Activation Failed",error.message||"Could not activate camera.","error");
+  }finally{
+    cameraWorkspaceSlotActions.delete(actionKey);
+    renderCameraWorkspace();
+  }
+}
+
+async function reconnectCameraWorkspaceSlot(slot){
+  const state=cameraWorkspaceSlotStates[String(slot)]||{};
+  const sourceId=state.source_id||sourceIdFromCameraValue(cameraWorkspacePreferences.sources[String(slot)]);
+  const actionKey=`reconnect-${slot}`;
+  if(!sourceId||cameraWorkspaceSlotActions.has(actionKey)) return false;
+  cameraWorkspaceSlotActions.add(actionKey);
+  renderCameraWorkspaceSlotStatus(slot);
+  try{
+    await api(`/api/cameras/${encodeURIComponent(sourceId)}/reconnect`,{method:"POST"});
+    await refreshCameraSlotState();
+    notify("Camera Reconnected",`${state.display_name||`Camera ${slot}`} is available again.`,"success");
+    return true;
+  }catch(error){
+    await refreshCameraSlotState();
+    notify("Camera Reconnect Failed",error.message||`Camera ${slot} could not reconnect.`,"error");
+    return false;
+  }finally{
+    cameraWorkspaceSlotActions.delete(actionKey);
+    renderCameraWorkspaceSlotStatus(slot);
   }
 }
 
@@ -5330,7 +5455,10 @@ function normalizeSecondarySourcePair(){
   secondaryBayPreferences.activeSource=available.has(active)?active:null;
   if(
     !available.has(secondaryBayPreferences.stagingSource)||
-    secondaryBayPreferences.stagingSource===secondaryBayPreferences.activeSource
+    (
+      cameraDeviceKeyFromValue(secondaryBayPreferences.stagingSource)&&
+      cameraDeviceKeyFromValue(secondaryBayPreferences.stagingSource)===cameraDeviceKeyFromValue(secondaryBayPreferences.activeSource)
+    )
   ){
     secondaryBayPreferences.stagingSource=null;
   }
@@ -7079,6 +7207,7 @@ async function loadCameraManagerState(){
   try{
     const status=await api("/api/camera/status");
     const manager=status.manager||{};
+    syncCameraWorkspaceSlotStates(status.camera_slots||status.slots||[]);
     const node=$("cameraManagerState");
     if(node){
       node.textContent=[
@@ -9501,6 +9630,9 @@ function initializeStudioXUI4(){
     $(`cameraSlot${slot}Source`)?.addEventListener("change",event=>setCameraWorkspaceSource(slot,event.target.value));
     $(`cameraSlot${slot}Side`)?.addEventListener("change",event=>setCameraWorkspaceSide(slot,event.target.value));
     $(`promoteCameraSlot${slot}`)?.addEventListener("click",()=>promoteCameraWorkspaceSlot(slot));
+  });
+  document.querySelectorAll("[data-reconnect-camera-slot]").forEach(button=>{
+    button.addEventListener("click",()=>reconnectCameraWorkspaceSlot(Number(button.dataset.reconnectCameraSlot)));
   });
   if(secondaryBayPreferences.activeSource&&$("cameraSelect")){
     const savedActive=secondaryBayPreferences.activeSource;

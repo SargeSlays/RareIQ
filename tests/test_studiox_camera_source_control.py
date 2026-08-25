@@ -108,7 +108,7 @@ def test_staging_source_cannot_overwrite_active_source_implicitly() -> None:
     assert "ensureCameraStarted" not in staging
     assert "selectCamera" not in staging
     assert "resetRecognitionPresentation" not in staging
-    assert "secondaryBayPreferences.stagingSource===secondaryBayPreferences.activeSource" in JS
+    assert "cameraDeviceKeyFromValue(secondaryBayPreferences.stagingSource)===cameraDeviceKeyFromValue(secondaryBayPreferences.activeSource)" in JS
 
 
 def test_restart_requires_an_explicit_selected_camera() -> None:

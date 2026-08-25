@@ -101,6 +101,6 @@ def test_details_shortcut_opens_the_real_details_widget() -> None:
 
 
 def test_live_operator_cache_marker_and_unique_ids() -> None:
-    assert HTML.count("shell=6.8.92-live-operator1") == 2
+    assert HTML.count("shell=6.8.93-camera-workspace1") == 2
     ids = [fragment.split('"', 1)[0] for fragment in HTML.split('id="')[1:]]
     assert len(ids) == len(set(ids))
