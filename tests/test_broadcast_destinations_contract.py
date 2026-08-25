@@ -24,6 +24,7 @@ def test_destination_state_uses_one_read_only_status_endpoint() -> None:
     assert "KickBroadcastConnector.from_environment()" in SERVER
     assert "RumbleBroadcastConnector.from_environment()" in SERVER
     assert "FacebookBroadcastConnector.from_environment()" in SERVER
+    assert "XBroadcastConnector.from_environment()" in SERVER
     assert 'async function loadBroadcastDestinations(){try{const payload=await api("/api/production/destinations")' in JS
     section = JS[
         JS.index("function broadcastDestinationCard") :

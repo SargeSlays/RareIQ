@@ -213,6 +213,31 @@ def test_facebook_obs_service_supports_exact_private_route_matching() -> None:
     )
 
 
+def test_x_named_obs_service_supports_exact_private_route_matching() -> None:
+    probe = ObsService._stream_route_from_response(
+        {
+            "streamServiceType": "rtmp_custom",
+            "streamServiceSettings": {
+                "service": "X Media Studio",
+                "server": "rtmps://va.pscp.tv:443/x",
+                "key": "x-private-key",
+            },
+        }
+    )
+
+    assert probe.provider == "x"
+    assert probe.matches_stream_route(
+        "x-private-key",
+        "rtmps://va.pscp.tv/x/",
+        provider="x",
+    )
+    assert not probe.matches_stream_route(
+        "x-private-key",
+        "rtmps://other.pscp.tv/x",
+        provider="x",
+    )
+
+
 def test_non_twitch_route_cannot_match_even_with_the_same_key() -> None:
     probe = ObsStreamRouteProbe(
         inspected=True,

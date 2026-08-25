@@ -201,6 +201,8 @@ class ObsService:
 
     @staticmethod
     def _stream_provider(*, service_name: str, server: str) -> str | None:
+        if service_name in {"x", "x live", "x media studio"} or "twitter" in service_name:
+            return "x"
         if "facebook" in service_name:
             return "facebook"
         if "kick" in service_name:
