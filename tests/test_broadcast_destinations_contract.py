@@ -42,9 +42,25 @@ def test_destination_failure_renders_a_truthful_durable_state() -> None:
 
 
 def test_destination_console_is_truthful_and_responsive() -> None:
-    assert "RareIQ reports only platform-confirmed connection and live states" in HTML
-    assert "Credentials, stream keys, and account authorization are not collected" in HTML
+    assert "Review setup requirements and verified connector state" in HTML
+    assert "never displays or accepts credentials, stream keys, or account authorization" in HTML
     assert ".broadcast-destination-grid{display:grid" in CSS
     assert "grid-template-columns:repeat(4,minmax(0,1fr))" in CSS
     assert "@media(max-width:620px)" in CSS
     assert ".broadcast-destination-card" in CSS
+
+
+def test_destination_cards_expose_read_only_setup_guidance_and_explicit_checks() -> None:
+    section = JS[
+        JS.index("function broadcastDestinationCard") :
+        JS.index("function renderBroadcastDestinations")
+    ]
+    assert 'guide.className="broadcast-destination-guide"' in section
+    assert 'summary.textContent="View setup requirements"' in section
+    assert "destination.setup?.requirements" in section
+    assert "destination.setup?.verification_method" in section
+    assert 'check.textContent="Check status"' in section
+    assert "loadBroadcastDestinations()" in section
+    assert 'method:"POST"' not in section
+    assert ".broadcast-destination-readiness" in CSS
+    assert ".broadcast-destination-guide>summary:focus-visible" in CSS

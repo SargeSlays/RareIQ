@@ -21,6 +21,8 @@ def test_break_history_ui_is_responsive_and_refreshable():
     for element_id in ("breakHistoryRefresh", "historyCompleted", "historyMargin", "historyUnresolved", "breakHistoryList"):
         assert f'id="{element_id}"' in HTML
     assert "function renderBreakHistory" in JS
+    assert "sessionTime(item.duration_seconds||0)" in JS
+    assert "formatElapsed(" not in JS
     assert "async function loadBreakHistory" in JS
     assert ".break-history" in CSS
     assert 'html[data-theme="light"] .break-history{' in CSS

@@ -30,3 +30,11 @@ def test_destination_refresh_remains_explicit_and_read_only() -> None:
     assert 'method:"POST"' not in section
     assert "setInterval" not in section
     assert HTML.count('id="broadcastDestinationsRefresh"') == 1
+
+
+def test_mobile_setup_guides_use_native_accessible_disclosure_without_extra_polling() -> None:
+    section = JS[JS.index("function broadcastDestinationCard") : JS.index("async function saveObsSettings")]
+    assert 'document.createElement("details")' in section
+    assert 'document.createElement("summary")' in section
+    assert "setInterval" not in section
+    assert "destination.setup?.requirements" in section

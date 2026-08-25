@@ -153,7 +153,7 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
     version = re.search(r'data-studiox-build="([^"]+)"', html).group(1)
     assert styles[-3:] == [
         f"/static/studiox_ui4_tokens.css?v={version}",
-        f"/static/studiox_update15.css?v={version}&amp;shell=6.8.81-broadcast-truth1",
+        f"/static/studiox_update15.css?v={version}&amp;shell=6.8.82-destination-readiness1",
         f"/static/pack_run_coach.css?v={version}",
     ]
     assert len(styles) == 18
