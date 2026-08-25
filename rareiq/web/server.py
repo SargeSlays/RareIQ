@@ -2011,6 +2011,25 @@ def _program_camera_readiness(
     }
 
 
+def _production_session_risks(
+    *,
+    session_active: bool,
+    program_camera: dict[str, Any],
+) -> list[dict[str, str]]:
+    """Describe live-session hazards without taking corrective action."""
+    if not session_active or program_camera.get("ready"):
+        return []
+    return [
+        {
+            "id": "program-camera",
+            "severity": "critical",
+            "title": "Program camera feed interrupted",
+            "detail": str(program_camera.get("detail") or "The selected Program input is not producing a fresh frame"),
+            "action": "Reconnect the camera or take a verified alternate source",
+        }
+    ]
+
+
 def _broadcast_go_live_readiness(
     destination_status: dict[str, Any],
     obs_status: dict[str, Any],
@@ -2067,11 +2086,20 @@ async def production_operator_health():
     connected = _connected_production_camera_count(slots)
     program_slot = int(PRODUCTION_SWITCHER_STATE.get("program_slot", 1))
     program_camera = _program_camera_readiness(slots, program_slot)
+    with PRODUCTION_SESSION_LOCK:
+        session_active = bool(PRODUCTION_SESSION.get("active"))
+    risks = _production_session_risks(
+        session_active=session_active,
+        program_camera=program_camera,
+    )
     return {
         "ok": True,
         "timestamp": time.time(),
         "program_slot": program_slot,
         "program_camera": program_camera,
+        "session_active": session_active,
+        "risks": risks,
+        "risk_count": len(risks),
         "active_scene_id": PRODUCTION_SWITCHER_STATE.get("active_scene_id"),
         "camera": camera,
         "slots": slots,

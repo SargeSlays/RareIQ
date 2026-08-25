@@ -1,6 +1,9 @@
 from pathlib import Path
 
-from rareiq.web.server import _connected_production_camera_count
+from rareiq.web.server import (
+    _connected_production_camera_count,
+    _production_session_risks,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +23,8 @@ def test_operator_health_and_safe_recovery_apis_exist():
     ]
     assert "program_camera = _program_camera_readiness(slots, program_slot)" in operator_health
     assert '"program_camera": program_camera' in operator_health
+    assert '"session_active": session_active' in operator_health
+    assert '"risks": risks' in operator_health
     assert 'instant_replay.snapshot()' in SERVER
     assert 'instant_replay.stop_playback()' in SERVER
     assert 'obs.sync_scene, "main-card"' in SERVER
@@ -70,6 +75,10 @@ def test_operator_dashboard_uses_real_health_fields():
         'id="operatorAudioHealth"',
         'id="operatorReplayHealth"',
         'id="operatorOutputHealth"',
+        'id="operatorHealthAlert"',
+        'id="operatorHealthAlertTitle"',
+        'id="operatorHealthAlertDetail"',
+        'id="operatorHealthAlertAction"',
     ):
         assert token in CONTROL
     assert 'async function loadOperatorHealth' in JS
@@ -86,10 +95,49 @@ def test_operator_dashboard_uses_real_health_fields():
     assert 'healthCard("program",programReady?' in render
     assert 'programCamera.detail||payload.active_scene_id' in render
     assert "const unhealthy=!programReady" in render
+    assert 'alert.hidden=!sessionActive||!criticalRisk' in render
+    assert '"LIVE SESSION AT RISK"' in render
+
+
+def test_inactive_session_never_claims_an_on_air_risk() -> None:
+    risks = _production_session_risks(
+        session_active=False,
+        program_camera={"ready": False, "detail": "Camera stale"},
+    )
+
+    assert risks == []
+
+
+def test_healthy_live_session_has_no_program_camera_risk() -> None:
+    risks = _production_session_risks(
+        session_active=True,
+        program_camera={"ready": True, "detail": "Fresh frame"},
+    )
+
+    assert risks == []
+
+
+def test_live_session_reports_stale_program_camera_without_auto_action() -> None:
+    risks = _production_session_risks(
+        session_active=True,
+        program_camera={"ready": False, "detail": "Insta360 is connected but stale"},
+    )
+
+    assert risks == [
+        {
+            "id": "program-camera",
+            "severity": "critical",
+            "title": "Program camera feed interrupted",
+            "detail": "Insta360 is connected but stale",
+            "action": "Reconnect the camera or take a verified alternate source",
+        }
+    ]
 
 
 def test_operator_health_is_themable_and_responsive():
     assert '.operator-health-grid' in CSS
     assert 'article[data-state="bad"]' in CSS
     assert '.operator-safe' in CSS
+    assert '.operator-health-alert' in CSS
+    assert '.operator-health-alert[hidden]{display:none}' in CSS
     assert 'html[data-theme="light"] body.studiox-ui4 .operator-health' in CSS
