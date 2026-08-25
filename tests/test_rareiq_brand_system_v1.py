@@ -53,12 +53,12 @@ def test_official_developer_tokens_are_the_product_source_of_truth():
 
 
 def test_brand_stylesheet_is_loaded_last_and_cache_busted():
-    brand_link = '/static/rareiq_brand_v1.css?v=6.8.98-brand-v1'
+    brand_link = '/static/rareiq_brand_v1.css?v=6.8.99-operator1'
     assert brand_link in CONTROL
     assert CONTROL.index(brand_link) > CONTROL.index("ui4-unified-card-stage-overrides")
     assert CONTROL.index(brand_link) > CONTROL.index("/static/pack_run_coach.css")
     assert CONTROL.index("brand/v1/rare-iq-tokens.css?v=1.0") < CONTROL.index(brand_link)
-    assert 'data-studiox-build="6.8.98-brand-v1"' in CONTROL
+    assert 'data-studiox-build="6.8.99-operator1"' in CONTROL
 
 
 def test_horizontal_lockup_is_default_and_old_neon_assets_are_not_rendered():

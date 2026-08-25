@@ -44,14 +44,14 @@ def test_one_camera_feed_and_no_video_clone() -> None:
 
 def test_ui4_scope_and_semantic_regions_exist_without_new_functional_ids() -> None:
     html = read("control.html")
-    assert '<body class="studiox-ui4 studiox-premium" data-ui4-region="application-shell"' in html
+    assert '<body class="studiox-ui4 studiox-premium studiox-operator" data-ui4-region="application-shell"' in html
     for region in (
         "top-app-bar", "controls", "camera", "current-card", "pipeline",
         "diagnostics", "product-navigation", "mobile-actions",
     ):
         assert f'data-ui4-region="{region}"' in html
     assert 'class="ui4-mobile-action-region"' in html
-    assert 'class="studiox-ui4 studiox-premium"' in html
+    assert 'class="studiox-ui4 studiox-premium studiox-operator"' in html
     assert 'class="app-actions ui4-app-health"' in html
     assert 'class="command-group premium-source-control"' in html
 

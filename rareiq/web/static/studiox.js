@@ -9441,14 +9441,34 @@ function initializeStudioXUI4(){
     if(child!==primaryTabs&&!child.classList.contains("inspector-head")) currentView.appendChild(child);
   });
   inspector.append(currentView,recentView);
-  $("inspectorSectionNav")?.addEventListener("click",event=>{
+  const operatorInspectorSections={cardContextHeader:"card",recognitionSignalPanel:"signals",widgetWorkspace:"tools"};
+  const setOperatorInspectorSection=(button,{focus=false}={})=>{
+    const targetId=button?.dataset?.inspectorSection;
+    const section=operatorInspectorSections[targetId];
+    if(!section)return;
+    inspector.dataset.operatorSection=section;
+    $("inspectorSectionNav")?.querySelectorAll("button").forEach(item=>{
+      const selected=item===button;
+      item.setAttribute("aria-current",selected?"true":"false");
+      item.setAttribute("aria-pressed",String(selected));
+    });
+    currentView.scrollTo({top:0,behavior:"auto"});
+    if(focus)button.focus();
+  };
+  const inspectorSectionNav=$("inspectorSectionNav");
+  inspectorSectionNav?.addEventListener("click",event=>{
     const button=event.target.closest("[data-inspector-section]");
-    const target=button?$(button.dataset.inspectorSection):null;
-    if(!target)return;
-    const offset=target.getBoundingClientRect().top-currentView.getBoundingClientRect().top+currentView.scrollTop-112;
-    currentView.scrollTo({top:Math.max(0,offset),behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});
-    $("inspectorSectionNav")?.querySelectorAll("button").forEach(item=>item.setAttribute("aria-current",item===button?"true":"false"));
+    if(button)setOperatorInspectorSection(button);
   });
+  inspectorSectionNav?.addEventListener("keydown",event=>{
+    if(!["ArrowLeft","ArrowRight","Home","End"].includes(event.key))return;
+    const buttons=[...inspectorSectionNav.querySelectorAll("[data-inspector-section]")];
+    const current=Math.max(0,buttons.indexOf(event.target.closest("[data-inspector-section]")));
+    event.preventDefault();
+    const next=event.key==="Home"?0:event.key==="End"?buttons.length-1:(current+(event.key==="ArrowRight"?1:-1)+buttons.length)%buttons.length;
+    setOperatorInspectorSection(buttons[next],{focus:true});
+  });
+  setOperatorInspectorSection(inspectorSectionNav?.querySelector('[data-inspector-section="cardContextHeader"]'));
   if($("inspectorEmpty")) $("inspectorEmpty").style.display="none";
   if($("inspectorMain")) $("inspectorMain").style.display="grid";
   primaryTabs?.querySelectorAll("[data-inspector-view]").forEach(button=>{
