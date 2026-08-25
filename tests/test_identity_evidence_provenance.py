@@ -200,6 +200,79 @@ def test_final_recognition_payload_preserves_verified_matching_identity() -> Non
     assert payload["verification_state"] == "VERIFIED"
 
 
+def _reference_lookup_service(*results: dict) -> RecognitionService:
+    service = object.__new__(RecognitionService)
+    service._cards = []
+    service.artwork_index = SimpleNamespace(
+        text_search=lambda _query, *, limit: list(results)[:limit]
+    )
+    service.global_visual_index = None
+    return service
+
+
+def test_catalog_gap_marks_observed_identity_missing_from_local_references() -> None:
+    payload = {
+        "language": "Chinese",
+        "ocr_collector_number": "029/084",
+        "candidates": [_catalog_candidate("Italian")],
+        "recognition_locked": True,
+        "verification_state": "VERIFIED",
+        "has_reference_evidence": True,
+        "pipeline_stages": [{"key": "verify", "state": "done"}],
+    }
+    service = _reference_lookup_service(_catalog_candidate("Italian"))
+
+    RecognitionService._enforce_payload_identity_consistency(payload)
+    result = service._search_local_identity_references(payload)
+    service._apply_catalog_gap_result(payload, result)
+
+    assert result["status"] == "missing"
+    assert result["query"]["collector_key"] == "29/84"
+    assert result["query"]["language_key"] == "zh-cn"
+    assert payload["verification_state"] == "REFERENCE_MISSING"
+    assert payload["recognition_locked"] is False
+    assert payload["has_reference_evidence"] is False
+    assert payload["catalog_gap"]["match_count"] == 0
+    assert payload["catalog_recovery_candidates"] == []
+    assert payload["pipeline_stages"][0]["detail"] == (
+        "No matching local catalog reference"
+    )
+
+
+def test_catalog_gap_surfaces_normalized_local_recovery_without_auto_approval() -> None:
+    recovered = {
+        **_catalog_candidate("zh_cn"),
+        "id": "me5-cn-029",
+        "collector_number": "029/084",
+        "reference_image_url": "/reference/slowpoke-cn.png",
+    }
+    payload = {
+        "language": "Simplified Chinese",
+        "ocr_collector_number": "29/84",
+        "candidates": [_catalog_candidate("Italian")],
+        "recognition_locked": True,
+        "verification_state": "VERIFIED",
+        "pipeline_stages": [{"key": "verify", "state": "done"}],
+    }
+    service = _reference_lookup_service(recovered)
+
+    RecognitionService._enforce_payload_identity_consistency(payload)
+    result = service._search_local_identity_references(payload)
+    service._apply_catalog_gap_result(payload, result)
+
+    assert result["status"] == "available"
+    assert result["match_count"] == 1
+    assert payload["verification_state"] == "REVIEW_NEEDED"
+    assert payload["recognition_locked"] is False
+    assert payload["catalog_recovery_candidates"][0]["id"] == "me5-cn-029"
+    assert payload["catalog_recovery_candidates"][0][
+        "catalog_recovery_source"
+    ] == "artwork_index"
+    assert payload["pipeline_stages"][0]["detail"] == (
+        "Matching local reference available for operator selection"
+    )
+
+
 def test_recognition_state_propagates_identity_provenance() -> None:
     store = RecognitionStateStore()
     conflict = {
@@ -225,6 +298,33 @@ def test_recognition_state_propagates_identity_provenance() -> None:
     assert snapshot["identity_conflicts"] == [conflict]
     assert snapshot["identity_evidence"]["observed"]["language"] == "Chinese"
     assert snapshot["verification_state"] == "REVIEW_NEEDED"
+
+
+def test_recognition_state_preserves_reference_missing_and_recovery_metadata() -> None:
+    store = RecognitionStateStore()
+    candidate = _catalog_candidate("Italian")
+    snapshot = store.update_recognition({
+        "candidates": [candidate],
+        "recognition_locked": False,
+        "has_reference_evidence": True,
+        "verification_state": "REFERENCE_MISSING",
+        "catalog_gap": {
+            "status": "missing",
+            "query": {
+                "collector_number": "029/084",
+                "language": "Chinese",
+            },
+            "match_count": 0,
+        },
+        "catalog_recovery_candidates": [],
+    })
+
+    assert snapshot["primary_candidate"]["id"] == candidate["id"]
+    assert snapshot["verification_state"] == "REFERENCE_MISSING"
+    assert snapshot["has_reference_evidence"] is False
+    assert snapshot["auto_add"]["reference_available"] is False
+    assert snapshot["catalog_gap"]["status"] == "missing"
+    assert snapshot["catalog_recovery_candidates"] == []
 
 
 def test_approval_is_blocked_until_conflicting_identity_is_reviewed() -> None:
@@ -317,3 +417,15 @@ def test_studiox_routes_identity_conflict_to_review_without_exact_match() -> Non
     assert "Catalog language" in SCRIPT
     assert "Conflict — review required" in SCRIPT
     assert "Capture stable across" in SCRIPT
+
+
+def test_studiox_distinguishes_missing_reference_and_reuses_correction_flow() -> None:
+    presentation = SCRIPT.split(
+        "function deriveRecognitionPresentation", 1
+    )[1].split("function stabilizeRecognitionPresentation", 1)[0]
+    assert 'verificationState==="REFERENCE_MISSING"' in presentation
+    assert 'title:"REFERENCE MISSING"' in presentation
+    assert "catalogGapPresentationDetail(snapshot)" in presentation
+    assert "function referenceCorrectionCandidates" in SCRIPT
+    assert "catalog_recovery_candidates" in SCRIPT
+    assert SCRIPT.count("/api/intelligence/catalog-search") == 1

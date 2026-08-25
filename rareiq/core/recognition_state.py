@@ -44,6 +44,8 @@ class RecognitionSnapshot:
     identity_evidence: dict[str, Any] = field(default_factory=dict)
     identity_conflicts: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     identity_consistent: bool = True
+    catalog_gap: dict[str, Any] = field(default_factory=dict)
+    catalog_recovery_candidates: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     has_reference_evidence: bool = False
     verification_state: str = "SEARCHING"
     provisional_candidate: bool = False
@@ -59,6 +61,9 @@ class RecognitionSnapshot:
         payload["candidates"] = list(self.candidates)
         payload["pipeline_stages"] = list(self.pipeline_stages)
         payload["identity_conflicts"] = list(self.identity_conflicts)
+        payload["catalog_recovery_candidates"] = list(
+            self.catalog_recovery_candidates
+        )
         payload["candidate_count"] = len(self.candidates)
         return payload
 
@@ -594,8 +599,14 @@ class RecognitionStateStore:
         }
 
         overall = self._number(raw.get("overall_confidence"))
+        catalog_gap = copy.deepcopy(raw.get("catalog_gap") or {})
+        reference_missing = bool(
+            raw.get("verification_state") == "REFERENCE_MISSING"
+            or catalog_gap.get("status") == "missing"
+        )
         has_reference = bool(
-            primary
+            not reference_missing
+            and primary
             and (
                 raw.get("has_reference_evidence")
                 or (
@@ -679,10 +690,16 @@ class RecognitionStateStore:
                 raw.get("identity_conflicts") or []
             )),
             identity_consistent=raw.get("identity_consistent") is not False,
+            catalog_gap=catalog_gap,
+            catalog_recovery_candidates=tuple(copy.deepcopy(
+                raw.get("catalog_recovery_candidates") or []
+            )),
             has_reference_evidence=has_reference,
             verification_state=(
                 "VERIFIED"
                 if verified
+                else "REFERENCE_MISSING"
+                if reference_missing
                 else "REFERENCE NEEDED"
                 if primary and not has_reference
                 else raw.get("verification_state") or "SEARCHING"

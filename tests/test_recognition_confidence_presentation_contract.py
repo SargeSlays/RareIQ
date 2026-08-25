@@ -47,6 +47,21 @@ def test_review_copy_skips_empty_conflicts_and_reports_real_evidence():
     assert "identityConflictPresentationDetail(snapshot,card)" in review
 
 
+def test_reference_missing_copy_uses_observed_catalog_query() -> None:
+    formatter = JS.split(
+        "function catalogGapPresentationDetail", 1
+    )[1].split("function deriveRecognitionPresentation", 1)[0]
+    assert "snapshot?.catalog_gap?.query" in formatter
+    assert "No local reference matches observed" in formatter
+    assert "Search or import the correct catalog record." in formatter
+
+    presentation = JS.split(
+        "function deriveRecognitionPresentation", 1
+    )[1].split("function stabilizeRecognitionPresentation", 1)[0]
+    assert 'title:"REFERENCE MISSING"' in presentation
+    assert 'key:"review-needed"' in presentation
+
+
 def test_only_authoritative_verification_promotes_the_ring_to_match():
     shared = JS.split("function updateSharedCardContext", 1)[1].split(
         "function applyStudioXExactMatchMoment", 1

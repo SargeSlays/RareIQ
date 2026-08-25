@@ -5943,6 +5943,17 @@ function identityConflictPresentationDetail(snapshot={},card=null){
   return "Observed identity evidence conflicts with the catalog candidate.";
 }
 
+function catalogGapPresentationDetail(snapshot={}){
+  const query=snapshot?.catalog_gap?.query||{};
+  const observed=[
+    query.collector_number?`collector number ${query.collector_number}`:"",
+    query.language?`language ${query.language}`:"",
+  ].filter(Boolean).join(" and ");
+  return observed
+    ?`No local reference matches observed ${observed}. Search or import the correct catalog record.`
+    :"No matching local catalog reference is available for the observed identity.";
+}
+
 function deriveRecognitionPresentation(snapshot={},card=null,candidates=[]){
   const verificationState=String(snapshot?.verification_state||"").toUpperCase();
   const phase=verificationState==="SET_MISMATCH"
@@ -5989,6 +6000,9 @@ function deriveRecognitionPresentation(snapshot={},card=null,candidates=[]){
   }
   if(["ERROR","FAILED"].includes(phase)){
     return {key:"error",state:"error",title:"ERROR",detail:"Recognition is temporarily unavailable.",placeholderTitle:"Recognition Unavailable",confidence};
+  }
+  if(verificationState==="REFERENCE_MISSING"||snapshot?.catalog_gap?.status==="missing"){
+    return {key:"review-needed",state:"warning",title:"REFERENCE MISSING",detail:catalogGapPresentationDetail(snapshot),placeholderTitle:"Reference Missing",confidence};
   }
   if(identityConflict&&hasCandidate){
     return {key:"review-needed",state:"searching",title:"REVIEW NEEDED",detail:identityConflictPresentationDetail(snapshot,card),placeholderTitle:"Review Identity",confidence};
@@ -7139,7 +7153,19 @@ function setReferenceCompareMode(mode="side"){const overlay=$("referenceLightbox
 function referenceSelectedIdentity(){
   if(referenceSelectedCatalogCandidate) return referenceSelectedCatalogCandidate;
   if(referenceSelectedCandidate<0) return null;
-  return (window.__rareiqCardContext?.candidates||[])[referenceSelectedCandidate]||null;
+  return referenceCorrectionCandidates()[referenceSelectedCandidate]||null;
+}
+function referenceCorrectionCandidates(){
+  const context=window.__rareiqCardContext||{},combined=[
+    ...(context.candidates||[]),
+    ...(context.snapshot?.catalog_recovery_candidates||[]),
+  ],seen=new Set();
+  return combined.filter(candidate=>{
+    const key=[candidate?.id,candidate?.set_id||candidate?.set_name,candidate?.collector_number||candidate?.number,candidate?.language||candidate?.language_code].map(value=>String(value||"").trim().toLowerCase()).join("|");
+    if(seen.has(key))return false;
+    seen.add(key);
+    return true;
+  });
 }
 function referenceIdentityKey(value){return String(value||"").trim().toLowerCase().replaceAll(" ","").split("/").map(part=>/^\d+$/.test(part)?String(Number(part)):part).join("/")}
 function referenceLanguageKey(value){const normalized=String(value||"").trim().toLowerCase().replaceAll("_","-");return {english:"en",en:"en",chinese:"zh-cn","simplified chinese":"zh-cn","zh-cn":"zh-cn"}[normalized]||normalized}
@@ -7164,7 +7190,7 @@ function syncReferenceIdentityConflict(candidate=null){
   const selected=candidate||referenceSelectedIdentity();
   if(!selected){
     const conflicts=context.card?.identity_conflicts||context.snapshot?.identity_conflicts||[];
-    const candidates=context.candidates||[],recommended=candidates.find(item=>referenceCandidateEvidence(item).recommended),recommendation=recommended?` ${recommended.english_name||recommended.name||recommended.printed_name||"The highlighted candidate"} matches every available observed identity field; select it to compare.`:" No visible candidate matches every available observed identity field; search the local catalog if needed.";
+    const candidates=referenceCorrectionCandidates(),recommended=candidates.find(item=>referenceCandidateEvidence(item).recommended),recommendation=recommended?` ${recommended.english_name||recommended.name||recommended.printed_name||"The highlighted candidate"} matches every available observed identity field; select it to compare.`:" No visible candidate matches every available observed identity field; search the local catalog if needed.";
     host.textContent=conflicts.length?`${conflicts.map(item=>`Observed ${String(item.field||"identity").replaceAll("_"," ")} ${item.observed||"--"} conflicts with catalog ${item.catalog||"--"}.`).join(" ")}${recommendation}`:"Select a candidate to compare with the observed card evidence.";
     host.hidden=false;
     host.dataset.state=conflicts.length?"conflict":"waiting";
@@ -7192,7 +7218,7 @@ function syncReferenceVerification(){
 }
 function selectReferenceCorrectionCandidate(candidate,{index=-1,catalog=false}={}){const source=multiCardReferenceImage(candidate);referenceSelectedCandidate=catalog?-1:index;referenceSelectedCatalogCandidate=catalog?candidate:null;if(source){$("referenceLightboxImage").src=source;$("referenceLightboxOpen").href=source}setCardText("referenceLightboxTitle",candidate.english_name||candidate.name||candidate.printed_name||"Selected candidate");setCardText("referenceLightboxMeta",[candidate.set_name,candidate.collector_number||candidate.printed_code,candidate.language].filter(Boolean).join(" · "));renderReferenceCandidates();renderReferenceCatalogResults(window.__rareiqCatalogCorrectionResults||[]);if($("referenceApprove"))$("referenceApprove").textContent="Approve selected";syncReferenceVerification()}
 function makeReferenceCandidateButton(candidate,{index=-1,catalog=false}={}){const button=document.createElement("button"),source=multiCardReferenceImage(candidate),selected=catalog?referenceSelectedCatalogCandidate&&(referenceSelectedCatalogCandidate.id===candidate.id):index===referenceSelectedCandidate,evidence=referenceCandidateEvidence(candidate);button.type="button";button.dataset.selected=String(Boolean(selected));button.dataset.identityEvidence=evidence.state;button.innerHTML=`${source?`<img src="${escapeHtml(source)}" alt="">`:"<i></i>"}<span><strong>${escapeHtml(candidate.english_name||candidate.name||candidate.printed_name||"Candidate")}</strong><small>${escapeHtml([candidate.set_name,candidate.collector_number||candidate.printed_code,candidate.language].filter(Boolean).join(" · ")||"Identity details pending")}</small><em>${escapeHtml(evidence.label)}</em></span>${catalog?"<b>CATALOG</b>":`<b>${recentScanConfidence(candidate.fused_score??candidate.score??candidate.confidence??0)}%</b>`}`;button.addEventListener("click",()=>selectReferenceCorrectionCandidate(candidate,{index,catalog}));return button}
-function renderReferenceCandidates(){const host=$("referenceCandidateList"),candidates=window.__rareiqCardContext?.candidates||[];if(!host)return;host.replaceChildren(...(candidates.length?candidates.slice(0,12).map((candidate,index)=>makeReferenceCandidateButton(candidate,{index})):[Object.assign(document.createElement("p"),{textContent:"No suggested alternatives are available. Search the local library below."})]))}
+function renderReferenceCandidates(){const host=$("referenceCandidateList"),candidates=referenceCorrectionCandidates();if(!host)return;host.replaceChildren(...(candidates.length?candidates.slice(0,12).map((candidate,index)=>makeReferenceCandidateButton(candidate,{index})):[Object.assign(document.createElement("p"),{textContent:"No suggested alternatives are available. Search the local library below."})]))}
 function renderReferenceCatalogResults(results=[]){const host=$("referenceCatalogResults");if(!host)return;host.hidden=false;host.replaceChildren(...(results.length?results.map(candidate=>makeReferenceCandidateButton(candidate,{catalog:true})):[Object.assign(document.createElement("p"),{textContent:"No local catalog cards matched that search."})]))}
 async function searchReferenceCatalog(event){event?.preventDefault();const query=String($("referenceCatalogSearchInput")?.value||"").trim();if(query.length<2){setCardText("referenceCatalogSearchStatus","Enter at least two characters");return}setCardText("referenceCatalogSearchStatus","Searching local card library…");const payload=await api(`/api/intelligence/catalog-search?q=${encodeURIComponent(query)}&limit=24`);window.__rareiqCatalogCorrectionResults=payload.results||[];renderReferenceCatalogResults(window.__rareiqCatalogCorrectionResults);setCardText("referenceCatalogSearchStatus",`${payload.count||0} catalog result${payload.count===1?"":"s"} · ${query}`)}
 function referenceCorrectionIdentityLabel(identity={}){return [identity.english_name||identity.name||identity.printed_name,identity.set_name,identity.collector_number,identity.language].filter(Boolean).join(" · ")}
@@ -7241,7 +7267,7 @@ function openReferenceLightbox(source,title="Card verification",meta="Compare ag
 function closeReferenceLightbox(){const overlay=$("referenceLightbox");if(!overlay||overlay.hidden)return;overlay.hidden=true;document.body.classList.remove("reference-lightbox-open");leaveStudioXModal(overlay,$("cardArt"))}
 function openCurrentReferenceLightbox(){const image=$("cardArt")?.querySelector("img");if(!image)return;const meta=[$("cardSetName")?.textContent,$("cardCollectorNumber")?.textContent,$("cardLanguage")?.textContent].filter(value=>value&&value!=="--").join(" · ");openReferenceLightbox(image.currentSrc||image.src,$("cardName")?.textContent||"Card verification",meta||"Compare against the live card")}
 function openMatchCorrectionWorkflow(){
-  const context=window.__rareiqCardContext||{},candidates=context.candidates||[],image=$("cardArt")?.querySelector("img"),initial=context.card||candidates.find(candidate=>multiCardReferenceImage(candidate))||null,source=image?.currentSrc||image?.src||multiCardReferenceImage(initial);
+  const context=window.__rareiqCardContext||{},candidates=referenceCorrectionCandidates(),image=$("cardArt")?.querySelector("img"),initial=context.card||candidates.find(candidate=>multiCardReferenceImage(candidate))||null,source=image?.currentSrc||image?.src||multiCardReferenceImage(initial);
   if(!source){notify("Correction Unavailable","Wait for a catalog reference image before correcting the match.","error");return}
   const title=initial?.english_name||initial?.name||initial?.printed_name||"Review identity";
   const meta=[initial?.set_name,initial?.collector_number||initial?.printed_code,initial?.language].filter(Boolean).join(" · ")||"Compare candidates against the live crop";

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import os
 import re
@@ -2101,6 +2102,136 @@ class RecognitionService:
             str(int(part)) if part.isdigit() else part
             for part in raw.split("/")
         )
+
+    def _search_local_identity_references(
+        self,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        evidence = dict(payload.get("identity_evidence") or {})
+        observed = dict(evidence.get("observed") or {})
+        collector = (
+            observed.get("collector_number")
+            or payload.get("ocr_collector_number")
+            or payload.get("collector_number")
+        )
+        language = observed.get("language") or payload.get("language")
+        collector_key = self._identity_collector_key(collector)
+        language_key = self._canonical_identity_language(language)
+        started = time.perf_counter()
+        searched_sources: list[str] = []
+        records: list[tuple[str, dict[str, Any]]] = []
+
+        def add_records(source: str, values: Any) -> None:
+            searched_sources.append(source)
+            for value in values or []:
+                if isinstance(value, dict):
+                    records.append((source, dict(value)))
+
+        add_records("ranked_candidates", payload.get("candidates") or [])
+        add_records("embedded_cards", getattr(self, "_cards", []))
+
+        queries = [str(collector or "").strip(), collector_key]
+        queries = list(dict.fromkeys(query for query in queries if len(query) >= 2))
+        for source, service in (
+            ("artwork_index", getattr(self, "artwork_index", None)),
+            ("global_visual_index", getattr(self, "global_visual_index", None)),
+        ):
+            if service is None or not hasattr(service, "text_search"):
+                continue
+            found: list[dict[str, Any]] = []
+            for query in queries:
+                try:
+                    found.extend(service.text_search(query, limit=100) or [])
+                except (OSError, RuntimeError, TypeError, ValueError):
+                    continue
+            add_records(source, found)
+
+        matches: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for source, record in records:
+            record_collector = self._identity_collector_key(
+                record.get("collector_number")
+                or record.get("number")
+                or record.get("printed_code")
+            )
+            if not collector_key or record_collector != collector_key:
+                continue
+            record_language = self._canonical_identity_language(
+                record.get("language") or record.get("language_code")
+            )
+            if language_key and record_language != language_key:
+                continue
+            identity = "|".join((
+                str(record.get("id") or "").casefold(),
+                str(record.get("set_id") or record.get("set_code") or "").casefold(),
+                record_collector,
+                record_language,
+                str(record.get("image_path") or record.get("local_image") or "").casefold(),
+            ))
+            if identity in seen:
+                continue
+            seen.add(identity)
+            record["catalog_recovery_source"] = source
+            matches.append(record)
+
+        matches.sort(key=lambda item: (
+            str(item.get("set_name") or item.get("set_id") or "").casefold(),
+            str(item.get("english_name") or item.get("name") or "").casefold(),
+            str(item.get("id") or "").casefold(),
+        ))
+        return {
+            "version": 1,
+            "complete": True,
+            "status": "available" if matches else "missing",
+            "query": {
+                "collector_number": collector,
+                "collector_key": collector_key,
+                "language": language,
+                "language_key": language_key,
+            },
+            "searched_sources": searched_sources,
+            "match_count": len(matches),
+            "matches": matches[:10],
+            "search_ms": round((time.perf_counter() - started) * 1000, 1),
+        }
+
+    @staticmethod
+    def _apply_catalog_gap_result(
+        payload: dict[str, Any],
+        result: dict[str, Any],
+    ) -> None:
+        if not payload.get("identity_conflicts") or result.get("complete") is not True:
+            return
+        query = dict(result.get("query") or {})
+        if not query.get("collector_key"):
+            return
+        matches = [
+            dict(item) for item in result.get("matches") or []
+            if isinstance(item, dict)
+        ]
+        payload["catalog_gap"] = {
+            key: copy.deepcopy(value)
+            for key, value in result.items()
+            if key != "matches"
+        }
+        payload["catalog_recovery_candidates"] = matches
+        if matches:
+            for stage in payload.get("pipeline_stages") or []:
+                if isinstance(stage, dict) and stage.get("key") == "verify":
+                    stage["state"] = "waiting"
+                    stage["detail"] = "Matching local reference available for operator selection"
+            return
+
+        payload.update({
+            "recognition_locked": False,
+            "has_reference_evidence": False,
+            "verification_state": "REFERENCE_MISSING",
+            "lock_reason": None,
+        })
+        for stage in payload.get("pipeline_stages") or []:
+            if isinstance(stage, dict) and stage.get("key") == "verify":
+                stage["state"] = "waiting"
+                stage["detail"] = "No matching local catalog reference"
 
     @classmethod
     def _enforce_payload_identity_consistency(
@@ -4579,6 +4710,11 @@ class RecognitionService:
         self._apply_single_temporal_confirmation(payload)
         self._enforce_payload_printed_code_consistency(payload)
         self._enforce_payload_identity_consistency(payload)
+        if payload.get("identity_conflicts"):
+            self._apply_catalog_gap_result(
+                payload,
+                self._search_local_identity_references(payload),
+            )
 
         with self._lock:
             current = self._current_generation
