@@ -51,8 +51,8 @@ class BroadcastDestinationService:
             ("channel identity", "public live status"),
             "first",
             "Read-only Twitch monitor not configured.",
-            ("Twitch developer application", "Local client credentials", "Channel login", "OBS RTMP destination configured separately"),
-            "Set the local Twitch connector environment and check status.",
+            ("Twitch developer application", "Local app credentials and channel login", "Broadcaster token with stream-key read scope", "OBS Twitch destination"),
+            "Set the local Twitch connector environment, configure OBS, and check status.",
             "Twitch token, channel identity, and live-status confirmation; OBS route verification remains separate.",
         ),
         BroadcastPlatform(
@@ -191,7 +191,7 @@ class BroadcastDestinationService:
             "destinations": destinations,
         }
 
-    def refresh_connectors(self) -> dict[str, bool]:
+    def refresh_connectors(self, *, obs_route: Any = None) -> dict[str, bool]:
         """Explicitly refresh registered connectors without changing snapshot I/O."""
         results: dict[str, bool] = {}
         for platform_id, connector in sorted(self._connectors.items()):
@@ -200,7 +200,7 @@ class BroadcastDestinationService:
                 results[platform_id] = False
                 continue
             try:
-                refresh()
+                refresh(obs_route=obs_route)
                 results[platform_id] = True
             except Exception:
                 results[platform_id] = False

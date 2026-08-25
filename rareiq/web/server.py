@@ -2091,8 +2091,11 @@ async def obs_status():
 @app.get("/api/production/destinations")
 async def production_destinations():
     """Report platform capabilities without inferring unverified live states."""
-    await asyncio.to_thread(broadcast_destinations.refresh_connectors)
     current_obs = await asyncio.to_thread(obs.status)
+    await asyncio.to_thread(
+        broadcast_destinations.refresh_connectors,
+        obs_route=obs.cached_stream_route_probe(),
+    )
     return {
         "ok": True,
         **broadcast_destinations.snapshot(obs_status=current_obs),

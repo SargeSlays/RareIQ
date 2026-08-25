@@ -18,7 +18,7 @@ class RefreshableConnector(FakeConnector):
         super().__init__(platform_id, evidence)
         self.refresh_count = 0
 
-    def refresh(self) -> None:
+    def refresh(self, *, obs_route=None) -> None:
         self.refresh_count += 1
 
 
@@ -61,6 +61,7 @@ def test_destination_registry_exposes_all_requested_platforms() -> None:
     twitch = payload["destinations"][0]
     assert twitch["setup_method"] == "Read-only app token"
     assert twitch["capabilities"] == ["channel identity", "public live status"]
+    assert "Broadcaster token with stream-key read scope" in twitch["setup"]["requirements"]
     assert "OBS route verification remains separate" in twitch["setup"]["verification_method"]
 
 

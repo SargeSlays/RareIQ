@@ -19,6 +19,7 @@ class TwitchBroadcastConnector:
     VALIDATE_URL = "https://id.twitch.tv/oauth2/validate"
     USERS_URL = "https://api.twitch.tv/helix/users"
     STREAMS_URL = "https://api.twitch.tv/helix/streams"
+    STREAM_KEY_URL = "https://api.twitch.tv/helix/streams/key"
 
     TOKEN_EXPIRY_SKEW_SECONDS = 60.0
     TOKEN_VALIDATION_INTERVAL_SECONDS = 60.0 * 60.0
@@ -30,12 +31,14 @@ class TwitchBroadcastConnector:
         client_id: str,
         client_secret: str,
         channel_login: str,
+        user_access_token: str | None = None,
         client: httpx.Client | None = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self._client_id = client_id.strip()
         self._client_secret = client_secret.strip()
         self._channel_login = channel_login.strip().lower()
+        self._user_access_token = str(user_access_token or "").strip() or None
         if not self._client_id or not self._client_secret:
             raise ValueError("Twitch client configuration is incomplete.")
         if not self._LOGIN_PATTERN.fullmatch(self._channel_login):
@@ -50,6 +53,8 @@ class TwitchBroadcastConnector:
         self._token: str | None = None
         self._token_expires_at = 0.0
         self._token_validated_at = 0.0
+        self._user_token_validated_at = 0.0
+        self._validated_user_id: str | None = None
         self._status = self._unverified_status("not_refreshed")
 
     @classmethod
@@ -62,6 +67,9 @@ class TwitchBroadcastConnector:
         client_id = str(values.get("RAREIQ_TWITCH_CLIENT_ID") or "").strip()
         client_secret = str(values.get("RAREIQ_TWITCH_CLIENT_SECRET") or "").strip()
         channel_login = str(values.get("RAREIQ_TWITCH_CHANNEL_LOGIN") or "").strip()
+        user_access_token = str(
+            values.get("RAREIQ_TWITCH_USER_ACCESS_TOKEN") or ""
+        ).strip()
         if not (client_id and client_secret and channel_login):
             return None
         try:
@@ -69,6 +77,7 @@ class TwitchBroadcastConnector:
                 client_id=client_id,
                 client_secret=client_secret,
                 channel_login=channel_login,
+                user_access_token=user_access_token or None,
                 **kwargs,
             )
         except ValueError:
@@ -79,7 +88,7 @@ class TwitchBroadcastConnector:
         with self._lock:
             return dict(self._status)
 
-    def refresh(self) -> dict[str, Any]:
+    def refresh(self, *, obs_route: Any = None) -> dict[str, Any]:
         """Refresh public Twitch channel evidence with bounded network calls."""
         with self._lock:
             now = self._clock()
@@ -126,10 +135,16 @@ class TwitchBroadcastConnector:
                     and str(item.get("type") or "").lower() == "live"
                     for item in streams
                 )
+                route_verified = self._verify_obs_route(
+                    now=now,
+                    user_id=user_id,
+                    obs_route=obs_route,
+                )
                 self._status = self._verified_status(
                     now=now,
                     connected=True,
                     platform_live=platform_live,
+                    route_verified=route_verified,
                 )
             except (httpx.HTTPError, TypeError, ValueError):
                 self._status = self._unverified_status("twitch_api_unavailable", now=now)
@@ -188,6 +203,70 @@ class TwitchBroadcastConnector:
         self._token_expires_at = min(self._token_expires_at, now + expires_in)
         self._token_validated_at = now
 
+    def _verify_obs_route(self, *, now: float, user_id: str, obs_route: Any) -> bool:
+        if not self._user_access_token or obs_route is None:
+            return False
+        if (
+            getattr(obs_route, "provider", None) != self.platform_id
+            or not bool(getattr(obs_route, "key_configured", False))
+            or not callable(getattr(obs_route, "matches_stream_key", None))
+        ):
+            return False
+        try:
+            if (
+                self._validated_user_id != user_id
+                or now - self._user_token_validated_at
+                >= self.TOKEN_VALIDATION_INTERVAL_SECONDS
+            ):
+                self._validate_user_token(now=now, expected_user_id=user_id)
+            response = self._client.get(
+                self.STREAM_KEY_URL,
+                params={"broadcaster_id": user_id},
+                headers={
+                    "Authorization": f"Bearer {self._user_access_token}",
+                    "Client-Id": self._client_id,
+                },
+            )
+            response.raise_for_status()
+            records = self._data_list(response)
+            if len(records) != 1:
+                return False
+            expected_key = str(records[0].get("stream_key") or "")
+            return bool(
+                expected_key
+                and obs_route.matches_stream_key(
+                    expected_key,
+                    provider=self.platform_id,
+                )
+            )
+        except (httpx.HTTPError, TypeError, ValueError):
+            self._user_token_validated_at = 0.0
+            self._validated_user_id = None
+            return False
+
+    def _validate_user_token(self, *, now: float, expected_user_id: str) -> None:
+        if not self._user_access_token:
+            raise ValueError("Twitch user token is unavailable.")
+        response = self._client.get(
+            self.VALIDATE_URL,
+            headers={"Authorization": f"OAuth {self._user_access_token}"},
+        )
+        response.raise_for_status()
+        payload = response.json()
+        scopes = payload.get("scopes")
+        if (
+            str(payload.get("client_id") or "") != self._client_id
+            or str(payload.get("login") or "").lower() != self._channel_login
+            or str(payload.get("user_id") or "") != expected_user_id
+            or not isinstance(scopes, list)
+            or "channel:read:stream_key" not in scopes
+            or float(payload.get("expires_in") or 0.0)
+            <= self.TOKEN_EXPIRY_SKEW_SECONDS
+        ):
+            raise ValueError("Twitch user token cannot verify this channel route.")
+        self._user_token_validated_at = now
+        self._validated_user_id = expected_user_id
+
     @staticmethod
     def _data_list(response: httpx.Response) -> list[dict[str, Any]]:
         payload = response.json()
@@ -212,6 +291,7 @@ class TwitchBroadcastConnector:
         now: float,
         connected: bool,
         platform_live: bool,
+        route_verified: bool = False,
         error_code: str | None = None,
     ) -> dict[str, Any]:
         return {
@@ -222,7 +302,7 @@ class TwitchBroadcastConnector:
             "configured": True,
             "connected": connected,
             # Public channel status cannot prove which destination OBS uses.
-            "route_verified": False,
+            "route_verified": route_verified,
             "destination_ready": connected,
             "platform_live": platform_live,
             "error_code": error_code,

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from rareiq.services.obs_service import ObsService
+from rareiq.services.obs_service import ObsService, ObsStreamRouteProbe
 
 
 class _SceneObject:
@@ -26,6 +26,93 @@ def test_disabled_obs_fails_closed(tmp_path: Path):
     status = service.status()
     assert status["connected"] is False
     assert "disabled" in status["error"].lower()
+    assert status["stream_service"] == {
+        "inspected": False,
+        "provider": None,
+        "service_type": None,
+        "key_configured": False,
+    }
+
+
+def test_obs_stream_route_is_sanitized_and_matches_twitch_key(monkeypatch, tmp_path: Path):
+    service = ObsService(tmp_path / "obs.json")
+    service.configure({"enabled": True})
+    secret_key = "live_123_private-key"
+
+    class Client:
+        def get_version(self):
+            return type("Version", (), {"obs_version": "31.0.0"})()
+
+        def get_scene_list(self):
+            return type("Scenes", (), {"scenes": [], "current_program_scene_name": None})()
+
+        def get_stream_status(self):
+            return type("Status", (), {"output_active": False})()
+
+        def get_record_status(self):
+            return type("Status", (), {"output_active": False})()
+
+        def get_stream_service_settings(self):
+            return type(
+                "Route",
+                (),
+                {
+                    "stream_service_type": "rtmp_common",
+                    "stream_service_settings": {
+                        "service": "Twitch",
+                        "server": "auto",
+                        "key": f"{secret_key}?bandwidthtest=true",
+                    },
+                },
+            )()
+
+    monkeypatch.setattr(service, "diagnostic", lambda: {"code": "ready"})
+    monkeypatch.setattr(service, "_client", lambda: Client())
+
+    status = service.status()
+    probe = service.cached_stream_route_probe()
+
+    assert status["connected"] is True
+    assert status["stream_service"] == {
+        "inspected": True,
+        "provider": "twitch",
+        "service_type": "rtmp_common",
+        "key_configured": True,
+    }
+    assert probe.matches_stream_key(secret_key, provider="twitch") is True
+    assert probe.matches_stream_key("wrong-key", provider="twitch") is False
+    assert secret_key not in repr(probe)
+    assert secret_key not in repr(status)
+
+
+def test_custom_twitch_ingest_hosts_are_recognized_without_exposing_server() -> None:
+    for server in (
+        "rtmp://live.twitch.tv/app",
+        "rtmps://sfo.contribute.live-video.net/app",
+        "rtmp://iad05.contribute.video.net/app",
+    ):
+        probe = ObsService._stream_route_from_response(
+            {
+                "streamServiceType": "rtmp_custom",
+                "streamServiceSettings": {"server": server, "key": "private"},
+            }
+        )
+        assert probe.provider == "twitch"
+        assert server not in repr(probe.public_status())
+
+
+def test_non_twitch_route_cannot_match_even_with_the_same_key() -> None:
+    probe = ObsStreamRouteProbe(
+        inspected=True,
+        connected=True,
+        verified_at=1_000.0,
+        service_type="rtmp_custom",
+        provider=None,
+        key_configured=True,
+        _stream_key="same-key",
+    )
+
+    assert probe.matches_stream_key("same-key", provider="twitch") is False
 
 
 def test_sync_without_mapping_is_noop(tmp_path: Path):

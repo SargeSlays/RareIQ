@@ -1,11 +1,52 @@
 from __future__ import annotations
 
 import importlib.util
+import hmac
 import json
 import threading
 import socket
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
+
+
+@dataclass(frozen=True)
+class ObsStreamRouteProbe:
+    """Private stream-route evidence whose public view and repr omit credentials."""
+
+    inspected: bool
+    connected: bool
+    verified_at: float
+    service_type: str | None
+    provider: str | None
+    key_configured: bool
+    _stream_key: str | None = field(default=None, repr=False, compare=False)
+
+    def public_status(self) -> dict[str, Any]:
+        return {
+            "inspected": self.inspected,
+            "provider": self.provider,
+            "service_type": self.service_type,
+            "key_configured": self.key_configured,
+        }
+
+    def matches_stream_key(self, expected: str, *, provider: str) -> bool:
+        if not self.inspected or not self.connected or self.provider != provider:
+            return False
+        actual = self._normalized_key(self._stream_key)
+        candidate = self._normalized_key(expected)
+        return bool(actual and candidate and hmac.compare_digest(actual, candidate))
+
+    @staticmethod
+    def _normalized_key(value: str | None) -> str:
+        # Twitch documents bandwidth-test mode as a query suffix on the key.
+        return str(value or "").strip().partition("?")[0]
+
+    @classmethod
+    def unavailable(cls) -> ObsStreamRouteProbe:
+        return cls(False, False, 0.0, None, None, False)
 
 
 class ObsService:
@@ -23,6 +64,7 @@ class ObsService:
         self.config_path = config_path
         self._lock = threading.RLock()
         self._config: dict[str, Any] = {"host": "127.0.0.1", "port": 4455, "password": "", "enabled": False, "scene_map": {}}
+        self._stream_route_probe = ObsStreamRouteProbe.unavailable()
         self._load()
 
     def _load(self) -> None:
@@ -76,6 +118,60 @@ class ObsService:
         return [name for scene in list(scenes or []) if (name := cls._scene_name(scene))]
 
     @staticmethod
+    def _response_value(response: Any, snake_name: str, camel_name: str) -> Any:
+        if isinstance(response, dict):
+            return response.get(snake_name, response.get(camel_name))
+        return getattr(response, snake_name, getattr(response, camel_name, None))
+
+    @classmethod
+    def _stream_route_from_response(cls, response: Any) -> ObsStreamRouteProbe:
+        service_type = str(
+            cls._response_value(response, "stream_service_type", "streamServiceType") or ""
+        ).strip()
+        settings = cls._response_value(
+            response,
+            "stream_service_settings",
+            "streamServiceSettings",
+        )
+        if not isinstance(settings, dict):
+            settings = {}
+        service_name = str(settings.get("service") or "").strip().lower()
+        server = str(settings.get("server") or "").strip()
+        stream_key = str(settings.get("key") or "").strip()
+        provider = cls._stream_provider(service_name=service_name, server=server)
+        return ObsStreamRouteProbe(
+            inspected=True,
+            connected=True,
+            verified_at=time.time(),
+            service_type=service_type or None,
+            provider=provider,
+            key_configured=bool(stream_key),
+            _stream_key=stream_key or None,
+        )
+
+    @staticmethod
+    def _stream_provider(*, service_name: str, server: str) -> str | None:
+        if "twitch" in service_name:
+            return "twitch"
+        parsed = urlparse(server if "://" in server else f"//{server}")
+        host = str(parsed.hostname or "").lower().rstrip(".")
+        if (
+            host == "live.twitch.tv"
+            or host.endswith(".contribute.live-video.net")
+            or host.endswith(".contribute.video.net")
+        ):
+            return "twitch"
+        return None
+
+    def cached_stream_route_probe(self) -> ObsStreamRouteProbe:
+        with self._lock:
+            return self._stream_route_probe
+
+    def _set_stream_route_probe(self, probe: ObsStreamRouteProbe) -> None:
+        with self._lock:
+            self._stream_route_probe = probe
+
+    @staticmethod
     def _connection_error(exc: Exception) -> dict[str, str]:
         message = str(exc)
         authentication = any(token in message.lower() for token in ("auth", "password", "identified"))
@@ -87,6 +183,8 @@ class ObsService:
 
     def status(self) -> dict[str, Any]:
         result = {"connected": False, "scenes": [], "current_scene": None, "streaming": False, "recording": False, **self.settings()}
+        self._set_stream_route_probe(ObsStreamRouteProbe.unavailable())
+        result["stream_service"] = self.cached_stream_route_probe().public_status()
         result["diagnostic"] = self.diagnostic()
         if result["diagnostic"]["code"] != "ready":
             result["error"] = result["diagnostic"]["message"]
@@ -94,6 +192,16 @@ class ObsService:
         try:
             client = self._client(); version = client.get_version(); scenes = client.get_scene_list(); stream = client.get_stream_status(); record = client.get_record_status()
             result.update({"connected": True, "obs_version": getattr(version, "obs_version", None), "scenes": self._scene_names(getattr(scenes, "scenes", [])), "current_scene": getattr(scenes, "current_program_scene_name", None), "streaming": bool(getattr(stream, "output_active", False)), "recording": bool(getattr(record, "output_active", False))})
+            route_request = getattr(client, "get_stream_service_settings", None)
+            if callable(route_request):
+                try:
+                    route_probe = self._stream_route_from_response(route_request())
+                    self._set_stream_route_probe(route_probe)
+                    result["stream_service"] = route_probe.public_status()
+                except Exception:
+                    # Route inspection is additive and must not make an otherwise
+                    # healthy OBS connection appear offline.
+                    pass
         except Exception as exc:
             result["error"] = str(exc); result["diagnostic"] = self._connection_error(exc)
         return result
