@@ -1,0 +1,613 @@
+/* Rare IQ Brand System v1.0 - Signal Cut product implementation. */
+:root {
+  color-scheme: dark;
+  --riq-danger: #D96A5C;
+  --riq-obsidian-raised: #0E1415;
+  --riq-obsidian-soft: #151D1F;
+  --riq-ivory-raised: #FFFDF8;
+  --riq-ivory-soft: #EEE9DE;
+  --riq-border-dark: rgba(166, 232, 206, .15);
+  --riq-border-dark-strong: rgba(166, 232, 206, .3);
+  --riq-border-light: rgba(32, 40, 43, .16);
+  --riq-border-light-strong: rgba(75, 159, 131, .42);
+}
+
+html[data-theme="light"] { color-scheme: light; }
+
+body.studiox-ui4 {
+  --cyan: var(--riq-signal-mint);
+  --blue: var(--riq-deep-mint);
+  --purple: var(--riq-deep-mint);
+  --magenta: var(--riq-discovery-amber);
+  --brand-gradient: var(--riq-deep-mint);
+  --brand-gradient-soft: rgba(75, 159, 131, .16);
+  --brand-glow: none;
+  --ui4-surface-base: var(--riq-obsidian);
+  --ui4-surface-1: var(--riq-obsidian-raised);
+  --ui4-surface-2: var(--riq-obsidian-soft);
+  --ui4-surface-3: var(--riq-slate);
+  --ui4-surface-overlay: rgba(8, 11, 13, .94);
+  --ui4-border-subtle: var(--riq-border-dark);
+  --ui4-border-strong: var(--riq-border-dark-strong);
+  --ui4-shadow-panel: none;
+  --ui4-shadow-overlay: 0 18px 44px rgba(0, 0, 0, .34);
+  --ui4-status-info: var(--riq-signal-mint);
+  --ui4-status-ai: var(--riq-deep-mint);
+  --ui4-status-success: var(--riq-signal-mint);
+  --ui4-status-warning: var(--riq-discovery-amber);
+  --ui4-status-danger: var(--riq-danger);
+  --ui4-status-muted: #8FA19A;
+  --ui4-focus-color: var(--riq-signal-mint);
+  --premium-bg: var(--riq-obsidian);
+  --premium-panel: var(--riq-obsidian-raised);
+  --premium-panel-raised: var(--riq-obsidian-soft);
+  --premium-panel-soft: rgba(32, 40, 43, .72);
+  --premium-text: var(--riq-warm-ivory);
+  --premium-text-secondary: var(--riq-mist);
+  --premium-text-tertiary: #8FA19A;
+  --premium-accent: var(--riq-signal-mint);
+  --premium-accent-violet: var(--riq-deep-mint);
+  --premium-hairline: var(--riq-border-dark);
+  --premium-hairline-strong: var(--riq-border-dark-strong);
+  --premium-shadow: none;
+  --premium-scrollbar-thumb: rgba(166, 232, 206, .28);
+  --premium-orb-cyan: var(--riq-signal-mint);
+  --premium-orb-violet: var(--riq-deep-mint);
+  --premium-orb-lime: var(--riq-discovery-amber);
+  --premium-signature-gradient: var(--riq-deep-mint);
+  font-family: Arial, Helvetica, sans-serif;
+  color: var(--riq-warm-ivory);
+  background: var(--riq-obsidian) !important;
+}
+
+body.studiox-ui4::after { display: none !important; }
+
+body.studiox-ui4 :is(code, pre, kbd, samp, .metric, [data-metric], [data-value]) {
+  font-family: Consolas, "Liberation Mono", monospace;
+}
+
+body.studiox-ui4 :is(.brand-logo-image, .brand-lockup-image, .brand-watermark, .ui4-card-placeholder-logo, .instant-splash img) {
+  filter: none !important;
+  animation: none !important;
+}
+
+html[data-theme="dark"] body.studiox-ui4 .brand-lockup-image {
+  content: url("/static/brand/v1/logos/rare-iq-primary-dark.svg");
+}
+
+html[data-theme="light"] body.studiox-ui4 .brand-lockup-image {
+  content: url("/static/brand/v1/logos/rare-iq-primary-light.svg");
+}
+
+html[data-theme="dark"] body.studiox-ui4 :is(.brand-logo-image, .brand-watermark, .ui4-card-placeholder-logo, .brand-context-icon) {
+  content: url("/static/brand/v1/logos/rare-iq-icon-dark.svg");
+}
+
+html[data-theme="light"] body.studiox-ui4 :is(.brand-logo-image, .brand-watermark, .ui4-card-placeholder-logo, .brand-context-icon) {
+  content: url("/static/brand/v1/logos/rare-iq-icon-light.svg");
+}
+
+body.studiox-ui4 .brand-lockup-image {
+  display: block;
+  width: 134px;
+  min-width: 134px;
+  height: 34px;
+  object-fit: contain;
+}
+
+body.studiox-ui4 .brand-product-name {
+  padding-left: 10px;
+  border-left: 1px solid var(--riq-border-dark-strong);
+  color: var(--riq-mist);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+
+body.studiox-ui4 .instant-splash {
+  background: var(--riq-obsidian) !important;
+}
+
+body.studiox-ui4 .instant-splash img {
+  width: min(520px, 66vw) !important;
+  height: auto !important;
+}
+
+body.studiox-ui4 :is(.ui4-desktop-shell, .ui4-center-column, .workspace-stage) {
+  background: var(--riq-obsidian) !important;
+}
+
+body.studiox-ui4 :is(.ui4-navigation-rail, .ui4-command-bar, .appbar, .inspector, .ui4-inspector-column) {
+  border-color: var(--riq-border-dark) !important;
+  background: var(--riq-obsidian-raised) !important;
+  box-shadow: none !important;
+}
+
+body.studiox-ui4 :is(
+  .widget,
+  .studiox-widget,
+  .riq-surface,
+  .inspector-card,
+  .card-context-header,
+  .recognition-signals,
+  .camera-toolbar,
+  .camera-tile,
+  .camera-tile-header,
+  .secondary-bay,
+  .collection-ledger,
+  .inventory-manager,
+  .broadcast-workspace-tabs,
+  .broadcast-destinations,
+  .production-console,
+  .production-panel,
+  .creator-panel,
+  .ai-panel,
+  .library-console-card,
+  .settings-console-card
+) {
+  border-color: var(--riq-border-dark) !important;
+  background-color: var(--riq-obsidian-raised) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+body.studiox-ui4 :is(.camera-workspace, .camera-media, .camera-media-shell, .camera-tile-media, .camera-feed-shell) {
+  background: #000 !important;
+}
+
+body.studiox-ui4 :is(button, .riq-button, input, select, textarea) {
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+body.studiox-ui4 :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  border-color: var(--riq-border-dark) !important;
+  color: var(--riq-warm-ivory) !important;
+  background: var(--riq-obsidian-soft) !important;
+  box-shadow: none !important;
+}
+
+body.studiox-ui4 :is(button, .riq-button):focus-visible,
+body.studiox-ui4 :is(input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--riq-signal-mint) !important;
+  outline-offset: 2px !important;
+  box-shadow: none !important;
+}
+
+body.studiox-ui4 :is(.riq-button.primary, button.primary, .production-auto, #captureButton, #approveButton) {
+  border-color: var(--riq-deep-mint) !important;
+  color: var(--riq-obsidian) !important;
+  background: var(--riq-signal-mint) !important;
+  box-shadow: none !important;
+}
+
+body.studiox-ui4 :is(.riq-button.primary, button.primary, .production-auto, #captureButton, #approveButton):hover:not(:disabled) {
+  background: var(--riq-warm-ivory) !important;
+}
+
+body.studiox-ui4 :is(button, .riq-button):disabled {
+  color: #7E8C87 !important;
+  border-color: rgba(143, 161, 154, .12) !important;
+  background: var(--riq-slate) !important;
+  opacity: .62;
+}
+
+body.studiox-ui4 :is(.nav-button, .dock-tab, [role="tab"])[aria-selected="true"],
+body.studiox-ui4 :is(.nav-button, .dock-tab).active {
+  border-color: var(--riq-border-dark-strong) !important;
+  color: var(--riq-signal-mint) !important;
+  background: rgba(75, 159, 131, .16) !important;
+  box-shadow: none !important;
+}
+
+body.studiox-ui4 :is(.nav-button, .dock-tab, [role="tab"]):hover:not(:disabled) {
+  border-color: var(--riq-border-dark-strong) !important;
+  color: var(--riq-warm-ivory) !important;
+  background: rgba(166, 232, 206, .08) !important;
+}
+
+body.studiox-ui4 :is(.eyebrow, .section-kicker, .widget-kicker, .brand-tag, .camera-tile-kicker, .ui4-overline) {
+  color: var(--riq-signal-mint) !important;
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+}
+
+body.studiox-ui4 :is([data-state="warning"], [data-status="warning"], .warning, .review-needed, .candidate-verifying) {
+  --ui4-state-accent: var(--riq-discovery-amber);
+}
+
+body.studiox-ui4 :is(.warning, .review-needed, [data-state="warning"]):not(button) {
+  border-color: rgba(230, 166, 43, .42) !important;
+}
+
+body.studiox-ui4 :is(.warning, .review-needed, [data-state="warning"]) :is(.eyebrow, strong, b) {
+  color: var(--riq-discovery-amber) !important;
+}
+
+body.studiox-ui4 :is(.scan-zone, .detected-card-outline, .camera-card-polygon) {
+  --camera-accent: var(--riq-signal-mint);
+}
+
+body.studiox-ui4 :is(.scan-zone::before, .scan-zone::after) {
+  filter: none !important;
+}
+
+body.studiox-ui4 :is(.hud-stages, .camera-title, .camera-bottom-hud) {
+  border-color: var(--riq-border-dark) !important;
+  background: rgba(8, 11, 13, .88) !important;
+  box-shadow: none !important;
+}
+
+body.studiox-ui4 :is(.status-spectrum, .splash-loader i, .score-bar i, .studiox-progress i) {
+  background: var(--riq-deep-mint) !important;
+  box-shadow: none !important;
+}
+
+body.studiox-ui4 .core-orb {
+  border: 1px solid var(--riq-border-dark-strong) !important;
+  background: var(--riq-obsidian) !important;
+  box-shadow: none !important;
+}
+
+body.studiox-ui4 .core-orb::before {
+  border-color: var(--riq-signal-mint) !important;
+}
+
+body.studiox-ui4 .core-orb::after {
+  border-color: var(--riq-discovery-amber) !important;
+}
+
+body.studiox-ui4 #cardPlaceholder,
+body.studiox-ui4 #inspectorMain .card-art {
+  border-color: var(--riq-border-dark) !important;
+  background: var(--riq-obsidian-soft) !important;
+  box-shadow: none !important;
+}
+
+body.studiox-ui4 #cardPlaceholder::before {
+  border-color: rgba(166, 232, 206, .1) !important;
+}
+
+body.studiox-ui4 #cardPlaceholder .ui4-card-placeholder-glow {
+  background: none !important;
+}
+
+body.studiox-ui4 #cardPlaceholder .ui4-card-placeholder-scan {
+  background: var(--riq-signal-mint) !important;
+}
+
+body.studiox-ui4 ::selection {
+  color: var(--riq-obsidian);
+  background: var(--riq-signal-mint);
+}
+
+body.studiox-ui4 * {
+  scrollbar-color: rgba(166, 232, 206, .3) transparent;
+}
+
+body.studiox-ui4 *::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(166, 232, 206, .3);
+  background-clip: padding-box;
+}
+
+html[data-theme="light"] body.studiox-ui4 {
+  --ui4-surface-base: var(--riq-warm-ivory);
+  --ui4-surface-1: var(--riq-ivory-raised);
+  --ui4-surface-2: var(--riq-ivory-soft);
+  --ui4-surface-3: var(--riq-mist);
+  --ui4-surface-overlay: rgba(245, 240, 230, .96);
+  --ui4-border-subtle: var(--riq-border-light);
+  --ui4-border-strong: var(--riq-border-light-strong);
+  --premium-bg: var(--riq-warm-ivory);
+  --premium-panel: var(--riq-ivory-raised);
+  --premium-panel-raised: var(--riq-ivory-soft);
+  --premium-panel-soft: rgba(215, 226, 221, .7);
+  --premium-text: var(--riq-obsidian);
+  --premium-text-secondary: var(--riq-slate);
+  --premium-text-tertiary: #63716C;
+  --premium-hairline: var(--riq-border-light);
+  --premium-hairline-strong: var(--riq-border-light-strong);
+  color: var(--riq-obsidian);
+  background: var(--riq-warm-ivory) !important;
+}
+
+html[data-theme="light"] body.studiox-ui4 :is(.ui4-desktop-shell, .ui4-center-column, .workspace-stage) {
+  background: var(--riq-warm-ivory) !important;
+}
+
+html[data-theme="light"] body.studiox-ui4 :is(.ui4-navigation-rail, .ui4-command-bar, .appbar, .inspector, .ui4-inspector-column) {
+  border-color: var(--riq-border-light) !important;
+  color: var(--riq-obsidian) !important;
+  background: var(--riq-ivory-raised) !important;
+}
+
+html[data-theme="light"] body.studiox-ui4 :is(
+  .widget,
+  .studiox-widget,
+  .riq-surface,
+  .inspector-card,
+  .card-context-header,
+  .recognition-signals,
+  .camera-toolbar,
+  .secondary-bay,
+  .collection-ledger,
+  .inventory-manager,
+  .broadcast-workspace-tabs,
+  .broadcast-destinations,
+  .production-console,
+  .production-panel,
+  .creator-panel,
+  .ai-panel,
+  .library-console-card,
+  .settings-console-card
+) {
+  border-color: var(--riq-border-light) !important;
+  color: var(--riq-obsidian) !important;
+  background-color: var(--riq-ivory-raised) !important;
+  background-image: none !important;
+}
+
+html[data-theme="light"] body.studiox-ui4 :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  border-color: var(--riq-border-light) !important;
+  color: var(--riq-obsidian) !important;
+  background: var(--riq-warm-ivory) !important;
+}
+
+html[data-theme="light"] body.studiox-ui4 :is(.nav-button, .dock-tab, [role="tab"])[aria-selected="true"],
+html[data-theme="light"] body.studiox-ui4 :is(.nav-button, .dock-tab).active {
+  border-color: var(--riq-border-light-strong) !important;
+  color: #285F4D !important;
+  background: rgba(75, 159, 131, .14) !important;
+}
+
+html[data-theme="light"] body.studiox-ui4 .brand-product-name {
+  border-left-color: var(--riq-border-light-strong);
+  color: var(--riq-slate);
+}
+
+html[data-theme="light"] body.studiox-ui4 #cardPlaceholder,
+html[data-theme="light"] body.studiox-ui4 #inspectorMain .card-art {
+  border-color: var(--riq-border-light) !important;
+  color: var(--riq-obsidian) !important;
+  background: var(--riq-ivory-soft) !important;
+}
+
+html[data-theme="light"] body.studiox-ui4 :is(.camera-workspace, .camera-tile, .camera-tile-header, .camera-media, .camera-media-shell, .camera-tile-media, .camera-feed-shell, .hud-stages, .camera-title, .camera-bottom-hud) {
+  color: var(--riq-warm-ivory) !important;
+  border-color: var(--riq-border-dark) !important;
+  background-color: var(--riq-obsidian) !important;
+}
+
+/* Final shell authority: this file intentionally loads after every legacy layer. */
+html[data-theme="dark"] body.studiox-ui4.studiox-premium :is(
+  .ui4-desktop-shell,
+  .ui4-center-column,
+  .workspace-stage,
+  .ui4-navigation-rail,
+  .ui4-command-bar,
+  .ui4-top-app-bar,
+  .ui4-inspector-column,
+  .ui4-inspector-region
+) {
+  border-color: var(--riq-border-dark) !important;
+  color: var(--riq-warm-ivory) !important;
+  background: var(--riq-obsidian) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="dark"] body.studiox-ui4.studiox-premium :is(.brand, .toolbar, .command-group) {
+  border-color: var(--riq-border-dark) !important;
+  color: var(--riq-warm-ivory) !important;
+  background: var(--riq-obsidian-raised) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="light"] body.studiox-ui4.studiox-premium :is(
+  .ui4-desktop-shell,
+  .ui4-center-column,
+  .workspace-stage,
+  .ui4-navigation-rail,
+  .ui4-command-bar,
+  .ui4-top-app-bar,
+  .ui4-inspector-column,
+  .ui4-inspector-region
+) {
+  border-color: var(--riq-border-light) !important;
+  color: var(--riq-obsidian) !important;
+  background: var(--riq-warm-ivory) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="light"] body.studiox-ui4.studiox-premium :is(.brand, .toolbar, .command-group) {
+  border-color: var(--riq-border-light) !important;
+  color: var(--riq-obsidian) !important;
+  background: var(--riq-ivory-raised) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium :is(.ai-pulse, .ai-wave > i) {
+  border-color: var(--riq-border-dark) !important;
+  background: rgba(75, 159, 131, .14) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="light"] body.studiox-ui4.studiox-premium :is(.ai-pulse, .ai-wave > i) {
+  border-color: var(--riq-border-light) !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium :is(.camera-workspace, .camera-tile, .camera-tile-header) {
+  border-color: var(--riq-border-dark) !important;
+  color: var(--riq-warm-ivory) !important;
+  background: var(--riq-obsidian-raised) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium :is(.camera-media, .camera-media-shell, .camera-tile-media, .camera-feed-shell) {
+  background: #000 !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium .camera-workspace :is(
+  .camera-toolbar,
+  .camera-workspace-toolbar,
+  .camera-grid-toolbar,
+  .camera-tile-header,
+  .camera-title,
+  .camera-bottom-hud
+) {
+  border-color: var(--riq-border-dark) !important;
+  color: var(--riq-warm-ivory) !important;
+  background: var(--riq-obsidian-raised) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="light"] body.studiox-ui4.studiox-premium :is(.brand-lockup-image, .brand-product-name) {
+  color: var(--riq-obsidian) !important;
+}
+
+html[data-theme="dark"] body.studiox-ui4.studiox-premium div.ui4-command-bar,
+html[data-theme="dark"] body.studiox-ui4.studiox-premium header.ui4-top-app-bar,
+html[data-theme="dark"] body.studiox-ui4.studiox-premium aside.ui4-inspector-column,
+html[data-theme="dark"] body.studiox-ui4.studiox-premium aside.riq-surface.inspector {
+  border-color: var(--riq-border-dark) !important;
+  color: var(--riq-warm-ivory) !important;
+  background: var(--riq-obsidian) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="light"] body.studiox-ui4.studiox-premium div.ui4-command-bar,
+html[data-theme="light"] body.studiox-ui4.studiox-premium header.ui4-top-app-bar,
+html[data-theme="light"] body.studiox-ui4.studiox-premium aside.ui4-inspector-column,
+html[data-theme="light"] body.studiox-ui4.studiox-premium aside.riq-surface.inspector {
+  border-color: var(--riq-border-light) !important;
+  color: var(--riq-obsidian) !important;
+  background: var(--riq-warm-ivory) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium article.riq-surface.camera-workspace {
+  border-color: var(--riq-border-dark) !important;
+  color: var(--riq-warm-ivory) !important;
+  background: var(--riq-obsidian-raised) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium .ui4-navigation-rail .nav-button.active,
+html[data-theme] body.studiox-ui4.studiox-premium .ui4-navigation-rail .nav-button[aria-current="page"],
+html[data-theme] body.studiox-ui4.studiox-premium :is(.camera-workspace, .ui4-inspector-column) button[aria-pressed="true"],
+html[data-theme] body.studiox-ui4.studiox-premium :is(.camera-workspace, .ui4-inspector-column) button[aria-selected="true"],
+html[data-theme] body.studiox-ui4.studiox-premium .dock-tab.active {
+  border-color: var(--riq-border-dark-strong) !important;
+  color: var(--riq-signal-mint) !important;
+  background: rgba(75, 159, 131, .18) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="light"] body.studiox-ui4.studiox-premium .ui4-navigation-rail .nav-button.active,
+html[data-theme="light"] body.studiox-ui4.studiox-premium .ui4-navigation-rail .nav-button[aria-current="page"] {
+  border-color: var(--riq-border-light-strong) !important;
+  color: #285F4D !important;
+  background: rgba(75, 159, 131, .14) !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium .ui4-navigation-rail .nav-button.active .nav-app-icon,
+html[data-theme] body.studiox-ui4.studiox-premium .ui4-navigation-rail .nav-button[aria-current="page"] .nav-app-icon {
+  border-color: var(--riq-border-dark-strong) !important;
+  color: var(--riq-signal-mint) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium :is(#manageCamerasButton, .camera-sound-pad, .riq-button.sarge) {
+  border-color: var(--riq-border-dark) !important;
+  color: var(--riq-mist) !important;
+  background: var(--riq-obsidian-soft) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium :is(.scan-sweep, .premium-scan-status-dot) {
+  background: var(--riq-signal-mint) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium .workspace :is(section, article, nav, form) {
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="light"] body.studiox-ui4.studiox-premium :is(#manageCamerasButton, .camera-sound-pad, .riq-button.sarge) {
+  border-color: var(--riq-border-light) !important;
+  color: var(--riq-slate) !important;
+  background: var(--riq-ivory-soft) !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium .camera-layout-buttons button.is-selected .camera-layout-diagram i {
+  border-color: var(--riq-signal-mint) !important;
+  background: rgba(75, 159, 131, .28) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium .studiox-live-analysis li {
+  background: rgba(75, 159, 131, .08) !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium .studiox-live-analysis li i {
+  background: var(--riq-signal-mint) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium .studiox-widget-focus {
+  border-color: var(--riq-border-dark-strong) !important;
+  color: var(--riq-signal-mint) !important;
+  background: transparent !important;
+  box-shadow: 0 2px 0 rgba(75, 159, 131, .5) !important;
+}
+
+html[data-theme="light"] body.studiox-ui4.studiox-premium .toolbar .command-group:is(
+  .studiox-layout-control,
+  .studiox-recognition-mode-control,
+  .studiox-set-context-control
+) {
+  border-color: var(--riq-border-light) !important;
+  color: var(--riq-obsidian) !important;
+  background: var(--riq-ivory-raised) !important;
+}
+
+html[data-theme="light"] body.studiox-ui4.studiox-premium .studiox-live-analysis {
+  border-color: var(--riq-border-light) !important;
+  color: var(--riq-obsidian) !important;
+  background: var(--riq-ivory-raised) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="light"] body.studiox-ui4.studiox-premium .studiox-live-analysis :is(strong, p, li, span) {
+  color: var(--riq-slate) !important;
+}
+
+html[data-theme="light"] body.studiox-ui4.studiox-premium .studiox-live-analysis li {
+  border-color: var(--riq-border-light) !important;
+  background: rgba(75, 159, 131, .08) !important;
+}
+
+@media (max-width: 2200px) {
+  body.studiox-ui4 .brand-product-name { display: none; }
+}
+
+@media (max-width: 1280px) {
+  body.studiox-ui4 .brand-lockup-image {
+    width: 112px;
+    min-width: 112px;
+  }
+
+  body.studiox-ui4 .brand-product-name { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.studiox-ui4 .core-orb::before,
+  body.studiox-ui4 .core-orb::after,
+  body.studiox-ui4 #cardPlaceholder .ui4-card-placeholder-scan {
+    animation: none !important;
+  }
+}

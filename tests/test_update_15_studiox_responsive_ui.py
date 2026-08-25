@@ -151,12 +151,14 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
     html = read("control.html")
     styles = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
     version = re.search(r'data-studiox-build="([^"]+)"', html).group(1)
-    assert styles[-3:] == [
+    assert styles[-5:] == [
         f"/static/studiox_ui4_tokens.css?v={version}",
         f"/static/studiox_update15.css?v={version}&amp;shell=6.8.93-camera-workspace1",
         f"/static/pack_run_coach.css?v={version}",
+        "/static/brand/v1/rare-iq-tokens.css?v=1.0",
+        f"/static/rareiq_brand_v1.css?v={version}",
     ]
-    assert len(styles) == 18
+    assert len(styles) == 20
     assert not any("studiox_60.css" in style for style in styles)
     assert not any("studiox_604.css" in style for style in styles)
 

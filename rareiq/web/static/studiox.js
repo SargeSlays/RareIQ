@@ -113,6 +113,7 @@ function applyStudioTheme(preference=studioThemePreference(),persist=false){
   const choice=["dark","light","system"].includes(preference)?preference:"system";
   const resolved=choice==="system"?(studioThemeMedia.matches?"light":"dark"):choice;
   document.documentElement.dataset.theme=resolved;document.documentElement.dataset.themePreference=choice;
+  const themeColor=$("studioThemeColor");if(themeColor)themeColor.content=resolved==="light"?"#F5F0E6":"#080B0D";
   document.querySelectorAll("[data-theme-choice]").forEach(button=>{const active=button.dataset.themeChoice===choice;button.classList.toggle("active",active);button.setAttribute("aria-checked",String(active));});
   const toggle=$("studioThemeToggle"),label=$("studioThemeToggleLabel"),next=resolved==="dark"?"light":"dark";
   if(toggle){toggle.dataset.theme=resolved;toggle.setAttribute("aria-pressed",String(resolved==="light"));toggle.setAttribute("aria-label",`Switch to ${next} mode`);toggle.title=`Switch to ${next} mode`;}
