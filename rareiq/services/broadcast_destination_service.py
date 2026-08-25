@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import math
+import re
+import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable, Mapping, Protocol
 
 
 @dataclass(frozen=True)
@@ -18,13 +21,26 @@ class BroadcastPlatform:
     verification_method: str
 
 
+class BroadcastConnectorStatusProvider(Protocol):
+    """Non-blocking provider for cached, platform-confirmed connector state."""
+
+    platform_id: str
+
+    def cached_status(self) -> dict[str, Any]: ...
+
+
 class BroadcastDestinationService:
     """Truthful capability registry for future broadcast connectors.
 
-    This first phase intentionally does not accept credentials or infer that a
-    platform is live from the encoder state. Platform-specific adapters can
-    replace ``not_configured`` with verified account and live states later.
+    The service never accepts credentials and never infers that a platform is
+    live from encoder state alone. Connector adapters may provide cached
+    platform evidence; this service validates freshness, route correlation,
+    and state dependencies before exposing any positive claim.
     """
+
+    CONNECTOR_EVIDENCE_TTL_SECONDS = 90.0
+    CONNECTOR_FUTURE_TOLERANCE_SECONDS = 5.0
+    _SOURCE_PATTERN = re.compile(r"^[a-z0-9_.-]{1,64}$")
 
     PLATFORMS = (
         BroadcastPlatform(
@@ -125,37 +141,197 @@ class BroadcastDestinationService:
         ),
     )
 
+    def __init__(
+        self,
+        *,
+        connectors: Mapping[str, BroadcastConnectorStatusProvider] | None = None,
+        clock: Callable[[], float] = time.time,
+    ) -> None:
+        self._connectors = dict(connectors or {})
+        self._clock = clock
+
     def snapshot(self, *, obs_status: dict[str, Any] | None = None) -> dict[str, Any]:
         obs = obs_status or {}
         encoder_connected = bool(obs.get("connected"))
         encoder_streaming = bool(obs.get("streaming"))
         destinations = [
-            self._unconfigured(platform, encoder_connected=encoder_connected, encoder_streaming=encoder_streaming)
+            self._destination(
+                platform,
+                encoder_connected=encoder_connected,
+                encoder_streaming=encoder_streaming,
+            )
             for platform in self.PLATFORMS
         ]
+        connected_count = sum(1 for item in destinations if item["connected"])
+        ready_count = sum(1 for item in destinations if item["ready"])
+        live_count = sum(1 for item in destinations if item["live"])
         return {
-            "version": 1,
+            "version": 2,
             "routing": {
                 "mode": "external_encoder",
                 "encoder": "OBS",
                 "connected": encoder_connected,
                 "streaming": encoder_streaming,
-                "platform_live_verified": False,
+                "platform_live_verified": live_count > 0,
                 "detail": (
-                    "OBS is sending output, but no platform destination is verified."
+                    f"{live_count} platform destination{'s' if live_count != 1 else ''} verified live."
+                    if live_count
+                    else "OBS is sending output, but no platform destination is verified."
                     if encoder_streaming
                     else "Connect OBS and configure platform destinations before going live."
                 ),
             },
             "summary": {
                 "total": len(destinations),
-                "connected": 0,
-                "ready": 0,
-                "live": 0,
-                "needs_setup": len(destinations),
+                "connected": connected_count,
+                "ready": ready_count,
+                "live": live_count,
+                "needs_setup": sum(1 for item in destinations if not item["ready"]),
             },
             "destinations": destinations,
         }
+
+    def _destination(
+        self,
+        platform: BroadcastPlatform,
+        *,
+        encoder_connected: bool,
+        encoder_streaming: bool,
+    ) -> dict[str, Any]:
+        destination = self._unconfigured(
+            platform,
+            encoder_connected=encoder_connected,
+            encoder_streaming=encoder_streaming,
+        )
+        connector = self._connectors.get(platform.platform_id)
+        if connector is None:
+            return destination
+        if getattr(connector, "platform_id", None) != platform.platform_id:
+            return self._connector_failure(destination, "Connector identity mismatch")
+        try:
+            evidence = connector.cached_status()
+        except Exception:
+            return self._connector_failure(destination, "Connector status unavailable")
+        return self._apply_connector_evidence(
+            destination,
+            platform,
+            evidence,
+            encoder_streaming=encoder_streaming,
+        )
+
+    @staticmethod
+    def _connector_failure(destination: dict[str, Any], detail: str) -> dict[str, Any]:
+        destination.update(
+            {
+                "state": "connector_error",
+                "state_label": "Status unavailable",
+                "connector_detail": detail,
+                "connector": {
+                    "registered": True,
+                    "fresh": False,
+                    "verification_source": None,
+                    "route_verified": False,
+                    "age_seconds": None,
+                },
+            }
+        )
+        destination["setup"] = {
+            **destination["setup"],
+            "status": "error",
+            "status_label": "Status unavailable",
+        }
+        return destination
+
+    def _apply_connector_evidence(
+        self,
+        destination: dict[str, Any],
+        platform: BroadcastPlatform,
+        evidence: dict[str, Any] | Any,
+        *,
+        encoder_streaming: bool,
+    ) -> dict[str, Any]:
+        if not isinstance(evidence, dict) or evidence.get("platform_id") != platform.platform_id:
+            return self._connector_failure(destination, "Connector evidence identity mismatch")
+        source = str(evidence.get("verification_source") or "")
+        verified_at = evidence.get("verified_at")
+        if not evidence.get("verified") or not self._SOURCE_PATTERN.fullmatch(source):
+            return self._connector_failure(destination, "Connector evidence is unverified")
+        try:
+            verified_timestamp = float(verified_at)
+            if not math.isfinite(verified_timestamp):
+                raise ValueError("non-finite connector timestamp")
+            age_seconds = self._clock() - verified_timestamp
+        except (TypeError, ValueError):
+            return self._connector_failure(destination, "Connector evidence has no valid timestamp")
+        fresh = (
+            -self.CONNECTOR_FUTURE_TOLERANCE_SECONDS
+            <= age_seconds
+            <= self.CONNECTOR_EVIDENCE_TTL_SECONDS
+        )
+        if not fresh:
+            destination.update(
+                {
+                    "state": "stale",
+                    "state_label": "Status stale",
+                    "verified_at": verified_timestamp,
+                    "connector_detail": "Refresh the platform connector before relying on this destination.",
+                    "connector": {
+                        "registered": True,
+                        "fresh": False,
+                        "verification_source": source,
+                        "route_verified": False,
+                        "age_seconds": round(max(0.0, age_seconds), 1),
+                    },
+                }
+            )
+            destination["setup"] = {
+                **destination["setup"],
+                "status": "stale",
+                "status_label": "Refresh required",
+            }
+            return destination
+
+        configured = bool(evidence.get("configured"))
+        connected = configured and bool(evidence.get("connected"))
+        route_verified = connected and bool(evidence.get("route_verified"))
+        ready = route_verified and bool(evidence.get("destination_ready"))
+        live = ready and encoder_streaming and bool(evidence.get("platform_live"))
+        state = "live" if live else "ready" if ready else "connected" if connected else "configured" if configured else "not_configured"
+        state_label = "Live verified" if live else "Ready" if ready else "Connected" if connected else "Configured" if configured else "Not configured"
+        destination.update(
+            {
+                "state": state,
+                "state_label": state_label,
+                "connected": connected,
+                "ready": ready,
+                "live": live,
+                "verified_at": verified_timestamp,
+                "connector_detail": (
+                    "Platform and encoder route verified live."
+                    if live
+                    else "Platform destination and encoder route verified ready."
+                    if ready
+                    else "Platform account connected; destination route is not verified."
+                    if connected
+                    else "Connector configured; platform authorization is not verified."
+                    if configured
+                    else platform.note
+                ),
+                "connector": {
+                    "registered": True,
+                    "fresh": True,
+                    "verification_source": source,
+                    "route_verified": route_verified,
+                    "age_seconds": round(max(0.0, age_seconds), 1),
+                },
+            }
+        )
+        destination["setup"] = {
+            **destination["setup"],
+            "status": "complete" if ready else "configured" if configured else "required",
+            "status_label": "Ready" if ready else "Configuration incomplete" if configured else "Setup required",
+        }
+        return destination
 
     @staticmethod
     def _unconfigured(
@@ -178,6 +354,14 @@ class BroadcastDestinationService:
             "capabilities": list(platform.capabilities),
             "connector_phase": platform.connector_phase,
             "note": platform.note,
+            "connector_detail": platform.note,
+            "connector": {
+                "registered": False,
+                "fresh": False,
+                "verification_source": None,
+                "route_verified": False,
+                "age_seconds": None,
+            },
             "read_only": True,
             "encoder": {
                 "connected": encoder_connected,

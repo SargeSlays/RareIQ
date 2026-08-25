@@ -1440,7 +1440,7 @@ function broadcastDestinationCard(destination){
   readiness.className="broadcast-destination-readiness";
   encoder.dataset.state=destination.encoder?.state||"offline";
   encoder.textContent=destination.encoder?.state_label||"Encoder status unavailable";
-  next.textContent=destination.setup?.next_action||"Review platform setup requirements.";
+  next.textContent=destination.ready||destination.connected?destination.connector_detail||"Verified connector evidence received.":destination.setup?.next_action||"Review platform setup requirements.";
   readiness.append(encoder,next);
   const guide=document.createElement("details"),summary=document.createElement("summary"),requirements=document.createElement("ol"),verification=document.createElement("p"),check=document.createElement("button");
   guide.className="broadcast-destination-guide";

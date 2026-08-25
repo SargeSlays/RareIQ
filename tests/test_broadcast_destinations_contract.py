@@ -64,3 +64,17 @@ def test_destination_cards_expose_read_only_setup_guidance_and_explicit_checks()
     assert 'method:"POST"' not in section
     assert ".broadcast-destination-readiness" in CSS
     assert ".broadcast-destination-guide>summary:focus-visible" in CSS
+
+
+def test_destination_cards_render_verified_connector_states_without_mutation() -> None:
+    section = JS[
+        JS.index("function broadcastDestinationCard") :
+        JS.index("function renderBroadcastDestinations")
+    ]
+    assert "destination.ready||destination.connected" in section
+    assert "destination.connector_detail" in section
+    assert '.broadcast-destination-card[data-state="ready"]' in CSS
+    assert '.broadcast-destination-card[data-state="live"]' in CSS
+    assert '.broadcast-destination-card[data-state="stale"]' in CSS
+    assert '.broadcast-destination-card[data-state="connector_error"]' in CSS
+    assert 'method:"POST"' not in section
