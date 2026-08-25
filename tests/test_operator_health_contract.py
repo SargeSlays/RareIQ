@@ -14,6 +14,12 @@ def test_operator_health_and_safe_recovery_apis_exist():
     assert '@app.get("/api/production/operator-health")' in SERVER
     assert '@app.post("/api/production/safe")' in SERVER
     assert 'camera_manager.session_statuses()' in SERVER
+    operator_health = SERVER[
+        SERVER.index("async def production_operator_health") :
+        SERVER.index('@app.get("/api/production/preflight")')
+    ]
+    assert "program_camera = _program_camera_readiness(slots, program_slot)" in operator_health
+    assert '"program_camera": program_camera' in operator_health
     assert 'instant_replay.snapshot()' in SERVER
     assert 'instant_replay.stop_playback()' in SERVER
     assert 'obs.sync_scene, "main-card"' in SERVER
@@ -72,6 +78,14 @@ def test_operator_dashboard_uses_real_health_fields():
     assert '/api/production/safe' in JS
     assert 'stopProductionRundown()' in JS
     assert 'stopAllSoundboardAudio()' in JS
+    render = JS[
+        JS.index("function renderOperatorHealth") :
+        JS.index("async function loadOperatorHealth")
+    ]
+    assert "programCamera=payload.program_camera||{}" in render
+    assert 'healthCard("program",programReady?' in render
+    assert 'programCamera.detail||payload.active_scene_id' in render
+    assert "const unhealthy=!programReady" in render
 
 
 def test_operator_health_is_themable_and_responsive():

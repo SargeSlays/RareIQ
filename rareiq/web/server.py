@@ -2065,10 +2065,13 @@ async def production_operator_health():
     recognition = orchestrator.recognition_state.snapshot()
     overlay = orchestrator.overlay_state.get()
     connected = _connected_production_camera_count(slots)
+    program_slot = int(PRODUCTION_SWITCHER_STATE.get("program_slot", 1))
+    program_camera = _program_camera_readiness(slots, program_slot)
     return {
         "ok": True,
         "timestamp": time.time(),
-        "program_slot": PRODUCTION_SWITCHER_STATE.get("program_slot", 1),
+        "program_slot": program_slot,
+        "program_camera": program_camera,
         "active_scene_id": PRODUCTION_SWITCHER_STATE.get("active_scene_id"),
         "camera": camera,
         "slots": slots,
