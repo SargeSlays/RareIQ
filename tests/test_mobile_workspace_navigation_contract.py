@@ -27,7 +27,7 @@ def test_non_live_notifications_reserve_only_the_mobile_navigation_height() -> N
 
 
 def test_broadcast_navigation_keeps_existing_workspace_switch_handler() -> None:
-    assert HTML.count('class="workspace" data-workspace="broadcast"') == 1
+    assert HTML.count('data-workspace="broadcast"') == 1
     assert HTML.count('data-target="broadcast"') == 1
     assert 'switchWorkspace(button.dataset.target)' in JS
 

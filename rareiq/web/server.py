@@ -573,12 +573,12 @@ class PokedexOverlayRequest(BaseModel):
 
 class RareIntelligenceThemeRequest(BaseModel):
     preset: str = Field(default="rareiq", pattern="^(rareiq|minimal|broadcast|custom)$")
-    accent_color: str = Field(default="#53d5f2", pattern="^#[0-9a-fA-F]{6}$")
-    secondary_color: str = Field(default="#b574ff", pattern="^#[0-9a-fA-F]{6}$")
-    background_color: str = Field(default="#05111e", pattern="^#[0-9a-fA-F]{6}$")
-    text_color: str = Field(default="#f7fbff", pattern="^#[0-9a-fA-F]{6}$")
-    panel_opacity: float = Field(default=0.94, ge=0.2, le=1.0)
-    corner_radius: int = Field(default=30, ge=0, le=60)
+    accent_color: str = Field(default="#a6e8ce", pattern="^#[0-9a-fA-F]{6}$")
+    secondary_color: str = Field(default="#4f9f83", pattern="^#[0-9a-fA-F]{6}$")
+    background_color: str = Field(default="#080d0a", pattern="^#[0-9a-fA-F]{6}$")
+    text_color: str = Field(default="#f5f2e9", pattern="^#[0-9a-fA-F]{6}$")
+    panel_opacity: float = Field(default=0.96, ge=0.2, le=1.0)
+    corner_radius: int = Field(default=12, ge=0, le=60)
     scale: int = Field(default=100, ge=70, le=140)
     alignment: str = Field(default="left", pattern="^(left|center|right)$")
     font: str = Field(default="inter", pattern="^(inter|system|serif|mono)$")
@@ -3350,6 +3350,23 @@ async def current_pokedex_entry():
         ):
             candidate = current_candidate
             profile_verified = verified
+    if not candidate and not selected_slots and bool(
+        current.get("card_present") or current.get("recognition_locked")
+    ):
+        # Rare Intelligence is species context, not printing certification. A
+        # provisional ranked candidate may therefore drive the private
+        # inspector while broadcast eligibility remains strictly verified.
+        # OCR-only placeholder rows are naturally excluded because they do not
+        # represent a catalog species.
+        for current_candidate in current.get("candidates") or []:
+            if not isinstance(current_candidate, dict):
+                continue
+            if str(current_candidate.get("source") or "").lower() == "ocr_provisional":
+                continue
+            if orchestrator.pokedex.pokemon_name(current_candidate):
+                candidate = current_candidate
+                profile_verified = False
+                break
     if not candidate and not selected_slots:
         verified_slot = next(
             (
@@ -3380,7 +3397,12 @@ async def current_pokedex_entry():
                 "theme": theme,
             }
         held = overlay.get("pokedex_current")
-        if isinstance(held, dict) and held.get("pokemon"):
+        if (
+            isinstance(held, dict)
+            and held.get("pokemon")
+            and held.get("provisional") is False
+            and (held.get("identity") or {}).get("verified") is True
+        ):
             return {
                 **held,
                 "ok": True,

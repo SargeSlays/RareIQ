@@ -58,3 +58,29 @@ def test_collection_heading_tracks_the_selected_operator_view() -> None:
     assert '"Physical Inventory & Boxes"' in JS
     assert '"Marketplace & Exports"' in JS
     assert 'heading.querySelector("h2").textContent=title' in JS
+
+
+def test_collection_switch_updates_the_shared_command_deck_context() -> None:
+    assert 'id="commandDeckWorkspaceTitle">Live identification</strong>' in HTML
+    assert 'id="commandDeckSessionSummary" aria-label="Live identification summary"' in HTML
+    assert 'collection:"Collection intelligence"' in JS
+    assert 'setCardText("commandDeckWorkspaceTitle",title)' in JS
+    assert 'setAttribute("aria-label",`${title} summary`)' in JS
+    assert "syncCommandDeckWorkspace(name);" in JS
+
+
+def test_collection_active_view_uses_the_semantic_brand_accent() -> None:
+    start = CSS.index('/* Collection console:')
+    collection_styles = CSS[start : CSS.index('.workspace[data-workspace="creator"]', start)]
+    assert "var(--ui4-accent-soft" in collection_styles
+    assert "var(--ui4-accent,#70e0b9)" in collection_styles
+    assert "rgba(117,91,211" not in collection_styles
+
+
+def test_collection_library_sync_uses_one_brand_progress_language() -> None:
+    start = CSS.index(".library-sync-actions")
+    library_sync_styles = CSS[start : CSS.index("@media(max-width:1100px)", start)]
+    assert "var(--ui4-accent,#70e0b9)" in library_sync_styles
+    assert "var(--ui4-surface-muted" in library_sync_styles
+    assert "#765dff" not in library_sync_styles
+    assert "#28d7ff" not in library_sync_styles

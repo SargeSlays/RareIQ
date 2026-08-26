@@ -6,7 +6,10 @@ SERVER = (ROOT / "rareiq" / "web" / "server.py").read_text(encoding="utf-8")
 
 
 def test_held_profile_restores_in_control_panel_while_off_air():
-    assert 'if isinstance(held, dict) and held.get("pokemon")' in SERVER
+    assert 'isinstance(held, dict)' in SERVER
+    assert 'and held.get("pokemon")' in SERVER
+    assert 'held.get("provisional") is False' in SERVER
+    assert '(held.get("identity") or {}).get("verified") is True' in SERVER
     assert '"on_air": bool(overlay.get("pokedex_on_air"))' in SERVER
     assert '"held": True' in SERVER
 
@@ -34,3 +37,13 @@ def test_explicit_verified_slot_precedes_current_single_card_species_profile():
     assert 'current_name = orchestrator.pokedex.pokemon_name(current_candidate)' in SERVER
     assert '"provisional": not profile_verified' in SERVER
     assert '"verified": profile_verified' in SERVER
+
+
+def test_ranked_species_candidate_can_power_private_provisional_intelligence():
+    endpoint = SERVER.split("async def current_pokedex_entry", 1)[1]
+    endpoint = endpoint.split('@app.post("/api/pokedex/on-air"', 1)[0]
+    assert 'for current_candidate in current.get("candidates") or []:' in endpoint
+    assert '== "ocr_provisional"' in endpoint
+    assert "orchestrator.pokedex.pokemon_name(current_candidate)" in endpoint
+    assert "profile_verified = False" in endpoint
+    assert '"broadcast_eligible": profile_verified' in endpoint

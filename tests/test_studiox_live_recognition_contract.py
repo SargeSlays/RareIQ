@@ -33,6 +33,12 @@ def test_studiox_uses_recognition_state_contract() -> None:
     assert 'candidate.set_locked_identity_agreement === true' in script
     assert 'candidate.provisional === true' in script
     assert "identityAgrees(candidate) &&" in script
+    assert "const identityMatchedReferenceCandidate" in script
+    assert 'candidate.retrieval_only===true' in script
+    assert 'source==="global_visual_index"' in script
+    assert 'Number(candidate?.signals?.language||0)>=1' in script
+    assert '!String(referenceSource).startsWith("/api/camera/")' in script
+    assert "candidate_reference_only:true" in script
     assert script.index("verifiedVisualCandidate ||", script.index("let card =")) < script.index("realIdentityCandidate ||", script.index("let card ="))
     assert script.index("presentableProvisional ||", script.index("let card =")) < script.index("presentableCandidate ||", script.index("let card ="))
     assert '$("cardName").textContent="Verifying Card"' in script
@@ -45,6 +51,23 @@ def test_studiox_uses_recognition_state_contract() -> None:
     assert "newestRecognitionRevision=-1" in script
     assert 'hadPreviousSession ? "server_session_changed"' in script
     assert 'if(serverSessionId && serverSessionId!==currentServerSessionId)' in script
+
+
+def test_review_match_prefers_real_catalog_artwork_over_the_live_ocr_crop() -> None:
+    root = Path(__file__).resolve().parents[1]
+    script = (root / "rareiq" / "web" / "static" / "studiox.js").read_text(
+        encoding="utf-8"
+    )
+    workflow = script[
+        script.index("function openMatchCorrectionWorkflow") :
+        script.index("async function approveReferenceSelection")
+    ]
+
+    assert "preferredCandidate=candidates.find" in workflow
+    assert '!String(source).startsWith("/api/camera/")' in workflow
+    assert '!=="ocr_provisional"' in workflow
+    assert "referenceCandidateEvidence(candidate).recommended" in workflow
+    assert "context.card||preferredCandidate" in workflow
 
 
 def test_server_exposes_process_stable_session_id_contract() -> None:

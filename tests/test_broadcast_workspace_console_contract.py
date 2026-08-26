@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 HTML = (ROOT / "rareiq/web/static/control.html").read_text(encoding="utf-8-sig")
 JS = (ROOT / "rareiq/web/static/studiox.js").read_text(encoding="utf-8-sig")
 CSS = (ROOT / "rareiq/web/static/studiox_update15.css").read_text(encoding="utf-8-sig")
+DECK = (ROOT / "rareiq/web/static/studiox_command_deck.css").read_text(encoding="utf-8-sig")
 
 
 def test_broadcast_console_has_seven_accessible_operator_views() -> None:
@@ -70,3 +71,31 @@ def test_live_control_adapts_its_hierarchy_to_session_state() -> None:
     assert '>.production-switcher-shell{order:-60!important}' in CSS
     assert '[data-production-session="live"]>.production-session{order:-80!important;grid-column:1/-1!important}' in CSS
     assert '[data-production-session="live"]>.production-switcher-shell{order:-70!important}' in CSS
+
+
+def test_broadcast_uses_the_shared_command_deck_identity() -> None:
+    assert 'broadcast:"Production console"' in JS
+    assert 'setCardText("commandDeckWorkspaceTitle",title)' in JS
+    assert "syncCommandDeckWorkspace(name);" in JS
+
+
+def test_broadcast_destinations_use_semantic_surfaces_without_legacy_gradients() -> None:
+    start = DECK.index('/* Broadcast */')
+    styles = DECK[start : DECK.index('/* Creator */', start)]
+    assert ".broadcast-destination-card" in styles
+    assert "background: var(--sx-surface-muted)" in styles
+    assert "background: var(--sx-accent-soft)" in styles
+    assert "color: var(--sx-warning)" in styles
+    assert "rgba(111,78,214" not in styles
+
+
+def test_broadcast_metrics_and_filters_use_the_shared_semantic_surface_hierarchy() -> None:
+    start = DECK.index('/* Broadcast */')
+    styles = DECK[start : DECK.index('/* Creator */', start)]
+    assert ".break-history-summary article" in styles
+    assert ".pack-economics-summary article" in styles
+    assert ".pack-tracker-current article" in styles
+    assert ".break-history-controls" in styles
+    assert "background: var(--sx-surface-muted) !important" in styles
+    assert "background: var(--sx-surface) !important" in styles
+    assert "background: var(--sx-chrome) !important" in styles

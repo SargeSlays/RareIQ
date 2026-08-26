@@ -52,13 +52,15 @@ def test_official_developer_tokens_are_the_product_source_of_truth():
     assert "Do not redraw them, animate them, add effects" in BRAND_README
 
 
-def test_brand_stylesheet_is_loaded_last_and_cache_busted():
-    brand_link = '/static/rareiq_brand_v1.css?v=6.8.99-operator1'
+def test_brand_and_command_deck_stylesheets_are_cache_busted_and_ordered():
+    brand_link = '/static/rareiq_brand_v1.css?v=6.9.0-commanddeck67'
+    deck_link = '/static/studiox_command_deck.css?v=6.9.0-commanddeck67'
     assert brand_link in CONTROL
-    assert CONTROL.index(brand_link) > CONTROL.index("ui4-unified-card-stage-overrides")
     assert CONTROL.index(brand_link) > CONTROL.index("/static/pack_run_coach.css")
     assert CONTROL.index("brand/v1/rare-iq-tokens.css?v=1.0") < CONTROL.index(brand_link)
-    assert 'data-studiox-build="6.8.99-operator1"' in CONTROL
+    assert CONTROL.index(brand_link) < CONTROL.index(deck_link)
+    assert 'data-studiox-build="6.9.0-commanddeck67"' in CONTROL
+    assert 'data-studiox-visual-system="unified"' in CONTROL
 
 
 def test_horizontal_lockup_is_default_and_old_neon_assets_are_not_rendered():

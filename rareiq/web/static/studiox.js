@@ -31,6 +31,8 @@ const STUDIOX_THEME_KEY="rareiq.studiox.theme.v1";
 const STUDIOX_PREVIEW_ZOOM_MIN=.8;
 const STUDIOX_PREVIEW_ZOOM_MAX=2.5;
 const STUDIOX_PREVIEW_ZOOM_STEP=.1;
+const STUDIOX_INSPECTOR_WIDTH_MIN=340;
+const STUDIOX_INSPECTOR_WIDTH_MAX=1440;
 const CAMERA_WORKSPACE_LAYOUTS=["single","dual-side","triple","quad"];
 const CAMERA_RECOVER_ENDPOINT="/api/camera/recover";
 let studioXPreferences={
@@ -90,6 +92,8 @@ let cameraWorkspacePreferences={
 };
 let cameraWorkspaceSlotStates={};
 let collectionInventory=[];
+let collectionSetInventory=[];
+let collectionSetVisibleLimit=48;
 let collectionImportBackup=null;
 let inventoryCheckoutItem=null,inventorySellRecommendation=null;
 const selectedInventoryListingIds=new Set();
@@ -105,6 +109,7 @@ const VOICE_MOD_PREFERENCES_KEY="rareiq.voiceMod.preferences.v1";
 const CAMERA_FX_PREFERENCES_KEY="rareiq.cameraFx.preferences.v1";
 const VOICE_MOD_PRESETS={clean:"Clean Studio",deep:"Deep Broadcast",robot:"Robot",radio:"Radio",megaphone:"Megaphone"};
 let voiceModState={context:null,inputStream:null,source:null,inputGain:null,dryGain:null,wetGain:null,outputGain:null,monitorGain:null,destination:null,analyser:null,nodes:[],oscillators:[],meterFrame:0,active:false};
+let voiceModRequestGeneration=0;
 let cameraFxState={enabled:false,frame:0,lastFrame:0};
 
 const studioThemeMedia=window.matchMedia("(prefers-color-scheme: light)");
@@ -1342,10 +1347,31 @@ async function toggleAutoCapture(){
   }
 }
 
+const WORKSPACE_COMMAND_TITLES={
+  live:"Live identification",
+  collection:"Collection intelligence",
+  broadcast:"Production console",
+  creator:"Creator studio",
+  soundboard:"Soundboard",
+  "voice-mod":"Voice studio",
+  "camera-fx":"Camera effects",
+  spotify:"Spotify DJ",
+  ai:"AI Lab",
+  library:"Reference library",
+  settings:"Studio settings",
+};
+
+function syncCommandDeckWorkspace(name){
+  const title=WORKSPACE_COMMAND_TITLES[name]||"Studio X";
+  setCardText("commandDeckWorkspaceTitle",title);
+  $("commandDeckSessionSummary")?.setAttribute("aria-label",`${title} summary`);
+}
+
 function switchWorkspace(name){
   const targetWorkspace=document.querySelector(`.workspace[data-workspace="${CSS.escape(name)}"]`);
   if(!targetWorkspace) return false;
   document.body.dataset.ui4Workspace=name;
+  syncCommandDeckWorkspace(name);
   if(name!=="live")setUI4HealthOpen(false);
   document.querySelectorAll(".workspace").forEach(el=>{
     const active=el===targetWorkspace;
@@ -1378,16 +1404,16 @@ function switchWorkspace(name){
 
 function voiceModPreferences(){try{return JSON.parse(localStorage.getItem(VOICE_MOD_PREFERENCES_KEY)||"{}")||{}}catch(_error){return {}}}
 function saveVoiceModPreferences(){try{localStorage.setItem(VOICE_MOD_PREFERENCES_KEY,JSON.stringify({deviceId:$("voiceModInput")?.value||"",preset:$("voiceModPreset")?.value||"clean",gain:Number($("voiceModGain")?.value||100),mix:Number($("voiceModMix")?.value||75),output:Number($("voiceModOutput")?.value||100),monitor:Boolean($("voiceModMonitor")?.checked)}))}catch(_error){}}
-function setVoiceModStatus(state,label){const host=$("voiceModState"),meter=document.querySelector(".voice-mod-meter-card");if(host){host.dataset.state=state;host.querySelector("span").textContent=label}if(meter)meter.dataset.state=state;if($("voiceModStart"))$("voiceModStart").disabled=state==="live"||state==="starting";if($("voiceModStop"))$("voiceModStop").disabled=state!=="live"}
+function setVoiceModStatus(state,label){const host=$("voiceModState"),meter=document.querySelector(".voice-mod-meter-card"),start=$("voiceModStart"),stop=$("voiceModStop");if(host){host.dataset.state=state;host.querySelector("span").textContent=label}if(meter)meter.dataset.state=state;if(start)start.disabled=state==="live"||state==="starting";if(stop){stop.disabled=!["live","starting"].includes(state);stop.textContent=state==="starting"?"Cancel":"Stop"}}
 function setVoiceModInputStatus(message,state="ready"){const status=$("voiceModInputStatus");if(status){status.textContent=message;status.dataset.state=state}}
 async function refreshVoiceModInputs(){if(!navigator.mediaDevices?.enumerateDevices)throw new Error("Microphone selection is not supported in this browser.");const devices=(await navigator.mediaDevices.enumerateDevices()).filter(device=>device.kind==="audioinput"),select=$("voiceModInput");if(!select)return devices;const preferred=select.value||voiceModPreferences().deviceId||"",selectable=devices.filter(device=>device.deviceId);select.replaceChildren(new Option("Default microphone",""),...selectable.map((device,index)=>new Option(device.label||`Microphone ${index+1}`,device.deviceId)));if([...select.options].some(option=>option.value===preferred))select.value=preferred;if(!devices.length)setVoiceModInputStatus("No microphones detected. Connect an input, then refresh.","error");else if(devices.some(device=>!device.deviceId||!device.label))setVoiceModInputStatus(`${devices.length} microphone${devices.length===1?"":"s"} detected · start once to grant access and reveal device names.`,"permission");else setVoiceModInputStatus(`${devices.length} microphone${devices.length===1?"":"s"} available.`,"ready");return devices}
 function voiceModDistortion(amount=35){const curve=new Float32Array(44100),k=Number(amount),deg=Math.PI/180;for(let i=0;i<curve.length;i++){const x=i*2/curve.length-1;curve[i]=(3+k)*x*20*deg/(Math.PI+k*Math.abs(x))}return curve}
 function connectVoiceModPreset(context,input,wet,preset){const nodes=[],oscillators=[];let tail=input;const add=node=>{tail.connect(node);tail=node;nodes.push(node);return node};if(preset==="deep"){const low=add(context.createBiquadFilter());low.type="lowpass";low.frequency.value=1450;low.Q.value=.7;const bass=add(context.createBiquadFilter());bass.type="lowshelf";bass.frequency.value=210;bass.gain.value=8;const compressor=add(context.createDynamicsCompressor());compressor.threshold.value=-24;compressor.ratio.value=4}else if(preset==="robot"){const mod=add(context.createGain());mod.gain.value=.58;const oscillator=context.createOscillator(),depth=context.createGain();oscillator.frequency.value=42;depth.gain.value=.42;oscillator.connect(depth);depth.connect(mod.gain);oscillator.start();oscillators.push(oscillator);nodes.push(depth);const band=add(context.createBiquadFilter());band.type="bandpass";band.frequency.value=1200;band.Q.value=.8}else if(preset==="radio"){const high=add(context.createBiquadFilter());high.type="highpass";high.frequency.value=420;const low=add(context.createBiquadFilter());low.type="lowpass";low.frequency.value=3200;const compressor=add(context.createDynamicsCompressor());compressor.threshold.value=-30;compressor.ratio.value=8}else if(preset==="megaphone"){const band=add(context.createBiquadFilter());band.type="bandpass";band.frequency.value=1650;band.Q.value=.75;const shaper=add(context.createWaveShaper());shaper.curve=voiceModDistortion(55);shaper.oversample="2x";const compressor=add(context.createDynamicsCompressor());compressor.threshold.value=-28;compressor.ratio.value=10}tail.connect(wet);return {nodes,oscillators}}
 function updateVoiceModLevels(){const gain=Number($("voiceModGain")?.value||100),mix=Number($("voiceModMix")?.value||75),output=Number($("voiceModOutput")?.value||100),monitor=$("voiceModMonitor")?.checked?1:0;if($("voiceModGainValue"))$("voiceModGainValue").textContent=`${gain}%`;if($("voiceModMixValue"))$("voiceModMixValue").textContent=`${mix}%`;if($("voiceModOutputValue"))$("voiceModOutputValue").textContent=`${output}%`;if(voiceModState.inputGain)voiceModState.inputGain.gain.value=gain/100;if(voiceModState.dryGain)voiceModState.dryGain.gain.value=1-mix/100;if(voiceModState.wetGain)voiceModState.wetGain.gain.value=mix/100;if(voiceModState.outputGain)voiceModState.outputGain.gain.value=output/100;if(voiceModState.monitorGain)voiceModState.monitorGain.gain.value=monitor;saveVoiceModPreferences()}
 function meterVoiceMod(){cancelAnimationFrame(voiceModState.meterFrame);if(!voiceModState.active||!voiceModState.analyser)return;const samples=new Uint8Array(voiceModState.analyser.fftSize);voiceModState.analyser.getByteTimeDomainData(samples);let sum=0;for(const value of samples){const centered=(value-128)/128;sum+=centered*centered}const rms=Math.sqrt(sum/samples.length),db=rms?20*Math.log10(rms):-Infinity,level=Math.max(0,Math.min(100,(db+60)/60*100));if($("voiceModMeterFill"))$("voiceModMeterFill").style.width=`${level}%`;if($("voiceModLevel"))$("voiceModLevel").textContent=Number.isFinite(db)?`${db.toFixed(1)} dB`:"−∞ dB";voiceModState.meterFrame=requestAnimationFrame(meterVoiceMod)}
-async function stopVoiceMod(){cancelAnimationFrame(voiceModState.meterFrame);voiceModState.oscillators.forEach(oscillator=>{try{oscillator.stop()}catch(_error){}});voiceModState.inputStream?.getTracks().forEach(track=>track.stop());if(voiceModState.context&&voiceModState.context.state!=="closed")await voiceModState.context.close();voiceModState={context:null,inputStream:null,source:null,inputGain:null,dryGain:null,wetGain:null,outputGain:null,monitorGain:null,destination:null,analyser:null,nodes:[],oscillators:[],meterFrame:0,active:false};window.rareiqVoiceModStream=null;if($("voiceModMeterFill"))$("voiceModMeterFill").style.width="0%";if($("voiceModLevel"))$("voiceModLevel").textContent="−∞ dB";if($("voiceModRoute"))$("voiceModRoute").textContent="RareIQ stream unavailable until started";setVoiceModStatus("idle","Microphone idle")}
+async function stopVoiceMod(){voiceModRequestGeneration+=1;cancelAnimationFrame(voiceModState.meterFrame);voiceModState.oscillators.forEach(oscillator=>{try{oscillator.stop()}catch(_error){}});voiceModState.inputStream?.getTracks().forEach(track=>track.stop());if(voiceModState.context&&voiceModState.context.state!=="closed")await voiceModState.context.close();voiceModState={context:null,inputStream:null,source:null,inputGain:null,dryGain:null,wetGain:null,outputGain:null,monitorGain:null,destination:null,analyser:null,nodes:[],oscillators:[],meterFrame:0,active:false};window.rareiqVoiceModStream=null;if($("voiceModMeterFill"))$("voiceModMeterFill").style.width="0%";if($("voiceModLevel"))$("voiceModLevel").textContent="−∞ dB";if($("voiceModRoute"))$("voiceModRoute").textContent="RareIQ stream unavailable until started";setVoiceModStatus("idle","Microphone idle")}
 async function handleVoiceModInputEnded(track){if(!voiceModState.active||!voiceModState.inputStream?.getTracks().includes(track))return;await stopVoiceMod();setVoiceModStatus("error","Microphone disconnected");setVoiceModInputStatus("The active microphone disconnected. Reconnect it, then refresh inputs.","error");notify("Voice Mod Disconnected","The active microphone stopped sending audio.","error");refreshVoiceModInputs().catch(()=>{})}
-async function startVoiceMod(){if(!navigator.mediaDevices?.getUserMedia)throw new Error("Microphone capture is not supported in this browser.");if(voiceModState.active)await stopVoiceMod();setVoiceModStatus("starting","Requesting microphone");const deviceId=$("voiceModInput")?.value||"";let stream=null,context=null;try{stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:deviceId?{exact:deviceId}:undefined,echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});const AudioContextClass=window.AudioContext||window.webkitAudioContext;if(!AudioContextClass)throw new Error("Live audio processing is not supported in this browser.");context=new AudioContextClass();await context.resume();const source=context.createMediaStreamSource(stream),inputGain=context.createGain(),dryGain=context.createGain(),wetGain=context.createGain(),mixBus=context.createGain(),outputGain=context.createGain(),analyser=context.createAnalyser(),monitorGain=context.createGain(),destination=context.createMediaStreamDestination();analyser.fftSize=1024;source.connect(inputGain);inputGain.connect(dryGain);dryGain.connect(mixBus);const preset=$("voiceModPreset")?.value||"clean",effect=connectVoiceModPreset(context,inputGain,wetGain,preset);wetGain.connect(mixBus);mixBus.connect(outputGain);outputGain.connect(analyser);analyser.connect(destination);analyser.connect(monitorGain);monitorGain.connect(context.destination);voiceModState={context,inputStream:stream,source,inputGain,dryGain,wetGain,outputGain,monitorGain,destination,analyser,nodes:effect.nodes,oscillators:effect.oscillators,meterFrame:0,active:true};stream.getAudioTracks()[0]?.addEventListener("ended",event=>handleVoiceModInputEnded(event.target).catch(error=>notify("Voice Mod Cleanup Failed",error.message||String(error),"error")),{once:true});window.rareiqVoiceModStream=destination.stream;if($("voiceModPresetName"))$("voiceModPresetName").textContent=VOICE_MOD_PRESETS[preset]||preset;if($("voiceModRoute"))$("voiceModRoute").textContent="Processed RareIQ audio stream ready";updateVoiceModLevels();setVoiceModStatus("live","Voice Mod live");refreshVoiceModInputs().catch(()=>{});meterVoiceMod();notify("Voice Mod Live",`${VOICE_MOD_PRESETS[preset]||preset} processing is active.`,"success")}catch(error){if(voiceModState.inputStream===stream)await stopVoiceMod().catch(()=>{});else{stream?.getTracks().forEach(track=>track.stop());if(context&&context.state!=="closed")await context.close().catch(()=>{})}window.rareiqVoiceModStream=null;setVoiceModStatus("error","Microphone unavailable");setVoiceModInputStatus("Microphone access failed. Check browser permission and the selected input.","error");throw error}}
+async function startVoiceMod(){if(!navigator.mediaDevices?.getUserMedia)throw new Error("Microphone capture is not supported in this browser.");if(voiceModState.active)await stopVoiceMod();const requestGeneration=++voiceModRequestGeneration;setVoiceModStatus("starting","Requesting microphone");const deviceId=$("voiceModInput")?.value||"";let stream=null,context=null;try{stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:deviceId?{exact:deviceId}:undefined,echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});if(requestGeneration!==voiceModRequestGeneration){stream.getTracks().forEach(track=>track.stop());return}const AudioContextClass=window.AudioContext||window.webkitAudioContext;if(!AudioContextClass)throw new Error("Live audio processing is not supported in this browser.");context=new AudioContextClass();await context.resume();if(requestGeneration!==voiceModRequestGeneration){stream.getTracks().forEach(track=>track.stop());await context.close().catch(()=>{});return}const source=context.createMediaStreamSource(stream),inputGain=context.createGain(),dryGain=context.createGain(),wetGain=context.createGain(),mixBus=context.createGain(),outputGain=context.createGain(),analyser=context.createAnalyser(),monitorGain=context.createGain(),destination=context.createMediaStreamDestination();analyser.fftSize=1024;source.connect(inputGain);inputGain.connect(dryGain);dryGain.connect(mixBus);const preset=$("voiceModPreset")?.value||"clean",effect=connectVoiceModPreset(context,inputGain,wetGain,preset);wetGain.connect(mixBus);mixBus.connect(outputGain);outputGain.connect(analyser);analyser.connect(destination);analyser.connect(monitorGain);monitorGain.connect(context.destination);voiceModState={context,inputStream:stream,source,inputGain,dryGain,wetGain,outputGain,monitorGain,destination,analyser,nodes:effect.nodes,oscillators:effect.oscillators,meterFrame:0,active:true};stream.getAudioTracks()[0]?.addEventListener("ended",event=>handleVoiceModInputEnded(event.target).catch(error=>notify("Voice Mod Cleanup Failed",error.message||String(error),"error")),{once:true});window.rareiqVoiceModStream=destination.stream;if($("voiceModPresetName"))$("voiceModPresetName").textContent=VOICE_MOD_PRESETS[preset]||preset;if($("voiceModRoute"))$("voiceModRoute").textContent="Processed RareIQ audio stream ready";updateVoiceModLevels();setVoiceModStatus("live","Voice Mod live");refreshVoiceModInputs().catch(()=>{});meterVoiceMod();notify("Voice Mod Live",`${VOICE_MOD_PRESETS[preset]||preset} processing is active.`,"success")}catch(error){if(requestGeneration!==voiceModRequestGeneration){stream?.getTracks().forEach(track=>track.stop());if(context&&context.state!=="closed")await context.close().catch(()=>{});return}if(voiceModState.inputStream===stream)await stopVoiceMod().catch(()=>{});else{stream?.getTracks().forEach(track=>track.stop());if(context&&context.state!=="closed")await context.close().catch(()=>{})}window.rareiqVoiceModStream=null;setVoiceModStatus("error","Microphone unavailable");setVoiceModInputStatus("Microphone access failed. Check browser permission and the selected input.","error");throw error}}
 function restoreVoiceModPreferences(){const prefs=voiceModPreferences();if($("voiceModPreset"))$("voiceModPreset").value=VOICE_MOD_PRESETS[prefs.preset]?prefs.preset:"clean";[["voiceModGain",prefs.gain??100],["voiceModMix",prefs.mix??75],["voiceModOutput",prefs.output??100]].forEach(([id,value])=>{if($(id))$(id).value=String(value)});if($("voiceModMonitor"))$("voiceModMonitor").checked=Boolean(prefs.monitor);updateVoiceModLevels()}
 const CAMERA_FX_PRESETS={clean:{brightness:100,contrast:100,saturation:100,sepia:0,hue:0},vibrant:{brightness:104,contrast:112,saturation:145,sepia:0,hue:0},cinematic:{brightness:92,contrast:128,saturation:86,sepia:12,hue:-8},warm:{brightness:103,contrast:106,saturation:118,sepia:22,hue:-7},cool:{brightness:101,contrast:108,saturation:112,sepia:0,hue:12},noir:{brightness:98,contrast:145,saturation:0,sepia:0,hue:0},vintage:{brightness:98,contrast:108,saturation:78,sepia:38,hue:-12}};
 function cameraFxPreferences(){try{return JSON.parse(localStorage.getItem(CAMERA_FX_PREFERENCES_KEY)||"{}")||{}}catch(_error){return {}}}
@@ -1400,7 +1426,7 @@ function cameraFxColor(hex){const value=parseInt(hex.slice(1),16);return [(value
 function renderCameraFxFrame(timestamp=0){cancelAnimationFrame(cameraFxState.frame);const values=cameraFxValues(),feed=$("cameraFeed"),canvas=$("cameraFxCanvas");if(!cameraFxState.enabled||!values.chroma||!feed||!canvas){if(canvas)canvas.hidden=true;return}cameraFxState.frame=requestAnimationFrame(renderCameraFxFrame);if(timestamp-cameraFxState.lastFrame<66||!feed.complete||!feed.naturalWidth)return;cameraFxState.lastFrame=timestamp;const scale=Math.min(1,960/feed.naturalWidth),width=Math.max(1,Math.round(feed.naturalWidth*scale)),height=Math.max(1,Math.round(feed.naturalHeight*scale));if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height}const context=canvas.getContext("2d",{willReadFrequently:true});try{context.drawImage(feed,0,0,width,height);const frame=context.getImageData(0,0,width,height),key=cameraFxColor(values.keyColor),threshold=values.tolerance*4.42,soft=Math.max(1,values.softness*2.55);for(let index=0;index<frame.data.length;index+=4){const distance=Math.hypot(frame.data[index]-key[0],frame.data[index+1]-key[1],frame.data[index+2]-key[2]);if(distance<threshold)frame.data[index+3]=Math.max(0,Math.min(255,(distance-(threshold-soft))/soft*255))}context.putImageData(frame,0,0);canvas.hidden=false}catch(_error){canvas.hidden=true}}
 function setCameraFxPreset(name){const preset=CAMERA_FX_PRESETS[name]||CAMERA_FX_PRESETS.clean;document.querySelectorAll("[data-camera-fx-preset]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.cameraFxPreset===name)));[["cameraFxBrightness",preset.brightness],["cameraFxContrast",preset.contrast],["cameraFxSaturation",preset.saturation]].forEach(([id,value])=>{if($(id))$(id).value=String(value)});renderCameraFxControls();renderCameraFxFrame()}
 function toggleCameraFx(){cameraFxState.enabled=!cameraFxState.enabled;renderCameraFxControls();renderCameraFxFrame();notify(cameraFxState.enabled?"Studio Preview Styled":"Studio Preview Bypassed",cameraFxState.enabled?"The selected look is visible in Studio X; recognition and Program / OBS remain clean.":"Studio X returned to the clean camera preview.","success")}
-function resetCameraFx(){cameraFxState.enabled=false;if($("cameraFxBlur"))$("cameraFxBlur").value="0";if($("cameraFxChroma"))$("cameraFxChroma").checked=false;if($("cameraFxTolerance"))$("cameraFxTolerance").value="32";if($("cameraFxSoftness"))$("cameraFxSoftness").value="18";setCameraFxPreset("clean");renderCameraFxControls();renderCameraFxFrame()}
+function resetCameraFx(){cameraFxState.enabled=false;if($("cameraFxBlur"))$("cameraFxBlur").value="0";if($("cameraFxChroma"))$("cameraFxChroma").checked=false;if($("cameraFxKeyColor"))$("cameraFxKeyColor").value="#00ff00";if($("cameraFxTolerance"))$("cameraFxTolerance").value="32";if($("cameraFxSoftness"))$("cameraFxSoftness").value="18";setCameraFxPreset("clean");renderCameraFxControls();renderCameraFxFrame()}
 function restoreCameraFxPreferences(){const prefs=cameraFxPreferences(),preset=CAMERA_FX_PRESETS[prefs.preset]?prefs.preset:"clean";cameraFxState.enabled=Boolean(prefs.enabled);[["cameraFxBrightness",prefs.brightness??CAMERA_FX_PRESETS[preset].brightness],["cameraFxContrast",prefs.contrast??CAMERA_FX_PRESETS[preset].contrast],["cameraFxSaturation",prefs.saturation??CAMERA_FX_PRESETS[preset].saturation],["cameraFxBlur",prefs.blur??0],["cameraFxTolerance",prefs.tolerance??32],["cameraFxSoftness",prefs.softness??18],["cameraFxKeyColor",prefs.keyColor||"#00ff00"]].forEach(([id,value])=>{if($(id))$(id).value=String(value)});if($("cameraFxChroma"))$("cameraFxChroma").checked=Boolean(prefs.chroma);document.querySelectorAll("[data-camera-fx-preset]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.cameraFxPreset===preset)));renderCameraFxControls();renderCameraFxFrame()}
 
 let productionSwitcherState={program_slot:1,preview_slot:2,transition:"fade",duration_ms:500,generation:0};
@@ -1567,15 +1593,15 @@ function setSpotifyAvailability(payload={}){const connected=payload.connected===
 function renderSpotifySetup(payload={}){const card=$("spotifySetupCard"),configured=payload.configured===true;if(card)card.hidden=configured;if($("spotifyClientId"))$("spotifyClientId").value=payload.client_id||"";if($("spotifyRedirectUri"))$("spotifyRedirectUri").value=spotifyRuntimeRedirectUri(payload);if($("spotifyDeveloperDashboard")&&payload.developer_dashboard_url)$("spotifyDeveloperDashboard").href=payload.developer_dashboard_url;if($("spotifySetupStatus"))$("spotifySetupStatus").textContent=configured?"Client ID saved":"Setup required";["spotifyConnect","spotifyToolConnect"].forEach(id=>{const button=$(id);if(button){button.dataset.configured=String(configured);button.textContent=payload.connected?`Connected${payload.profile?.display_name?` · ${payload.profile.display_name}`:""}`:configured?"Authorize Spotify":"Set Up Spotify";}})}
 async function saveSpotifySetup(){const button=$("spotifySaveSetup"),clientId=$("spotifyClientId")?.value?.trim()||"",redirectUri=$("spotifyRedirectUri")?.value?.trim()||"";if(!clientId)throw new Error("Paste the Client ID from your Spotify developer app.");if(button){button.disabled=true;button.textContent="Saving…"}try{const payload=await api("/api/spotify/setup",{method:"POST",body:JSON.stringify({client_id:clientId,redirect_uri:redirectUri})});renderSpotifySetup(payload);notify("Spotify Setup Saved","Opening Spotify authorization…","success");window.location.assign("/api/spotify/connect")}finally{if(button){button.disabled=false;button.textContent="Save & Continue"}}}
 async function startSpotifyConnection(event){event?.preventDefault?.();const payload=await api("/api/spotify/setup",{retries:0});renderSpotifySetup(payload);if(!payload.configured){switchWorkspace("spotify");$("spotifySetupCard")?.scrollIntoView({behavior:"smooth",block:"start"});notify("Spotify Setup Required","Create a Spotify developer app and paste its Client ID.","error");return}window.location.assign("/api/spotify/connect")}
-function renderSpotify(payload={}){spotifyState=payload;const playback=payload.playback||{},item=playback.item||{},image=item.album?.images?.[0]?.url||"",artist=(item.artists||[]).map(value=>value.name).join(", ")||"Connect your account to begin",duration=Number(item.duration_ms)||0,progress=Number(playback.progress_ms)||0,percent=duration?Math.min(100,progress/duration*100):0;[["spotifyTrackName","spotifyArtistName","spotifyAlbumArt","spotifyAlbumPlaceholder","spotifyProgress","spotifyTime"],["spotifyToolTrack","spotifyToolArtist","spotifyToolArt",null,"spotifyToolProgress",null]].forEach(([trackId,artistId,artId,placeholderId,progressId,timeId])=>{if($(trackId))$(trackId).textContent=item.name||(!payload.configured?"Spotify setup required":"Spotify not connected");if($(artistId))$(artistId).textContent=artist;if($(artId)){if(image){$(artId).src=image;$(artId).hidden=false}else $(artId).hidden=true;}if(placeholderId&&$(placeholderId))$(placeholderId).hidden=Boolean(image);if($(progressId))$(progressId).style.width=`${percent}%`;if(timeId&&$(timeId))$(timeId).textContent=`${spotifyTime(progress)} / ${spotifyTime(duration)}`;});["spotifyConnect","spotifyToolConnect"].forEach(id=>{const button=$(id);if(button)button.textContent=payload.connected?`Connected${payload.profile?.display_name?` · ${payload.profile.display_name}`:""}`:"Connect Spotify";});const devices=$("spotifyDevice");if(devices){devices.replaceChildren(...((payload.devices||[]).length?payload.devices.map(device=>new Option(`${device.name}${device.is_active?" · Active":""}`,device.id)):[new Option("No Spotify device available","")]));devices.value=(payload.devices||[]).find(device=>device.is_active)?.id||devices.value;}if($("spotifyVolume"))$("spotifyVolume").value=String(playback.device?.volume_percent??50);setSpotifyAvailability(payload);if(!payload.configured)renderSpotifyError("Complete the one-time setup above to connect Spotify.");}
+function renderSpotify(payload={}){spotifyState=payload;const playback=payload.playback||{},item=playback.item||{},image=item.album?.images?.[0]?.url||"",artist=(item.artists||[]).map(value=>value.name).join(", ")||"Connect your account to begin",duration=Number(item.duration_ms)||0,progress=Number(playback.progress_ms)||0,percent=duration?Math.min(100,progress/duration*100):0;[["spotifyTrackName","spotifyArtistName","spotifyAlbumArt","spotifyAlbumPlaceholder","spotifyProgress","spotifyTime"],["spotifyToolTrack","spotifyToolArtist","spotifyToolArt",null,"spotifyToolProgress",null]].forEach(([trackId,artistId,artId,placeholderId,progressId,timeId])=>{if($(trackId))$(trackId).textContent=item.name||(!payload.configured?"Spotify setup required":"Spotify not connected");if($(artistId))$(artistId).textContent=artist;if($(artId)){if(image){$(artId).src=image;$(artId).hidden=false}else $(artId).hidden=true;}if(placeholderId&&$(placeholderId))$(placeholderId).hidden=Boolean(image);if($(progressId))$(progressId).style.width=`${percent}%`;if(timeId&&$(timeId))$(timeId).textContent=`${spotifyTime(progress)} / ${spotifyTime(duration)}`;});["spotifyConnect","spotifyToolConnect"].forEach(id=>{const button=$(id);if(button)button.textContent=payload.connected?`Connected${payload.profile?.display_name?` · ${payload.profile.display_name}`:""}`:payload.configured?"Authorize Spotify":"Set Up Spotify";});const devices=$("spotifyDevice");if(devices){const previous=devices.value;devices.replaceChildren(...((payload.devices||[]).length?payload.devices.map(device=>new Option(`${device.name}${device.is_active?" · Active":""}`,device.id)):[new Option("No Spotify device available","")]));devices.value=(payload.devices||[]).find(device=>device.is_active)?.id||(payload.devices||[]).some(device=>device.id===previous)?previous:devices.value;}if($("spotifyVolume"))$("spotifyVolume").value=String(playback.device?.volume_percent??50);setSpotifyAvailability(payload);if(!payload.configured)renderSpotifyError("Complete the one-time setup above to connect Spotify.");}
 function renderSpotifyEnhancements(){const playback=spotifyState.playback||{},queue=spotifyState.queue||[],isPlaying=playback.is_playing===true;if($("spotifyPlay"))$("spotifyPlay").textContent=isPlaying?"❚❚":"▶";if($("spotifyToolPlay"))$("spotifyToolPlay").textContent=isPlaying?"❚❚":"▶";if($("spotifyShuffle")){$("spotifyShuffle").setAttribute("aria-pressed",String(playback.shuffle_state===true));$("spotifyShuffle").classList.toggle("active",playback.shuffle_state===true);}if($("spotifyRepeat")){$("spotifyRepeat").dataset.repeat=playback.repeat_state||"off";$("spotifyRepeat").textContent=`Repeat ${playback.repeat_state||"off"}`;}if($("spotifyQueueCount"))$("spotifyQueueCount").textContent=`${queue.length} tracks`;if($("spotifyQueue"))$("spotifyQueue").replaceChildren(...(queue.length?queue.map(item=>spotifyResultCard(item,"queue")):[Object.assign(document.createElement("p"),{textContent:"Spotify's upcoming tracks will appear here."})]));const duck=localStorage.getItem("rareiq.spotify.duckSoundboard")==="true";["spotifyDuckEnabled","spotifyAppDuckEnabled"].forEach(id=>{if($(id))$(id).checked=duck;});}
-async function loadSpotify(){const payload=await api("/api/spotify/status");renderSpotifySetup(payload);renderSpotify(payload);renderSpotifyEnhancements();if(payload.connected&&!spotifyRefreshTimer)spotifyRefreshTimer=setInterval(()=>{if(document.hidden!==true)loadSpotify().catch(()=>{})},5000);if(payload.connected)loadSpotifyPlaylists().catch(()=>{});return payload;}
+async function loadSpotify(){const payload=await api("/api/spotify/status");renderSpotifySetup(payload);renderSpotify(payload);renderSpotifyEnhancements();if(payload.connected&&!spotifyRefreshTimer)spotifyRefreshTimer=setInterval(()=>{if(document.hidden!==true)loadSpotify().catch(()=>{})},5000);if(!payload.connected&&spotifyRefreshTimer){clearInterval(spotifyRefreshTimer);spotifyRefreshTimer=0;}if(payload.connected)loadSpotifyPlaylists().catch(()=>{});return payload;}
 async function spotifyCommand(action,extra={}){await api("/api/spotify/player",{method:"POST",body:JSON.stringify({action,device_id:$("spotifyDevice")?.value||null,...extra})});setTimeout(()=>loadSpotify().catch(()=>{}),250);}
 function spotifyResultCard(item,type="track"){const card=document.createElement("article");card.className="spotify-result-card";const image=item.album?.images?.[0]?.url||item.images?.[0]?.url;if(image){const img=document.createElement("img");img.src=image;img.alt="";card.append(img);}const copy=document.createElement("div"),name=document.createElement("strong"),meta=document.createElement("span");name.textContent=item.name||"Untitled";meta.textContent=type==="track"||type==="queue"?(item.artists||[]).map(value=>value.name).join(", "):`${item.tracks?.total||0} tracks`;copy.append(name,meta);const actions=document.createElement("span");if(type==="track")[["Play","play"],["Queue","queue"]].forEach(([label,action])=>{const button=document.createElement("button");button.type="button";button.textContent=label;button.addEventListener("click",()=>spotifyCommand(action,{uri:item.uri}).catch(error=>notify("Spotify Command Failed",error.message||String(error),"error")));actions.append(button);});if(type==="playlist"){const button=document.createElement("button");button.type="button";button.textContent="Play";button.addEventListener("click",()=>spotifyCommand("play",{uri:item.uri}).catch(error=>notify("Spotify Playlist Failed",error.message||String(error),"error")));actions.append(button);}card.append(copy,actions);return card;}
-function setSpotifyDucking(enabled){localStorage.setItem("rareiq.spotify.duckSoundboard",String(Boolean(enabled)));["spotifyDuckEnabled","spotifyAppDuckEnabled"].forEach(id=>{if($(id))$(id).checked=Boolean(enabled);});}
+function setSpotifyDucking(enabled){const active=Boolean(enabled);localStorage.setItem("rareiq.spotify.duckSoundboard",String(active));["spotifyDuckEnabled","spotifyAppDuckEnabled"].forEach(id=>{if($(id))$(id).checked=active;});if(!active&&spotifyDuckedVolume!==null){const restore=spotifyDuckedVolume;spotifyDuckedVolume=null;spotifyCommand("volume",{volume_percent:restore}).catch(()=>{});}}
 function cycleSpotifyRepeat(){const current=spotifyState.playback?.repeat_state||"off",next=current==="off"?"context":current==="context"?"track":"off";spotifyCommand("repeat",{repeat_state:next}).catch(error=>notify("Spotify Repeat Failed",error.message||String(error),"error"));}
-async function searchSpotify(query){const payload=await api(`/api/spotify/search?q=${encodeURIComponent(query)}`),results=$("spotifyResults"),tracks=payload.results?.tracks?.items||[],playlists=(payload.results?.playlists?.items||[]).filter(Boolean);if(results)results.replaceChildren(...tracks.map(item=>spotifyResultCard(item,"track")),...playlists.map(item=>spotifyResultCard(item,"playlist")));}
-async function loadSpotifyPlaylists(){const payload=await api("/api/spotify/playlists"),items=(payload.playlists?.items||[]).filter(Boolean);if($("spotifyPlaylists"))$("spotifyPlaylists").replaceChildren(...items.map(item=>spotifyResultCard(item,"playlist")));}
+async function searchSpotify(query){const term=String(query||"").trim(),results=$("spotifyResults");if(!term){if(results)results.replaceChildren(Object.assign(document.createElement("p"),{textContent:"Enter a track, artist, or playlist to search."}));return;}const payload=await api(`/api/spotify/search?q=${encodeURIComponent(term)}`),tracks=payload.results?.tracks?.items||[],playlists=(payload.results?.playlists?.items||[]).filter(Boolean),cards=[...tracks.map(item=>spotifyResultCard(item,"track")),...playlists.map(item=>spotifyResultCard(item,"playlist"))];if(results)results.replaceChildren(...(cards.length?cards:[Object.assign(document.createElement("p"),{textContent:`No Spotify results found for “${term}”.`})]));}
+async function loadSpotifyPlaylists(){const payload=await api("/api/spotify/playlists"),items=(payload.playlists?.items||[]).filter(Boolean),list=$("spotifyPlaylists");if(list)list.replaceChildren(...(items.length?items.map(item=>spotifyResultCard(item,"playlist")):[Object.assign(document.createElement("p"),{textContent:"No Spotify playlists are available for this account."})]));}
 
 function renderRevealSequence(state={}){
   const config=state.config||{};
@@ -1660,7 +1686,7 @@ function startSoundboardPlaybackSync(){if(!soundboardPlaybackFrame)soundboardPla
 function stopAllSoundboardAudio(){soundboardQueue.splice(0);activeSoundboardPlayers.forEach(player=>{player.pause();player.currentTime=0;player.remove()});activeSoundboardPlayers.clear();if(spotifyDuckedVolume!==null){const restore=spotifyDuckedVolume;spotifyDuckedVolume=null;spotifyCommand("volume",{volume_percent:restore}).catch(()=>{});}if(soundboardPlaybackFrame)cancelAnimationFrame(soundboardPlaybackFrame);soundboardPlaybackFrame=0;syncSoundboardQueueCount();syncSoundboardPlayback();}
 function startSoundboardPad(pad,queued=false){if(localStorage.getItem("rareiq.spotify.duckSoundboard")==="true"&&spotifyState.connected&&spotifyDuckedVolume===null){spotifyDuckedVolume=Number(spotifyState.playback?.device?.volume_percent??50);spotifyCommand("volume",{volume_percent:Math.max(5,Math.round(spotifyDuckedVolume*.3))}).catch(()=>{});}const player=new Audio(pad.asset.url);player.volume=soundboardVolume()/100;player.dataset.padId=pad.id;player.dataset.padLabel=pad.label||pad.asset.name||"Sound";activeSoundboardPlayers.add(player);const dispose=()=>{activeSoundboardPlayers.delete(player);player.remove();if(queued&&soundboardQueue.length)startSoundboardPad(soundboardQueue.shift(),true);syncSoundboardQueueCount();if(!activeSoundboardPlayers.size){if(spotifyDuckedVolume!==null){const restore=spotifyDuckedVolume;spotifyDuckedVolume=null;spotifyCommand("volume",{volume_percent:restore}).catch(()=>{});}if(soundboardPlaybackFrame)cancelAnimationFrame(soundboardPlaybackFrame);soundboardPlaybackFrame=0;syncSoundboardPlayback();}};player.addEventListener("ended",dispose,{once:true});player.addEventListener("error",dispose,{once:true});player.play().then(startSoundboardPlaybackSync).catch(error=>{dispose();notify("Sound Blocked",error.message||"Browser prevented playback.","error")});syncSoundboardPlayback();}
 function playSoundboardPad(pad){if(!pad?.asset?.url)return;if(soundboardPlaybackMode()==="queue"&&activeSoundboardPlayers.size){soundboardQueue.push(pad);syncSoundboardQueueCount();return;}startSoundboardPad(pad,soundboardPlaybackMode()==="queue");}
-function setSoundboardVolume(value){const volume=Math.max(0,Math.min(100,Number(value)||0));localStorage.setItem("rareiq.soundboard.volume",String(volume));activeSoundboardPlayers.forEach(player=>{player.volume=volume/100});if($("soundboardVolume"))$("soundboardVolume").value=String(volume);if($("soundboardVolumeValue"))$("soundboardVolumeValue").textContent=`${volume}%`;}
+function setSoundboardVolume(value){const volume=Math.max(0,Math.min(100,Number(value)||0));localStorage.setItem("rareiq.soundboard.volume",String(volume));activeSoundboardPlayers.forEach(player=>{player.volume=volume/100});[["soundboardVolume","soundboardVolumeValue"],["soundboardAppVolume","soundboardAppVolumeValue"]].forEach(([inputId,labelId])=>{if($(inputId))$(inputId).value=String(volume);if($(labelId))$(labelId).textContent=`${volume}%`;});}
 function refreshSoundPadImages(){const playable=soundboardState.pads.filter(pad=>pad.asset);[["#soundboardPads .studiox-sound-pad",playable],["#cameraSoundboardPads .camera-sound-pad",playable.slice(0,6)],["#soundboardAppGrid .soundboard-app-pad",playable]].forEach(([selector,pads])=>document.querySelectorAll(selector).forEach((button,index)=>{const image=pads[index]?.image_asset?.url;if(image){button.classList.add("has-pad-image");button.style.setProperty("--pad-image",`url("${image}")`)}else{button.classList.remove("has-pad-image");button.style.removeProperty("--pad-image")}}));}
 function addSoundboardImageControls(){const visuals=soundboardState.assets.filter(asset=>asset.kind==="visual");document.querySelectorAll("#soundboardPadConfig .studiox-soundboard-config-row").forEach((row,index)=>{const select=document.createElement("select");select.dataset.soundboardImage=String(index);select.append(new Option("No button image",""),...visuals.map(asset=>new Option(asset.name,asset.id)));select.value=soundboardState.pads[index]?.image_asset_id||"";const upload=document.createElement("label");upload.className="riq-button soundboard-image-upload";upload.textContent="Image";const input=document.createElement("input");input.type="file";input.accept="image/png,image/jpeg,image/webp,image/gif";input.addEventListener("change",()=>uploadSoundboardPadImage(index,input.files?.[0]).catch(error=>notify("Image Not Added",error.message||String(error),"error")));upload.append(input);row.insertBefore(select,row.lastElementChild);row.insertBefore(upload,row.lastElementChild)});}
 async function uploadSoundboardPadImage(index,file){if(!file)return;const result=await uploadCreatorAsset(file),asset=result?.asset;if(!asset?.id||asset.kind!=="visual")throw new Error("A valid image was not returned");soundboardState.assets=[...soundboardState.assets.filter(item=>item.id!==asset.id),asset];soundboardState.pads[index]={...soundboardState.pads[index],image_asset_id:asset.id,image_asset:asset};await saveSoundboard();await loadSoundboard();}
@@ -1668,6 +1694,7 @@ function renderSoundboard(payload={}){soundboardState={pads:Array.isArray(payloa
 function renderSoundboardApp(){
   const search=String($("soundboardSearch")?.value||"").toLowerCase();
   const playable=orderedSoundboardPads().filter(p=>p.asset&&p.label.toLowerCase().includes(search));
+  const audioAssets=soundboardState.assets.filter(asset=>asset.kind==="audio");
   const grid=$("soundboardAppGrid");
   if(grid){
     const pads=playable.map((pad,index)=>{
@@ -1699,11 +1726,11 @@ function renderSoundboardApp(){
   }
   if($("soundboardPadCount"))$("soundboardPadCount").textContent=`${soundboardState.pads.length} / 50 pads`;
   const config=$("soundboardAppConfig");
-  if(config)config.replaceChildren(...soundboardState.pads.map((pad,index)=>{const row=document.createElement("div");row.className="studiox-soundboard-config-row";const label=document.createElement("input");label.value=pad.label;label.dataset.soundboardAppLabel=String(index);const select=document.createElement("select");select.dataset.soundboardAppAsset=String(index);select.append(new Option("Choose audio",""),...soundboardState.assets.map(asset=>new Option(asset.name,asset.id)));select.value=pad.asset_id||"";row.append(label,select);return row;}));
+  if(config)config.replaceChildren(...soundboardState.pads.map((pad,index)=>{const row=document.createElement("div");row.className="studiox-soundboard-config-row";const label=document.createElement("input");label.value=pad.label;label.dataset.soundboardAppLabel=String(index);const select=document.createElement("select");select.dataset.soundboardAppAsset=String(index);select.append(new Option("Choose audio",""),...audioAssets.map(asset=>new Option(asset.name,asset.id)));select.value=pad.asset_id||"";row.append(label,select);return row;}));
   syncSoundboardLayoutControls();
 }
 async function loadSoundboard(){loadSoundboardLayouts();const payload=await api("/api/soundboard");renderSoundboard(payload);renderSoundboardApp();addSoundboardImageControls();refreshSoundPadImages();syncPriceAlertNotificationControls();return payload;}
-async function saveSoundboardApp(){soundboardState.pads=soundboardState.pads.map((pad,index)=>({...pad,label:document.querySelector(`[data-soundboard-app-label='${index}']`)?.value||pad.label,asset_id:document.querySelector(`[data-soundboard-app-asset='${index}']`)?.value||pad.asset_id}));const payload=await api("/api/soundboard",{method:"POST",body:JSON.stringify({pads:soundboardState.pads})});renderSoundboard({pads:payload.soundboard||[],assets:soundboardState.assets});renderSoundboardApp();notify("Soundboard Saved","Your 50-pad layout is ready.","success");}
+async function saveSoundboardApp(){soundboardState.pads=soundboardState.pads.map((pad,index)=>{const label=document.querySelector(`[data-soundboard-app-label='${index}']`),asset=document.querySelector(`[data-soundboard-app-asset='${index}']`);return {...pad,label:label?.value||pad.label,asset_id:asset?asset.value||null:pad.asset_id};});const payload=await api("/api/soundboard",{method:"POST",body:JSON.stringify({pads:soundboardState.pads})});renderSoundboard({pads:payload.soundboard||[],assets:soundboardState.assets});renderSoundboardApp();notify("Soundboard Saved","Your 50-pad layout is ready.","success");}
 async function uploadSoundboardFiles(files){for(const file of Array.from(files||[]))await uploadSoundboardAudio(file);await loadSoundboard();}
 async function saveSoundboard(){const pads=soundboardState.pads.map((pad,index)=>({...pad,label:document.querySelector(`[data-soundboard-label='${index}']`)?.value||pad.label,asset_id:document.querySelector(`[data-soundboard-asset='${index}']`)?.value||null,image_asset_id:document.querySelector(`[data-soundboard-image='${index}']`)?.value||pad.image_asset_id||null}));const payload=await api("/api/soundboard",{method:"POST",body:JSON.stringify({pads})});renderSoundboard({pads:payload.soundboard||[],assets:soundboardState.assets});refreshSoundPadImages();notify("Soundboard Saved","Your streamer pads are ready.","success");}
 async function uploadSoundboardAudio(file){if(!file)return;const result=await uploadCreatorAsset(file);const asset=result?.asset;if(!asset?.id)throw new Error("Uploaded audio was not returned by the server");const current=await api("/api/soundboard"),pads=(current.pads||[]).map(pad=>({id:pad.id,label:pad.label,asset_id:pad.asset_id}));if(pads.length>=50)throw new Error("Soundboard supports up to 50 pads");pads.push({id:`pad-${Date.now()}`,label:asset.name||file.name.replace(/\.[^.]+$/,"")||`Sound ${pads.length+1}`,asset_id:asset.id});const saved=await api("/api/soundboard",{method:"POST",body:JSON.stringify({pads})});renderSoundboard({pads:saved.soundboard||[],assets:[...(current.assets||[]).filter(item=>item.id!==asset.id),asset]});notify("Sound Pad Added",`${asset.name} is ready in the camera toolbar.`,"success");}
@@ -2180,39 +2207,71 @@ function renderCollectionValuation(valuation){
   if($("collectionValueEmpty")) $("collectionValueEmpty").hidden=hits.length>0;
 }
 
-function renderCollectionSets(sets){
-  const grid=$("collectionSetGrid");
-  if(grid){
-    grid.replaceChildren(...sets.map(set=>{
-      const article=document.createElement("article");
-      article.className="collection-set-card";
-      const available=set.checklist_status==="available";
-      const percent=available?Math.max(0,Math.min(100,Number(set.completion_percent||0))):0;
-      article.innerHTML=`
-        <div class="collection-set-title"><div><strong>${set.set_name||"Unknown set"}</strong><span>${set.set_code||"Local collection"}</span></div><b>${available?`${percent}%`:"Owned"}</b></div>
-        <div class="collection-set-stats"><span><b>${Number(set.owned_versions||0)}</b> versions</span><span><b>${Number(set.total_copies||0)}</b> copies</span><span><b>${Number(set.duplicate_copies||0)}</b> duplicates</span></div>
-        ${available?`<div class="collection-progress-track" aria-label="${percent}% complete"><i style="width:${percent}%"></i></div><p>${Number(set.catalog_owned||0)} of ${Number(set.catalog_total||0)} catalog cards owned</p>`:`<p>Reference checklist not loaded — completion is not estimated.</p>`}
-      `;
-      if(available&&Array.isArray(set.missing_cards)&&set.missing_cards.length){
-        const details=document.createElement("details");
-        details.className="collection-missing-list";
-        const summary=document.createElement("summary");
-        summary.textContent=`${set.missing_cards.length} missing cards`;
-        details.appendChild(summary);
-        const list=document.createElement("div");
-        set.missing_cards.forEach(card=>{
-          const item=document.createElement("span");
-          item.textContent=`${card.collector_number||"--"} · ${card.card_name||card.printed_name||"Unknown card"}`;
-          list.appendChild(item);
-        });
-        details.appendChild(list);
-        article.appendChild(details);
-      }
-      return article;
-    }));
+function collectionSetStarted(set){
+  return Number(set?.owned_versions||0)>0||Number(set?.total_copies||0)>0;
+}
+
+function collectionSetCard(set){
+  const article=document.createElement("article");
+  article.className="collection-set-card";
+  const available=set.checklist_status==="available";
+  const percent=available?Math.max(0,Math.min(100,Number(set.completion_percent||0))):0;
+  article.innerHTML=`
+    <div class="collection-set-title"><div><strong>${set.set_name||"Unknown set"}</strong><span>${set.set_code||"Local collection"}</span></div><b>${available?`${percent}%`:"Owned"}</b></div>
+    <div class="collection-set-stats"><span><b>${Number(set.owned_versions||0)}</b> versions</span><span><b>${Number(set.total_copies||0)}</b> copies</span><span><b>${Number(set.duplicate_copies||0)}</b> duplicates</span></div>
+    ${available?`<div class="collection-progress-track" aria-label="${percent}% complete"><i style="width:${percent}%"></i></div><p>${Number(set.catalog_owned||0)} of ${Number(set.catalog_total||0)} catalog cards owned</p>`:`<p>Reference checklist not loaded — completion is not estimated.</p>`}
+  `;
+  if(available&&Array.isArray(set.missing_cards)&&set.missing_cards.length){
+    const details=document.createElement("details");
+    details.className="collection-missing-list";
+    const summary=document.createElement("summary");
+    summary.textContent=`${set.missing_cards.length} missing cards`;
+    details.appendChild(summary);
+    const list=document.createElement("div");
+    set.missing_cards.forEach(card=>{
+      const item=document.createElement("span");
+      item.textContent=`${card.collector_number||"--"} · ${card.card_name||card.printed_name||"Unknown card"}`;
+      list.appendChild(item);
+    });
+    details.appendChild(list);
+    article.appendChild(details);
   }
-  if($("collectionSetsEmpty")) $("collectionSetsEmpty").hidden=sets.length>0;
-  if($("collectionSetCount")) $("collectionSetCount").textContent=`${sets.length} ${sets.length===1?"set":"sets"}`;
+  return article;
+}
+
+function renderCollectionSetRows({resetLimit=false}={}){
+  const grid=$("collectionSetGrid");
+  if(!grid)return;
+  if(resetLimit)collectionSetVisibleLimit=48;
+  const query=($("collectionSetSearch")?.value||"").trim().toLocaleLowerCase();
+  const mode=$("collectionSetMode")?.value||"started";
+  const started=collectionSetInventory.filter(collectionSetStarted).length;
+  const filtered=collectionSetInventory.filter(set=>{
+    const matchesMode=mode==="all"||collectionSetStarted(set);
+    const haystack=[set.set_name,set.set_code].filter(Boolean).join(" ").toLocaleLowerCase();
+    return matchesMode&&(!query||haystack.includes(query));
+  }).sort((a,b)=>{
+    const ownership=Number(collectionSetStarted(b))-Number(collectionSetStarted(a));
+    if(ownership)return ownership;
+    const copies=Number(b.total_copies||0)-Number(a.total_copies||0);
+    return copies||String(a.set_name||a.set_code||"").localeCompare(String(b.set_name||b.set_code||""));
+  });
+  const visible=filtered.slice(0,collectionSetVisibleLimit);
+  grid.replaceChildren(...visible.map(collectionSetCard));
+  const empty=$("collectionSetsEmpty");
+  if(empty){
+    empty.hidden=filtered.length>0;
+    empty.textContent=collectionSetInventory.length===0?"Scan verified cards to begin tracking sets.":mode==="started"&&!query?"No sets have verified cards yet. Choose All catalog sets to browse the reference library.":"No sets match these filters.";
+  }
+  if($("collectionSetVisibleCount"))$("collectionSetVisibleCount").textContent=`${visible.length.toLocaleString()} of ${filtered.length.toLocaleString()} visible`;
+  const more=$("collectionSetMore");
+  if(more){more.hidden=visible.length>=filtered.length;more.textContent=`Show ${Math.min(48,filtered.length-visible.length)} more sets`;}
+  if($("collectionSetCount"))$("collectionSetCount").textContent=`${started.toLocaleString()} started · ${collectionSetInventory.length.toLocaleString()} catalog`;
+}
+
+function renderCollectionSets(sets){
+  collectionSetInventory=Array.isArray(sets)?sets:[];
+  renderCollectionSetRows({resetLimit:true});
 }
 
 function populateCollectionFilters(cards){
@@ -2387,7 +2446,8 @@ async function api(path,options={}){
 
 let cameraPtzDevices=[];
 let cameraPtzSnapshot={};
-function positionCameraPtzPanel(){const panel=$("cameraPtzPanel"),button=$("cameraPtzButton");if(!panel||!button||panel.hidden)return;const anchor=button.getBoundingClientRect(),gap=8,width=Math.min(360,Math.max(280,window.innerWidth-24)),left=Math.max(12,Math.min(anchor.left,window.innerWidth-width-12)),top=Math.max(12,Math.min(anchor.bottom+gap,window.innerHeight-24));panel.classList.add("ptz-floating");panel.style.width=`${width}px`;panel.style.left=`${left}px`;panel.style.right="auto";panel.style.top=`${top}px`;panel.style.maxHeight=`${Math.max(240,window.innerHeight-top-12)}px`}
+const CAMERA_PTZ_DISCOVERY_TIMEOUT_MS=15000;
+function positionCameraPtzPanel(){const panel=$("cameraPtzPanel"),button=$("cameraPtzButton");if(!panel||!button||panel.hidden)return;const anchor=button.getBoundingClientRect(),gap=8,width=Math.min(480,Math.max(280,window.innerWidth-32)),left=Math.max(16,Math.min(anchor.left,window.innerWidth-width-16)),top=Math.max(16,Math.min(anchor.bottom+gap,window.innerHeight-24));panel.classList.add("ptz-floating");panel.style.width=`${width}px`;panel.style.left=`${left}px`;panel.style.right="auto";panel.style.top=`${top}px`;panel.style.maxHeight=`${Math.max(280,window.innerHeight-top-16)}px`}
 function renderCameraPtzStatus(ptz={},cameras=null){
   const message=$("cameraPtzMessage");
   const panel=$("cameraPtzPanel");
@@ -2444,7 +2504,7 @@ function renderCameraPtzStatus(ptz={},cameras=null){
 
 async function refreshCameraPtzStatus(){
   try{
-    const payload=await api("/api/camera/ptz",{timeoutMs:5000});
+    const payload=await api("/api/camera/ptz",{timeoutMs:CAMERA_PTZ_DISCOVERY_TIMEOUT_MS});
     renderCameraPtzStatus(payload.ptz,payload.cameras);
   }catch(error){
     renderCameraPtzStatus({state:"offline",message:error.message});
@@ -2594,9 +2654,9 @@ function setCreatorWorkspaceView(requested,{persist=true,focus=false}={}){
     button.tabIndex=selected?0:-1;
     if(selected&&focus)button.focus();
   });
-  const [title,description]=CREATOR_WORKSPACE_COPY[view],content=workspace.querySelector(".full-shell>.content");
-  if(content?.querySelector(":scope>h2"))content.querySelector(":scope>h2").textContent=title;
-  if(content?.querySelector(":scope>p"))content.querySelector(":scope>p").textContent=description;
+  const [title,description]=CREATOR_WORKSPACE_COPY[view],content=workspace.querySelector(".full-shell>.content"),heading=content?.querySelector(".studiox-app-heading");
+  if(heading?.querySelector("h2"))heading.querySelector("h2").textContent=title;
+  if(heading?.querySelector("p"))heading.querySelector("p").textContent=description;
   content?.scrollTo({top:0,behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});
   if(persist){try{localStorage.setItem(CREATOR_WORKSPACE_VIEW_KEY,view)}catch(_error){}}
   return view;
@@ -2675,6 +2735,7 @@ function aiLabRows(hostId,rows=[]){
 }
 
 function aiLabMilliseconds(value){const number=Number(value);return Number.isFinite(number)?`${number.toFixed(number>=10?1:2)} ms`:"Unavailable"}
+function aiLabDuration(value){const milliseconds=Number(value);if(!Number.isFinite(milliseconds)||milliseconds<0)return "Unavailable";if(milliseconds<1000)return aiLabMilliseconds(milliseconds);const seconds=milliseconds/1000;if(seconds<60)return `${seconds.toFixed(seconds>=10?1:2)} s`;const minutes=Math.floor(seconds/60),remaining=Math.round(seconds%60);if(minutes<60)return `${minutes}m ${remaining}s`;const hours=Math.floor(minutes/60);return `${hours}h ${minutes%60}m`;}
 function aiLabConfidence(value){const number=Number(value);if(!Number.isFinite(number)||number<=0)return "No confidence";return `${Math.round(number<=1?number*100:number)}% confidence`}
 
 function renderAiLabRecognition(payload={}){
@@ -2699,7 +2760,7 @@ function renderAiLabIntelligence(payload={}){
   setCardText("aiLabIndexState",index.ready?"READY":index.error?"ERROR":"NOT READY");
   setCardText("aiLabIndexRecords",Number(index.records||0).toLocaleString());
   setCardText("aiLabIndexDimensions",String(index.dimensions||0));
-  setCardText("aiLabIndexLatency",aiLabMilliseconds(index.latency_ms));
+  setCardText("aiLabIndexLatency",aiLabDuration(index.latency_ms));
   setCardText("aiLabIndexActivity",index.busy?"WORKING":index.ready?"READY":"IDLE");
   setCardText("aiLabIndexNote",index.error||`${Number(index.records||0).toLocaleString()} records available in the existing index. Normal recognition never rebuilds it silently.`);
   setCardText("aiLabLearningQueued",String(learning.queued||0));
@@ -2891,6 +2952,7 @@ function libraryConsoleRows(hostId,rows=[],empty="No diagnostic data is availabl
     meta.textContent=detail;
     copy.append(name,meta);
     status.textContent=state||"";
+    row.dataset.state=String(state||"neutral").toLowerCase().replace(/[^a-z0-9_-]+/g,"-");
     row.append(copy,status);
     return row;
   }):[Object.assign(document.createElement("p"),{textContent:empty})]));
@@ -4482,10 +4544,10 @@ function setCameraDisconnectedPresentation(camera,error=""){
   const presentation={
     key:"error",
     state:"error",
-    title:"DISCONNECTED",
+    title:"CAMERA OFFLINE",
     detail,
-    placeholderTitle:"Camera Disconnected",
-    placeholderDetail:"Select a physical camera or refresh devices",
+    placeholderTitle:"Camera Offline",
+    placeholderDetail:"Select or reconnect a camera to resume recognition",
     confidence:0,
   };
   if(!wasUnavailable) resetRecognitionPresentation("camera_disconnected");
@@ -5018,7 +5080,7 @@ function normalizeStudioXPreferences(value){
       ? Math.max(STUDIOX_PREVIEW_ZOOM_MIN,Math.min(STUDIOX_PREVIEW_ZOOM_MAX,zoom))
       : 1,
     inspectorWidth:Number.isFinite(inspectorWidth)
-      ? Math.max(340,Math.min(760,inspectorWidth))
+      ? Math.max(STUDIOX_INSPECTOR_WIDTH_MIN,Math.min(STUDIOX_INSPECTOR_WIDTH_MAX,inspectorWidth))
       : null,
   };
 }
@@ -5696,7 +5758,7 @@ function inspectorWidthBounds(){
   const viewport=document.documentElement.clientWidth||window.innerWidth;
   const rail=parseFloat(getComputedStyle(document.body).getPropertyValue("--sx-app-rail-width"))||68;
   const minimumCamera=Math.min(820,Math.max(520,viewport*.48));
-  return {min:340,max:Math.max(340,Math.min(760,viewport-rail-minimumCamera-30))};
+  return {min:STUDIOX_INSPECTOR_WIDTH_MIN,max:Math.max(STUDIOX_INSPECTOR_WIDTH_MIN,Math.min(STUDIOX_INSPECTOR_WIDTH_MAX,viewport-rail-minimumCamera-30))};
 }
 function applyInspectorWidth(width=studioXPreferences.inspectorWidth){
   if(studioXPreferences.layoutPreset!=="custom"){
@@ -5714,14 +5776,16 @@ function initializeInspectorResize(){
   handle.id="inspectorResizeHandle";handle.className="ui4-inspector-resize-handle";handle.type="button";
   handle.setAttribute("aria-label","Resize card information panel");handle.setAttribute("role","separator");handle.setAttribute("aria-orientation","vertical");handle.title="Drag or use arrow keys to resize · Double-click to reset";
   column.prepend(handle);
-  const updateResizeHandle=value=>{const bounds=inspectorWidthBounds(),width=Math.round(Number(value)||column.getBoundingClientRect().width);handle.setAttribute("aria-valuemin",String(bounds.min));handle.setAttribute("aria-valuemax",String(bounds.max));handle.setAttribute("aria-valuenow",String(width));handle.dataset.widthLabel=`${width}px`;};
+  const updateResizeHandle=value=>{const bounds=inspectorWidthBounds(),width=Math.round(Number(value)||column.getBoundingClientRect().width);handle.setAttribute("aria-valuemin",String(bounds.min));handle.setAttribute("aria-valuemax",String(bounds.max));handle.setAttribute("aria-valuenow",String(width));handle.setAttribute("aria-valuetext",`${width} pixels wide`);handle.dataset.widthLabel=`${width}px`;};
   const commitInspectorWidth=width=>{const bounds=inspectorWidthBounds(),value=Math.round(Math.max(bounds.min,Math.min(bounds.max,Number(width))));document.body.style.setProperty("--sx-custom-inspector-width",`${value}px`);studioXPreferences.inspectorWidth=value;studioXPreferences.layoutPreset="custom";document.body.dataset.workspacePreset="custom";if($("workspaceLayoutPreset"))$("workspaceLayoutPreset").value="custom";saveStudioXPreferences();updateResizeHandle(value);};
   let startX=0,startWidth=0;
   handle.addEventListener("pointerdown",event=>{if(event.button!==0)return;startX=event.clientX;startWidth=column.getBoundingClientRect().width;handle.setPointerCapture(event.pointerId);document.body.dataset.inspectorResizing="true";});
   handle.addEventListener("pointermove",event=>{if(!handle.hasPointerCapture(event.pointerId))return;const bounds=inspectorWidthBounds(),width=Math.max(bounds.min,Math.min(bounds.max,startWidth+(startX-event.clientX)));document.body.style.setProperty("--sx-custom-inspector-width",`${Math.round(width)}px`);updateResizeHandle(width);});
   handle.addEventListener("pointerup",event=>{if(!handle.hasPointerCapture(event.pointerId))return;handle.releasePointerCapture(event.pointerId);delete document.body.dataset.inspectorResizing;commitInspectorWidth(column.getBoundingClientRect().width);});
+  handle.addEventListener("pointercancel",event=>{if(handle.hasPointerCapture(event.pointerId))handle.releasePointerCapture(event.pointerId);delete document.body.dataset.inspectorResizing;});
+  handle.addEventListener("lostpointercapture",()=>{delete document.body.dataset.inspectorResizing;});
   handle.addEventListener("keydown",event=>{const keys=["ArrowLeft","ArrowRight","Home","End"];if(!keys.includes(event.key))return;event.preventDefault();const bounds=inspectorWidthBounds(),current=column.getBoundingClientRect().width,step=event.shiftKey?40:16;const next=event.key==="Home"?bounds.min:event.key==="End"?bounds.max:current+(event.key==="ArrowLeft"?step:-step);commitInspectorWidth(next);});
-  handle.addEventListener("dblclick",()=>{studioXPreferences.inspectorWidth=null;studioXPreferences.layoutPreset="balanced";saveStudioXPreferences();applyWorkspaceLayoutPreset("balanced",{persist:false});updateResizeHandle(column.getBoundingClientRect().width);notify("Panel Width Reset","Balanced responsive layout restored.","success");});
+  handle.addEventListener("dblclick",()=>{delete document.body.dataset.inspectorResizing;studioXPreferences.inspectorWidth=null;studioXPreferences.layoutPreset="balanced";saveStudioXPreferences();applyWorkspaceLayoutPreset("balanced",{persist:false});updateResizeHandle(column.getBoundingClientRect().width);notify("Panel Width Reset","Balanced responsive layout restored.","success");});
   applyInspectorWidth();
   updateResizeHandle(column.getBoundingClientRect().width);
 }
@@ -6246,7 +6310,10 @@ function renderOperatorDecisionGuidance(context={}){
   const model=deriveOperatorDecisionGuidance(context);
   const strip=$("resultDecisionStrip");
   const guidance=$("decisionGuidance");
+  const unavailable=context?.presentation?.key==="error";
+  const autoNext=document.querySelector(".auto-add-verified-control");
   if(strip) strip.dataset.operatorState=model.state;
+  if(autoNext) autoNext.hidden=unavailable;
   if(guidance&&guidance.textContent!==model.copy) guidance.textContent=model.copy;
   if($("decisionApproveButton")) $("decisionApproveButton").title=context.verified===true?"Approve verified card (A)":"Approval requires a verified identity";
   if($("decisionRejectButton")) $("decisionRejectButton").title=context.verified===true?"Reject verified card (R)":"Rejection requires a verified identity";
@@ -6444,6 +6511,34 @@ async function loadRecognition(){
       canonical_preview:true,
     }:null;
 
+    const identityMatchedReferenceCandidate=candidates.find(candidate=>{
+      const source=String(candidate?.source||"").toLowerCase();
+      const candidateCollector=collectorIdentityKey(candidate?.collector_number);
+      const referenceSource=
+        candidate?.reference_image_url||
+        candidate?.image_url||
+        candidate?.image_path||
+        candidate?.reference_image||
+        candidate?.local_image||
+        "";
+      return Boolean(
+        candidate&&
+        candidate.retrieval_only===true&&
+        source==="global_visual_index"&&
+        observedCollector&&
+        candidateCollector===observedCollector&&
+        identityAgrees(candidate)&&
+        Number(candidate?.signals?.language||0)>=1&&
+        referenceSource&&
+        !String(referenceSource).startsWith("/api/camera/")
+      );
+    })||null;
+    const identityMatchedReferencePreview=identityMatchedReferenceCandidate?{
+      ...identityMatchedReferenceCandidate,
+      provisional:true,
+      candidate_reference_only:true,
+    }:null;
+
     let card =
       authoritativeSetLockedCandidate ||
       canonicalCard ||
@@ -6453,6 +6548,7 @@ async function loadRecognition(){
       presentablePrimary ||
       presentableProvisional ||
       presentableCandidate ||
+      identityMatchedReferencePreview ||
       null;
 
     const authoritativeVerificationState=String(
@@ -6951,23 +7047,36 @@ async function loadRecognition(){
 
 
 async function loadSystemHealth(){
+  const grid=$("systemHealthGrid");
+  if(!grid)return;
   try{
     const result=await api("/api/system/health");
     const components=result.components||{};
 
     Object.entries(components).forEach(([name,component])=>{
-      const card=document.querySelector(`[data-health="${name}"]`);
+      const card=grid.querySelector(`[data-health="${name}"]`);
       if(!card) return;
 
+      const componentState=String(component.state||"unknown").toLowerCase();
+      card.dataset.state=componentState;
       card.classList.toggle("healthy",Boolean(component.healthy));
       card.classList.toggle("error",!component.healthy);
 
       const state=card.querySelector("strong");
       const message=card.querySelector("p");
-      if(state) state.textContent=String(component.state||"unknown").toUpperCase();
+      if(state) state.textContent=componentState.toUpperCase();
       if(message) message.textContent=component.message||"No status message.";
     });
-  }catch{}
+  }catch(error){
+    grid.querySelectorAll(".health-card").forEach(card=>{
+      card.dataset.state="unavailable";
+      card.classList.remove("healthy");
+      card.classList.add("error");
+      const state=card.querySelector("strong"),message=card.querySelector("p");
+      if(state)state.textContent="UNAVAILABLE";
+      if(message)message.textContent="System status could not be refreshed.";
+    });
+  }
 }
 
 let serverConnectionState="connected";
@@ -7454,7 +7563,7 @@ function openReferenceLightbox(source,title="Card verification",meta="Compare ag
 function closeReferenceLightbox(){const overlay=$("referenceLightbox");if(!overlay||overlay.hidden)return;overlay.hidden=true;document.body.classList.remove("reference-lightbox-open");leaveStudioXModal(overlay,$("cardArt"))}
 function openCurrentReferenceLightbox(){const image=$("cardArt")?.querySelector("img");if(!image)return;const meta=[$("cardSetName")?.textContent,$("cardCollectorNumber")?.textContent,$("cardLanguage")?.textContent].filter(value=>value&&value!=="--").join(" · ");openReferenceLightbox(image.currentSrc||image.src,$("cardName")?.textContent||"Card verification",meta||"Compare against the live card")}
 function openMatchCorrectionWorkflow(){
-  const context=window.__rareiqCardContext||{},snapshot=context.snapshot||{},candidates=referenceCorrectionCandidates(),image=$("cardArt")?.querySelector("img"),initial=context.card||candidates.find(candidate=>multiCardReferenceImage(candidate))||null,lockedCapture=truthfulLockedCapture(context),generation=Number(snapshot.generation),cardPresent=snapshot.card_present===true||snapshot?.vision?.visible===true||snapshot?.vision?.vision?.visible===true,liveCrop=cardPresent&&Number.isFinite(generation)?`/api/camera/crop.jpg?generation=${generation}`:"",source=image?.currentSrc||image?.src||multiCardReferenceImage(initial)||lockedCapture?.url||liveCrop;
+  const context=window.__rareiqCardContext||{},snapshot=context.snapshot||{},candidates=referenceCorrectionCandidates(),image=$("cardArt")?.querySelector("img"),preferredCandidate=candidates.find(candidate=>{const source=multiCardReferenceImage(candidate);return Boolean(source&&!String(source).startsWith("/api/camera/")&&String(candidate?.source||"").toLowerCase()!=="ocr_provisional"&&referenceCandidateEvidence(candidate).recommended)})||candidates.find(candidate=>{const source=multiCardReferenceImage(candidate);return Boolean(source&&!String(source).startsWith("/api/camera/")&&String(candidate?.source||"").toLowerCase()!=="ocr_provisional")})||null,initial=context.card||preferredCandidate||candidates.find(candidate=>multiCardReferenceImage(candidate))||null,lockedCapture=truthfulLockedCapture(context),generation=Number(snapshot.generation),cardPresent=snapshot.card_present===true||snapshot?.vision?.visible===true||snapshot?.vision?.vision?.visible===true,liveCrop=cardPresent&&Number.isFinite(generation)?`/api/camera/crop.jpg?generation=${generation}`:"",source=image?.currentSrc||image?.src||multiCardReferenceImage(initial)||lockedCapture?.url||liveCrop;
   if(!source){notify("Correction Unavailable","Wait for a catalog reference image before correcting the match.","error");return}
   const title=initial?.english_name||initial?.name||initial?.printed_name||"Search catalog identity";
   const meta=[initial?.set_name,initial?.collector_number||initial?.printed_code||snapshot.ocr_collector_number,initial?.language||snapshot.language].filter(Boolean).join(" · ")||"Compare local catalog references against the validated live crop";
@@ -8197,8 +8306,8 @@ function normalizeStudioXWidgetLayout(value){
       ...savedOrder,
       ...STUDIOX_WIDGET_IDS.filter(id=>!savedOrder.includes(id)),
     ],
-    hidden:validList(value.hidden),
-    collapsed:validList(value.collapsed),
+    hidden:validList(value.hidden).filter(id=>id!=="pokedex"),
+    collapsed:validList(value.collapsed).filter(id=>id!=="pokedex"),
     pinned:validList(value.pinned),
     sizes,
   };
@@ -8528,14 +8637,17 @@ function renderLiveAnalysisTimeline(context){
   if(!timeline||!header||!pending) return;
   const recognized=context.verified||hasTruthfulRecognizedIdentity(context);
   const showCardContext=recognized||context.presentation.key==="set-mismatch";
-  const scanning=!recognized&&!["ready","exact-match"].includes(context.presentation.key);
   const state=context.presentation.key;
+  const unavailable=state==="error";
+  const scanning=!recognized&&!["ready","exact-match"].includes(state)&&!unavailable;
   const currentView=document.querySelector(".ui4-current-card-view");
   const inspectorMain=$("inspectorMain");
+  const signalPanel=$("recognitionSignalPanel");
   if(currentView) currentView.dataset.presentationState=state;
   if(inspectorMain) inspectorMain.dataset.presentationState=state;
   timeline.hidden=!scanning;
   pending.hidden=showCardContext;
+  if(signalPanel) signalPanel.hidden=unavailable;
   header.hidden=!showCardContext;
   header.inert=!showCardContext;
   if($("liveAnalysisTitle")){
@@ -8547,10 +8659,14 @@ function renderLiveAnalysisTimeline(context){
   if($("liveAnalysisDetail")){
     $("liveAnalysisDetail").textContent=context.presentation.detail;
   }
-  if($("identityPendingTitle")) $("identityPendingTitle").textContent="IDENTITY PENDING";
+  if($("identityPendingTitle")){
+    $("identityPendingTitle").textContent=unavailable?"CAMERA OFFLINE":"IDENTITY PENDING";
+  }
   if($("identityPendingDetail")){
     $("identityPendingDetail").textContent=
-      context.presentation.key==="ready"
+      unavailable
+        ?context.presentation.placeholderDetail||"Reconnect a camera to resume recognition"
+        : context.presentation.key==="ready"
         ?"Waiting for card"
         : context.presentation.key==="set-mismatch"
         ?"Choose the correct set or switch Set to Auto"
@@ -8613,6 +8729,7 @@ function renderIdentifyWidget(context){
   const snapshot=context.snapshot||{};
   const temporalProgress=Number(snapshot.temporal_confirmation_progress||0);
   const temporalRequired=Number(snapshot.temporal_confirmation_required||2);
+  const unavailable=context.presentation.key==="error";
   const scanning=!context.verified&&!["ready","error"].includes(context.presentation.key);
   const identityConflict=hasIdentityEvidenceConflict(snapshot,context.card);
   setCardText(
@@ -8623,6 +8740,8 @@ function renderIdentifyWidget(context){
       ? context.presentation.key==="verifying"
         ?"Catalog verification in progress"
         :"Recognition evidence gathering"
+      :unavailable
+      ?"Camera offline"
       :"Waiting for card"
   );
   setCardText(
@@ -8644,8 +8763,26 @@ function renderIdentifyWidget(context){
   const identifyWidget=document.querySelector('[data-studiox-widget="identify"]');
   if(identifyWidget){
     identifyWidget.dataset.identityVerdict=
-      context.verified?"verified":scanning?"pending":context.card?"provisional":"empty";
+      context.verified?"verified":unavailable?"unavailable":scanning?"pending":context.card?"provisional":"empty";
   }
+  setCardText(
+    "identifyEvidenceEyebrow",
+    unavailable?"Recognition paused":context.presentation.key==="ready"?"Recognition ready":"Verification evidence"
+  );
+  setCardText(
+    "identifyEvidenceTitle",
+    unavailable?"Camera offline":context.presentation.key==="ready"?"Ready for card":"Identity checks"
+  );
+  setCardText(
+    "identifyEvidenceDetail",
+    unavailable
+      ?"Reconnect a camera to resume identity checks."
+      :context.presentation.key==="ready"
+      ?"Identity evidence appears after a stable capture."
+      :"Exact version, catalog, and capture stability"
+  );
+  const reviewButton=identifyWidget?.querySelector(".studiox-identity-review");
+  if(reviewButton) reviewButton.hidden=unavailable||!context.card;
   const evidence=$("identifyEvidence");
   if(evidence){
     const card=context.card||{};
@@ -8724,7 +8861,9 @@ function renderIdentifyWidget(context){
   }
   setStudioXWidgetState(
     "identify",
-    context.verified
+    unavailable
+      ?"error"
+      :context.verified
       ?"available"
       : scanning
       ?"verification-in-progress"
@@ -8951,9 +9090,11 @@ let studioXPokedexKey=null;
 let studioXPokedexPayload=null;
 let studioXPokedexLoading=false;
 let studioXPokedexOnAir=false;
+let studioXPokedexBroadcastEligible=false;
 
 function renderPokedexPayload(payload){
   const pokemon=payload?.pokemon||null;
+  const pendingName=String(payload?.pending_name||"").trim();
   const content=$("pokedexContent");
   const empty=$("pokedexEmpty");
   if(content) content.hidden=!pokemon;
@@ -8961,6 +9102,8 @@ function renderPokedexPayload(payload){
     empty.hidden=Boolean(pokemon);
     empty.textContent=studioXPokedexLoading
       ?"Loading Rare Intelligence…"
+      :pendingName
+      ?`Rare Intelligence for ${pendingName} will appear after identity verification.`
       :"Scan and verify a card to load Rare Intelligence.";
   }
   if(pokemon){
@@ -8987,8 +9130,9 @@ function renderPokedexPayload(payload){
     }
   }
   if(typeof payload?.on_air==="boolean") studioXPokedexOnAir=payload.on_air;
+  studioXPokedexBroadcastEligible=payload?.broadcast_eligible===true;
   const held=payload?.held===true;
-  const provisional=payload?.provisional===true&&!held;
+  const provisional=Boolean(pokemon)&&payload?.provisional===true&&!held;
   const heldNotice=$("pokedexHeldNotice");
   if(heldNotice){
     heldNotice.hidden=!(held||provisional);
@@ -9012,14 +9156,23 @@ function renderPokedexPayload(payload){
     widget.classList.toggle("is-provisional-profile",provisional);
   }
   const onAir=studioXPokedexOnAir;
-  if($("pokedexOnAir")) $("pokedexOnAir").checked=onAir;
+  const onAirControl=$("pokedexOnAir");
+  if(onAirControl){
+    onAirControl.checked=onAir;
+    onAirControl.disabled=!onAir&&!studioXPokedexBroadcastEligible;
+    onAirControl.title=onAir||studioXPokedexBroadcastEligible
+      ?"Show or hide verified Rare Intelligence on the 16:9 browser source"
+      :"Verify the current card before sending Rare Intelligence on air";
+  }
   setCardText(
     "pokedexBroadcastStatus",
     provisional
-      ?onAir?"Current species live · printing provisional":"Current species · printing provisional"
+      ?"Species preview only · verify identity to enable ON AIR"
       :held
       ?onAir?"Held verified profile live on 16:9 source":"Held profile · 16:9 overlay hidden"
-      :onAir?"Live on 16:9 browser source":"16:9 overlay hidden"
+      :pokemon
+      ?onAir?"Verified profile live on 16:9 source":"Verified profile ready for ON AIR"
+      :"Verify identity to enable the 16:9 overlay"
   );
   const tier=String(payload?.reveal?.hit_tier||"");
   setCardText(
@@ -9065,14 +9218,17 @@ async function hydrateHeldRareIntelligence(){
 }
 
 function renderPokedexWidget(context){
-  const card=context?.card&&context?.snapshot?.result_current!==false?context.card:null;
-  const key=card?String(card.id||`${card.set_id||""}:${card.collector_number||""}:${card.name||card.english_name||""}`):null;
+  const previewCard=context?.card||null;
+  const currentCardPresent=context?.snapshot?.card_present===true||context?.snapshot?.recognition_locked===true;
+  const stateKey=String(context?.snapshot?.state_id||context?.snapshot?.generation||"");
+  const card=previewCard;
+  const cardKey=card?String(card.id||`${card.set_id||""}:${card.collector_number||""}:${card.name||card.english_name||""}`):"";
+  const key=cardKey?`${stateKey}:${cardKey}`:currentCardPresent&&stateKey?`current:${stateKey}`:null;
   if(!key){
-    const currentCardPresent=context?.snapshot?.card_present===true||context?.snapshot?.recognition_locked===true;
     if(currentCardPresent){
-      studioXPokedexKey=null;
-      studioXPokedexPayload=null;
-      renderPokedexPayload({status:"pending",reason:"current_species_pending",pokemon:null,held:false,provisional:true});
+      renderPokedexPayload(studioXPokedexPayload||{
+        status:"pending",reason:"current_species_pending",pokemon:null,held:false,provisional:true,broadcast_eligible:false,
+      });
       setStudioXWidgetState("pokedex","pending");
       return;
     }
@@ -9098,6 +9254,12 @@ function renderPokedexWidget(context){
 }
 
 async function setPokedexOnAir(enabled){
+  if(enabled&&!studioXPokedexBroadcastEligible){
+    studioXPokedexOnAir=false;
+    renderPokedexPayload(studioXPokedexPayload);
+    notify("Rare Intelligence Not On Air","Verify the current card identity before publishing its species profile.","warning");
+    return false;
+  }
   const payload=await api("/api/rare-intelligence/on-air",{
     method:"POST",
     body:JSON.stringify({enabled:Boolean(enabled)})
@@ -9105,20 +9267,26 @@ async function setPokedexOnAir(enabled){
   studioXPokedexOnAir=Boolean(payload.on_air);
   studioXPokedexPayload={...(studioXPokedexPayload||{}),on_air:studioXPokedexOnAir};
   renderPokedexPayload(studioXPokedexPayload);
+  notify(
+    studioXPokedexOnAir?"Rare Intelligence On Air":"Rare Intelligence Hidden",
+    studioXPokedexOnAir?"The verified profile is live on the 16:9 browser source.":"The browser source is now hidden.",
+    "success"
+  );
+  return true;
 }
 
-const RARE_INTELLIGENCE_THEME_DEFAULTS={preset:"rareiq",accent_color:"#53d5f2",secondary_color:"#b574ff",background_color:"#05111e",text_color:"#f7fbff",panel_opacity:.94,corner_radius:30,scale:100,alignment:"left",font:"inter",brand_text:"RAREIQ · LIVE INTELLIGENCE",show_art:true,show_facts:true,show_flavor:true,show_brand:true};
+const RARE_INTELLIGENCE_THEME_DEFAULTS={preset:"rareiq",accent_color:"#a6e8ce",secondary_color:"#4f9f83",background_color:"#080d0a",text_color:"#f5f2e9",panel_opacity:.96,corner_radius:12,scale:100,alignment:"left",font:"inter",brand_text:"RAREIQ · LIVE INTELLIGENCE",show_art:true,show_facts:true,show_flavor:true,show_brand:true};
 const RARE_INTELLIGENCE_THEME_PRESETS={
   rareiq:{...RARE_INTELLIGENCE_THEME_DEFAULTS},
-  minimal:{preset:"minimal",accent_color:"#f8fafc",secondary_color:"#94a3b8",background_color:"#080c12",text_color:"#f8fafc",panel_opacity:.76,corner_radius:14,scale:90,alignment:"left",font:"system",brand_text:"",show_art:true,show_facts:false,show_flavor:false,show_brand:false},
-  broadcast:{preset:"broadcast",accent_color:"#ffd166",secondary_color:"#ff5c8a",background_color:"#140b20",text_color:"#ffffff",panel_opacity:.97,corner_radius:24,scale:110,alignment:"right",font:"inter",brand_text:"LIVE CARD INTELLIGENCE",show_art:true,show_facts:true,show_flavor:true,show_brand:true}
+  minimal:{preset:"minimal",accent_color:"#f5f2e9",secondary_color:"#8d958f",background_color:"#090b0a",text_color:"#f5f2e9",panel_opacity:.82,corner_radius:6,scale:90,alignment:"left",font:"system",brand_text:"",show_art:true,show_facts:false,show_flavor:false,show_brand:false},
+  broadcast:{preset:"broadcast",accent_color:"#a6e8ce",secondary_color:"#e3b95c",background_color:"#080d0a",text_color:"#ffffff",panel_opacity:.98,corner_radius:8,scale:110,alignment:"right",font:"inter",brand_text:"RAREIQ · CARD INTELLIGENCE",show_art:true,show_facts:true,show_flavor:true,show_brand:true}
 };
 const RI_THEME_FIELDS={preset:"riThemePreset",accent_color:"riThemeAccent",secondary_color:"riThemeSecondary",background_color:"riThemeBackground",text_color:"riThemeText",alignment:"riThemeAlignment",font:"riThemeFont",brand_text:"riThemeBrandText",show_art:"riThemeShowArt",show_facts:"riThemeShowFacts",show_flavor:"riThemeShowFlavor",show_brand:"riThemeShowBrand"};
 function readRareIntelligenceTheme(){
   const theme={...RARE_INTELLIGENCE_THEME_DEFAULTS};
   Object.entries(RI_THEME_FIELDS).forEach(([key,id])=>{const input=$(id);if(input) theme[key]=input.type==="checkbox"?input.checked:input.value});
-  theme.panel_opacity=Number($("riThemeOpacity")?.value||94)/100;
-  theme.corner_radius=Number($("riThemeRadius")?.value||30);
+  theme.panel_opacity=Number($("riThemeOpacity")?.value||96)/100;
+  theme.corner_radius=Number($("riThemeRadius")?.value||12);
   theme.scale=Number($("riThemeScale")?.value||100);
   return theme;
 }
@@ -9134,12 +9302,12 @@ function renderRareIntelligenceTheme(theme={}){
   $("rareIntelligenceThemePreview")?.contentWindow?.postMessage({type:"rare-intelligence-theme-preview",theme:value},location.origin);
 }
 async function loadRareIntelligenceTheme(){
-  const payload=await api("/api/overlay/state");
-  renderRareIntelligenceTheme(payload?.state?.rare_intelligence_theme);
+  const payload=await api("/api/rare-intelligence/theme");
+  renderRareIntelligenceTheme(payload?.theme);
 }
 async function saveRareIntelligenceTheme(){
   const theme=readRareIntelligenceTheme();
-  await api("/api/overlay/state",{method:"POST",body:JSON.stringify({state:{rare_intelligence_theme:theme}})});
+  await api("/api/rare-intelligence/theme",{method:"POST",body:JSON.stringify(theme)});
   studioXPokedexPayload={...(studioXPokedexPayload||{}),theme};
   renderRareIntelligenceTheme(theme);
   setCardText("rareIntelligenceThemeStatus","Saved · live source updated");
@@ -9236,7 +9404,8 @@ function syncMobileOperatorDeck(){
   const sourceName=$("cardName")?.textContent?.trim();
   const name=sourceName&&sourceName!=="No verified identity"&&sourceName!=="—"?sourceName:"Waiting for card";
   const confidence=$("confidenceRingValue")?.textContent?.trim()||"0%";
-  const state=$("identityVerdictBadge")?.textContent?.trim()||$("recognitionStateLabel")?.textContent?.trim()||"SEARCHING";
+  const verdictBadge=$("identityVerdictBadge");
+  const state=(verdictBadge&&!verdictBadge.hidden?verdictBadge.textContent?.trim():"")||$("recognitionStateLabel")?.textContent?.trim()||"SEARCHING";
   setCardText("mobileOperatorCardName",name);
   setCardText("mobileOperatorConfidence",confidence);
   setCardText("mobileOperatorState",state);
@@ -9281,7 +9450,24 @@ function setMobileOperatorDestination(destination){
   return view;
 }
 
-function syncResultDecisionStrip(){const name=$("cardName")?.textContent?.trim()||"No verified identity",number=$("cardCollectorNumber")?.textContent?.trim()||"—",confidence=$("confidenceRingValue")?.textContent?.trim()||"0%",verdict=$("identityVerdictBadge")?.textContent?.trim()||$("recognitionStateLabel")?.textContent?.trim()||"WAITING FOR CARD";if($("decisionCardName"))$("decisionCardName").textContent=name;if($("decisionCollectorNumber"))$("decisionCollectorNumber").textContent=number;if($("decisionConfidence"))$("decisionConfidence").textContent=confidence;if($("decisionVerdict"))$("decisionVerdict").textContent=verdict;[["decisionApproveButton","approveButton"],["decisionRejectButton","rejectButton"],["decisionNextButton","nextClearButton"]].forEach(([target,source])=>{if($(target))$(target).disabled=Boolean($(source)?.disabled)});syncMobileOperatorDeck();}
+function syncResultDecisionStrip(){const name=$("cardName")?.textContent?.trim()||"No verified identity",number=$("cardCollectorNumber")?.textContent?.trim()||"—",confidence=$("confidenceRingValue")?.textContent?.trim()||"0%",verdictBadge=$("identityVerdictBadge"),verdict=(verdictBadge&&!verdictBadge.hidden?verdictBadge.textContent?.trim():"")||$("recognitionStateLabel")?.textContent?.trim()||"WAITING FOR CARD";if($("decisionCardName"))$("decisionCardName").textContent=name;if($("decisionCollectorNumber"))$("decisionCollectorNumber").textContent=number;if($("decisionConfidence"))$("decisionConfidence").textContent=confidence;if($("decisionVerdict"))$("decisionVerdict").textContent=verdict;[["decisionApproveButton","approveButton"],["decisionRejectButton","rejectButton"],["decisionNextButton","nextClearButton"]].forEach(([target,source])=>{if($(target))$(target).disabled=Boolean($(source)?.disabled)});syncMobileOperatorDeck();}
+
+function syncCommandDeckSummary(){
+  const source=$("activeCameraName")?.textContent?.trim()||$("cameraSelect")?.selectedOptions?.[0]?.textContent?.trim()||"No active camera";
+  const recognition=$("recognitionModeSelect")?.selectedOptions?.[0]?.textContent?.trim()||"Single card";
+  setCardText("commandDeckSourceSummary",source);
+  setCardText("commandDeckRecognitionSummary",recognition);
+}
+
+function setCommandDeckPanel(panel){
+  const requested=["setup","production"].includes(panel)?panel:"";
+  document.body.dataset.commandDeckPanel=requested;
+  const setupOpen=requested==="setup",productionOpen=requested==="production",productionPersistent=window.matchMedia("(min-width: 960px)").matches;
+  $("scanSetupDrawer")?.setAttribute("aria-hidden",String(!setupOpen));
+  $("productionControlsDrawer")?.setAttribute("aria-hidden",String(!(productionPersistent||productionOpen)));
+  $("commandDeckSetupButton")?.setAttribute("aria-expanded",String(setupOpen));
+  $("commandDeckProductionButton")?.setAttribute("aria-expanded",String(productionPersistent||productionOpen));
+}
 
 function initializeStudioXUI4(){
   if(document.body.dataset.ui4Initialized==="true") return;
@@ -9294,6 +9480,27 @@ function initializeStudioXUI4(){
   const appbar=document.querySelector(".appbar");
   if(!camera||!inspector||!inspectorMount||!pipeline||!dock||!toolbar||!appbar) return;
   document.body.dataset.ui4Initialized="true";
+  const deckActions=document.querySelector(".command-deck-actions"),primaryCapture=document.querySelector(".premium-capture-action"),legacyActions=toolbar.querySelector(".premium-actions-row");
+  const mountCommandDeckCapture=()=>{const target=window.matchMedia("(min-width: 960px)").matches?deckActions:legacyActions;if(target&&primaryCapture&&primaryCapture.parentElement!==target){if(target===deckActions)target.append(primaryCapture);else target.prepend(primaryCapture);}};
+  mountCommandDeckCapture();
+  window.addEventListener("resize",mountCommandDeckCapture,{passive:true});
+  window.addEventListener("resize",()=>setCommandDeckPanel(document.body.dataset.commandDeckPanel||""),{passive:true});
+  const workflowPrompt=$("recognitionWorkflowPrompt");
+  if(workflowPrompt&&workflowPrompt.parentElement!==camera)camera.appendChild(workflowPrompt);
+  const toggleCommandDeckPanel=panel=>setCommandDeckPanel(document.body.dataset.commandDeckPanel===panel?"":panel);
+  $("commandDeckSetupButton")?.addEventListener("click",()=>toggleCommandDeckPanel("setup"));
+  $("commandDeckProductionButton")?.addEventListener("click",()=>{if(window.matchMedia("(min-width: 960px)").matches){$("productionControlsDrawer")?.querySelector("button, select")?.focus();return}toggleCommandDeckPanel("production")});
+  document.addEventListener("pointerdown",event=>{
+    const panel=document.body.dataset.commandDeckPanel;
+    if(!panel)return;
+    const drawer=panel==="setup"?$("scanSetupDrawer"):$("productionControlsDrawer");
+    const trigger=panel==="setup"?$("commandDeckSetupButton"):$("commandDeckProductionButton");
+    if(drawer&&!drawer.contains(event.target)&&!trigger?.contains(event.target))setCommandDeckPanel("");
+  });
+  document.addEventListener("keydown",event=>{if(event.key==="Escape"&&document.body.dataset.commandDeckPanel){const panel=document.body.dataset.commandDeckPanel;setCommandDeckPanel("");(panel==="setup"?$("commandDeckSetupButton"):$("commandDeckProductionButton"))?.focus();}});
+  $("cameraSelect")?.addEventListener("change",syncCommandDeckSummary);
+  $("recognitionModeSelect")?.addEventListener("change",syncCommandDeckSummary);
+  syncCommandDeckSummary();
   const mobileOperator=document.querySelector(".ui4-mobile-action-region");
   if(mobileOperator&&mobileOperator.parentElement!==document.body) document.body.appendChild(mobileOperator);
   let savedMobileOperatorView="both";
@@ -9316,6 +9523,7 @@ function initializeStudioXUI4(){
   document.querySelectorAll(".mobile-operator-view-switcher [data-mobile-operator-view]").forEach(button=>button.addEventListener("click",()=>setMobileOperatorDestination(button.dataset.mobileOperatorView)));
   document.querySelector(".mobile-operator-view-switcher [data-mobile-operator-destination='recent-scans']")?.addEventListener("click",()=>setMobileOperatorDestination("recent-scans"));
   const observeStudioXTarget=(observer,target,options)=>{if(typeof Node==="undefined"||!(target instanceof Node))return false;try{observer.observe(target,options);return true}catch(error){console.warn("Studio X observer skipped",error);return false}};
+  const commandDeckSummaryObserver=new MutationObserver(syncCommandDeckSummary);observeStudioXTarget(commandDeckSummaryObserver,$("activeCameraName"),{subtree:true,childList:true,characterData:true});
   const decisionObserver=new MutationObserver(syncResultDecisionStrip);["cardName","cardCollectorNumber","confidenceRingValue","identityVerdictBadge","recognitionStateLabel","approveButton","rejectButton","nextClearButton"].forEach(id=>observeStudioXTarget(decisionObserver,$(id),{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["disabled","hidden"]}));
   const inspectorNavigationObserver=new MutationObserver(syncInspectorNavigationState);observeStudioXTarget(inspectorNavigationObserver,$("recognitionStateLabel"),{subtree:true,childList:true,characterData:true});syncResultDecisionStrip();syncInspectorNavigationState();
   document.querySelectorAll("[data-workbench-tab]").forEach(button=>button.addEventListener("click",()=>setStudioXWorkbenchTab(button.dataset.workbenchTab)));
@@ -9790,8 +9998,12 @@ document.addEventListener("DOMContentLoaded",()=>{
   try{savedRecognitionMode=localStorage.getItem(STUDIOX_RECOGNITION_MODE_KEY)||"single"}catch(_error){}
   setRecognitionMode(savedRecognitionMode);
   $("pokedexOnAir")?.addEventListener("change",event=>{
-    setPokedexOnAir(event.target.checked).catch(error=>{
-      event.target.checked=!event.target.checked;
+    const requested=event.target.checked;
+    setPokedexOnAir(requested).then(applied=>{
+      if(applied===false) event.target.checked=false;
+    }).catch(error=>{
+      event.target.checked=studioXPokedexOnAir;
+      notify("Rare Intelligence Not Updated",error.message||"The ON AIR state could not be changed.","error");
       console.error("pokedex_overlay_toggle_failed",error);
     });
   });
@@ -10059,6 +10271,9 @@ document.addEventListener("DOMContentLoaded",()=>{
   ["collectionSearch","collectionSetFilter","collectionLanguageFilter","collectionSort","collectionDuplicatesOnly"].forEach(id=>{
     $(id)?.addEventListener(id==="collectionSearch"?"input":"change",renderCollectionRows);
   });
+  $("collectionSetSearch")?.addEventListener("input",()=>renderCollectionSetRows({resetLimit:true}));
+  $("collectionSetMode")?.addEventListener("change",()=>renderCollectionSetRows({resetLimit:true}));
+  $("collectionSetMore")?.addEventListener("click",()=>{collectionSetVisibleLimit+=48;renderCollectionSetRows();});
   document.querySelectorAll(".dock-tab").forEach(button=>{
     button.addEventListener("click",()=>switchDock(button.dataset.dock));
   });

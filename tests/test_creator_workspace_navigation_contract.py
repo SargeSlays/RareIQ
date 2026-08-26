@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTROL = (ROOT / "rareiq/web/static/control.html").read_text(encoding="utf-8")
 SCRIPT = (ROOT / "rareiq/web/static/studiox.js").read_text(encoding="utf-8")
 STYLES = (ROOT / "rareiq/web/static/studiox_update15.css").read_text(encoding="utf-8")
+DECK = (ROOT / "rareiq/web/static/studiox_command_deck.css").read_text(encoding="utf-8")
 
 
 def test_creator_rail_is_real_accessible_navigation():
@@ -56,3 +57,46 @@ def test_creator_default_view_is_reveal_rules():
     assert 'data-creator-view="rules" aria-selected="true"' in CONTROL
     assert 'id="creatorRevealMonitor" role="tabpanel" aria-labelledby="creatorTabLive" tabindex="0" hidden' in CONTROL
     assert 'id="creatorAssetPanel" role="tabpanel" aria-labelledby="creatorTabAssets" tabindex="0" hidden' in CONTROL
+
+
+def test_creator_heading_tracks_the_selected_operator_view():
+    assert 'heading=content?.querySelector(".studiox-app-heading")' in SCRIPT
+    assert 'heading.querySelector("h2").textContent=title' in SCRIPT
+    assert 'heading.querySelector("p").textContent=description' in SCRIPT
+    assert 'content?.querySelector(":scope>h2")' not in SCRIPT
+
+
+def test_creator_command_deck_removes_legacy_reveal_chrome():
+    creator_start = DECK.index("/* Creator */")
+    creator_end = DECK.index("/* Soundboard */", creator_start)
+    creator = DECK[creator_start:creator_end]
+    for selector in (
+        ".creator-reveal-monitor > strong",
+        ".collection-progress-track",
+        "#creatorSuspenseBar",
+        ".creator-sequence-slots i",
+        ".creator-hit-decision",
+        ".creator-reaction-preview",
+        ".creator-asset-row",
+        ".creator-tier-card",
+    ):
+        assert selector in creator
+    assert "background-image: none !important" in creator
+    assert "var(--sx-surface-muted)" in creator
+    assert "var(--sx-accent)" in creator
+    assert "var(--sx-warning)" in creator
+    assert "#61ddf8" not in creator
+    assert "#a77aff" not in creator
+    assert "border-radius: 999px" not in creator
+
+
+def test_creator_command_deck_uses_compact_production_layouts():
+    creator_start = DECK.index("/* Creator */")
+    creator_end = DECK.index("/* Soundboard */", creator_start)
+    creator = DECK[creator_start:creator_end]
+    assert "grid-template-columns: repeat(3, minmax(0, 1fr)) !important" in creator
+    assert ':is(.creator-reveal-config, .creator-reveal-monitor, .creator-assets)[hidden]' in creator
+    assert '.creator-reveal-config > label:has(input[type="checkbox"])' in creator
+    assert "grid-template-columns: repeat(10, minmax(28px, 1fr)) !important" in creator
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr)) !important" in creator
+    assert "max-height: 160px !important" in creator

@@ -9,7 +9,7 @@ MANIFEST = json.loads((STATIC / "rareiq.webmanifest").read_text(encoding="utf-8"
 
 
 def test_studiox_exposes_installable_mobile_metadata() -> None:
-    assert '<link rel="manifest" href="/static/rareiq.webmanifest?v=6.8.99-operator1">' in HTML
+    assert '<link rel="manifest" href="/static/rareiq.webmanifest?v=6.9.0-commanddeck67">' in HTML
     assert '<meta id="studioThemeColor" name="theme-color" content="#080B0D">' in HTML
     assert '<meta name="mobile-web-app-capable" content="yes">' in HTML
     assert '<meta name="apple-mobile-web-app-capable" content="yes">' in HTML

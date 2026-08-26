@@ -32,10 +32,10 @@ def test_mobile_collection_navigation_is_horizontal_and_scroll_safe() -> None:
 
 def test_collection_structure_and_existing_sections_are_preserved() -> None:
     collection = HTML[
-        HTML.index('class="workspace" data-workspace="collection"') :
-        HTML.index('class="workspace" data-workspace="broadcast"')
+        HTML.index('data-workspace="collection"') :
+        HTML.index('data-workspace="broadcast"')
     ]
-    assert HTML.count('class="workspace" data-workspace="collection"') == 1
+    assert HTML.count('data-workspace="collection"') == 1
     assert collection.count('class="riq-surface side-nav"') == 1
     for label in ("Recent Scans", "Sessions", "Boxes", "Exports"):
         assert f">{label}</button>" in collection

@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 HTML = (ROOT / "rareiq/web/static/control.html").read_text(encoding="utf-8")
 JS = (ROOT / "rareiq/web/static/studiox.js").read_text(encoding="utf-8")
 CSS = (ROOT / "rareiq/web/static/studiox_update15.css").read_text(encoding="utf-8")
+DECK_CSS = (ROOT / "rareiq/web/static/studiox_command_deck.css").read_text(encoding="utf-8")
 SERVER = (ROOT / "rareiq/web/server.py").read_text(encoding="utf-8")
 MANAGER = (ROOT / "rareiq/services/camera_manager_service.py").read_text(encoding="utf-8")
 
@@ -47,6 +48,37 @@ def test_ptz_surface_and_routes_are_wired():
     assert "def camera_control_devices" in MANAGER
     assert "Insta360 intelligent PTZ" in MANAGER
     assert "physical_devices.setdefault" in MANAGER
+
+
+def test_ptz_discovery_allows_for_uncached_windows_device_enumeration():
+    assert "const CAMERA_PTZ_DISCOVERY_TIMEOUT_MS=15000" in JS
+    refresh = JS[
+        JS.index("async function refreshCameraPtzStatus") : JS.index(
+            "async function activateCameraPtzDevice"
+        )
+    ]
+    assert (
+        'api("/api/camera/ptz",{timeoutMs:CAMERA_PTZ_DISCOVERY_TIMEOUT_MS})'
+        in refresh
+    )
+    assert "timeoutMs:5000" not in refresh
+
+
+def test_ptz_presentation_has_one_modern_owner_and_preserves_controls():
+    assert HTML.count('id="cameraPtzPanel"') == 1
+    assert 'class="camera-ptz-source"' in HTML
+    assert 'class="camera-ptz-console"' in HTML
+    assert 'class="camera-ptz-movement"' in HTML
+    assert "PTZ Director" in HTML
+    assert "Movement, framing, and image tuning" in HTML
+    assert "PTZ base positioning only" in CSS
+    assert "Update 6.4.61 — camera-owner-safe PTZ command deck" not in CSS
+    assert "Authoritative PTZ controller" in DECK_CSS
+    assert "grid-template-columns: 172px minmax(0, 1fr)" in DECK_CSS
+    assert "--sx-control-height: 38px" in DECK_CSS
+    assert "width=Math.min(480,Math.max(280,window.innerWidth-32))" in JS
+    for action in ("tilt_up", "pan_left", "recenter", "pan_right", "tilt_down", "zoom_out", "zoom_in"):
+        assert HTML.count(f'data-ptz-action="{action}"') == 1
 
 
 def test_camera_profiles_distinguish_intelligent_and_virtual_sources(tmp_path):

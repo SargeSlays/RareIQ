@@ -44,14 +44,14 @@ def test_one_camera_feed_and_no_video_clone() -> None:
 
 def test_ui4_scope_and_semantic_regions_exist_without_new_functional_ids() -> None:
     html = read("control.html")
-    assert '<body class="studiox-ui4 studiox-premium studiox-operator" data-ui4-region="application-shell"' in html
+    assert '<body class="studiox-ui4 studiox-premium studiox-command-deck" data-ui4-region="application-shell"' in html
     for region in (
         "top-app-bar", "controls", "camera", "current-card", "pipeline",
         "diagnostics", "product-navigation", "mobile-actions",
     ):
         assert f'data-ui4-region="{region}"' in html
     assert 'class="ui4-mobile-action-region"' in html
-    assert 'class="studiox-ui4 studiox-premium studiox-operator"' in html
+    assert 'class="studiox-ui4 studiox-premium studiox-command-deck"' in html
     assert 'class="app-actions ui4-app-health"' in html
     assert 'class="command-group premium-source-control"' in html
 
@@ -151,14 +151,15 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
     html = read("control.html")
     styles = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
     version = re.search(r'data-studiox-build="([^"]+)"', html).group(1)
-    assert styles[-5:] == [
+    assert styles[-6:] == [
         f"/static/studiox_ui4_tokens.css?v={version}",
         f"/static/studiox_update15.css?v={version}&amp;shell=6.8.93-camera-workspace1",
         f"/static/pack_run_coach.css?v={version}",
         "/static/brand/v1/rare-iq-tokens.css?v=1.0",
         f"/static/rareiq_brand_v1.css?v={version}",
+        f"/static/studiox_command_deck.css?v={version}",
     ]
-    assert len(styles) == 20
+    assert len(styles) == 21
     assert not any("studiox_60.css" in style for style in styles)
     assert not any("studiox_604.css" in style for style in styles)
 
@@ -248,11 +249,26 @@ def test_information_first_inspector_uses_tiered_responsive_widths() -> None:
 
 def test_inspector_divider_supports_pointer_and_keyboard_resizing() -> None:
     script = read("studiox.js")
+    base_css = read("studiox_update15.css")
+    deck_css = read("studiox_command_deck.css")
     assert 'handle.setAttribute("role","separator")' in script
     assert 'handle.setAttribute("aria-orientation","vertical")' in script
+    assert 'handle.setAttribute("aria-valuetext",`${width} pixels wide`)' in script
+    assert "const STUDIOX_INSPECTOR_WIDTH_MAX=1440" in script
+    assert "Math.min(STUDIOX_INSPECTOR_WIDTH_MAX,viewport-rail-minimumCamera-30)" in script
     assert '["ArrowLeft","ArrowRight","Home","End"]' in script
     assert 'event.shiftKey?40:16' in script
     assert 'commitInspectorWidth' in script
+    assert 'handle.addEventListener("pointercancel"' in script
+    assert 'handle.addEventListener("lostpointercapture"' in script
+    assert 'handle.addEventListener("dblclick",()=>{delete document.body.dataset.inspectorResizing' in script
+    assert "Structural fallback only. Command Deck owns the visible resize rail." in base_css
+    assert "Authoritative inspector resize rail: integrated with the workspace divider." in deck_css
+    assert "top: 0 !important" in deck_css
+    assert "bottom: 0 !important" in deck_css
+    assert "repeating-linear-gradient" in deck_css
+    assert "border-radius: 99px" not in deck_css
+    assert "linear-gradient(180deg,rgba(19,53,68,.96),rgba(8,27,39,.98))" not in base_css
 
 
 def test_shell_uses_one_consistent_eight_pixel_gap() -> None:

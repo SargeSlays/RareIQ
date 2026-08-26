@@ -90,12 +90,13 @@ def test_update15_stylesheet_is_last_and_cache_busted() -> None:
     html = read("control.html")
     links = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
     active_version = re.search(r'data-studiox-build="([^"]+)"', html).group(1)
-    assert links[-5:] == [
+    assert links[-6:] == [
         f"/static/studiox_ui4_tokens.css?v={active_version}",
         f"/static/studiox_update15.css?v={active_version}&amp;shell=6.8.93-camera-workspace1",
         f"/static/pack_run_coach.css?v={active_version}",
         "/static/brand/v1/rare-iq-tokens.css?v=1.0",
         f"/static/rareiq_brand_v1.css?v={active_version}",
+        f"/static/studiox_command_deck.css?v={active_version}",
     ]
     assert f'/static/studiox.js?v={active_version}' in html
 

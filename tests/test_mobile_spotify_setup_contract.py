@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "rareiq" / "web" / "static"
 HTML = (STATIC / "control.html").read_text(encoding="utf-8-sig")
 JS = (STATIC / "studiox.js").read_text(encoding="utf-8-sig")
-CSS = (STATIC / "studiox_update15.css").read_text(encoding="utf-8-sig")
+CSS = (STATIC / "studiox_command_deck.css").read_text(encoding="utf-8-sig")
 
 
 def test_spotify_redirect_uri_is_a_readable_copy_safe_field() -> None:
@@ -13,9 +13,9 @@ def test_spotify_redirect_uri_is_a_readable_copy_safe_field() -> None:
     assert 'rows="2" readonly spellcheck="false"' in HTML
     assert 'aria-label="Spotify redirect URI"' in HTML
     assert "http://127.0.0.1:8765/api/spotify/callback" in HTML
-    assert "white-space:pre-wrap" in CSS
-    assert "overflow-wrap:anywhere" in CSS
-    assert "word-break:break-all" in CSS
+    assert "white-space: pre-wrap" in CSS
+    assert "overflow-wrap: anywhere" in CSS
+    assert "word-break: break-all" in CSS
 
 
 def test_spotify_redirect_copy_and_setup_handlers_are_unchanged() -> None:
@@ -33,6 +33,6 @@ def test_spotify_setup_uses_the_current_rareiq_port_until_configured() -> None:
 
 
 def test_spotify_redirect_and_copy_button_share_a_narrow_safe_grid() -> None:
-    assert "grid-template-columns:minmax(0,1fr) auto" in CSS
-    assert "body.studiox-ui4 .spotify-setup-card textarea" in CSS
-    assert "min-height:52px" in CSS
+    assert "grid-template-columns: minmax(0, 1fr) auto" in CSS
+    assert '.workspace[data-workspace="spotify"] .spotify-setup-card textarea' in CSS
+    assert "min-height: 52px" in CSS

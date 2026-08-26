@@ -34,6 +34,12 @@ def test_exactly_four_layout_options_and_four_unique_tiles_exist() -> None:
         assert HTML.count(f'id="cameraWorkspaceSlot{slot}"') == 1
 
 
+def test_responsive_toolbar_keeps_layout_diagrams_visible() -> None:
+    assert ".camera-view-overflow-panel>span{display:none}" in CSS
+    assert ".camera-workspace-toolbar span{display:none}" not in CSS
+    assert ".camera-layout-diagram{\n  width:22px;\n  height:15px;\n  display:grid" in CSS
+
+
 def test_staging_tiles_never_fabricate_camera_one_media() -> None:
     assert HTML.count('id="cameraFeed"') == 1
     for slot in (3, 4):

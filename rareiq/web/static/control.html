@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Rare IQ">
-<link rel="manifest" href="/static/rareiq.webmanifest?v=6.8.99-operator1">
+<link rel="manifest" href="/static/rareiq.webmanifest?v=6.9.0-commanddeck67">
 <script>try{const p=localStorage.getItem("rareiq.studiox.theme.v1")||"system";const d=p==="system"?(matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"):p;document.documentElement.dataset.theme=d;document.documentElement.dataset.themePreference=p}catch(_error){document.documentElement.dataset.theme="dark"}</script>
 <link rel="stylesheet" href="/static/studiox.css?v=6.4.12">
 <link rel="stylesheet" href="/static/studiox_brand.css">
@@ -30,164 +30,19 @@
 <link rel="stylesheet" href="/static/studiox_603.css?v=6.1">
 <link rel="stylesheet" href="/static/studiox_61.css?v=6.2">
 <link rel="stylesheet" href="/static/studiox_62.css?v=6.2">
-<link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.8.99-operator1">
-<link rel="stylesheet" href="/static/studiox_update15.css?v=6.8.99-operator1&amp;shell=6.8.93-camera-workspace1">
-<link rel="stylesheet" href="/static/pack_run_coach.css?v=6.8.99-operator1">
-<script defer src="/static/studiox.js?v=6.8.99-operator1&amp;shell=6.8.93-camera-workspace1"></script>
+<link rel="stylesheet" href="/static/studiox_ui4_tokens.css?v=6.9.0-commanddeck67">
+<link rel="stylesheet" href="/static/studiox_update15.css?v=6.9.0-commanddeck67&amp;shell=6.8.93-camera-workspace1">
+<link rel="stylesheet" href="/static/pack_run_coach.css?v=6.9.0-commanddeck67">
+<script defer src="/static/studiox.js?v=6.9.0-commanddeck67&amp;shell=6.8.93-camera-workspace1"></script>
     <link rel="icon" type="image/svg+xml" href="/static/brand/v1/logos/rare-iq-icon-dark.svg?v=1.0">
-    <link rel="apple-touch-icon" href="/static/brand/v1/logos/rare-iq-icon-dark.svg?v=1.0"><style id="ui4-unified-card-stage-overrides">
-body.studiox-ui4 .ui4-unified-card-stage {
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-}
-
-body.studiox-ui4 #inspectorEmpty {
-  padding: 10px 12px 12px;
-}
-
-body.studiox-ui4 #inspectorEmpty .ui4-waiting-card-state {
-  display: grid;
-  gap: 10px;
-}
-
-body.studiox-ui4 #cardPlaceholder {
-  position: relative;
-  width: 100%;
-  min-height: 235px;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  box-sizing: border-box;
-  border: 1px solid rgba(92, 210, 255, 0.22);
-  border-radius: 14px;
-  box-shadow: none;
-  background:
-    radial-gradient(circle at 50% 38%, rgba(87, 82, 255, 0.17), transparent 48%),
-    linear-gradient(180deg, rgba(8, 20, 33, 0.94), rgba(5, 14, 24, 0.98));
-}
-
-body.studiox-ui4 #cardPlaceholder::before {
-  content: "";
-  position: absolute;
-  inset: 14px;
-  border: 1px solid rgba(92, 210, 255, 0.1);
-  border-radius: 10px;
-  pointer-events: none;
-}
-
-body.studiox-ui4 #cardPlaceholder .ui4-card-placeholder-glow {
-  position: absolute;
-  inset: 0;
-  border: 0;
-  border-radius: inherit;
-  background: radial-gradient(
-    circle at center,
-    rgba(91, 84, 255, 0.22),
-    transparent 56%
-  );
-  pointer-events: none;
-}
-
-body.studiox-ui4 #cardPlaceholder .ui4-card-placeholder-logo {
-  position: relative;
-  z-index: 2;
-  width: 58px;
-  height: 58px;
-  object-fit: contain;
-}
-
-body.studiox-ui4 #cardPlaceholder .ui4-card-placeholder-copy {
-  position: absolute;
-  left: 18px;
-  right: 18px;
-  bottom: 20px;
-  z-index: 3;
-  display: grid;
-  gap: 5px;
-  text-align: center;
-}
-
-body.studiox-ui4 #cardPlaceholder .ui4-card-placeholder-copy strong {
-  font-size: 14px;
-}
-
-body.studiox-ui4 #cardPlaceholder .ui4-card-placeholder-copy span {
-  font-size: 11px;
-  opacity: 0.72;
-}
-
-body.studiox-ui4 #cardPlaceholder .ui4-card-placeholder-scan {
-  position: absolute;
-  left: 10%;
-  right: 10%;
-  top: 16%;
-  height: 1px;
-  z-index: 2;
-  opacity: 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(94, 230, 255, 0.92),
-    transparent
-  );
-}
-
-body.studiox-ui4 #cardPlaceholder.state-searching .ui4-card-placeholder-scan,
-body.studiox-ui4 #cardPlaceholder.state-matched .ui4-card-placeholder-scan {
-  opacity: 1;
-  animation: ui4UnifiedCardScan 1.8s linear infinite;
-}
-
-body.studiox-ui4 #inspectorMain {
-  padding: 10px 12px 12px;
-}
-
-body.studiox-ui4 #inspectorMain .card-showcase,
-body.studiox-ui4 #inspectorMain .card-art {
-  border-radius: 14px;
-  box-shadow: none;
-}
-
-body.studiox-ui4 #inspectorMain .card-art {
-  min-height: 235px;
-  background:
-    radial-gradient(circle at 50% 38%, rgba(87, 82, 255, 0.14), transparent 52%),
-    linear-gradient(180deg, rgba(8, 20, 33, 0.94), rgba(5, 14, 24, 0.98));
-}
-
-@keyframes ui4UnifiedCardScan {
-  0% {
-    transform: translateY(0);
-    opacity: 0;
-  }
-
-  12% {
-    opacity: 1;
-  }
-
-  88% {
-    opacity: 1;
-  }
-
-  100% {
-    transform: translateY(165px);
-    opacity: 0;
-  }
-}
-</style>
+    <link rel="apple-touch-icon" href="/static/brand/v1/logos/rare-iq-icon-dark.svg?v=1.0">
 <link rel="stylesheet" href="/static/brand/v1/rare-iq-tokens.css?v=1.0">
-<link rel="stylesheet" href="/static/rareiq_brand_v1.css?v=6.8.99-operator1">
+<link rel="stylesheet" href="/static/rareiq_brand_v1.css?v=6.9.0-commanddeck67">
+<link rel="stylesheet" href="/static/studiox_command_deck.css?v=6.9.0-commanddeck67">
 </head>
-<body class="studiox-ui4 studiox-premium studiox-operator" data-ui4-region="application-shell" data-operator-layout="v1" data-studiox-build="6.8.99-operator1">
+<body class="studiox-ui4 studiox-premium studiox-command-deck" data-ui4-region="application-shell" data-operator-layout="v2" data-studiox-visual-system="unified" data-studiox-build="6.9.0-commanddeck67">
 <div class="instant-splash" id="instantSplash">
   <img class="brand-lockup-image" src="/static/brand/v1/logos/rare-iq-primary-dark.svg" alt="Rare IQ">
-</div>
-
-</div>
-</div>
 </div>
 
 <div class="ui4-desktop-shell">
@@ -213,6 +68,14 @@ body.studiox-ui4 #inspectorMain .card-art {
     <img class="brand-lockup-image" src="/static/brand/v1/logos/rare-iq-primary-dark.svg" alt="Rare IQ">
     <span class="brand-product-name">Studio X</span>
   </div>
+  <div class="command-deck-session" id="commandDeckSessionSummary" aria-label="Live identification summary">
+    <div><strong id="commandDeckWorkspaceTitle">Live identification</strong><span id="commandDeckSourceSummary">Camera checking</span></div>
+    <span id="commandDeckRecognitionSummary">Single card</span>
+  </div>
+  <div class="command-deck-actions" aria-label="Studio X primary actions">
+    <button id="commandDeckSetupButton" type="button" aria-controls="scanSetupDrawer" aria-expanded="false">Scan Setup</button>
+    <button id="commandDeckProductionButton" type="button" aria-controls="productionControlsDrawer" aria-expanded="true">Camera Controls</button>
+  </div>
   <div class="system-status-strip">
     <div class="state-chip" id="cameraStateChip"><i></i><span>CAMERA</span><b>OFFLINE</b></div>
     <div class="state-chip" id="autoStateChip"><i></i><span>AUTO</span><b>ON</b></div>
@@ -228,7 +91,7 @@ body.studiox-ui4 #inspectorMain .card-art {
   </div>
   <div class="app-actions ui4-app-health" aria-label="Live application health">
     <span class="riq-pill" id="cameraStatus">CAMERA CHECKING</span>
-    <span class="riq-pill" id="fpsValue">FPS Ã¢â‚¬â€</span>
+    <span class="riq-pill" id="fpsValue">FPS —</span>
     
 <div class="camera-autostart-chip searching" id="cameraAutostartChip">
   <i></i><span id="cameraAutostartLabel">AUTO STARTING</span>
@@ -237,12 +100,12 @@ body.studiox-ui4 #inspectorMain .card-art {
   </div>
 </header>
 
-<div class="toolbar premium-command-bar ui4-control-region" data-ui4-region="controls" aria-label="Studio X controls">
+<div class="toolbar premium-command-bar ui4-control-region" id="scanSetupDrawer" data-ui4-region="controls" role="dialog" aria-label="Scan setup" aria-hidden="true">
   <div class="command-group premium-source-control">
     <span class="command-group-label">Source</span>
     <div class="camera-source-picker">
       <select id="cameraSelect" aria-label="Active camera source" onchange="selectCamera()">
-        <option value="">Loading camerasÃ¢â‚¬Â¦</option>
+        <option value="">Loading cameras…</option>
       </select>
       <output id="activeCameraName" class="active-camera-name" aria-live="polite">No active camera</output>
     </div>
@@ -364,7 +227,7 @@ body.studiox-ui4 #inspectorMain .card-art {
     <div class="live-shell">
 
       <article class="riq-surface camera-workspace ui4-camera-region" data-ui4-region="camera" aria-label="Camera workspace">
-        <div class="camera-workspace-layout-control camera-workspace-toolbar" aria-label="Camera workspace controls">
+        <div class="camera-workspace-layout-control camera-workspace-toolbar" id="productionControlsDrawer" role="region" aria-label="Camera workspace controls" aria-hidden="false">
           <div class="camera-view-overflow camera-view-persistent" id="cameraViewOverflow" aria-label="Camera layout and density controls">
             <div class="camera-view-overflow-panel">
               <span>Camera layout</span>
@@ -382,33 +245,39 @@ body.studiox-ui4 #inspectorMain .card-art {
           <div class="camera-ptz-control" id="cameraPtzControl">
             <button type="button" id="cameraPtzButton" aria-expanded="false" aria-controls="cameraPtzPanel" title="Pan, tilt, and zoom">PTZ</button>
             <section class="camera-ptz-panel" id="cameraPtzPanel" hidden aria-label="Camera movement controls">
-              <header><div><small>CAMERA MOVEMENT</small><strong>Pan · Tilt · Zoom</strong></div><button type="button" data-ptz-close aria-label="Close PTZ controls">×</button></header>
-              <p id="cameraPtzMessage">Checking camera controls…</p>
-              <div class="camera-ptz-device-picker"><label>Control camera<select id="cameraPtzDevice"><option value="">Locating capable cameras…</option></select></label><button type="button" id="cameraPtzActivate">Use</button></div>
-              <div class="camera-ptz-capabilities" id="cameraPtzCapabilities" aria-label="Detected camera capabilities"></div>
-              <div class="camera-ptz-grid" role="group" aria-label="Pan and tilt">
-                <button type="button" data-ptz-action="tilt_up" aria-label="Tilt up">↑</button>
-                <button type="button" data-ptz-action="pan_left" aria-label="Pan left">←</button>
-                <button type="button" data-ptz-action="recenter" aria-label="Recenter camera">●</button>
-                <button type="button" data-ptz-action="pan_right" aria-label="Pan right">→</button>
-                <button type="button" data-ptz-action="tilt_down" aria-label="Tilt down">↓</button>
+              <header><div><small>CAMERA CONTROL</small><strong>PTZ Director</strong><span>Movement, framing, and image tuning</span></div><button type="button" data-ptz-close aria-label="Close PTZ controls">×</button></header>
+              <div class="camera-ptz-source">
+                <p id="cameraPtzMessage">Checking camera controls…</p>
+                <div class="camera-ptz-device-picker"><label>Control camera<select id="cameraPtzDevice"><option value="">Locating capable cameras…</option></select></label><button type="button" id="cameraPtzActivate">Use</button></div>
+                <div class="camera-ptz-capabilities" id="cameraPtzCapabilities" aria-label="Detected camera capabilities"></div>
               </div>
-              <div class="camera-ptz-zoom"><button type="button" data-ptz-action="zoom_out">− Zoom</button><button type="button" data-ptz-action="zoom_in">+ Zoom</button></div>
-              <details class="camera-imaging-controls" open>
-                <summary>Image intelligence</summary>
-                <div class="camera-imaging-auto"><button type="button" data-camera-imaging-toggle="autofocus">Autofocus</button><button type="button" data-camera-imaging-toggle="auto_exposure">Auto exposure</button><button type="button" data-camera-imaging-toggle="auto_white_balance">Auto WB</button></div>
-                <div class="camera-imaging-steppers">
-                  <div data-imaging-row="focus"><span>Focus</span><button type="button" data-camera-imaging="focus" data-camera-delta="-5">−</button><output>—</output><button type="button" data-camera-imaging="focus" data-camera-delta="5">+</button></div>
-                  <div data-imaging-row="exposure"><span>Exposure</span><button type="button" data-camera-imaging="exposure" data-camera-delta="-1">−</button><output>—</output><button type="button" data-camera-imaging="exposure" data-camera-delta="1">+</button></div>
-                  <div data-imaging-row="brightness"><span>Brightness</span><button type="button" data-camera-imaging="brightness" data-camera-delta="-8">−</button><output>—</output><button type="button" data-camera-imaging="brightness" data-camera-delta="8">+</button></div>
-                  <div data-imaging-row="white_balance"><span>White balance</span><button type="button" data-camera-imaging="white_balance" data-camera-delta="-100">−</button><output>—</output><button type="button" data-camera-imaging="white_balance" data-camera-delta="100">+</button></div>
-                </div>
-              </details>
-              <label>Movement speed<select id="cameraPtzSpeed"><option value="slow">Slow</option><option value="medium" selected>Medium</option><option value="fast">Fast</option></select></label>
+              <div class="camera-ptz-console">
+                <section class="camera-ptz-movement" aria-label="Camera position controls">
+                  <span class="camera-ptz-section-title">Position</span>
+                  <div class="camera-ptz-grid" role="group" aria-label="Pan and tilt">
+                    <button type="button" data-ptz-action="tilt_up" aria-label="Tilt up">↑</button>
+                    <button type="button" data-ptz-action="pan_left" aria-label="Pan left">←</button>
+                    <button type="button" data-ptz-action="recenter" aria-label="Recenter camera">●</button>
+                    <button type="button" data-ptz-action="pan_right" aria-label="Pan right">→</button>
+                    <button type="button" data-ptz-action="tilt_down" aria-label="Tilt down">↓</button>
+                  </div>
+                  <div class="camera-ptz-zoom"><button type="button" data-ptz-action="zoom_out">− Zoom</button><button type="button" data-ptz-action="zoom_in">+ Zoom</button></div>
+                  <label class="camera-ptz-speed">Movement speed<select id="cameraPtzSpeed"><option value="slow">Slow</option><option value="medium" selected>Medium</option><option value="fast">Fast</option></select></label>
+                </section>
+                <details class="camera-imaging-controls" open>
+                  <summary>Image tuning</summary>
+                  <div class="camera-imaging-auto"><button type="button" data-camera-imaging-toggle="autofocus">Autofocus</button><button type="button" data-camera-imaging-toggle="auto_exposure">Auto exposure</button><button type="button" data-camera-imaging-toggle="auto_white_balance">Auto WB</button></div>
+                  <div class="camera-imaging-steppers">
+                    <div data-imaging-row="focus"><span>Focus</span><button type="button" data-camera-imaging="focus" data-camera-delta="-5">−</button><output>—</output><button type="button" data-camera-imaging="focus" data-camera-delta="5">+</button></div>
+                    <div data-imaging-row="exposure"><span>Exposure</span><button type="button" data-camera-imaging="exposure" data-camera-delta="-1">−</button><output>—</output><button type="button" data-camera-imaging="exposure" data-camera-delta="1">+</button></div>
+                    <div data-imaging-row="brightness"><span>Brightness</span><button type="button" data-camera-imaging="brightness" data-camera-delta="-8">−</button><output>—</output><button type="button" data-camera-imaging="brightness" data-camera-delta="8">+</button></div>
+                    <div data-imaging-row="white_balance"><span>White balance</span><button type="button" data-camera-imaging="white_balance" data-camera-delta="-100">−</button><output>—</output><button type="button" data-camera-imaging="white_balance" data-camera-delta="100">+</button></div>
+                  </div>
+                </details>
+              </div>
               <div class="camera-ptz-presets" aria-label="Saved camera positions">
-                <span>POSITIONS</span>
+                <div><span>Saved positions</span><small>Shift + number saves</small></div>
                 <div><button type="button" data-ptz-action="recall_preset" data-ptz-preset="1">1</button><button type="button" data-ptz-action="recall_preset" data-ptz-preset="2">2</button><button type="button" data-ptz-action="recall_preset" data-ptz-preset="3">3</button></div>
-                <small>Shift + number saves a position</small>
               </div>
             </section>
           </div>
@@ -585,8 +454,8 @@ Choose a source from Manage Cameras</span>
         </div>
 
         <nav class="inspector-section-nav" id="inspectorSectionNav" aria-label="Card information sections">
-          <button type="button" data-inspector-section="cardContextHeader" aria-current="true">Card</button>
-          <button type="button" data-inspector-section="recognitionSignalPanel">Signals</button>
+          <button type="button" data-inspector-section="cardContextHeader" aria-current="true">Identity</button>
+          <button type="button" data-inspector-section="recognitionSignalPanel">Evidence</button>
           <button type="button" data-inspector-section="widgetWorkspace">Tools</button>
         </nav>
 
@@ -930,8 +799,8 @@ Choose a source from Manage Cameras</span>
                 <div><span>Acceptance evidence</span><b id="identifyAcceptanceEvidence">Not available</b></div>
               </div>
               <div class="studiox-identity-evidence-heading">
-                <div><span>Verification evidence</span><strong>Identity checks</strong></div>
-                <small>Exact version, catalog, and capture stability</small>
+                <div><span id="identifyEvidenceEyebrow">Verification evidence</span><strong id="identifyEvidenceTitle">Identity checks</strong></div>
+                <small id="identifyEvidenceDetail">Exact version, catalog, and capture stability</small>
               </div>
               <div class="studiox-identity-evidence" id="identifyEvidence" hidden></div>
               <button class="riq-button studiox-identity-review" type="button" onclick="openMatchCorrectionWorkflow()">Review identity</button>
@@ -986,8 +855,8 @@ Choose a source from Manage Cameras</span>
               <p class="studiox-pokedex-flavor" id="pokedexFlavor"></p>
             </div>
             <div class="studiox-pokedex-broadcast">
-              <label><input id="pokedexOnAir" type="checkbox"> <span>On Air</span></label>
-              <span id="pokedexBroadcastStatus">16:9 overlay hidden</span>
+              <label><input id="pokedexOnAir" type="checkbox" aria-describedby="pokedexBroadcastStatus"> <span>On Air</span></label>
+              <span id="pokedexBroadcastStatus" role="status">Verify identity to enable the 16:9 overlay</span>
               <a href="/overlay/rare-intelligence" target="_blank" rel="noopener">Open browser source</a>
               <button class="riq-button" id="rareIntelligenceCustomize" type="button">Customize</button>
             </div>
@@ -998,12 +867,12 @@ Choose a source from Manage Cameras</span>
                 <label>Layout<select id="riThemeAlignment"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
                 <label>Font<select id="riThemeFont"><option value="inter">Inter</option><option value="system">System</option><option value="serif">Editorial</option><option value="mono">Mono</option></select></label>
                 <label>Brand<input id="riThemeBrandText" maxlength="64" value="RAREIQ · LIVE INTELLIGENCE"></label>
-                <label>Accent<input id="riThemeAccent" type="color" value="#53d5f2"></label>
-                <label>Secondary<input id="riThemeSecondary" type="color" value="#b574ff"></label>
-                <label>Panel<input id="riThemeBackground" type="color" value="#05111e"></label>
-                <label>Text<input id="riThemeText" type="color" value="#f7fbff"></label>
-                <label>Opacity <output id="riThemeOpacityValue">94%</output><input id="riThemeOpacity" type="range" min="20" max="100" value="94"></label>
-                <label>Corners <output id="riThemeRadiusValue">30px</output><input id="riThemeRadius" type="range" min="0" max="60" value="30"></label>
+                <label>Accent<input id="riThemeAccent" type="color" value="#a6e8ce"></label>
+                <label>Secondary<input id="riThemeSecondary" type="color" value="#4f9f83"></label>
+                <label>Panel<input id="riThemeBackground" type="color" value="#080d0a"></label>
+                <label>Text<input id="riThemeText" type="color" value="#f5f2e9"></label>
+                <label>Opacity <output id="riThemeOpacityValue">96%</output><input id="riThemeOpacity" type="range" min="20" max="100" value="96"></label>
+                <label>Corners <output id="riThemeRadiusValue">12px</output><input id="riThemeRadius" type="range" min="0" max="60" value="12"></label>
                 <label>Scale <output id="riThemeScaleValue">100%</output><input id="riThemeScale" type="range" min="70" max="140" value="100"></label>
               </div>
               <div class="studiox-ri-theme-toggles"><label><input id="riThemeShowArt" type="checkbox" checked> Art</label><label><input id="riThemeShowFacts" type="checkbox" checked> Facts</label><label><input id="riThemeShowFlavor" type="checkbox" checked> Description</label><label><input id="riThemeShowBrand" type="checkbox" checked> Branding</label></div>
@@ -1400,7 +1269,7 @@ Choose a source from Manage Cameras</span>
     </div>
   </section>
 
-  <section class="workspace" data-workspace="collection">
+  <section class="workspace studiox-app-workspace" data-workspace="collection">
     <div class="full-shell">
       <aside class="riq-surface side-nav" id="collectionWorkspaceTabs" role="tablist" aria-label="Collection workspace views" aria-orientation="vertical">
         <button class="active" type="button" role="tab" data-collection-view="recent" aria-selected="true" tabindex="0">Recent Scans</button>
@@ -1409,8 +1278,8 @@ Choose a source from Manage Cameras</span>
         <button type="button" role="tab" data-collection-view="exports" aria-selected="false" tabindex="-1">Exports</button>
       </aside>
       <div class="riq-surface content">
-        <div class="collection-heading">
-          <div><h2>Collection Intelligence</h2><p>Verified cards, exact versions, and duplicate copies.</p></div>
+        <div class="collection-heading studiox-app-heading">
+          <div><span class="studiox-app-eyebrow">Collection</span><h2>Collection Intelligence</h2><p>Verified cards, exact versions, and duplicate copies.</p></div>
           <button class="riq-button" id="refreshCollection" type="button">Refresh</button>
         </div>
         <div class="collection-metrics" aria-label="Collection totals">
@@ -1498,8 +1367,19 @@ Choose a source from Manage Cameras</span>
         </div>
         <div class="collection-ledger collection-set-progress">
           <div class="collection-ledger-head"><strong>Set Progress</strong><span id="collectionSetCount">0 sets</span></div>
+          <div class="collection-set-toolbar" aria-label="Set progress filters">
+            <input id="collectionSetSearch" type="search" placeholder="Search set name or code" aria-label="Search set progress">
+            <label>Show
+              <select id="collectionSetMode" aria-label="Choose which sets to show">
+                <option value="started">Started sets</option>
+                <option value="all">All catalog sets</option>
+              </select>
+            </label>
+            <span id="collectionSetVisibleCount" aria-live="polite">0 visible</span>
+          </div>
           <div class="collection-empty" id="collectionSetsEmpty">Scan verified cards to begin tracking sets.</div>
           <div class="collection-set-grid" id="collectionSetGrid"></div>
+          <button class="riq-button collection-set-more" id="collectionSetMore" type="button" hidden>Show more sets</button>
         </div>
         <div class="collection-ledger collection-duplicates">
           <div class="collection-ledger-head"><strong>Duplicate Queue</strong><span id="collectionDispositionCount">0 trade · 0 sell</span></div>
@@ -1549,7 +1429,8 @@ Choose a source from Manage Cameras</span>
     </div>
   </section>
 
-  <section class="workspace" data-workspace="broadcast">
+  <section class="workspace studiox-app-workspace studiox-app-workspace--broadcast" data-workspace="broadcast">
+    <header class="studiox-app-heading studiox-app-heading--broadcast"><div><span class="studiox-app-eyebrow">Broadcast</span><h2>Production Command</h2><p>Run live shows, destinations, graphics, recordings, and post-show intelligence from one operator surface.</p></div><span class="studiox-app-mode">External output stays explicit</span></header>
     <nav class="broadcast-workspace-tabs" id="broadcastWorkspaceTabs" role="tablist" aria-label="Broadcast workspace views">
       <button type="button" role="tab" data-broadcast-view="live" aria-selected="true">Live Control</button>
       <button type="button" role="tab" data-broadcast-view="destinations" aria-selected="false" tabindex="-1">Destinations</button>
@@ -1595,7 +1476,7 @@ Choose a source from Manage Cameras</span>
   <section class="production-screens"><header><div><span>Full-Screen Takeover</span><h3>Stream Screens & Countdown</h3></div><a class="riq-button" href="/production-screen" target="_blank">Open Browser Source</a></header><div class="production-screen-presets"><button type="button" data-production-screen-preset="starting-soon"><strong>Starting Soon</strong><span>5:00 countdown</span></button><button type="button" data-production-screen-preset="brb"><strong>Be Right Back</strong><span>2:00 countdown</span></button><button type="button" data-production-screen-preset="ending"><strong>Stream Ending</strong><span>No countdown</span></button><button type="button" data-production-screen-preset="countdown"><strong>Custom Countdown</strong><span>Operator configured</span></button></div><form id="productionScreenForm"><label><span>Mode</span><select id="productionScreenMode"><option value="starting-soon">Starting Soon</option><option value="brb">Be Right Back</option><option value="ending">Stream Ending</option><option value="countdown">Countdown</option></select></label><label><span>Accent</span><select id="productionScreenAccent"><option value="cyan">Cyan</option><option value="purple">Purple</option><option value="gold">Gold</option><option value="green">Green</option><option value="red">Red</option></select></label><label><span>Minutes</span><input id="productionScreenMinutes" type="number" min="0" max="1440" value="5"></label><label class="wide"><span>Title</span><input id="productionScreenTitle" maxlength="80" value="Starting Soon"></label><label class="wide"><span>Message</span><input id="productionScreenMessage" maxlength="180" value="The stream will begin shortly."></label><button class="production-auto" type="submit">TAKE SCREEN</button><button class="production-cut" id="productionScreenHide" type="button">RETURN TO LIVE</button></form><iframe src="/production-screen" title="Production screen preview"></iframe></section>
   </section>
 
-  <section class="workspace" data-workspace="creator">
+  <section class="workspace studiox-app-workspace" data-workspace="creator">
     <div class="full-shell">
       <aside class="riq-surface side-nav" id="creatorWorkspaceTabs" role="tablist" aria-label="Creator Studio views" aria-orientation="vertical">
         <button class="active" id="creatorTabRules" type="button" role="tab" data-creator-view="rules" aria-selected="true" aria-controls="creatorRevealConfig" tabindex="0">Reveal Rules</button>
@@ -1603,8 +1484,7 @@ Choose a source from Manage Cameras</span>
         <button id="creatorTabAssets" type="button" role="tab" data-creator-view="assets" aria-selected="false" aria-controls="creatorAssetPanel" tabindex="-1">Asset Library</button>
       </aside>
       <div class="riq-surface content">
-        <h2>Creator Studio</h2>
-        <p>Audience-facing suspense, reactions, browser sources, and brand controls.</p>
+        <header class="studiox-app-heading"><div><span class="studiox-app-eyebrow">Creator</span><h2>Creator Studio</h2><p>Audience-facing suspense, reactions, browser sources, and brand controls.</p></div></header>
         <div class="creator-reveal-layout">
           <section class="card creator-reveal-config" id="creatorRevealConfig" role="tabpanel" aria-labelledby="creatorTabRules" tabindex="0">
             <div><h3>Pack Suspense Engine</h3><p>Build anticipation card by card, then trigger a reaction for the verified hit.</p></div>
@@ -1651,9 +1531,9 @@ Choose a source from Manage Cameras</span>
     </div>
   </section>
 
-  <section class="workspace soundboard-app-workspace" data-workspace="soundboard">
+  <section class="workspace studiox-app-workspace soundboard-app-workspace" data-workspace="soundboard">
     <div class="soundboard-app-shell">
-      <header class="soundboard-app-header"><div><span>Streamer App</span><h2>Soundboard</h2><p>Build and perform with up to 50 custom audio pads.</p></div><div class="soundboard-app-master"><label><span id="soundboardAppVolumeValue">100%</span><input id="soundboardAppVolume" type="range" min="0" max="100" value="100"></label><button class="riq-button" id="soundboardAppStop" type="button">Stop All</button><label class="riq-button soundboard-app-upload">Upload Sounds<input id="soundboardAppUpload" type="file" multiple accept="audio/mpeg,audio/wav,audio/ogg"></label></div></header>
+      <header class="soundboard-app-header studiox-app-heading"><div><span class="studiox-app-eyebrow">Streamer App</span><h2>Soundboard</h2><p>Build and perform with up to 50 custom audio pads.</p></div><div class="soundboard-app-master"><label><span id="soundboardAppVolumeValue">100%</span><input id="soundboardAppVolume" type="range" min="0" max="100" value="100"></label><button class="riq-button" id="soundboardAppStop" type="button">Stop All</button><label class="riq-button soundboard-app-upload">Upload Sounds<input id="soundboardAppUpload" type="file" multiple accept="audio/mpeg,audio/wav,audio/ogg"></label></div></header>
       <div class="soundboard-app-toolbar"><label><span>Search pads</span><input id="soundboardSearch" type="search" placeholder="Search sounds..."></label><strong id="soundboardPadCount">0 / 50 pads</strong><select id="soundboardAppPreset" aria-label="Soundboard preset"></select><button class="riq-button" id="soundboardAppRenamePreset" type="button">Rename</button><button class="riq-button" id="soundboardAppLock" type="button" aria-pressed="false">Unlock Layout</button><button class="riq-button" id="soundboardAppAddPad" type="button">Add Empty Pad</button><button class="riq-button" id="soundboardAppSave" type="button">Save Layout</button></div>
       <div class="soundboard-app-playback-row"><div class="soundboard-now-playing soundboard-app-now-playing" id="soundboardAppNowPlaying" data-state="idle"><div class="soundboard-now-playing-copy"><span>Now Playing</span><strong id="soundboardAppNowPlayingName">Nothing playing</strong></div><time id="soundboardAppNowPlayingTime">0:00 left</time><div class="soundboard-now-playing-track"><i id="soundboardAppNowPlayingProgress"></i></div></div><label class="soundboard-app-playback-mode"><span>Playback mode</span><select id="soundboardAppPlaybackMode" aria-label="Soundboard playback mode"><option value="queue">Queue in order</option><option value="layer">Layer sounds</option></select><b id="soundboardAppQueueCount">0 queued</b></label></div>
       <section class="soundboard-queue-panel soundboard-app-queue"><header><div><span>Performance Queue</span><strong>Up Next</strong></div><button class="riq-button soundboard-clear-queue" id="soundboardAppClearQueue" type="button">Clear Queue</button></header><ol id="soundboardAppQueue"><li class="is-empty">Queue is empty — trigger pads to build a sequence.</li></ol></section>
@@ -1662,9 +1542,9 @@ Choose a source from Manage Cameras</span>
     </div>
   </section>
 
-  <section class="workspace voice-mod-workspace" data-workspace="voice-mod">
+  <section class="workspace studiox-app-workspace voice-mod-workspace" data-workspace="voice-mod">
     <div class="voice-mod-shell">
-      <header class="voice-mod-header"><div><span>Streamer Audio</span><h2>Voice Mod</h2><p>Select a microphone, shape your live voice, and expose the processed feed to RareIQ production tools.</p></div><div class="voice-mod-state" id="voiceModState" data-state="idle"><i></i><span>Microphone idle</span></div></header>
+      <header class="voice-mod-header studiox-app-heading"><div><span class="studiox-app-eyebrow">Streamer Audio</span><h2>Voice Mod</h2><p>Select a microphone, shape your live voice, and expose the processed feed to RareIQ production tools.</p></div><div class="voice-mod-state" id="voiceModState" data-state="idle" role="status" aria-live="polite"><i></i><span>Microphone idle</span></div></header>
       <div class="voice-mod-grid">
         <section class="voice-mod-control-card">
           <header><div><span>Input</span><h3>Microphone &amp; Processing</h3></div><button class="riq-button primary" id="voiceModStart" type="button">Start Voice Mod</button></header>
@@ -1674,16 +1554,16 @@ Choose a source from Manage Cameras</span>
           <label class="voice-mod-monitor"><input id="voiceModMonitor" type="checkbox"><span>Monitor processed voice through this computer</span><small>Use headphones. Speaker monitoring can create feedback.</small></label>
           <div class="voice-mod-actions"><button class="riq-button" id="voiceModRefresh" type="button">Refresh Inputs</button><button class="riq-button danger" id="voiceModStop" type="button" disabled>Stop</button></div>
         </section>
-        <section class="voice-mod-meter-card" data-state="idle"><header><div><span>Processed Output</span><h3>Live Signal</h3></div><b id="voiceModPresetName">Clean Studio</b></header><div class="voice-mod-meter"><i id="voiceModMeterFill"></i></div><div class="voice-mod-readout"><strong id="voiceModLevel">−∞ dB</strong><span id="voiceModRoute">RareIQ stream unavailable until started</span></div><div class="voice-mod-route-note"><b>OBS / Browser Output</b><p>RareIQ exposes the processed stream internally as <code>window.rareiqVoiceModStream</code>. A virtual audio cable is still required to use it as a system microphone in unrelated desktop apps.</p></div></section>
+        <section class="voice-mod-meter-card" data-state="idle"><header><div><span>Processed Output</span><h3>Live Signal</h3></div><b id="voiceModPresetName">Clean Studio</b></header><div class="voice-mod-meter"><i id="voiceModMeterFill"></i></div><div class="voice-mod-readout"><strong id="voiceModLevel">−∞ dB</strong><span id="voiceModRoute" role="status">RareIQ stream unavailable until started</span></div><div class="voice-mod-route-note"><b>Production Audio Handoff</b><p>RareIQ exposes the processed stream internally as <code>window.rareiqVoiceModStream</code>. A virtual audio cable is still required to use it as a system microphone in unrelated desktop apps.</p></div></section>
       </div>
     </div>
   </section>
 
-  <section class="workspace camera-fx-workspace" data-workspace="camera-fx">
+  <section class="workspace studiox-app-workspace camera-fx-workspace" data-workspace="camera-fx">
     <div class="camera-fx-shell">
-      <header class="camera-fx-header"><div><span>Studio Video Preview</span><h2>Camera Effects</h2><p>Preview a camera look in Studio X without changing recognition or broadcast output.</p></div><div class="camera-fx-state" id="cameraFxState" data-state="off"><i></i><span>Preview bypassed</span></div></header>
+      <header class="camera-fx-header studiox-app-heading"><div><span class="studiox-app-eyebrow">Studio Video Preview</span><h2>Camera Effects</h2><p>Preview a camera look in Studio X without changing recognition or broadcast output.</p></div><div class="camera-fx-state" id="cameraFxState" data-state="off" role="status" aria-live="polite"><i></i><span>Preview bypassed</span></div></header>
       <div class="camera-fx-layout">
-        <section class="camera-fx-preview-card"><header><div><span>Effect Preview</span><h3>Camera 1</h3></div><div class="camera-fx-preview-actions"><button class="riq-button" id="cameraFxCompare" type="button" aria-pressed="false">Hold for Clean</button><button class="riq-button primary" id="cameraFxApply" type="button">Apply to Studio Preview</button></div></header><div class="camera-fx-preview"><img id="cameraFxPreview" alt="Camera effects preview"><div class="camera-fx-preview-empty">Waiting for camera feed</div></div><aside class="camera-fx-output-scope" id="cameraFxOutputScope"><strong>OUTPUT SCOPE</strong><span>Studio X preview only</span><small>Recognition and Program / OBS remain on the clean source.</small></aside></section>
+        <section class="camera-fx-preview-card"><header><div><span>Effect Preview</span><h3>Camera 1</h3></div><div class="camera-fx-preview-actions"><button class="riq-button" id="cameraFxCompare" type="button" aria-pressed="false">Hold for Clean</button><button class="riq-button primary" id="cameraFxApply" type="button" aria-describedby="cameraFxOutputScope">Apply to Studio Preview</button></div></header><div class="camera-fx-preview"><img id="cameraFxPreview" alt="Camera effects preview"><div class="camera-fx-preview-empty">Waiting for camera feed</div></div><aside class="camera-fx-output-scope" id="cameraFxOutputScope"><strong>OUTPUT SCOPE</strong><span>Studio X preview only</span><small>Recognition and Program / OBS remain on the clean source.</small></aside></section>
         <section class="camera-fx-controls">
           <header><div><span>Look</span><h3>Color Presets</h3></div><button class="riq-button" id="cameraFxReset" type="button">Reset</button></header>
           <div class="camera-fx-presets" id="cameraFxPresets" role="group" aria-label="Camera filter presets"><button type="button" data-camera-fx-preset="clean">Clean</button><button type="button" data-camera-fx-preset="vibrant">Vibrant</button><button type="button" data-camera-fx-preset="cinematic">Cinematic</button><button type="button" data-camera-fx-preset="warm">Warm</button><button type="button" data-camera-fx-preset="cool">Cool</button><button type="button" data-camera-fx-preset="noir">Noir</button><button type="button" data-camera-fx-preset="vintage">Vintage</button></div>
@@ -1694,12 +1574,12 @@ Choose a source from Manage Cameras</span>
     </div>
   </section>
 
-  <section class="workspace spotify-workspace" data-workspace="spotify">
+  <section class="workspace studiox-app-workspace spotify-workspace" data-workspace="spotify">
     <section class="spotify-setup-card" id="spotifySetupCard" hidden><div><span>ONE-TIME SETUP</span><h3>Connect RareIQ to Spotify</h3><p>Create a Spotify Web API app, add the exact callback below, then paste its public Client ID. RareIQ uses PKCE and never asks for a client secret.</p></div><ol><li><a class="riq-button" id="spotifyDeveloperDashboard" href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">Open Spotify Developer Dashboard</a></li><li><label><span>Redirect URI — add this in Spotify app settings</span><div><textarea id="spotifyRedirectUri" rows="2" readonly spellcheck="false" aria-label="Spotify redirect URI">http://127.0.0.1:8765/api/spotify/callback</textarea><button class="riq-button" id="spotifyCopyRedirect" type="button">Copy</button></div></label></li><li><label><span>Spotify Client ID</span><input id="spotifyClientId" autocomplete="off" spellcheck="false" placeholder="Paste the public Client ID"></label></li></ol><div class="spotify-setup-actions"><button class="riq-button primary" id="spotifySaveSetup" type="button">Save &amp; Continue</button><strong id="spotifySetupStatus">Setup required</strong></div></section>
-    <div class="spotify-shell"><header class="spotify-header"><div><span>Streamer App</span><h2>Spotify DJ</h2><p>Control your Spotify account, devices, playlists, and live music queue.</p></div><a class="riq-button spotify-connect" id="spotifyConnect" href="/api/spotify/connect">Connect Spotify</a></header><section class="spotify-player-card"><div class="spotify-album-art"><img id="spotifyAlbumArt" alt="Current Spotify album art" hidden><span id="spotifyAlbumPlaceholder">♫</span></div><div class="spotify-current-track"><span>Now Playing</span><h3 id="spotifyTrackName">Spotify not connected</h3><p id="spotifyArtistName">Connect your account to load playback.</p><div class="spotify-progress"><i id="spotifyProgress"></i></div><time id="spotifyTime">0:00 / 0:00</time><div class="spotify-player-buttons"><button id="spotifyShuffle" type="button" aria-pressed="false">Shuffle</button><button id="spotifyPrevious" type="button">◀◀</button><button id="spotifyPlay" type="button">▶</button><button id="spotifyNext" type="button">▶▶</button><button id="spotifyRepeat" type="button" data-repeat="off">Repeat Off</button></div></div><aside><label><span>Device</span><select id="spotifyDevice"><option>No active device</option></select></label><label><span>Spotify volume</span><input id="spotifyVolume" type="range" min="0" max="100" value="50"></label><label class="spotify-duck-control"><input id="spotifyAppDuckEnabled" type="checkbox"><span>Duck music for Soundboard</span></label></aside></section><div class="spotify-browser"><section><header><div><span>Music Library</span><h3>Search</h3></div><form id="spotifySearchForm"><input id="spotifySearch" type="search" placeholder="Tracks, artists, or playlists"><button class="riq-button" type="submit">Search</button></form></header><div class="spotify-results" id="spotifyResults"><p>Connect Spotify, then search for music.</p></div></section><section><header><div><span>Your Account</span><h3>Playlists</h3></div><button class="riq-button" id="spotifyRefresh" type="button">Refresh</button></header><div class="spotify-results" id="spotifyPlaylists"><p>Your playlists will appear here.</p></div></section><section class="spotify-queue-section"><header><div><span>Live Playback</span><h3>Spotify Queue</h3></div><strong id="spotifyQueueCount">0 tracks</strong></header><div class="spotify-results" id="spotifyQueue"><p>Spotify's upcoming tracks will appear here.</p></div></section></div></div>
+    <div class="spotify-shell"><header class="spotify-header studiox-app-heading"><div><span class="studiox-app-eyebrow">Streamer App</span><h2>Spotify DJ</h2><p>Control your Spotify account, devices, playlists, and live music queue.</p></div><a class="riq-button spotify-connect" id="spotifyConnect" href="/api/spotify/connect">Connect Spotify</a></header><section class="spotify-player-card"><div class="spotify-album-art"><img id="spotifyAlbumArt" alt="Current Spotify album art" hidden><span id="spotifyAlbumPlaceholder">♫</span></div><div class="spotify-current-track"><span>Now Playing</span><h3 id="spotifyTrackName">Spotify not connected</h3><p id="spotifyArtistName">Connect your account to load playback.</p><div class="spotify-progress"><i id="spotifyProgress"></i></div><time id="spotifyTime">0:00 / 0:00</time><div class="spotify-player-buttons"><button id="spotifyShuffle" type="button" aria-pressed="false">Shuffle</button><button id="spotifyPrevious" type="button">◀◀</button><button id="spotifyPlay" type="button">▶</button><button id="spotifyNext" type="button">▶▶</button><button id="spotifyRepeat" type="button" data-repeat="off">Repeat Off</button></div></div><aside><label><span>Device</span><select id="spotifyDevice"><option>No active device</option></select></label><label><span>Spotify volume</span><input id="spotifyVolume" type="range" min="0" max="100" value="50"></label><label class="spotify-duck-control"><input id="spotifyAppDuckEnabled" type="checkbox"><span>Duck music for Soundboard</span></label></aside></section><div class="spotify-browser"><section><header><div><span>Music Library</span><h3>Search</h3></div><form id="spotifySearchForm"><input id="spotifySearch" type="search" placeholder="Tracks, artists, or playlists"><button class="riq-button" type="submit">Search</button></form></header><div class="spotify-results" id="spotifyResults"><p>Connect Spotify, then search for music.</p></div></section><section><header><div><span>Your Account</span><h3>Playlists</h3></div><button class="riq-button" id="spotifyRefresh" type="button">Refresh</button></header><div class="spotify-results" id="spotifyPlaylists"><p>Your playlists will appear here.</p></div></section><section class="spotify-queue-section"><header><div><span>Live Playback</span><h3>Spotify Queue</h3></div><strong id="spotifyQueueCount">0 tracks</strong></header><div class="spotify-results" id="spotifyQueue"><p>Spotify's upcoming tracks will appear here.</p></div></section></div></div>
   </section>
 
-  <section class="workspace" data-workspace="ai">
+  <section class="workspace studiox-app-workspace" data-workspace="ai">
     <div class="full-shell">
       <aside class="riq-surface side-nav" id="aiLabTabs" role="tablist" aria-label="AI Lab views" aria-orientation="vertical">
         <button class="active" id="aiLabTabRecognition" type="button" role="tab" data-ai-lab-view="recognition" aria-selected="true" aria-controls="aiLabRecognition" tabindex="0">Recognition</button>
@@ -1710,7 +1590,7 @@ Choose a source from Manage Cameras</span>
         <button id="aiLabTabAdvisor" type="button" role="tab" data-ai-lab-view="advisor" aria-selected="false" aria-controls="aiLabAdvisor" tabindex="-1">Sarge AI</button>
       </aside>
       <div class="riq-surface content">
-        <header class="ai-lab-heading"><div><h2 id="aiLabTitle">Recognition Engine</h2><p id="aiLabDescription">Current pipeline state, timings, candidate count, and card context.</p></div><button class="riq-button" id="aiLabRefresh" type="button">Refresh Diagnostics</button></header>
+        <header class="ai-lab-heading studiox-app-heading"><div><span class="studiox-app-eyebrow">AI Lab</span><h2 id="aiLabTitle">Recognition Engine</h2><p id="aiLabDescription">Current pipeline state, timings, candidate count, and card context.</p></div><button class="riq-button" id="aiLabRefresh" type="button">Refresh Diagnostics</button></header>
         <section class="ai-lab-panel" id="aiLabRecognition" role="tabpanel" aria-labelledby="aiLabTabRecognition" tabindex="0">
           <div class="ai-lab-metrics"><article><span>Phase</span><strong id="aiLabRecognitionPhase">Waiting</strong></article><article><span>Generation</span><strong id="aiLabRecognitionGeneration">0</strong></article><article><span>Candidates</span><strong id="aiLabRecognitionCandidates">0</strong></article><article><span>Total Pipeline</span><strong id="aiLabRecognitionTotal">Unavailable</strong></article></div>
           <section class="ai-lab-card"><header><div><span>Live recognition</span><strong id="aiLabRecognitionCard">No current card</strong></div><b id="aiLabRecognitionVerdict">IDLE</b></header><div class="ai-lab-stage-list" id="aiLabRecognitionStages"><p>Recognition stages will appear when a scan runs.</p></div></section>
@@ -1720,7 +1600,7 @@ Choose a source from Manage Cameras</span>
           <section class="ai-lab-card"><header><div><span>Read-only evidence</span><strong>Latest OCR Handoff</strong></div><b id="aiLabOcrConfidence">No confidence</b></header><p id="aiLabOcrNote">OCR evidence appears after a valid rectified card reaches recognition.</p></section>
         </section>
         <section class="ai-lab-panel" id="aiLabEmbeddings" role="tabpanel" aria-labelledby="aiLabTabEmbeddings" tabindex="0" hidden>
-          <div class="ai-lab-metrics"><article><span>Index State</span><strong id="aiLabIndexState">Checking</strong></article><article><span>Records</span><strong id="aiLabIndexRecords">0</strong></article><article><span>Dimensions</span><strong id="aiLabIndexDimensions">0</strong></article><article><span>Latency</span><strong id="aiLabIndexLatency">Unavailable</strong></article></div>
+          <div class="ai-lab-metrics"><article><span>Index State</span><strong id="aiLabIndexState">Checking</strong></article><article><span>Records</span><strong id="aiLabIndexRecords">0</strong></article><article><span>Dimensions</span><strong id="aiLabIndexDimensions">0</strong></article><article><span>Last Build</span><strong id="aiLabIndexLatency">Unavailable</strong></article></div>
           <section class="ai-lab-card"><header><div><span>Visual retrieval</span><strong>Global Visual Index</strong></div><b id="aiLabIndexActivity">IDLE</b></header><p id="aiLabIndexNote">Loading index diagnostics…</p></section>
         </section>
         <section class="ai-lab-panel" id="aiLabLearning" role="tabpanel" aria-labelledby="aiLabTabLearning" tabindex="0" hidden>
@@ -1755,7 +1635,7 @@ Choose a source from Manage Cameras</span>
     </div>
   </section>
 
-  <section class="workspace" data-workspace="library">
+  <section class="workspace studiox-app-workspace" data-workspace="library">
     <div class="full-shell">
       <aside class="riq-surface side-nav" id="libraryWorkspaceTabs" role="tablist" aria-label="Reference Library views" aria-orientation="vertical">
         <button class="active" id="libraryTabOverview" type="button" role="tab" data-library-view="overview" aria-selected="true" aria-controls="libraryOverview" tabindex="0">Overview</button>
@@ -1766,7 +1646,7 @@ Choose a source from Manage Cameras</span>
         <button id="libraryTabUpdates" type="button" role="tab" data-library-view="updates" aria-selected="false" aria-controls="libraryUpdates" tabindex="-1">Updates</button>
       </aside>
       <div class="riq-surface content">
-        <header class="library-console-heading"><div><h2 id="libraryConsoleTitle">Library Overview</h2><p id="libraryConsoleDescription">Reference coverage, active maintenance, and safe operator actions.</p></div><button class="riq-button" id="libraryConsoleRefresh" type="button">Refresh Status</button></header>
+        <header class="library-console-heading studiox-app-heading"><div><span class="studiox-app-eyebrow">Library</span><h2 id="libraryConsoleTitle">Library Overview</h2><p id="libraryConsoleDescription">Reference coverage, active maintenance, and safe operator actions.</p></div><button class="riq-button" id="libraryConsoleRefresh" type="button">Refresh Status</button></header>
         <section class="library-console-panel" id="libraryOverview" role="tabpanel" aria-labelledby="libraryTabOverview" tabindex="0">
           <div class="library-console-metrics"><article><span>Sets Synced</span><strong id="libraryOverviewSets">0 / 0</strong></article><article><span>Catalog Cards</span><strong id="libraryOverviewCards">0</strong></article><article><span>Local Images</span><strong id="libraryOverviewImages">0</strong></article><article><span>Queued Jobs</span><strong id="libraryOverviewJobs">0</strong></article></div>
           <div class="library-maintenance-actions"><article><div><span>Protected maintenance</span><strong>Optimize Library</strong><p>Validate registered assets and synchronize existing indexes. Index and provider actions live in their dedicated views.</p></div><button class="riq-button" type="button" onclick="maintenance('/api/library/optimize','Optimization',this)">Optimize</button></article></div>
@@ -1795,7 +1675,7 @@ Choose a source from Manage Cameras</span>
     </div>
   </section>
 
-  <section class="workspace" data-workspace="settings">
+  <section class="workspace studiox-app-workspace" data-workspace="settings">
     <div class="full-shell">
       <aside class="riq-surface side-nav" id="settingsWorkspaceTabs" role="tablist" aria-label="Studio X settings views" aria-orientation="vertical">
         <button class="active" id="settingsTabAppearance" type="button" role="tab" data-settings-view="appearance" aria-selected="true" aria-controls="settingsAppearance" tabindex="0">Appearance</button>
@@ -1805,8 +1685,7 @@ Choose a source from Manage Cameras</span>
         <button id="settingsTabInterfaces" type="button" role="tab" data-settings-view="interfaces" aria-selected="false" aria-controls="settingsInterfaces" tabindex="-1">Interfaces</button>
       </aside>
       <div class="riq-surface content">
-        <h2 id="settingsConsoleTitle">Appearance</h2>
-        <p id="settingsConsoleDescription">Choose how RareIQ Studio looks on this device.</p>
+        <header class="studiox-app-heading"><div><span class="studiox-app-eyebrow">Settings</span><h2 id="settingsConsoleTitle">Appearance</h2><p id="settingsConsoleDescription">Choose how RareIQ Studio looks on this device.</p></div></header>
 
         <section class="card appearance-settings settings-panel" id="settingsAppearance" role="tabpanel" aria-labelledby="settingsTabAppearance" tabindex="0">
           <div><h3 id="appearanceTitle">Appearance</h3><p>Choose how RareIQ Studio looks on this device.</p></div>
@@ -1847,7 +1726,7 @@ Choose a source from Manage Cameras</span>
           <div class="health-card" data-health="storage"><div class="health-card-head"><h3>Storage</h3><i class="health-dot"></i></div><strong>CHECKING</strong><p>Loading storage status.</p></div>
         </div>
 
-        <div class="camera-manager-state" id="cameraManagerState">Camera Manager bootingÃ¢â‚¬Â¦</div>
+        <div class="camera-manager-state" id="cameraManagerState">Camera Manager booting…</div>
         </section>
         <section class="settings-panel settings-interface-panel" id="settingsInterfaces" role="tabpanel" aria-labelledby="settingsTabInterfaces" tabindex="0" hidden>
         <div class="grid">

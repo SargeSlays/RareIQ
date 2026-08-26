@@ -4,7 +4,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CONTROL = (ROOT / "rareiq/web/static/control.html").read_text(encoding="utf-8")
 SCRIPT = (ROOT / "rareiq/web/static/studiox.js").read_text(encoding="utf-8")
-STYLES = (ROOT / "rareiq/web/static/studiox_update15.css").read_text(encoding="utf-8")
+LEGACY_STYLES = (ROOT / "rareiq/web/static/studiox_update15.css").read_text(encoding="utf-8")
+STYLES = (ROOT / "rareiq/web/static/studiox_command_deck.css").read_text(encoding="utf-8")
 
 
 def test_library_has_six_real_accessible_views():
@@ -94,10 +95,31 @@ def test_library_console_reports_real_status_without_exposing_secrets():
 
 
 def test_library_console_is_responsive_and_focus_safe():
-    assert '.library-console-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))' in STYLES
-    assert '@media(max-width:1200px){.workspace[data-workspace="library"] .library-console-metrics{grid-template-columns:repeat(2,minmax(0,1fr))' in STYLES
-    assert '@media(max-width:540px){.workspace[data-workspace="library"] .library-console-metrics{grid-template-columns:1fr}' in STYLES
+    assert '.workspace[data-workspace="library"] .library-console-metrics {' in STYLES
+    assert 'grid-template-columns: repeat(4, minmax(0, 1fr)) !important;' in STYLES
+    assert '@media (max-width: 1200px)' in STYLES
+    assert 'grid-template-columns: repeat(2, minmax(0, 1fr)) !important;' in STYLES
+    assert '@media (max-width: 540px)' in STYLES
+    assert 'grid-template-columns: minmax(0, 1fr) !important;' in STYLES
     assert '.workspace[data-workspace="library"] [role="tabpanel"]:focus-visible' in STYLES
+
+
+def test_command_deck_owns_library_visuals_without_legacy_theme_fragments():
+    assert '/* Library */' in STYLES
+    assert '.workspace[data-workspace="library"] .library-console-heading {' in STYLES
+    assert '.workspace[data-workspace="library"] .library-provider-list article {' in STYLES
+    assert 'background: var(--sx-surface-raised) !important;' in STYLES
+    assert 'background: var(--sx-accent-strong) !important;' in STYLES
+    assert '.workspace[data-workspace="library"] .library-console-panel[hidden]' not in LEGACY_STYLES
+    assert '.workspace[data-workspace="library"] .side-nav [data-library-view][aria-selected="true"]' not in LEGACY_STYLES
+
+
+def test_library_diagnostic_rows_use_a_compact_state_aware_ledger():
+    assert 'row.dataset.state=String(state||"neutral")' in SCRIPT
+    assert '.workspace[data-workspace="library"] .library-provider-list article:last-child' in STYLES
+    assert '.workspace[data-workspace="library"] .library-provider-list article[data-state="online"] b' in STYLES
+    assert '.workspace[data-workspace="library"] .library-provider-list article[data-state="check"] b' in STYLES
+    assert 'min-height: 84px !important;' in STYLES
 
 
 def test_library_loads_only_when_opened_or_refreshed():

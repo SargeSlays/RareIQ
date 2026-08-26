@@ -31,7 +31,7 @@ def test_mobile_library_actions_stay_beside_their_own_card_copy() -> None:
 
 
 def test_utility_workspace_ids_and_existing_handlers_remain_unchanged() -> None:
-    assert HTML.count('class="workspace" data-workspace="ai"') == 1
-    assert HTML.count('class="workspace" data-workspace="library"') == 1
+    assert HTML.count('data-workspace="ai"') == 1
+    assert HTML.count('data-workspace="library"') == 1
     for endpoint in ("/api/library/optimize", "/api/index/incremental", "/api/providers/check"):
         assert HTML.count(endpoint) == 1

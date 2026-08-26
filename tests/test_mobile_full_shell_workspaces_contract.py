@@ -30,7 +30,7 @@ def test_all_active_non_live_side_rails_become_horizontal() -> None:
 
 
 def test_settings_mobile_access_and_install_controls_remain_unique() -> None:
-    assert HTML.count('class="workspace" data-workspace="settings"') == 1
+    assert HTML.count('data-workspace="settings"') == 1
     for element_id in (
         "mobileAccessTitle",
         "mobileAccessSummary",

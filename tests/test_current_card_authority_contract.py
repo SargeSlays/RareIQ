@@ -23,6 +23,8 @@ def test_rare_intelligence_uses_verified_canonical_card():
     assert "RareIQOrchestrator._identity_is_authoritative(current)" in endpoint
     assert '"on_air": bool(overlay.get("pokedex_on_air")) and profile_verified' in endpoint
     assert '"broadcast_eligible": profile_verified' in endpoint
+    assert 'for current_candidate in current.get("candidates") or []:' in endpoint
+    assert "profile_verified = False" in endpoint
 
 
 def test_live_api_only_publishes_authoritative_current_card():

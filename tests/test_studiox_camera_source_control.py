@@ -146,8 +146,8 @@ def test_compact_toolbar_uses_camera_action_menu_without_absolute_positioning() 
 
 def test_disconnected_camera_cannot_present_ready_to_scan() -> None:
     disconnected = js_section("function setCameraDisconnectedPresentation", "function readSelectedCamera")
-    assert 'title:"DISCONNECTED"' in disconnected
-    assert 'placeholderTitle:"Camera Disconnected"' in disconnected
+    assert 'title:"CAMERA OFFLINE"' in disconnected
+    assert 'placeholderTitle:"Camera Offline"' in disconnected
     assert 'Select a physical camera or refresh devices' in disconnected
     assert 'capture.disabled=!connected' in JS
     assert 'auto.disabled=!connected' in JS

@@ -28,7 +28,7 @@ def test_control_exposes_browser_source_designer():
         "riThemeSave",
     ):
         assert f'id="{control_id}"' in CONTROL
-    assert 'api("/api/overlay/state"' in SCRIPT
+    assert 'api("/api/rare-intelligence/theme"' in SCRIPT
     assert "rare-intelligence-theme-preview" in SCRIPT
     assert "RARE_INTELLIGENCE_THEME_PRESETS" in SCRIPT
     assert 'minimal:{preset:"minimal"' in SCRIPT
@@ -46,3 +46,7 @@ def test_overlay_applies_theme_and_supports_safe_preview():
     assert 'studiox-ri-theme-preview-shell' in CONTROL
     assert 'if(!pokemon){' in OVERLAY
     assert 'byId("art").removeAttribute("src")' in OVERLAY
+    assert "--ri-accent:#a6e8ce" in OVERLAY
+    assert "--ri-secondary:#4f9f83" in OVERLAY
+    assert "--ri-radius:12px" in OVERLAY
+    assert "rgba(theme.background_color,theme.panel_opacity??.96)" in OVERLAY

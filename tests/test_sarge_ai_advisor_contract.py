@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTROL = (ROOT / "rareiq/web/static/control.html").read_text(encoding="utf-8")
 SCRIPT = (ROOT / "rareiq/web/static/studiox.js").read_text(encoding="utf-8-sig")
 SERVER = (ROOT / "rareiq/web/server.py").read_text(encoding="utf-8")
+COMMAND_DECK = (ROOT / "rareiq/web/static/studiox_command_deck.css").read_text(encoding="utf-8")
 
 
 def conflicting_context():
@@ -147,6 +148,14 @@ def test_missing_sarge_configuration_is_truthful_and_still_useful():
     assert status["provider"] == "RareIQ Local Advisor"
     assert status["mutations_allowed"] is False
     assert status["images_shared"] is False
+
+
+def test_ai_lab_advisor_uses_the_shared_command_deck_visual_system():
+    assert '.workspace[data-workspace="ai"] .sarge-advisor-card {' in COMMAND_DECK
+    assert 'border-left: 3px solid var(--sx-accent-strong) !important;' in COMMAND_DECK
+    assert '.workspace[data-workspace="ai"] .sarge-advisor-form textarea' in COMMAND_DECK
+    assert 'background: var(--sx-surface-muted) !important;' in COMMAND_DECK
+    assert '.workspace[data-workspace="ai"] .sarge-advisor-columns {' in COMMAND_DECK
 
 
 def test_provisional_market_value_is_never_described_as_verified():
