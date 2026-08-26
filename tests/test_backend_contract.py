@@ -30,6 +30,27 @@ def test_normalized_card_contract():
     assert card["confidence"] == 0.95
 
 
+def test_normalized_card_keeps_missing_market_value_unavailable():
+    service = object.__new__(BackendTestService)
+    service.orchestrator = None
+
+    card = service.normalize_current_card(
+        recognition={
+            "database_match": {
+                "id": "card-1",
+                "name": "Unpriced Card",
+                "number": "12/100",
+                "language": "English",
+            },
+            "verification_state": "VERIFIED",
+            "candidates": [],
+        },
+        state={},
+    )
+
+    assert card["raw_value"] is None
+
+
 def test_authoritative_card_requires_local_reference_evidence():
     service = object.__new__(BackendTestService)
     service.orchestrator = None

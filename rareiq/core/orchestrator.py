@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import math
 import threading
 import time
 import cv2
@@ -1362,6 +1363,17 @@ class RareIQOrchestrator:
             and snapshot.get("has_reference_evidence") is True
         )
 
+    @staticmethod
+    def _optional_market_value(value: Any) -> float | None:
+        """Keep missing or invalid market data unavailable, never synthetic."""
+        if value in (None, ""):
+            return None
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return None
+        return parsed if math.isfinite(parsed) else None
+
     def _current_recognition_card(self) -> dict[str, Any] | None:
         unified = self.recognition_state.refresh(
             vision=self.vision.status(),
@@ -1408,6 +1420,7 @@ class RareIQOrchestrator:
             market_value = candidate.get("raw_value")
         if market_value is None:
             market_value = pricing.get("market")
+        market_value = self._optional_market_value(market_value)
 
         signature = "|".join(
             str(value or "").strip().lower()
@@ -1432,8 +1445,8 @@ class RareIQOrchestrator:
             "energy_type": candidate.get("energy_type"),
             "source": candidate.get("source") or "unified_recognition",
             "pricing": pricing,
-            "market_price": float(market_value or 0.0),
-            "raw_market": float(market_value or 0.0),
+            "market_price": market_value,
+            "raw_market": market_value,
             "raw_low": pricing.get("low"),
             "raw_high": pricing.get("high"),
             "price_source": (
@@ -1460,7 +1473,7 @@ class RareIQOrchestrator:
                 or candidate.get("image")
                 or "/api/camera/crop.jpg"
             ),
-            "raw_value": float(market_value or 0.0),
+            "raw_value": market_value,
             "confidence": confidence,
             "recognition_signature": signature,
             "recognition_revision": unified.get("revision"),

@@ -459,9 +459,30 @@ class GlobalVisualIndexService:
             language = str(row.get("language") or "").strip().casefold()
             card_id = str(row.get("id") or "").strip().casefold()
             haystack = " ".join((name, printed_name, collector, set_name, set_id, language, card_id))
-            if not all(token in haystack for token in tokens):
+            collector_key = self._collector_key(collector)
+            token_matches = [
+                (
+                    self._collector_key(token) == collector_key
+                    if "/" in token and collector_key
+                    else token in haystack
+                )
+                for token in tokens
+            ]
+            if not all(token_matches):
                 continue
-            score = (120 if needle in {card_id, collector} else 0)
+            normalized_query_collector = (
+                self._collector_key(needle) if "/" in needle else ""
+            )
+            score = (
+                120
+                if needle == card_id
+                or needle == collector
+                or bool(
+                    normalized_query_collector
+                    and normalized_query_collector == collector_key
+                )
+                else 0
+            )
             score += 100 if needle in {name, printed_name} else 75 if name.startswith(needle) or printed_name.startswith(needle) else 55 if needle in name or needle in printed_name else 0
             score += 35 if needle in {set_id, set_name} else 0
             score += 30 if needle in collector else 0

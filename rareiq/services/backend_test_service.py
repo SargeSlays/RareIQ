@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import time
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,16 @@ class BackendTestService:
             if value not in (None, "", [], {}):
                 return value
         return default
+
+    @staticmethod
+    def _optional_market_value(value: Any) -> float | None:
+        if value in (None, ""):
+            return None
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return None
+        return parsed if math.isfinite(parsed) else None
 
     @staticmethod
     def _canonical_language(value: Any) -> str:
@@ -266,16 +277,14 @@ class BackendTestService:
                 match.get("illustrator"),
                 top_candidate.get("illustrator"),
             ),
-            "raw_value": float(
+            "raw_value": self._optional_market_value(
                 self._first(
                     match.get("raw_value"),
                     match.get("market_value"),
                     match.get("price"),
                     top_candidate.get("raw_value"),
                     top_candidate.get("market_value"),
-                    default=0.0,
                 )
-                or 0.0
             ),
             "confidence": confidence,
             "verification_state": (

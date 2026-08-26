@@ -11,6 +11,81 @@ def _candidate(score: float, *, card_id: str = "sv4-123", **extra):
     return {"id": card_id, "score": score, **extra}
 
 
+class _HintedArtworkIndex:
+    def __init__(self, result):
+        self.result = result
+        self.calls = []
+
+    def search_hinted(self, card, candidates, *, limit):
+        self.calls.append((card, list(candidates), limit))
+        return self.result
+
+
+def test_exact_collector_shortlist_gets_direct_visual_verification():
+    crop = np.zeros((1400, 1000, 3), dtype=np.uint8)
+    retrieved = _candidate(
+        0.91,
+        card_id="me5-53",
+        collector_number="053/084",
+        retrieval_only=True,
+        verification_strong=False,
+    )
+    verified = {
+        **retrieved,
+        "score": 0.82,
+        "retrieval_only": False,
+        "verification_strong": True,
+        "homography_inliers": 151,
+    }
+    service = object.__new__(RecognitionService)
+    service.artwork_index = _HintedArtworkIndex(
+        {"ok": True, "matches": [verified], "hint_hits": 1}
+    )
+
+    merged, result = service._verify_identifier_visual_candidates(
+        crop,
+        [retrieved],
+        [_candidate(0.70, card_id="distractor")],
+        limit=4,
+    )
+
+    assert service.artwork_index.calls == [(crop, [retrieved], 4)]
+    assert result["hint_hits"] == 1
+    assert merged[0]["id"] == "me5-53"
+    assert merged[0]["verification_strong"] is True
+    assert merged[0]["retrieval_only"] is False
+
+
+def test_exact_collector_shortlist_never_promotes_failed_verification():
+    crop = np.zeros((1400, 1000, 3), dtype=np.uint8)
+    retrieved = _candidate(
+        0.91,
+        card_id="me5-53",
+        collector_number="053/084",
+        retrieval_only=True,
+        verification_strong=False,
+    )
+    service = object.__new__(RecognitionService)
+    service.artwork_index = _HintedArtworkIndex(
+        {"ok": True, "matches": [], "hint_hits": 1}
+    )
+
+    merged, result = service._verify_identifier_visual_candidates(
+        crop,
+        [retrieved],
+        [],
+        limit=4,
+    )
+
+    assert result["matches"] == []
+    assert merged == []
+
+
+def test_final_candidate_confidence_is_used_by_the_lock_gate():
+    assert RecognitionService._decision_confidence(0.64, 0.7313) == 0.7313
+    assert RecognitionService._decision_confidence(0.81, 0.7313) == 0.81
+
+
 def test_frame_handoff_snapshots_each_unique_array_once():
     primary = np.zeros((16, 12, 3), dtype=np.uint8)
     secondary = np.ones((8, 6, 3), dtype=np.uint8)

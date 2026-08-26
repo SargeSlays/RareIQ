@@ -126,6 +126,69 @@ class RecognitionStateStore:
         return f"{value}/high.webp"
 
     @staticmethod
+    def _collector_key(value: Any) -> str:
+        raw = str(value or "").strip().casefold()
+        if not raw:
+            return ""
+        return "/".join(
+            str(int(part)) if part.isdigit() else part
+            for part in raw.split("/")
+        )
+
+    @staticmethod
+    def _identity_names(item: dict[str, Any]) -> set[str]:
+        return {
+            str(item.get(key) or "").strip().casefold()
+            for key in (
+                "english_name",
+                "canonical_name",
+                "pokemon_name",
+                "name",
+                "printed_name",
+            )
+            if str(item.get(key) or "").strip()
+        }
+
+    @classmethod
+    def _catalog_identity_compatible(
+        cls,
+        primary: dict[str, Any],
+        partner: dict[str, Any],
+        wanted_number: str,
+    ) -> bool:
+        """Require version evidence before catalog metadata may be attached."""
+        primary_id = str(primary.get("id") or "").strip().casefold()
+        partner_id = str(
+            partner.get("id") or partner.get("card_id") or ""
+        ).strip().casefold()
+        if primary_id and partner_id and primary_id == partner_id:
+            return True
+
+        primary_number = cls._collector_key(
+            primary.get("collector_number") or wanted_number
+        )
+        partner_number = cls._collector_key(
+            partner.get("collector_number") or partner.get("number")
+        )
+        if not primary_number or primary_number != partner_number:
+            return False
+
+        primary_sets = {
+            str(primary.get(key) or "").strip().casefold()
+            for key in ("set_id", "set_name")
+            if str(primary.get(key) or "").strip()
+        }
+        partner_sets = {
+            str(partner.get(key) or "").strip().casefold()
+            for key in ("set_id", "set_name")
+            if str(partner.get(key) or "").strip()
+        }
+        if primary_sets and partner_sets:
+            return bool(primary_sets & partner_sets)
+
+        return bool(cls._identity_names(primary) & cls._identity_names(partner))
+
+    @staticmethod
     def _operator_presentable(item: dict[str, Any]) -> bool:
         """Keep retrieval hypotheses out of the operator-facing identity."""
         if item.get("retrieval_only"):
@@ -378,37 +441,41 @@ class RecognitionStateStore:
                     or (wanted_language == "en" and item_language == "english")
                 )
 
-            if wanted_number and wanted_language:
-                catalog_partner = next(
-                    (
-                        item for item in catalog_items
-                        if isinstance(item, dict)
-                        and str(item.get("collector_number") or "").strip() == wanted_number
-                        and language_matches(item)
-                    ),
-                    None,
+            compatible_catalog_items = [
+                item
+                for item in catalog_items
+                if isinstance(item, dict)
+                and self._catalog_identity_compatible(
+                    primary,
+                    item,
+                    wanted_number,
                 )
+            ]
 
-            if catalog_partner is None and isinstance(catalog.get("match"), dict):
-                catalog_partner = catalog.get("match")
-
-            if catalog_partner is None and wanted_number:
+            if wanted_language:
                 catalog_partner = next(
                     (
                         item
-                        for item in catalog_items
-                        if isinstance(item, dict)
-                        and str(
-                            item.get("collector_number") or ""
-                        ).strip() == wanted_number
+                        for item in compatible_catalog_items
+                        if language_matches(item)
                     ),
                     None,
                 )
 
-            if catalog_partner is None and len(catalog_items) == 1:
-                only_item = catalog_items[0]
-                if isinstance(only_item, dict):
-                    catalog_partner = only_item
+            explicit_match = catalog.get("match")
+            if (
+                catalog_partner is None
+                and isinstance(explicit_match, dict)
+                and self._catalog_identity_compatible(
+                    primary,
+                    explicit_match,
+                    wanted_number,
+                )
+            ):
+                catalog_partner = explicit_match
+
+            if catalog_partner is None and compatible_catalog_items:
+                catalog_partner = compatible_catalog_items[0]
 
             if catalog_partner is not None:
                 enriched = copy.deepcopy(primary)

@@ -51,6 +51,124 @@ def test_snapshot_replaces_wrong_language_reference_with_requested_variant() -> 
     assert snapshot["primary_candidate"]["reference_image_url"] == "/english.webp"
 
 
+def test_snapshot_rejects_unrelated_catalog_metadata_with_shared_number() -> None:
+    store = RecognitionStateStore()
+    snapshot = store.refresh(
+        recognition={
+            "language": "English",
+            "collector_number": "053/084",
+            "candidates": [{
+                "id": "me5-53",
+                "name": "Nickit",
+                "collector_number": "53/84",
+                "set_id": "me5",
+                "set_name": "Pitch Black",
+                "language": "English",
+                "reference_image_url": "/nickit.webp",
+                "source": "pokipair",
+                "verification_strong": True,
+                "score": 0.90,
+            }],
+        },
+        catalog={
+            "match": {
+                "id": "wrong-53",
+                "name": "Unrelated Card",
+                "collector_number": "053/084",
+                "set_id": "wrong-set",
+                "set_name": "Wrong Set",
+                "language": "English",
+                "rarity": "Ultra Rare",
+                "pricing": {"market": 999.99, "source": "stale"},
+                "reference_image_url": "/wrong.webp",
+            },
+        },
+    )
+
+    primary = snapshot["primary_candidate"]
+    assert primary["id"] == "me5-53"
+    assert primary["set_id"] == "me5"
+    assert primary["reference_image_url"] == "/nickit.webp"
+    assert primary.get("market_price") is None
+    assert primary.get("pricing") is None
+
+
+def test_snapshot_rejects_same_named_card_from_a_different_known_set() -> None:
+    store = RecognitionStateStore()
+    snapshot = store.refresh(
+        recognition={
+            "language": "English",
+            "collector_number": "053/084",
+            "candidates": [{
+                "id": "me5-53",
+                "name": "Nickit",
+                "collector_number": "53/84",
+                "set_id": "me5",
+                "set_name": "Pitch Black",
+                "language": "English",
+                "reference_image_url": "/nickit.webp",
+                "source": "pokipair",
+                "verification_strong": True,
+                "score": 0.90,
+            }],
+        },
+        catalog={
+            "match": {
+                "id": "other-set-53",
+                "name": "Nickit",
+                "collector_number": "053/084",
+                "set_id": "other-set",
+                "set_name": "Different Expansion",
+                "language": "English",
+                "rarity": "Special",
+                "pricing": {"market": 500.0, "source": "wrong-set"},
+            },
+        },
+    )
+
+    primary = snapshot["primary_candidate"]
+    assert primary["set_id"] == "me5"
+    assert primary.get("market_price") is None
+    assert primary.get("pricing") is None
+
+
+def test_snapshot_enriches_matching_set_and_normalized_collector_number() -> None:
+    store = RecognitionStateStore()
+    snapshot = store.refresh(
+        recognition={
+            "language": "English",
+            "collector_number": "053/084",
+            "candidates": [{
+                "id": "visual-nickit",
+                "name": "Nickit",
+                "collector_number": "53/84",
+                "set_id": "me5",
+                "source": "pokipair",
+                "image_path": "nickit.webp",
+                "verification_strong": True,
+                "score": 0.90,
+            }],
+        },
+        catalog={
+            "candidates": [{
+                "id": "catalog-nickit",
+                "name": "Nickit",
+                "collector_number": "053/084",
+                "set_id": "me5",
+                "set_name": "Pitch Black",
+                "language": "English",
+                "rarity": "Common",
+                "pricing": {"market": 1.25, "source": "verified"},
+            }],
+        },
+    )
+
+    primary = snapshot["primary_candidate"]
+    assert primary["set_name"] == "Pitch Black"
+    assert primary["market_price"] == 1.25
+    assert primary["pricing_source"] == "verified"
+
+
 def test_snapshot_does_not_invent_ocr_identifier_from_candidate() -> None:
     store = RecognitionStateStore()
     snapshot = store.update_recognition({

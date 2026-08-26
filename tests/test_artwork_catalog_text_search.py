@@ -26,3 +26,25 @@ def test_global_catalog_text_search_uses_complete_visual_records():
     ]
     assert service.text_search("Goldeen")[0]["id"] == "me05-013"
     assert service.text_search("Koraidon Pitch Black")[0]["collector_number"] == "047/084"
+    assert service.text_search("Koraidon 047/084")[0]["id"] == "me05-047"
+    assert service.text_search("Koraidon 47/84")[0]["id"] == "me05-047"
+
+
+def test_global_catalog_text_search_normalizes_ocr_collector_zero_padding():
+    service = GlobalVisualIndexService.__new__(GlobalVisualIndexService)
+    service._lock = threading.RLock()
+    service._records = [
+        {
+            "id": "me5-53",
+            "name": "Nickit",
+            "set_name": "Pitch Black",
+            "set_id": "me5",
+            "collector_number": "53/84",
+            "language": "English",
+            "reference_image_url": "/api/catalog-engine/image/en_me5/me5-53.png",
+        },
+    ]
+
+    result = service.text_search("Nickit 053/084")
+
+    assert [candidate["id"] for candidate in result] == ["me5-53"]

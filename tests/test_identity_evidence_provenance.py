@@ -204,6 +204,44 @@ def test_final_recognition_payload_preserves_verified_matching_identity() -> Non
     assert payload["verification_state"] == "VERIFIED"
 
 
+def test_consistent_result_clears_stale_catalog_gap_status() -> None:
+    status = {
+        "catalog_gap": {
+            "status": "available",
+            "query": {
+                "collector_number": "053/004",
+                "collector_key": "53/4",
+            },
+        },
+        "catalog_recovery_candidates": [
+            {"id": "ocr:053/004", "collector_number": "053/004"}
+        ],
+    }
+    payload = {
+        "language": "English",
+        "ocr_collector_number": "053/084",
+        "candidates": [{
+            **_catalog_candidate("English"),
+            "id": "me5-53",
+            "name": "Nickit",
+            "printed_name": "Nickit",
+            "english_name": "Nickit",
+            "collector_number": "53/84",
+        }],
+        "recognition_locked": True,
+        "verification_state": "VERIFIED",
+        "identity_conflict": None,
+    }
+
+    RecognitionService._enforce_payload_identity_consistency(payload)
+    status.update(payload)
+
+    assert payload["identity_consistent"] is True
+    assert payload["identity_conflicts"] == []
+    assert status["catalog_gap"] == {}
+    assert status["catalog_recovery_candidates"] == []
+
+
 def _reference_lookup_service(*results: dict) -> RecognitionService:
     service = object.__new__(RecognitionService)
     service._cards = []

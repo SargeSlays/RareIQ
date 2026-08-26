@@ -32,13 +32,16 @@ SNAPSHOT = {
 
 
 class _RecognitionState:
+    def __init__(self, snapshot=None):
+        self._snapshot = snapshot or SNAPSHOT
+
     def snapshot(self):
-        return SNAPSHOT
+        return self._snapshot
 
 
 class _Orchestrator:
-    def __init__(self, root: Path):
-        self.recognition_state = _RecognitionState()
+    def __init__(self, root: Path, snapshot=None):
+        self.recognition_state = _RecognitionState(snapshot)
         self.learning_queue = LearningQueueService(root)
         self.confirmed = None
 
@@ -66,6 +69,69 @@ def test_ranked_candidate_resolution_preserves_the_original_conflict(monkeypatch
     assert len(resolution["prior_conflicts"]) == 2
     assert fake.confirmed["operator_resolution"] == resolution
     assert result["learning"]["correction"]["resolution"] == resolution
+
+
+def test_stale_ranked_candidate_cannot_confirm_or_create_learning(monkeypatch, tmp_path):
+    fake = _Orchestrator(tmp_path / "learning")
+    monkeypatch.setattr(server, "orchestrator", fake)
+    request = server.RecognitionCandidateSelectionRequest(
+        state_id="previous-card", candidate_index=0
+    )
+
+    try:
+        asyncio.run(server.confirm_recognition_candidate(request))
+    except server.HTTPException as exc:
+        assert exc.status_code == 409
+        assert "Recognition changed" in str(exc.detail)
+    else:
+        raise AssertionError("stale candidate selection unexpectedly succeeded")
+
+    assert fake.confirmed is None
+    assert fake.learning_queue.corrections()["corrections"] == []
+
+
+def test_stale_catalog_candidate_cannot_confirm_or_create_learning(monkeypatch, tmp_path):
+    fake = _Orchestrator(tmp_path / "learning")
+    monkeypatch.setattr(server, "orchestrator", fake)
+    request = server.RecognitionCatalogSelectionRequest(
+        state_id="previous-card",
+        candidate={
+            "id": "correct-card",
+            "collector_number": "029/084",
+            "language": "Simplified Chinese",
+        },
+    )
+
+    try:
+        asyncio.run(server.confirm_recognition_catalog_candidate(request))
+    except server.HTTPException as exc:
+        assert exc.status_code == 409
+        assert "Recognition changed" in str(exc.detail)
+    else:
+        raise AssertionError("stale catalog selection unexpectedly succeeded")
+
+    assert fake.confirmed is None
+    assert fake.learning_queue.corrections()["corrections"] == []
+
+
+def test_catalog_correction_requires_a_stable_identity(monkeypatch, tmp_path):
+    fake = _Orchestrator(tmp_path / "learning")
+    monkeypatch.setattr(server, "orchestrator", fake)
+    request = server.RecognitionCatalogSelectionRequest(
+        state_id="state-review-1",
+        candidate={"name": "Unstable search result"},
+    )
+
+    try:
+        asyncio.run(server.confirm_recognition_catalog_candidate(request))
+    except server.HTTPException as exc:
+        assert exc.status_code == 422
+        assert "stable identity" in str(exc.detail)
+    else:
+        raise AssertionError("identity-free catalog selection unexpectedly succeeded")
+
+    assert fake.confirmed is None
+    assert fake.learning_queue.corrections()["corrections"] == []
 
 
 def test_learning_correction_audit_survives_disk_round_trip(tmp_path):

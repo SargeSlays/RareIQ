@@ -474,6 +474,34 @@ def test_verified_unified_state_clears_legacy_candidate_provisional_flag():
     assert card["identity_authoritative"] is True
 
 
+def test_current_recognition_card_does_not_fabricate_missing_market_value():
+    obj = coordinator()
+    obj.catalog.status = lambda: {}
+    obj.recognition_state = SimpleNamespace(refresh=lambda **_kwargs: {
+        "primary_candidate": {
+            "id": "me5-53",
+            "name": "Nickit",
+            "collector_number": "53/84",
+            "set_id": "me5",
+            "set_name": "Pitch Black",
+            "language": "English",
+            "fused_score": 0.81,
+        },
+        "recognition_locked": True,
+        "verification_state": "VERIFIED",
+        "identity_consistent": True,
+        "result_current": True,
+        "has_reference_evidence": True,
+        "revision": 4,
+    })
+
+    card = obj._current_recognition_card()
+
+    assert card["market_price"] is None
+    assert card["raw_market"] is None
+    assert card["raw_value"] is None
+
+
 def test_review_candidate_is_not_retained_as_current_card() -> None:
     obj = coordinator()
     obj._recognition_generation = 1
@@ -576,6 +604,71 @@ def test_out_of_order_result_is_ignored():
     obj = coordinator(); obj._recognition_generation = 5
     obj._apply_recognition_pipeline_update({"generation": 4, "candidates": [{"id": "stale"}]})
     assert obj.recognition_state.snapshot()["candidates"] == []
+
+
+def test_extended_card_session_keeps_generations_monotonic_and_journal_bounded():
+    obj = coordinator()
+    obj.sessions = SessionDouble()
+    obj._emit_from_thread = lambda _event: None
+    completed_generations = []
+
+    for cycle in range(100):
+        visible_frame = cycle * 4 + 1
+        capture_frame = visible_frame + 1
+        obj._observe_card_tracking({
+            "visible": True,
+            "stable": False,
+            "frame_id": visible_frame,
+        })
+        obj._observe_card_tracking({
+            "visible": True,
+            "stable": True,
+            "frame_id": capture_frame,
+        })
+        epoch = obj._current_acquisition_epoch
+        obj._submit_captured_card(capture_payload(
+            obj,
+            frame_id=capture_frame,
+            epoch=epoch,
+        ))
+        generation = obj._recognition_generation
+        obj._current_recognition_card = lambda generation=generation: {
+            "id": f"card-{generation}",
+            "card_name": f"Card {generation}",
+            "identity_authoritative": True,
+        }
+        obj._apply_recognition_pipeline_update({
+            "generation": generation,
+            "frame_id": capture_frame,
+            "candidates": [{"id": f"card-{generation}"}],
+        })
+        completed_generations.append(generation)
+
+        # A late completion from the preceding card must never replace the
+        # current generation during a long-running operator session.
+        if generation > 1:
+            obj._apply_recognition_pipeline_update({
+                "generation": generation - 1,
+                "frame_id": capture_frame - 2,
+                "candidates": [{"id": "obsolete"}],
+            })
+
+        obj._confirm_card_removed({"frame_id": capture_frame + 1})
+        assert obj._continuous_state == "EMPTY"
+        assert obj.recognition_state.snapshot()["candidates"] == []
+
+    # Each capture starts an odd-numbered recognition generation and each
+    # confirmed removal advances once more to invalidate the removed card.
+    assert completed_generations == list(range(1, 200, 2))
+    assert obj._recognition_generation == 200
+    assert obj._recognition_submit_count == 100
+    assert obj._recognition_duplicate_count == 0
+    assert len(obj.sessions.cards) == 100
+    assert len(obj._diagnostic_journal) == 64
+    assert all(
+        later > earlier
+        for earlier, later in zip(completed_generations, completed_generations[1:])
+    )
 
 
 def test_fragmented_outer_card_reaches_lock_with_full_card_crop():

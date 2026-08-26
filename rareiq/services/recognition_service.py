@@ -591,6 +591,50 @@ class RecognitionService:
             ),
         )[:max(1, int(limit))]
 
+    def _verify_identifier_visual_candidates(
+        self,
+        card: np.ndarray,
+        identifier_candidates: list[dict[str, Any]],
+        existing_artwork_candidates: list[dict[str, Any]],
+        *,
+        limit: int = 4,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        """Verify the late exact-collector shortlist against the live crop.
+
+        Auto-set recognition learns the printed collector fraction after the
+        initial artwork search has already run. The global-index result is
+        useful for retrieval, but it does not earn visual authority until the
+        bounded shortlist passes the same direct-image verifier used by the
+        artwork index.
+        """
+        if not identifier_candidates or not hasattr(
+            self.artwork_index, "search_hinted"
+        ):
+            return list(existing_artwork_candidates), {
+                "ok": True,
+                "matches": [],
+                "hint_hits": 0,
+            }
+        try:
+            result = self.artwork_index.search_hinted(
+                card,
+                identifier_candidates,
+                limit=max(1, int(limit)),
+            )
+        except Exception as exc:
+            return list(existing_artwork_candidates), {
+                "ok": False,
+                "matches": [],
+                "hint_hits": 0,
+                "error": str(exc),
+            }
+        verified = list(result.get("matches") or [])
+        return self._merge_reference_matches(
+            verified,
+            existing_artwork_candidates,
+            limit=10,
+        ), result
+
     @classmethod
     def _variant_family_ambiguous(
         cls,
@@ -667,6 +711,20 @@ class RecognitionService:
             )
 
         return normalized(left) == normalized(right)
+
+    @staticmethod
+    def _decision_confidence(
+        fused_evidence_confidence: float,
+        candidate_fused_score: float,
+    ) -> float:
+        """Use the same final confidence for lock decisions and presentation."""
+        return round(
+            max(
+                float(fused_evidence_confidence or 0.0),
+                float(candidate_fused_score or 0.0),
+            ),
+            4,
+        )
 
     @staticmethod
     def _variant_fast_path_is_ocr_safe(evidence: dict[str, Any] | None) -> bool:
@@ -2239,6 +2297,14 @@ class RecognitionService:
         payload: dict[str, Any],
     ) -> None:
         """Keep observed OCR evidence separate from the selected catalog record."""
+        # Catalog-gap evidence belongs to one completed recognition result.
+        # RecognitionService retains status telemetry between jobs, so publish
+        # explicit empty values before recomputing identity consistency.  A
+        # later conflicting result may replace them through
+        # _apply_catalog_gap_result; a consistent result must clear any older
+        # recovery query instead of inheriting it through ``dict.update``.
+        payload["catalog_gap"] = {}
+        payload["catalog_recovery_candidates"] = []
         candidates = [
             item for item in payload.get("candidates") or []
             if isinstance(item, dict)
@@ -3886,6 +3952,42 @@ class RecognitionService:
                             if str(item.get("id") or "") not in known_ids
                         ],
                     ]
+                    identifier_verification_started = time.perf_counter()
+                    (
+                        artwork_candidates,
+                        identifier_verification_result,
+                    ) = self._verify_identifier_visual_candidates(
+                        prepared_card,
+                        identifier_visual_candidates,
+                        list(artwork_candidates),
+                        limit=4,
+                    )
+                    artwork_result["matches"] = artwork_candidates
+                    artwork_top_score = (
+                        float(artwork_candidates[0].get("score", 0.0))
+                        if artwork_candidates
+                        else 0.0
+                    )
+                    identifier_verified = list(
+                        identifier_verification_result.get("matches") or []
+                    )
+                    stage_timings["identifier_verification_ms"] = round(
+                        (
+                            time.perf_counter()
+                            - identifier_verification_started
+                        )
+                        * 1000,
+                        1,
+                    )
+                    stage_timings["identifier_verification_hits"] = len(
+                        identifier_verified
+                    )
+                    stage_timings["identifier_verification_strong"] = sum(
+                        1
+                        for candidate in identifier_verified
+                        if candidate.get("verification_strong")
+                        and not candidate.get("retrieval_only")
+                    )
 
             if (
                 not validated_number
@@ -4310,6 +4412,16 @@ class RecognitionService:
                 - second_fused
             )
 
+            # Candidate ranking may add exact collector, language, and direct
+            # geometry evidence that is unavailable to the earlier coarse
+            # fusion pass. Apply that final score before evaluating the lock so
+            # the lock gate and the confidence shown to operators cannot
+            # disagree about the same evidence.
+            overall_confidence = self._decision_confidence(
+                overall_confidence,
+                top_fused,
+            )
+
             artwork_locked = (
                 top_source
                 in {
@@ -4414,17 +4526,6 @@ class RecognitionService:
                     "exact reconciled printed collector number",
                     f"strong visual reference {top_visual:.3f}",
                 ]
-
-            if candidates:
-                overall_confidence = round(
-                    max(
-                        float(
-                            overall_confidence
-                        ),
-                        top_fused,
-                    ),
-                    4,
-                )
 
             if artwork_locked:
                 lock_reasons = [
