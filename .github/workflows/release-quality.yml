@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - master
+      - "codex/**"
       - "sprint/**"
       - "release/**"
   workflow_dispatch:

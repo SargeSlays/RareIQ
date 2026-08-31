@@ -1,5 +1,7 @@
 # Local configuration and credentials
 storage_config.json
+trading_config.json
+obs_settings.json
 rareiq_secrets*.json
 !rareiq_secrets.example.json
 .env
@@ -29,6 +31,7 @@ __pycache__/
 
 # Local environments and generated test/runtime output
 .venv/
+.tmp/
 .pytest_cache/
 artifacts/
 backups/
