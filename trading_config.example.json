@@ -1,0 +1,28 @@
+{
+  "mode": "research",
+  "strategy": "sma_regime",
+  "symbol": "SPY",
+  "allowed_symbols": [
+    "SPY"
+  ],
+  "starting_cash": 100.0,
+  "managed_equity_ceiling": 125.0,
+  "max_position_fraction": 0.25,
+  "rebalance_drift_fraction": 0.02,
+  "max_order_fraction": 0.1,
+  "cash_buffer_fraction": 0.1,
+  "daily_loss_limit_fraction": 0.01,
+  "max_drawdown_fraction": 0.08,
+  "entry_probability": 0.58,
+  "exit_probability": 0.48,
+  "prediction_horizon_bars": 5,
+  "minimum_training_samples": 160,
+  "training_window_bars": 756,
+  "retrain_every_bars": 1,
+  "return_hurdle_bps": 20.0,
+  "slippage_bps": 10.0,
+  "fee_bps": 0.5,
+  "history_calendar_days": 2200,
+  "data_feed": "iex",
+  "runtime_directory": "runtime/trading"
+}
