@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RareIQ Label Probe · Offline test</title>
+  <link rel="stylesheet" href="popup.css">
+  <script src="core.js" defer></script>
+  <script src="self_test.js" defer></script>
+</head>
+<body>
+  <header><span class="eyebrow">RARE IQ · LAB</span><span class="badge">SYNTHETIC</span></header>
+  <h1>Offline DOM test</h1>
+  <p>Tests the parser and observer with synthetic rendered rows. No TikTok connection, alerts or account data.</p>
+  <button id="run" class="primary">Run offline tests</button>
+  <section><strong id="result" role="status">Ready</strong><p id="details">The extension's Chrome permissions are not exercised by this offline test.</p></section>
+  <section aria-label="Synthetic chat" data-e2e="live-chat-container"></section>
+</body>
+</html>

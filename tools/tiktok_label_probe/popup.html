@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RareIQ LIVE Label Probe</title>
+  <link rel="stylesheet" href="popup.css">
+  <script src="core.js" defer></script>
+  <script src="popup.js" defer></script>
+</head>
+<body>
+  <header><span class="eyebrow">RARE IQ · LAB</span><span class="badge">OFF AIR</span></header>
+  <h1>LIVE label probe</h1>
+  <p>Inspect chat, joins, follows, gift and Fan Club notices in this LIVE tab. Nothing is sent to RareIQ or OBS.</p>
+  <section aria-label="Collector status">
+    <strong id="status" role="status">Ready to inspect</strong>
+    <p id="detail">Click Start on a LIVE page. Closing this popup does not stop collection.</p>
+    <dl><div><dt>Observed</dt><dd id="observed">0</dd></div><div><dt>Buffered</dt><dd id="buffered">0</dd></div>
+      <div><dt>Ambiguous repeats</dt><dd id="ambiguous">0</dd></div><div><dt>Coverage gaps</dt><dd id="gaps">0</dd></div></dl>
+  </section>
+  <div class="actions"><button id="start" class="primary">Start inspection</button><button id="stop">Stop</button></div>
+  <p class="warning">Names are not verified IDs. Gift counts are display snapshots—not totals. Likes and Super Fans are unmapped. No live actions.</p>
+  <label><input type="checkbox" id="includeText"> Include names, chat and notices in export</label>
+  <p class="hint">Off by default. Exports are diagnostic observations, not trusted platform events. Memory only; newest 500 records retained.</p>
+  <div class="actions"><button id="export">Export JSON</button><button id="clear">Clear observations</button></div>
+</body>
+</html>

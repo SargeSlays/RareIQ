@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "RareIQ LIVE Label Probe",
+  "version": "0.3.0",
+  "description": "Opt-in, off-air inspection of TikTok LIVE chat, joins, follows, gift and Fan Club notices. No relay or live alerts.",
+  "permissions": ["activeTab", "scripting"],
+  "action": {"default_title": "RareIQ LIVE Label Probe", "default_popup": "popup.html"}
+}
