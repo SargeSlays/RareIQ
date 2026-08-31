@@ -7,4 +7,3 @@ trading-card application so research code cannot accidentally affect Studio X.
 from rareiq.trading.config import TradingConfig
 
 __all__ = ["TradingConfig"]
-
