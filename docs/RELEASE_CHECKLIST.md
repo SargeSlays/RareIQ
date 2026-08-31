@@ -13,6 +13,7 @@ If Node.js is not on `PATH`, provide its executable explicitly with `--node`.
 
 The gate verifies:
 
+- repository credential hygiene and untracked-source whitespace before staging
 - installed dependency integrity
 - Python syntax without writing bytecode
 - JavaScript syntax, including inline scripts in shipped HTML
@@ -20,6 +21,10 @@ The gate verifies:
 - isolated JavaScript behavior tests for browser-source/replay recovery, soundboard playback, recording controls, and microphone lifecycle
 - working-tree and staged whitespace
 - the complete canonical `tests/` suite
+
+Repository work must also follow the owner-aligned operating baseline in
+[`AGENTS.md`](../AGENTS.md), including product boundaries, live-production safety,
+visual QA, regression memory, checkpoints, and backups.
 
 The gate does not require cameras, API credentials, an artwork index, captures, catalog caches, or other runtime data. GitHub Actions runs the same command on Windows for pull requests and protected development/release branches.
 

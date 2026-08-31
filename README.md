@@ -1,5 +1,8 @@
 # RareIQ Studio X 6.4.18-dev — WAR Build Foundation
 
+Repository agents must follow the project-management and quality baseline in
+[`AGENTS.md`](AGENTS.md) before changing RareIQ.
+
 RareIQ is a live trading-card recognition and production workspace. The current development foundation combines:
 
 - High-resolution camera capture, normalized ROI detection, and rectified card crops
