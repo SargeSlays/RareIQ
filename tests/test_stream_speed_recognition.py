@@ -3,6 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from rareiq.services.recognition_service import RecognitionService
 
@@ -775,7 +776,7 @@ def test_decisive_footer_identifier_accepts_strong_single_read():
 
 def test_early_footer_fast_pass_uses_two_complementary_variants():
     service = RecognitionService(lambda _event: None)
-    service._engine = lambda _image: SimpleNamespace(
+    service._engine = lambda _image, **_kwargs: SimpleNamespace(
         txts=[], scores=[], boxes=[]
     )
     card = np.zeros((1400, 1000, 3), dtype=np.uint8)
@@ -807,7 +808,7 @@ def test_tight_printed_code_region_excludes_attack_and_weakness_rows():
 def test_batched_footer_canvas_caps_high_resolution_width():
     service = RecognitionService(lambda _event: None)
     observed_shapes = []
-    service._engine = lambda image: (
+    service._engine = lambda image, **_kwargs: (
         observed_shapes.append(image.shape)
         or SimpleNamespace(txts=[], scores=[], boxes=[])
     )
@@ -1465,8 +1466,28 @@ def test_visual_interim_publishes_before_background_enrichment():
     assert payload["background_enrichment"] is True
     assert payload["recognition_path"] == "visual-interim"
     assert payload["candidates"][0]["canonical_name"] == "Crocalor"
+    assert payload["interim_candidate"] is None
+    assert payload["has_reference_evidence"] is False
     assert payload["exact_reference_diagnostics"]["score_gap"] == 5.2
     assert service.status()["busy"] is True
+
+
+def test_visual_interim_exposes_eligible_reference_separately_from_raw_retrieval():
+    events = []
+    service = RecognitionService(events.append)
+    wrong = {"canonical_name": "Vulpix", "source": "global_visual_index", "score": .95}
+    eligible = {"canonical_name": "Armarouge", "source": "pokipair", "score": .78}
+    service._publish_visual_interim(
+        generation=0, frame_id=1, source="six-card-grid", candidates=[wrong, eligible],
+        fingerprint="test", resolution={}, started=time.perf_counter(), stage_timings={},
+    )
+    payload = events[-1]["payload"]
+    assert payload["candidates"][0] == wrong
+    assert payload["interim_candidate"] == eligible
+    assert payload["name_candidate"] == "Armarouge"
+    assert payload["overall_confidence"] == .78
+    assert payload["has_reference_evidence"] is True
+    assert payload["recognition_locked"] is False
 
 
 def test_global_visual_candidate_publishes_before_exhaustive_artwork_search(monkeypatch):
@@ -1534,18 +1555,34 @@ def test_multi_card_source_publishes_cached_visual_candidate_before_slow_stages(
     assert interim["candidates"][0]["canonical_name"] == "Crocalor"
 
 
-def test_multi_card_ocr_uses_one_footer_call_and_skips_top_and_full(monkeypatch):
+@pytest.mark.parametrize("footer_text,retry_text,supported,expected_sources", [
+    ("012/084", None, True, []),
+    (None, "012/084", True, ["collector_retry"]),
+    (None, None, True, ["collector_retry", "top"]),
+    ("029/064", "012/084", True, ["collector_retry"]),
+    ("029/064", None, True, ["collector_retry", "top"]),
+    ("012/084", None, False, ["collector_retry", "top"]),
+    (None, "012/084", False, ["collector_retry", "top"]),
+])
+def test_multi_card_ocr_retries_unsupported_footer_without_exhaustive_pass(monkeypatch, footer_text, retry_text, supported, expected_sources):
     service = RecognitionService(lambda event: None)
     service.global_visual_index = SimpleNamespace(search_image=lambda frame, limit: {
         "matches": [], "latency_ms": 0.1,
     })
     monkeypatch.setattr(service.artwork_index, "search", lambda *args, **kwargs: {
-        "matches": [], "query_fingerprint": None,
+        "matches": [_candidate(.80, collector_number="12/84", verification_strong=True)] if supported else [],
+        "query_fingerprint": None,
     })
     general_calls = []
     footer_calls = []
-    monkeypatch.setattr(service, "_run_ocr", lambda *args, **kwargs: general_calls.append(args) or [])
-    monkeypatch.setattr(service, "_run_collector_ocr_batched", lambda *args, **kwargs: footer_calls.append((args, kwargs)) or ([], []))
+    def general_ocr(image, source, *args):
+        general_calls.append(source)
+        text = "Slowpoke" if source == "top" else retry_text
+        return [{"text": text, "score": .96, "source": source}] if text else []
+
+    monkeypatch.setattr(service, "_run_ocr", general_ocr)
+    monkeypatch.setattr(service, "_run_collector_ocr_batched", lambda *args, **kwargs: footer_calls.append((args, kwargs)) or (
+        [{"text": footer_text, "score": .95, "source": "collector_frame_0"}] if footer_text else [], []))
     monkeypatch.setattr(service, "_annotate_reference_identifiers", lambda *args, **kwargs: (
         _ for _ in ()
     ).throw(AssertionError("grid workers must not OCR catalog reference images")))
@@ -1558,9 +1595,110 @@ def test_multi_card_ocr_uses_one_footer_call_and_skips_top_and_full(monkeypatch)
 
     assert len(footer_calls) == 1
     assert footer_calls[0][1]["max_variants"] == 1
-    assert general_calls == []
-    assert service.status()["stage_timings"]["ocr_mode"] == "single-shot-footer"
+    assert general_calls == expected_sources
+    assert service.status()["stage_timings"]["ocr_mode"] == ("single-shot-footer" if not general_calls else "bounded-grid-retry")
     assert "reference_identifier" in service.status()["stage_timings"]["skipped_stages"]
+    if "top" in expected_sources:
+        assert service.status()["name_candidate"] == "Slowpoke"
+    if "collector_retry" in expected_sources:
+        assert service.status()["stage_timings"]["collector_retry_reason"] == (
+            "unsupported_footer" if footer_text else "missing_footer"
+        )
+
+
+@pytest.mark.parametrize("footer,retry,strong,expected_ocr,expected_lookups", [
+    ("012/084", None, True, [], ["012/084"]),
+    ("012/084", None, False, ["collector_retry", "top"], ["012/084"]),
+    ("029/064", "012/084", True, ["collector_retry", "top"], ["029/064", "012/084"]),
+])
+def test_grid_footer_preflight_reuses_only_this_crops_exact_lookup(monkeypatch, footer, retry, strong, expected_ocr, expected_lookups):
+    service = RecognitionService(lambda event: None)
+    lookups, verifications, ocr = [], [], []
+    candidate = _candidate(.82, card_id="me5-12", name="Armarouge", collector_number="12/84")
+    def retrieve(frame, limit, **kwargs):
+        identifier = kwargs.get("collector_number")
+        if identifier:
+            lookups.append(identifier)
+        return {"matches": [candidate] if identifier == "012/084" else []}
+    def verify(frame, candidates, **kwargs):
+        if not candidates:
+            return {"matches": []}
+        verifications.append(candidates)
+        return {"matches": [{**candidate, "verification_strong": strong, "retrieval_only": not strong}]}
+    def read(frame, source, *args):
+        ocr.append(source)
+        return [{"text": retry, "score": .99, "source": source}] if source == "collector_retry" and retry else []
+    service.global_visual_index = SimpleNamespace(search_image=retrieve)
+    monkeypatch.setattr(service.artwork_index, "search", lambda *args, **kwargs: {"matches": []})
+    monkeypatch.setattr(service.artwork_index, "search_hinted", verify)
+    monkeypatch.setattr(service, "_run_collector_ocr_batched", lambda *args, **kwargs: (
+        [{"text": footer, "score": .94, "source": "collector_frame_0"}], []))
+    monkeypatch.setattr(service, "_run_ocr", read)
+    service._recognize_worker(np.zeros((700, 500, 3), dtype=np.uint8), generation=0, source="six-card-grid")
+    assert ocr == expected_ocr
+    assert lookups == expected_lookups
+    assert len(verifications) == 1  # never repeat direct verification at final ranking
+    assert service.status()["stage_timings"]["identifier_lookup_reused"] is (len(lookups) == 1)
+
+
+@pytest.mark.parametrize("identifier,candidate,expected", [
+    ("029/084", {"collector_number": "29/84", "verification_strong": True}, True),
+    ("029/064", {"collector_number": "29/84", "verification_strong": True}, False),
+    ("029/084", {"collector_number": "29/84", "score": .99}, False),
+    ("029/084", {"collector_number": "29/84", "verification_strong": True, "retrieval_only": True}, False),
+    ("029/084", {"collector_number": "29/84", "verification_strong": True, "provisional_reference": True}, False),
+    ("0201/09", {"printed_code": "0201/09", "verification_strong": True}, True),
+    (None, {"collector_number": "29/84", "verification_strong": True}, False),
+])
+def test_grid_footer_support_requires_independent_matching_reference(identifier, candidate, expected):
+    assert RecognitionService._footer_has_visual_support(identifier, [candidate]) is expected
+
+
+@pytest.mark.parametrize("text,score,source,strong,retrieval,number,expected,kind", [
+    ("0297084", .99, "collector_retry", True, False, None, "029/084", "separator"),
+    ("0291084", .99, "collector_retry", True, False, None, "029/084", "separator"),
+    ("029/084", .81, "collector_retry", True, False, "029/064", "029/084", "observed_alternative"),
+    ("0297084", .99, "collector_retry", False, False, None, None, None),
+    ("0297084", .99, "collector_retry", True, True, None, None, None),
+    ("0297084", .50, "collector_retry", True, False, None, None, None),
+    ("0297084", .99, "top", True, False, None, None, None),
+    ("Serial 0297084", .99, "collector_retry", True, False, None, None, None),
+    ("029/064", .99, "collector_retry", True, False, "029/064", "029/064", None),
+    ("0297044", .99, "collector_retry", True, False, None, None, None),
+    ("029084", .99, "collector_retry", True, False, None, None, None),
+])
+def test_grid_footer_recovery_needs_observed_digits_and_direct_reference(text, score, source, strong, retrieval, number, expected, kind):
+    service = object.__new__(RecognitionService)
+    reference = _candidate(.88, card_id="me5-29", name="Slowpoke", collector_number="29/84",
+                           verification_strong=strong, retrieval_only=retrieval)
+    calls = []
+    service.global_visual_index = SimpleNamespace(search_image=lambda crop, **kwargs: (
+        calls.append(kwargs) or {"matches": [reference]}))
+    service.artwork_index = _HintedArtworkIndex({"matches": [reference]})
+    items = [{"text": text, "score": score, "source": source}]
+    recovered, candidates, diagnostics = service._recover_grid_footer(
+        np.zeros((10, 10, 3), dtype=np.uint8), "Slowpoke", items, number, [],
+    )
+    assert recovered == expected
+    assert diagnostics.get("footer_recovery_kind") == kind
+    assert calls == [{"limit": 8, "card_name": "Slowpoke"}]
+    assert service.artwork_index.calls[0][2] == 4
+    assert items[0]["text"] == text  # Never rewrite the original observation.
+
+
+def test_grid_footer_recovery_does_not_choose_between_two_supported_fractions():
+    service = object.__new__(RecognitionService)
+    candidates = [_candidate(.9, card_id=number, collector_number=number, verification_strong=True)
+                  for number in ("29/84", "29/64")]
+    service.global_visual_index = SimpleNamespace(search_image=lambda *args, **kwargs: {"matches": candidates})
+    service.artwork_index = _HintedArtworkIndex({"matches": candidates})
+    number, _, diagnostics = service._recover_grid_footer(
+        np.zeros((10, 10, 3), dtype=np.uint8), "Slowpoke",
+        [{"text": value, "score": .99, "source": "collector_retry"} for value in ("029/084", "029/064")],
+        "029/064", [],
+    )
+    assert number == "029/064"
+    assert "footer_recovery_kind" not in diagnostics
 
 
 def test_recent_family_cache_requires_two_strong_local_references():

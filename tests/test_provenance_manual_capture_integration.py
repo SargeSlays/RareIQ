@@ -5,6 +5,7 @@ import hashlib
 import json
 
 import numpy as np
+import pytest
 
 from rareiq.services.provenance_capture_service import ProvenanceCaptureService
 from rareiq.web import server
@@ -80,3 +81,68 @@ def test_manual_endpoint_without_frame_returns_explicit_failure(tmp_path, monkey
     assert payload["captured"] is False
     assert payload["reason"] == "capture_failed"
     assert capture.list_events() == []
+
+
+@pytest.mark.parametrize("settings", [{"captureTypes": 42}, {"minimumConfidence": float("inf")}])
+def test_settings_endpoint_rejects_invalid_nested_configuration(tmp_path, monkeypatch, settings):
+    capture = _service(tmp_path / "provenance", _active_frame)
+    monkeypatch.setattr(server, "provenance_capture", capture)
+    response = asyncio.run(server.update_provenance_settings(server.ProvenanceSettingsRequest(settings=settings)))
+    assert response.status_code == 422
+    assert json.loads(response.body)["error"] == "invalid_settings"
+    assert capture.settings()["enabled"] is False
+
+
+def test_settings_disk_failure_is_structured_and_keeps_previous_settings(tmp_path, monkeypatch):
+    capture = _service(tmp_path / "provenance", _active_frame)
+    before = capture.save_settings({"customerId": "existing-customer"})
+    monkeypatch.setattr(server, "provenance_capture", capture)
+
+    def disk_full(*_args):
+        raise OSError("settings disk full")
+
+    monkeypatch.setattr(capture, "_atomic_json", disk_full)
+    response = asyncio.run(server.update_provenance_settings(server.ProvenanceSettingsRequest(enabled=True)))
+    assert response.status_code == 409
+    assert json.loads(response.body)["error"] == "settings_save_failed"
+    assert capture.settings() == before
+
+
+def test_correction_disk_failure_is_structured_and_preserves_original(tmp_path, monkeypatch):
+    capture = _service(tmp_path / "provenance", _active_frame)
+    original = capture.capture()["event"]
+    monkeypatch.setattr(server, "provenance_capture", capture)
+
+    def disk_full(_fd):
+        raise OSError("revision disk full")
+
+    monkeypatch.setattr("rareiq.services.provenance_capture_service.os.fsync", disk_full)
+    response = asyncio.run(server.correct_provenance_event(
+        original["event_id"], server.ProvenanceCorrectionRequest(identity={"english_name": "Not saved"})
+    ))
+    assert response.status_code == 409
+    assert json.loads(response.body)["error"] == "correction_save_failed"
+    assert capture.list_events() == [original]
+
+
+def test_capture_read_asset_and_correction_endpoints_round_trip(tmp_path, monkeypatch):
+    capture = _service(tmp_path / "provenance", _active_frame)
+    monkeypatch.setattr(server, "provenance_capture", capture)
+    monkeypatch.setattr(server.orchestrator.recognition_state, "snapshot", lambda: {"generation": 12})
+    result = asyncio.run(server.capture_provenance_screenshot())
+    event_id = result["eventId"]
+    original = asyncio.run(server.provenance_event(event_id))["event"]
+    asset = original["assets"][0]
+    response = asyncio.run(server.provenance_asset(event_id, asset["asset_id"]))
+    assert response.path.read_bytes() == (capture.root / asset["relative_path"]).read_bytes()
+    assert response.headers["cache-control"] == "private, no-store"
+    revision = asyncio.run(server.correct_provenance_event(
+        event_id,
+        server.ProvenanceCorrectionRequest(identity={"english_name": "Operator correction"}, reason="Reviewed evidence"),
+    ))["revision"]
+    assert revision["revision_of"] == event_id
+    assert revision["identity"]["english_name"] == "Operator correction"
+    assert asyncio.run(server.provenance_event(event_id))["event"] == original
+    assert len(asyncio.run(server.provenance_events())["events"]) == 2
+    assert asyncio.run(server.provenance_event("missing")).status_code == 404
+    assert asyncio.run(server.provenance_asset(event_id, "missing")).status_code == 404

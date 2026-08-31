@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RareIQ · Set Chase Studio</title>
+  <link rel="stylesheet" href="/static/set_chase_editor.css?v=20260831-6">
+  <script src="/static/set_chase_state.js?v=20260830-1" defer></script>
+  <script src="/static/set_chase_editor.js?v=20260831-6" defer></script>
+</head>
+<body>
+  <header class="editor-heading"><div><span class="eyebrow">BROWSER SOURCE / SET CHASE</span><h1>Give the chase its own stage.</h1><p>Full cards. Set-inspired color. Your hit list, in rotation.</p></div><div class="output-health"><span id="airState" class="air-state">Checking output</span><p id="outputStatus">Checking browser source…</p></div></header>
+  <p id="syncStatus" class="sync-status" role="status" hidden></p>
+  <section class="preview-area" aria-label="Saved draft preview">
+    <div class="section-heading"><strong>Saved draft preview</strong><span id="previewStatus">Saved draft only · not the live output</span></div>
+    <iframe id="preview" src="/overlay/set-chase?preview=1&amp;v=20260831-2" title="Set Chase draft preview"></iframe>
+    <div class="source-row"><code id="sourceUrl"></code><button id="copySource" type="button">Copy source URL</button><a href="/overlay/set-chase" target="_blank" rel="noopener">Open live source ↗</a></div>
+    <p class="hint">OBS browser source: 1280 × 320 (4 cards), or 1080 × 320 (3 cards). Transparent outside the strip; silent. Scale and place it anywhere in your scene.</p>
+  </section>
+  <div class="editor-columns">
+    <section class="panel">
+      <div class="section-heading"><div><span class="eyebrow">01 / PICK THE SET</span><h2>Set & atmosphere</h2></div></div>
+      <label>Filter catalog sets<input id="setFilter" type="search" placeholder="Set name, code or language"></label>
+      <label>Set / language<select id="setPicker" disabled><option>Loading local catalog…</option></select></label>
+      <button id="useSet" type="button" disabled>Use selected set</button>
+      <p class="hint">Changing sets clears the editor’s card list. Your saved draft and live strip stay unchanged until you save or publish.</p>
+      <p id="selectedSet" class="selected-set">No set selected</p>
+      <div class="fields"><label>Atmosphere<select id="theme"><option value="auto">Auto · inspired by set name</option><option value="midnight">Midnight · violet / ice</option><option value="prism">Prism · rose / aqua</option><option value="ember">Ember · coral / gold</option><option value="electric">Electric · gold / blue</option><option value="forest">Forest · mint / lime</option><option value="ocean">Ocean · ice / lavender</option></select></label><label>Cards per page<select id="pageSize"><option value="4">4 cards</option><option value="3">3 cards</option></select></label><label>Seconds per page<input id="duration" type="number" min="4" max="30" step="1" value="8"></label></div>
+      <label class="check"><input id="customColors" type="checkbox"> Custom set colors</label>
+      <div class="fields colors"><label>Primary accent<input id="accent" type="color" value="#8be8ca"></label><label>Secondary accent<input id="secondary" type="color" value="#c6e98a"></label></div>
+      <p class="hint">Themes are artistic presets, not official set branding. Customize both accents for an exact match.</p>
+    </section>
+    <section class="panel">
+      <div class="section-heading"><div><span class="eyebrow">02 / CURATE THE CHASE</span><h2>Find the cards</h2></div></div>
+      <form id="searchForm" class="catalog-search">
+        <div class="search-fields">
+          <label>Name or collector number<input id="cardQuery" type="search" maxlength="120" placeholder="Name or card #" disabled></label>
+        </div>
+        <fieldset id="rarityFilter" class="rarity-filter" disabled aria-describedby="raritySummary">
+          <legend>Rarity levels</legend>
+          <div class="rarity-heading"><span id="raritySummary">Choose a set to see rarity levels.</span><div class="rarity-actions"><button id="allRarities" type="button">All rarities</button><button id="clearRarities" type="button">Clear selection</button></div></div>
+          <div id="rarityOptions" class="rarity-options"></div>
+        </fieldset>
+        <div class="search-actions"><button id="searchCards" type="submit" disabled>Search catalog</button><button id="clearFilters" type="button" disabled>Reset filters</button></div>
+      </form>
+      <p id="searchStatus" class="hint" role="status">Choose a set to browse its catalog cards.</p>
+      <div id="catalogResults" class="catalog-results" aria-label="Catalog search results" aria-busy="false"></div>
+      <p class="hint">Select one or more rarity levels. The highest tier is selected by default; Reset filters returns to it. Catalog tiers—not prices or pull odds. Unlisted means no catalog rarity.</p>
+      <p class="hint">“Case hits” and “Top hits” are operator-curated groups—not guaranteed pull rates or automatic market rankings. Import missing cards/artwork through Library.</p>
+    </section>
+  </div>
+  <section class="panel rotation-panel">
+    <div class="section-heading"><div><span class="eyebrow">03 / SET THE ORDER</span><h2>Your rotation</h2></div><span id="rotationCount">0 cards</span></div>
+    <div class="rotation-groups"><div><h3>Case hits <span>plays first</span></h3><ol id="caseHits"></ol></div><div><h3>Top hits <span>plays next</span></h3><ol id="topHits"></ol></div></div>
+    <p class="hint">Every card appears once per loop. Empty groups are skipped. Reorder within a group using the arrow buttons; 32 cards maximum per group.</p>
+  </section>
+  <footer><p id="editorStatus" role="status">Loading settings…</p><div class="actions"><button id="reload" type="button">Reload saved</button><button id="save" type="button" disabled>Save & preview</button><button id="publish" class="primary" type="button" disabled>Publish saved draft</button><button id="hide" class="danger" type="button" disabled>Hide live strip</button></div></footer>
+  <dialog id="discardDialog" aria-labelledby="discardTitle" aria-describedby="discardMessage">
+    <span class="eyebrow">PROTECT YOUR DRAFT</span><h2 id="discardTitle">Discard editor changes?</h2>
+    <p id="discardMessage"></p>
+    <div class="actions"><button id="keepEditing" type="button" autofocus>Keep editing</button><button id="discardChanges" type="button" class="danger">Discard changes</button></div>
+  </dialog>
+</body>
+</html>

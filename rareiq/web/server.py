@@ -23,6 +23,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from starlette.requests import ClientDisconnect
 
 from rareiq.core.events import EventBus
 from rareiq.core.orchestrator import RareIQOrchestrator
@@ -31,9 +32,14 @@ from rareiq.core.storage import storage
 from rareiq.services.provenance_capture_service import ProvenanceCaptureService
 from rareiq.services.spotify_service import spotify
 from rareiq.services.instant_replay_service import InstantReplayService
+from rareiq.services.auto_clip_service import AutoClipService
 from rareiq.services.inventory_service import MAX_RECEIPT_DATA_URL_CHARS
 from rareiq.services.recording_service import RecordingService
 from rareiq.services.obs_service import ObsService
+from rareiq.services.broadcast_source_catalog import broadcast_sources
+from rareiq.services.soundboard_output_service import SoundboardOutputService
+from rareiq.services.set_chase_service import SetChaseService
+from rareiq.web.set_chase import create_set_chase_router
 from rareiq.services.broadcast_destination_service import BroadcastDestinationService
 from rareiq.services.twitch_broadcast_connector import TwitchBroadcastConnector
 from rareiq.services.youtube_broadcast_connector import YouTubeBroadcastConnector
@@ -137,6 +143,7 @@ async def lifespan(_app: FastAPI):
 
     freshness_task = asyncio.create_task(refresh_new_releases())
     instant_replay.start()
+    auto_clip.start()
     try:
         yield
     finally:
@@ -151,8 +158,10 @@ async def lifespan(_app: FastAPI):
         freshness_task.cancel()
         with suppress(asyncio.CancelledError):
             await freshness_task
-        await asyncio.to_thread(orchestrator.camera_manager.shutdown)
+        await asyncio.to_thread(auto_clip.stop)
         await asyncio.to_thread(instant_replay.stop)
+        await asyncio.to_thread(recording.stop)
+        await asyncio.to_thread(orchestrator.camera_manager.shutdown)
 
 
 app = FastAPI(title=f"RareIQ v{VERSION}", lifespan=lifespan)
@@ -321,7 +330,7 @@ def _request_body_limit(request: Request) -> int | None:
         return rule[2] if rule else None
     if request.method == "POST" and path == "/api/inventory/expenses":
         return MAX_RECEIPT_REQUEST_BYTES
-    if request.method == "POST" and path in {"/api/multi-card/select", "/api/multi-card/capture"}:
+    if request.method == "POST" and (path in {"/api/multi-card/select", "/api/multi-card/capture"} or path.startswith("/api/creator/set-chase/")):
         return MAX_CONTROL_REQUEST_BYTES
     return None
 
@@ -573,12 +582,12 @@ class PokedexOverlayRequest(BaseModel):
 
 class RareIntelligenceThemeRequest(BaseModel):
     preset: str = Field(default="rareiq", pattern="^(rareiq|minimal|broadcast|custom)$")
-    accent_color: str = Field(default="#a6e8ce", pattern="^#[0-9a-fA-F]{6}$")
-    secondary_color: str = Field(default="#4f9f83", pattern="^#[0-9a-fA-F]{6}$")
-    background_color: str = Field(default="#080d0a", pattern="^#[0-9a-fA-F]{6}$")
-    text_color: str = Field(default="#f5f2e9", pattern="^#[0-9a-fA-F]{6}$")
+    accent_color: str = Field(default="#8be8ca", pattern="^#[0-9a-fA-F]{6}$")
+    secondary_color: str = Field(default="#48b995", pattern="^#[0-9a-fA-F]{6}$")
+    background_color: str = Field(default="#18222e", pattern="^#[0-9a-fA-F]{6}$")
+    text_color: str = Field(default="#f4f7fa", pattern="^#[0-9a-fA-F]{6}$")
     panel_opacity: float = Field(default=0.96, ge=0.2, le=1.0)
-    corner_radius: int = Field(default=12, ge=0, le=60)
+    corner_radius: int = Field(default=4, ge=0, le=60)
     scale: int = Field(default=100, ge=70, le=140)
     alignment: str = Field(default="left", pattern="^(left|center|right)$")
     font: str = Field(default="inter", pattern="^(inter|system|serif|mono)$")
@@ -636,6 +645,7 @@ class InventoryCreateRequest(BaseModel):
     notes: str = ""
     allocation_group: str = Field(default="", max_length=120)
     allocation_weight: float = Field(default=1.0, ge=0.1, le=100)
+    source_event_id: str = Field(default="", max_length=160)
 
 class ManualPriceRequest(BaseModel):
     market: float = Field(ge=0)
@@ -836,6 +846,7 @@ class ProductionSessionMetadataRequest(BaseModel):
     operator_notes: str = Field(default="", max_length=1000)
 
 class StartShowRequest(ProductionSessionMetadataRequest):
+    workflow: Literal["studio", "cards"] = "studio"
     start_obs_stream: bool = False
     start_obs_recording: bool = False
 
@@ -860,8 +871,12 @@ class ObsBootstrapRequest(BaseModel):
     base_url: str = Field(min_length=1, max_length=500)
     dry_run: bool = True
 
+class ObsSourceAuditRequest(BaseModel):
+    base_url: str = Field(min_length=1, max_length=500)
+
 PRODUCTION_SWITCHER_STATE: dict[str, Any] = {"program_slot": 1, "preview_slot": 2, "transition": "fade", "duration_ms": 500, "generation": 0, "updated_at": time.time()}
 PRODUCTION_SWITCHER_LOCK = threading.RLock()
+PRODUCTION_SHOW_START_LOCK = asyncio.Lock()
 PRODUCTION_CAMERA_FRESHNESS_SECONDS = 2.0
 PRODUCTION_SCENE_PATH = BASE_DIR.parent.parent / "production_scenes.json"
 DEFAULT_PRODUCTION_SCENES = [
@@ -905,12 +920,33 @@ def _production_event(kind: str, title: str, detail: str = "") -> dict[str, Any]
     PRODUCTION_SESSION["events"].append(event); PRODUCTION_SESSION["events"] = PRODUCTION_SESSION["events"][-500:]
     _save_production_session()
     return event
-instant_replay = InstantReplayService(storage.get_path("replay_path"), orchestrator.camera_manager.slot_jpeg, lambda: int(PRODUCTION_SWITCHER_STATE["program_slot"]))
+def _replay_frame_context(slot_id: int) -> dict[str, Any]:
+    # A disconnected source may still expose its last JPEG. Never buffer it as live.
+    return next((slot for slot in orchestrator.camera_manager.camera_slots() if slot["slot_id"] == slot_id), {})
+
+
+instant_replay = InstantReplayService(storage.get_path("replay_path"), orchestrator.camera_manager.slot_jpeg, lambda: int(PRODUCTION_SWITCHER_STATE["program_slot"]), frame_context_provider=_replay_frame_context)
+auto_clip = AutoClipService(instant_replay, storage.get_path("config_path") / "auto_clip_settings.json")
+
+
+async def _evaluate_auto_clip_event(event: dict[str, Any]) -> None:
+    if event.get("type") != "recognition_update":
+        return
+    snapshot = orchestrator.recognition_state.snapshot()
+    payload = event.get("payload") or {}
+    if snapshot.get("generation") == payload.get("generation"):
+        auto_clip.observe(snapshot)
+
+
+event_bus.subscribe(_evaluate_auto_clip_event)
 recording = RecordingService(
     storage.get_path("recording_path"),
     config_path=storage.get_path("config_path") / "recording_settings.json",
 )
 obs = ObsService(BASE_DIR.parent.parent / "obs_settings.json")
+soundboard_output = SoundboardOutputService(settings_path=storage.get_path("config_path") / "soundboard_output_settings.json")
+set_chase = SetChaseService(storage.get_path("config_path") / "set_chase.json")
+app.include_router(create_set_chase_router(set_chase, orchestrator.recognition.global_visual_index, _read_bounded_json, STATIC_DIR))
 _twitch_broadcast_connector = TwitchBroadcastConnector.from_environment()
 _youtube_broadcast_connector = YouTubeBroadcastConnector.from_environment()
 _kick_broadcast_connector = KickBroadcastConnector.from_environment()
@@ -1732,7 +1768,45 @@ async def hide_production_screen():
 
 @app.get("/api/production/replay")
 async def production_replay_status():
-    return {"ok": True, **instant_replay.snapshot()}
+    return {"ok": True, **instant_replay.snapshot(), "auto_clip": auto_clip.snapshot()}
+
+
+class AutoClipSettingsRequest(BaseModel):
+    minimum_tier: Literal["standard", "low", "medium", "grail"] = "medium"
+    pre_seconds: int = Field(default=5, ge=1, le=10, strict=True)
+    post_seconds: int = Field(default=3, ge=1, le=6, strict=True)
+
+
+class AutoClipArmRequest(BaseModel):
+    enabled: bool = Field(strict=True)
+
+
+def _auto_clip_response(result: dict[str, Any]):
+    if result.get("updated"):
+        return {"ok": True, **result}
+    status = 422 if result.get("reason") == "invalid_auto_clip_settings" else 409
+    return JSONResponse(status_code=status, content={"ok": False, **result})
+
+
+@app.post("/api/production/auto-clip/settings")
+async def configure_auto_clip(request: AutoClipSettingsRequest):
+    result = await asyncio.to_thread(auto_clip.configure, request.model_dump())
+    return _auto_clip_response(result)
+
+
+@app.post("/api/production/auto-clip/arm")
+async def arm_auto_clip(request: AutoClipArmRequest):
+    current = orchestrator.recognition_state.snapshot()
+    baseline = int(current.get("generation", -1)) if auto_clip.verified(current) else -1
+    return _auto_clip_response(auto_clip.arm(request.enabled, baseline_generation=baseline))
+
+
+@app.get("/api/production/replay/{highlight_id}/download")
+async def download_replay_clip(highlight_id: str):
+    path = instant_replay.video(highlight_id)
+    if path is None:
+        return JSONResponse(status_code=404, content={"ok": False, "reason": "clip_video_not_found"})
+    return FileResponse(path, media_type="video/mp4", filename=f"RareIQ-{highlight_id}.mp4", headers={"Cache-Control": "no-store"})
 
 @app.post("/api/production/replay/mark")
 async def mark_production_replay(request: ReplayMarkRequest):
@@ -1806,11 +1880,14 @@ async def upload_creator_asset(request: Request):
             status_code=413,
             content={"ok": False, "created": False, "reason": "asset_too_large", "max_bytes": limit},
         )
-    result = orchestrator.reaction_assets.add(
-        request.headers.get("X-RareIQ-Filename") or "asset",
-        mime,
-        body,
-    )
+    try:
+        result = orchestrator.reaction_assets.add(
+            request.headers.get("X-RareIQ-Filename") or "asset",
+            mime,
+            body,
+        )
+    except OSError:
+        return _asset_storage_failure("created")
     return _collection_mutation_response(result, "created")
 
 @app.get("/api/creator/assets/{asset_id}")
@@ -1823,7 +1900,10 @@ async def creator_asset_file(asset_id: str):
 
 @app.post("/api/creator/assets/map")
 async def map_creator_asset(request: ReactionAssetMappingRequest):
-    result = orchestrator.reaction_assets.map_tier(request.tier, request.kind, request.asset_id)
+    try:
+        result = orchestrator.reaction_assets.map_tier(request.tier, request.kind, request.asset_id)
+    except OSError:
+        return _asset_storage_failure("updated")
     return _collection_mutation_response(result, "updated")
 
 @app.get("/api/soundboard")
@@ -1833,8 +1913,18 @@ async def soundboard_status():
 
 @app.post("/api/soundboard")
 async def configure_soundboard(request: SoundboardConfigRequest):
-    result = orchestrator.reaction_assets.configure_soundboard(request.pads)
+    try:
+        result = orchestrator.reaction_assets.configure_soundboard(request.pads)
+    except OSError:
+        return _asset_storage_failure("updated")
     return _collection_mutation_response(result, "updated")
+
+
+def _asset_storage_failure(success_key: str) -> JSONResponse:
+    return JSONResponse(status_code=409, content={
+        "ok": False, success_key: False, "reason": "asset_storage_unavailable",
+        "message": "Audio/image settings could not be saved. Check storage and retry.",
+    })
 
 @app.get("/api/spotify/status")
 async def spotify_status():
@@ -2460,12 +2550,11 @@ def _refresh_broadcast_runtime_health(
 
 
 @app.get("/api/production/operator-health")
-async def production_operator_health():
+async def production_operator_health(workflow: Literal["studio", "cards"] = "studio"):
     camera = orchestrator.camera_manager.status()
     slots = orchestrator.camera_manager.camera_slots()
     sessions = orchestrator.camera_manager.session_statuses()
     replay = instant_replay.snapshot()
-    recognition = orchestrator.recognition_state.snapshot()
     overlay = orchestrator.overlay_state.get()
     connected = _connected_production_camera_count(slots)
     program_slot = int(PRODUCTION_SWITCHER_STATE.get("program_slot", 1))
@@ -2473,6 +2562,8 @@ async def production_operator_health():
     with PRODUCTION_SESSION_LOCK:
         session_active = bool(PRODUCTION_SESSION.get("active"))
         output_intent = dict(PRODUCTION_SESSION.get("output_intent") or {})
+    recognition_required = (output_intent.get("workflow", "cards") if session_active else workflow) == "cards"
+    recognition = orchestrator.recognition_state.snapshot() if recognition_required else {}
     watches_external_output = bool(
         output_intent.get("obs_stream") or output_intent.get("obs_recording")
     )
@@ -2510,6 +2601,7 @@ async def production_operator_health():
         "connected_cameras": connected,
         "configured_cameras": sum(1 for slot in slots if slot.get("source_id")),
         "recognition_state": recognition.get("state") or recognition.get("status") or "ready",
+        "recognition_required": recognition_required,
         "recognition_confidence": recognition.get("confidence") or recognition.get("visual_confidence") or 0,
         "replay_buffered_frames": replay.get("buffered_frames", 0),
         "replay_fps": replay.get("fps", 5),
@@ -2528,11 +2620,10 @@ async def acknowledge_production_health_incident(incident_id: str):
 
 
 @app.get("/api/production/preflight")
-async def production_preflight():
+async def production_preflight(workflow: Literal["studio", "cards"] = "studio"):
     """Return one operator-facing verdict before a show is put on air."""
-    sessions = orchestrator.camera_manager.session_statuses()
-    slots = orchestrator.camera_manager.camera_slots()
-    recognition = orchestrator.recognition_state.snapshot()
+    # General production must not depend on a collectible-card engine.
+    recognition = orchestrator.recognition_state.snapshot() if workflow == "cards" else {}
     replay = instant_replay.snapshot()
     record_settings = recording.settings()
     record_status = recording.status()
@@ -2544,9 +2635,14 @@ async def production_preflight():
     )
     destination_status = broadcast_destinations.snapshot(obs_status=obs_status)
     broadcast_readiness = _broadcast_go_live_readiness(destination_status, obs_status)
+    # OBS connection probes can take seconds. Sample the camera afterward so
+    # waiting for an offline encoder cannot make a healthy camera look stale.
+    slots = orchestrator.camera_manager.camera_slots()
     program_camera = _program_camera_readiness(
         slots,
-        int(PRODUCTION_SWITCHER_STATE.get("program_slot", 1)),
+        # Card startup deliberately recovers to slot 1; inspect the output that
+        # will actually be used, not whichever preview happened to be selected.
+        1 if workflow == "cards" else int(PRODUCTION_SWITCHER_STATE.get("program_slot", 1)),
     )
     recognition_state = str(recognition.get("state") or recognition.get("status") or "ready").lower()
     replay_seconds = round(float(replay.get("buffered_frames", 0)) / max(1, float(replay.get("fps", 5))), 1)
@@ -2558,14 +2654,17 @@ async def production_preflight():
     add(
         "camera",
         "Program camera",
-        program_camera["state"],
+        "pass" if program_camera["ready"] else "fail",
         program_camera["detail"],
         program_camera["action"],
     )
 
-    add("browser", "Browser outputs", "pass", "6 production-safe browser sources are available")
+    add("browser", "Browser outputs", "pass", f"{len(broadcast_sources())} browser sources configured; verify playback in your encoder")
     add("scenes", "RareIQ scenes", "pass" if PRODUCTION_SCENES else "fail", f"{len(PRODUCTION_SCENES)} production scenes configured", "Create at least one production scene")
-    add("recognition", "Recognition engine", "fail" if "error" in recognition_state or "fail" in recognition_state else "pass", recognition_state.replace("_", " ").title(), "Open Recognition diagnostics and clear the error")
+    if workflow == "cards":
+        add("recognition", "Card recognition", "fail" if "error" in recognition_state or "fail" in recognition_state else "pass", recognition_state.replace("_", " ").title(), "Open Card Studio diagnostics and clear the error")
+    else:
+        add("recognition", "Card Studio add-on", "skip", "Not required for general streaming")
     add("replay", "Instant replay", "pass" if replay_seconds >= 3 else "warn", f"{replay_seconds:g}s buffered", "Allow the rolling buffer to reach 3 seconds")
 
     if record_status.get("last_error"):
@@ -2597,6 +2696,7 @@ async def production_preflight():
     return {
         "ok": True,
         "preflight": {
+            "workflow": workflow,
             "ready": local_ready,
             "local_ready": local_ready,
             "broadcast_ready": local_ready and broadcast_readiness["ready"],
@@ -2615,12 +2715,16 @@ async def production_preflight():
 @app.get("/api/production/session")
 async def production_session_status():
     with PRODUCTION_SESSION_LOCK:
-        PRODUCTION_SESSION["recording"] = recording.status()
+        current_recording = recording.status()
+        if current_recording.get("session_id") == PRODUCTION_SESSION.get("session_id"):
+            PRODUCTION_SESSION["recording"] = current_recording
         return {"ok": True, "session": dict(PRODUCTION_SESSION), "duration_seconds": max(0, (time.time() if PRODUCTION_SESSION["active"] else PRODUCTION_SESSION.get("ended_at", 0)) - PRODUCTION_SESSION.get("started_at", 0)) if PRODUCTION_SESSION.get("started_at") else 0}
 
 @app.get("/api/production/recording/settings")
 async def recording_settings():
-    return {"ok": True, "settings": recording.settings(), "status": recording.status(), "capabilities": recording.capabilities(), "browser_sources": {"program": "/program", "graphics": "/overlay/graphics", "production_screen": "/production-screen", "replay": "/replay", "rare_intelligence": "/overlay/pokedex", "multi_card": "/overlay/multi-card"}}
+    sources = broadcast_sources()
+    return {"ok": True, "settings": recording.settings(), "status": recording.status(), "capabilities": recording.capabilities(),
+            "browser_sources": {item["key"]: item["path"] for item in sources}, "browser_source_details": sources}
 
 @app.post("/api/production/recording/settings")
 async def update_recording_settings(request: RecordingSettingsRequest):
@@ -2629,12 +2733,19 @@ async def update_recording_settings(request: RecordingSettingsRequest):
 
 @app.post("/api/production/recording/test")
 async def test_recording_settings():
+    if PRODUCTION_SESSION.get("active"):
+        return JSONResponse(status_code=409, content={"ok": False, "reason": "production_session_active"})
     test_id = f"test-{uuid.uuid4().hex[:8]}"
     started = recording.start(test_id)
     if not started.get("started"): return JSONResponse(status_code=409, content={"ok": False, **started})
-    await asyncio.sleep(2)
-    stopped = await asyncio.to_thread(recording.stop)
-    return {"ok": bool(stopped.get("verified")), "test": stopped}
+    try:
+        await asyncio.sleep(2)
+    finally:
+        stopped = await asyncio.shield(asyncio.to_thread(recording.stop, expected_session_id=test_id))
+    payload = {"ok": bool(stopped.get("verified")), "test": stopped}
+    if not payload["ok"]:
+        return JSONResponse(status_code=409, content={**payload, "reason": "recording_test_unverified"})
+    return payload
 
 @app.get("/api/production/obs")
 async def obs_status():
@@ -2675,10 +2786,20 @@ async def bootstrap_obs(request: ObsBootstrapRequest):
     try: return {"ok": True, "bootstrap": await asyncio.to_thread(obs.bootstrap, request.base_url, dry_run=request.dry_run)}
     except (RuntimeError, ValueError, OSError) as exc: return JSONResponse(status_code=409, content={"ok": False, "reason": str(exc)})
 
+@app.post("/api/production/obs/sources/check")
+async def check_obs_sources(request: ObsSourceAuditRequest):
+    try:
+        return {"ok": True, "audit": await asyncio.to_thread(obs.audit_sources, request.base_url)}
+    except ValueError:
+        return JSONResponse(status_code=400, content={"ok": False, "reason": "invalid_rareiq_origin"})
+
 @app.post("/api/production/session/start")
 async def start_production_session(request: ProductionSessionMetadataRequest):
     with PRODUCTION_SESSION_LOCK:
         if PRODUCTION_SESSION["active"]: return {"ok": True, "session": dict(PRODUCTION_SESSION), "already_active": True}
+        encoder_status = recording.status()
+        if encoder_status.get("active") or encoder_status.get("stopping"):
+            return JSONResponse(status_code=409, content={"ok": False, "reason": "recording_active"})
         PRODUCTION_SESSION.update({"active": True, "session_id": uuid.uuid4().hex, "started_at": time.time(), "ended_at": 0.0, "events": [], "metadata": request.model_dump(), "output_intent": {"obs_stream": False, "obs_recording": False, "verified_destinations": []}, "health_monitor": {"active_risks": {}, "journal": [], "incident_history": []}})
         PRODUCTION_SESSION["recording"] = recording.start(PRODUCTION_SESSION["session_id"])
         _production_event("session", "Production session started", "Encoder recording active" if PRODUCTION_SESSION["recording"].get("active") else f'Event logging active; recording {PRODUCTION_SESSION["recording"].get("reason", "not configured")}')
@@ -2686,8 +2807,17 @@ async def start_production_session(request: ProductionSessionMetadataRequest):
 
 @app.post("/api/production/show/start")
 async def start_production_show(request: StartShowRequest):
+    async with PRODUCTION_SHOW_START_LOCK:
+        return await _start_production_show(request)
+
+
+async def _start_production_show(request: StartShowRequest):
     """Run the guarded, operator-initiated show startup sequence."""
-    preflight_payload = await production_preflight()
+    # Do not reset a running show's scene or issue duplicate encoder commands.
+    with PRODUCTION_SESSION_LOCK:
+        if PRODUCTION_SESSION.get("active"):
+            return JSONResponse(status_code=409, content={"ok": False, "reason": "production_session_active"})
+    preflight_payload = await production_preflight(request.workflow)
     preflight = preflight_payload["preflight"]
     if not preflight["ready"]:
         return JSONResponse(status_code=409, content={"ok": False, "reason": "preflight_blocked", "preflight": preflight, "steps": []})
@@ -2703,12 +2833,20 @@ async def start_production_show(request: StartShowRequest):
         )
 
     steps: list[dict[str, Any]] = []
-    safe_state = await production_safe_recovery()
-    steps.append({"id": "safe", "state": "pass", "detail": "Main Card selected; overlays, replay, and reveal automation reset"})
-    metadata = ProductionSessionMetadataRequest(**request.model_dump(exclude={"start_obs_stream", "start_obs_recording"}))
+    if request.workflow == "cards":
+        safe_state = await production_safe_recovery()
+        steps.append({"id": "safe", "state": "pass", "detail": "Main Card selected; overlays, replay, and reveal automation reset"})
+    else:
+        with PRODUCTION_SWITCHER_LOCK:
+            safe_state = {"ok": True, "preserved": True, **PRODUCTION_SWITCHER_STATE}
+        steps.append({"id": "program", "state": "pass", "detail": "Prepared Program scene and overlays preserved; no card reset"})
+    metadata = ProductionSessionMetadataRequest(**request.model_dump(exclude={"workflow", "start_obs_stream", "start_obs_recording"}))
     session_payload = await start_production_session(metadata)
+    if isinstance(session_payload, JSONResponse):
+        return session_payload
     with PRODUCTION_SESSION_LOCK:
         PRODUCTION_SESSION["output_intent"] = {
+            "workflow": request.workflow,
             "obs_stream": bool(request.start_obs_stream),
             "obs_recording": bool(request.start_obs_recording),
             "verified_destinations": list(
@@ -2719,7 +2857,7 @@ async def start_production_show(request: StartShowRequest):
     _invalidate_broadcast_runtime_health()
     steps.append({"id": "session", "state": "pass", "detail": "Production event logging started"})
     recording_state = session_payload["session"].get("recording") or {}
-    steps.append({"id": "recording", "state": "pass" if recording_state.get("active") else "skip", "detail": "Local recording started" if recording_state.get("active") else "Local recording not configured; session logging remains active"})
+    steps.append({"id": "recording", "state": "pass" if recording_state.get("active") else "warn" if recording_state.get("configured") else "skip", "detail": "Local recording started" if recording_state.get("active") else "Local recording failed to start; inspect encoder settings" if recording_state.get("configured") else "Local recording not configured; session logging remains active"})
 
     obs_state = await asyncio.to_thread(obs.status)
     if request.start_obs_stream or request.start_obs_recording:
@@ -2751,8 +2889,18 @@ async def update_production_session_metadata(request: ProductionSessionMetadataR
 @app.post("/api/production/session/stop")
 async def stop_production_session():
     with PRODUCTION_SESSION_LOCK:
-        if PRODUCTION_SESSION["active"]: _production_event("session", "Production session stopped")
-        PRODUCTION_SESSION["recording"] = recording.stop()
+        if not PRODUCTION_SESSION["active"]:
+            return {"ok": True, "session": dict(PRODUCTION_SESSION), "already_stopped": True}
+        session_id = PRODUCTION_SESSION["session_id"]
+    # Encoder finalization may take seconds; never hold the event loop/session lock.
+    stopped = await asyncio.to_thread(recording.stop, expected_session_id=session_id)
+    if not stopped.get("stopped"):
+        return JSONResponse(status_code=409, content={"ok": False, "reason": stopped.get("reason", "encoder_stop_failed"), "recording": stopped})
+    with PRODUCTION_SESSION_LOCK:
+        if PRODUCTION_SESSION.get("session_id") != session_id or not PRODUCTION_SESSION["active"]:
+            return {"ok": True, "session": dict(PRODUCTION_SESSION), "already_stopped": True}
+        _production_event("session", "Production session stopped")
+        PRODUCTION_SESSION["recording"] = stopped
         if PRODUCTION_SESSION["recording"].get("output_path"):
             _production_event("recording", "Recording finalized" if PRODUCTION_SESSION["recording"].get("verified") else "Recording output not verified", str(PRODUCTION_SESSION["recording"].get("output_path")))
         PRODUCTION_SESSION.update({"active": False, "ended_at": time.time()})
@@ -2764,8 +2912,15 @@ async def stop_production_session():
 async def stop_production_show():
     """Safely take the show off air and finalize every owned output."""
     steps: list[dict[str, Any]] = []
-    safe_state = await production_safe_recovery()
-    steps.append({"id": "safe", "state": "pass", "detail": "Main Card restored and takeover layers cleared"})
+    with PRODUCTION_SESSION_LOCK:
+        workflow = (PRODUCTION_SESSION.get("output_intent") or {}).get("workflow", "cards")
+    if workflow == "cards":
+        safe_state = await production_safe_recovery()
+        steps.append({"id": "safe", "state": "pass", "detail": "Main Card restored and takeover layers cleared"})
+    else:
+        with PRODUCTION_SWITCHER_LOCK:
+            safe_state = {"ok": True, "preserved": True, **PRODUCTION_SWITCHER_STATE}
+        steps.append({"id": "program", "state": "pass", "detail": "Prepared Program preserved while stopping outputs"})
 
     obs_state = await asyncio.to_thread(obs.status)
     if obs_state.get("connected"):
@@ -2784,8 +2939,10 @@ async def stop_production_show():
 
     session_was_active = bool(PRODUCTION_SESSION.get("active"))
     session_payload = await stop_production_session()
+    if isinstance(session_payload, JSONResponse):
+        return session_payload
     recording_state = session_payload["session"].get("recording") or {}
-    steps.append({"id": "recording", "state": "pass" if recording_state.get("verified") else "skip", "detail": "Local recording finalized and verified" if recording_state.get("verified") else "No verified local recording required"})
+    steps.append({"id": "recording", "state": "pass" if recording_state.get("verified") else "warn" if recording_state.get("configured") else "skip", "detail": "Local recording finalized and verified" if recording_state.get("verified") else "Local recording could not be verified; inspect the output file" if recording_state.get("configured") else "Local recording was not configured"})
     steps.append({"id": "session", "state": "pass" if session_was_active else "skip", "detail": "Production session archived" if session_was_active else "Production session was already stopped"})
     return {"ok": True, "stopped": True, "steps": steps, "safe": safe_state, "session": session_payload["session"], "obs": obs_state}
 
@@ -3308,6 +3465,34 @@ async def take_production_scene(scene_id: str):
     except (RuntimeError, ValueError, OSError) as exc: response["obs_warning"] = str(exc)
     return response
 
+def _rare_intelligence_lookup_context(current: dict[str, Any], multi_card: dict[str, Any]) -> tuple:
+    """Identify the card/authority inputs, excluding frame and confidence churn."""
+    def identity(card: Any) -> tuple:
+        card = card if isinstance(card, dict) else {}
+        return tuple(str(card.get(key) or "") for key in (
+            "id", "card_id", "name", "card_name", "english_name", "pokemon_name",
+            "collector_number", "set_id", "set_name", "language", "rarity", "source",
+        ))
+
+    selected = tuple(sorted(multi_card.get("selected_slots") or []))
+    slots = tuple(
+        (slot.get("slot"), slot.get("verified") is True, identity(slot.get("card")))
+        for slot in multi_card.get("slots") or []
+        if not selected or slot.get("slot") in selected
+    )
+    multi_context = (multi_card.get("job_id"), selected, slots)
+    if selected:
+        return ("multi", multi_context)
+    return (
+        "single", current.get("generation"),
+        bool(current.get("card_present")), bool(current.get("recognition_locked")),
+        current.get("result_current"), RareIQOrchestrator._identity_is_authoritative(current),
+        identity(current.get("primary_candidate")), identity(current.get("database_match")),
+        tuple(identity(card) for card in current.get("candidates") or []),
+        multi_context,
+    )
+
+
 @app.get("/api/pokedex/current", include_in_schema=False)
 @app.get("/api/rare-intelligence/current")
 async def current_pokedex_entry():
@@ -3419,7 +3604,23 @@ async def current_pokedex_entry():
             "broadcast_eligible": False,
             "theme": theme,
         }
+    lookup_context = _rare_intelligence_lookup_context(current, multi_card)
     result = await asyncio.to_thread(orchestrator.pokedex.resolve, candidate)
+    # Species resolution may wait on a remote/cache lookup. Never publish its
+    # result for a card or selected slot that changed while this request waited.
+    # The next poll resolves the new context instead of reviving old identity.
+    overlay = orchestrator.overlay_state.get()
+    theme = overlay.get("rare_intelligence_theme") or RareIntelligenceThemeRequest().model_dump()
+    latest_context = _rare_intelligence_lookup_context(
+        orchestrator.recognition_state.snapshot(),
+        orchestrator.multi_card_recognition.status(),
+    )
+    if latest_context != lookup_context:
+        return {
+            "ok": True, "status": "pending", "reason": "recognition_context_changed",
+            "pokemon": None, "identity": None, "provisional": True, "held": False,
+            "on_air": False, "broadcast_eligible": False, "theme": theme,
+        }
     reveal = orchestrator.experiences.for_card(candidate)
     response = {
         "ok": True,
@@ -4130,7 +4331,10 @@ async def tcg_selection(req: TCGSelectionRequest):
 
 @app.get("/api/multi-card/status")
 async def multi_card_status():
-    return {"ok": True, **orchestrator.multi_card_recognition.status()}
+    # Final reconciliation briefly owns the coordinator lock. Waiting for its
+    # snapshot must not block camera previews and every other async endpoint.
+    state = await asyncio.to_thread(orchestrator.multi_card_recognition.status)
+    return {"ok": True, **state}
 
 @app.post("/api/multi-card/select")
 async def multi_card_select(request: Request):
@@ -4138,8 +4342,12 @@ async def multi_card_select(request: Request):
         payload = await _read_bounded_json(request)
     except RequestBodyTooLarge as exc:
         return JSONResponse(status_code=413, content={"ok": False, "reason": "request_too_large", "max_bytes": exc.max_bytes})
-    slots = payload.get("slots") if isinstance(payload.get("slots"), list) else []
+    if not isinstance(payload.get("slots"), list):
+        return JSONResponse(status_code=400, content={"ok": False, "reason": "invalid_slots"})
+    slots = payload["slots"]
     state = orchestrator.multi_card_recognition.select_slots(slots)
+    if state.get("ok") is False:
+        return JSONResponse(status_code=409, content=state)
     # Resolve immediately so the held Rare Intelligence profile follows the
     # operator's numbered output selection without waiting for another poll.
     rare_intelligence = await current_pokedex_entry()
@@ -4251,6 +4459,12 @@ async def update_provenance_settings(req: ProvenanceSettingsRequest):
             status_code=422,
             content={"ok": False, "error": "invalid_settings", "message": str(exc)},
         )
+    except OSError as exc:
+        LOGGER.error("provenance_settings_save_failed error=%s", exc)
+        return JSONResponse(
+            status_code=409,
+            content={"ok": False, "error": "settings_save_failed", "message": "Screenshot settings could not be saved. Check storage and retry."},
+        )
     return {"ok": True, "settings": settings, "status": provenance_capture.capability()["status"]}
 
 
@@ -4300,6 +4514,17 @@ async def correct_provenance_event(event_id: str, req: ProvenanceCorrectionReque
         return JSONResponse(
             status_code=404,
             content={"ok": False, "error": "event_not_found"},
+        )
+    except ValueError as exc:
+        return JSONResponse(
+            status_code=422,
+            content={"ok": False, "error": "invalid_correction", "message": str(exc)},
+        )
+    except OSError as exc:
+        LOGGER.error("provenance_correction_save_failed event_id=%s error=%s", event_id, exc)
+        return JSONResponse(
+            status_code=409,
+            content={"ok": False, "error": "correction_save_failed", "message": "The correction could not be saved. The original evidence is unchanged."},
         )
     return {"ok": True, "revision": revision}
 
@@ -4948,6 +5173,168 @@ async def camera_stream():
                 yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"+jpg+b"\r\n"
             await asyncio.sleep(0.04)
     return StreamingResponse(frames(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+
+@app.get("/output/camera/{camera}")
+async def camera_output_page(camera: str):
+    if camera not in {"scan", "all", "1", "2", "3", "4"}:
+        raise HTTPException(status_code=404, detail="invalid_camera_output")
+    return FileResponse(STATIC_DIR / "camera_output.html")
+
+
+@app.get("/api/output/cameras")
+async def camera_output_status():
+    return {"server_session": SERVER_SESSION_ID, "active_slot": orchestrator.camera_manager.active_slot_id(),
+            "slots": orchestrator.camera_manager.camera_slots()}
+
+
+@app.websocket("/ws/output/camera/{camera}")
+async def camera_output_socket(ws: WebSocket, camera: str):
+    if camera not in {"scan", "all", "1", "2", "3", "4"}:
+        await ws.close(code=4404)
+        return
+    if not REMOTE_ACCESS.authorizes(ws.client.host if ws.client else None, ws.cookies.get(REMOTE_ACCESS_COOKIE)):
+        await ws.close(code=4401, reason="remote_pairing_required")
+        return
+    await ws.accept()
+    camera_manager = orchestrator.camera_manager
+    leases = {}
+    last_frames = {}
+    next_status = 0.0
+    try:
+        while True:
+            now = time.monotonic()
+            if now >= next_status:
+                active = camera_manager.active_slot_id()
+                slots = camera_manager.camera_slots()
+                wanted = {1,2,3,4} if camera == "all" else {active if camera == "scan" else int(camera)}
+                signatures = {slot["slot_id"]:(slot.get("source_id"), active) for slot in slots if slot["slot_id"] in wanted and slot.get("source_id")}
+                for slot_id in list(leases):
+                    if slot_id not in signatures or signatures[slot_id] != leases[slot_id][0]:
+                        await asyncio.to_thread(leases.pop(slot_id)[2])
+                        last_frames.pop(slot_id, None)
+                for slot_id, signature in signatures.items():
+                    if slot_id in leases:
+                        continue
+                    task = asyncio.create_task(asyncio.to_thread(camera_manager.acquire_output, slot_id))
+                    try:
+                        read, release = await asyncio.shield(task)
+                    except asyncio.CancelledError:
+                        _, release = await task
+                        await asyncio.to_thread(release)
+                        raise
+                    leases[slot_id] = (signature, read, release)
+                await ws.send_json({"active_slot":active,"slots":slots})
+                next_status = now + 1
+            for slot_id, (_, read, _) in leases.items():
+                jpeg = await asyncio.to_thread(read)
+                if jpeg and jpeg is not last_frames.get(slot_id):
+                    # One byte identifies the slot; the remaining bytes are JPEG.
+                    # WebSockets avoid HTTP's per-origin six-connection ceiling.
+                    await ws.send_bytes(bytes([slot_id]) + jpeg)
+                    last_frames[slot_id] = jpeg
+            await asyncio.sleep(1 / 25)
+    except (WebSocketDisconnect, OSError, RuntimeError, ValueError):
+        pass
+    finally:
+        for _, _, release in leases.values():
+            await asyncio.to_thread(release)
+
+
+@app.get("/api/output/camera/{slot_id}/stream")
+async def clean_camera_output(slot_id: int):
+    if slot_id not in {1, 2, 3, 4}:
+        raise HTTPException(status_code=404, detail="invalid_slot")
+    camera_manager = orchestrator.camera_manager
+    slot = camera_manager.camera_slots()[slot_id - 1]
+    if not slot.get("source_id"):
+        raise HTTPException(status_code=409, detail="unassigned")
+    signature = (slot["source_id"], camera_manager.active_slot_id())
+
+    async def frames():
+        acquisition = asyncio.create_task(asyncio.to_thread(camera_manager.acquire_output, slot_id))
+        try:
+            read, release = await asyncio.shield(acquisition)
+        except asyncio.CancelledError:
+            # A source may finish starting after the HTTP subscriber leaves.
+            # Release that exact lease rather than orphaning its subscriber.
+            _, release = await acquisition
+            await asyncio.to_thread(release)
+            raise
+        try:
+            while True:
+                current = camera_manager.camera_slots()[slot_id - 1]
+                if (current.get("source_id"), camera_manager.active_slot_id()) != signature:
+                    return
+                jpeg = await asyncio.to_thread(read)
+                if jpeg:
+                    yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
+                await asyncio.sleep(1 / 25)
+        finally:
+            await asyncio.to_thread(release)
+
+    return StreamingResponse(frames(), media_type="multipart/x-mixed-replace; boundary=frame",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+
+@app.get("/output/soundboard")
+async def soundboard_output_page():
+    return FileResponse(STATIC_DIR / "soundboard_output.html")
+
+
+@app.post("/api/output/soundboard")
+async def publish_soundboard_output(request: Request):
+    try:
+        payload = await _read_bounded_json(request)
+    except ClientDisconnect:
+        # Closing a controller or cancelling its timed heartbeat is normal.
+        # Never publish partial state; the existing voice lease expires safely.
+        return Response(status_code=204)
+    try:
+        voices = payload.get("voices", [])
+        if not isinstance(voices, list) or any(not isinstance(voice, dict) for voice in voices):
+            raise ValueError("Invalid audio voices")
+        assets = {asset["id"]: asset for asset in orchestrator.reaction_assets.snapshot()["assets"]}
+        return soundboard_output.publish(str(payload.get("owner") or ""), int(payload.get("sequence", 0)), voices, assets)
+    except (ValueError, TypeError, OverflowError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/output/soundboard/settings")
+async def soundboard_output_settings():
+    return soundboard_output.settings()
+
+
+@app.post("/api/output/soundboard/settings")
+async def configure_soundboard_output_settings(request: Request):
+    try:
+        payload = await _read_bounded_json(request)
+        return await asyncio.to_thread(soundboard_output.configure_settings, payload)
+    except ClientDisconnect:
+        return Response(status_code=204)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=409, detail="Audio routing settings could not be saved") from exc
+
+
+@app.get("/api/output/soundboard/events")
+async def soundboard_output_events(request: Request):
+    receiver = uuid.uuid4().hex
+    try:
+        soundboard_output.connect(receiver)
+    except ValueError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+
+    async def events():
+        try:
+            while not await request.is_disconnected():
+                yield "data: " + json.dumps(soundboard_output.snapshot()) + "\n\n"
+                await asyncio.sleep(0.1)
+        finally:
+            soundboard_output.disconnect(receiver)
+
+    return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
 @app.get("/api/camera-slots/{slot_id}/stream")

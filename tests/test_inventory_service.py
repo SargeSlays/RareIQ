@@ -73,6 +73,32 @@ def test_bulk_intake_rejects_quantities_outside_print_batch_limit(tmp_path):
     assert service.create_many(CARD,quantity=101)["reason"]=="invalid_quantity"
     assert service.dashboard()["in_stock"]==0
 
+def test_approved_scan_event_is_idempotent_but_distinct_scans_create_copies(tmp_path):
+    state_path=tmp_path/"inventory.json"
+    service=InventoryService(state_path)
+    first=service.create(CARD,cost_basis=4.5,source_event_id="scan-approved-1")
+    retry=service.create(CARD,cost_basis=99,source_event_id="scan-approved-1")
+    assert first["created"] and not first["duplicate_suppressed"]
+    assert retry["created"] and retry["duplicate_suppressed"]
+    assert retry["reason"]=="duplicate_source_event"
+    assert retry["item"]["item_id"]==first["item"]["item_id"]
+    assert retry["item"]["cost_basis"]==4.5
+
+    restored=InventoryService(state_path)
+    persisted_retry=restored.create(CARD,source_event_id="scan-approved-1")
+    second_scan=restored.create(CARD,source_event_id="scan-approved-2")
+    assert persisted_retry["duplicate_suppressed"]
+    assert not second_scan["duplicate_suppressed"]
+    assert restored.dashboard()["in_stock"]==2
+
+def test_unverified_market_quote_remains_ineligible_for_inventory_valuation(tmp_path):
+    service=InventoryService(tmp_path/"inventory.json")
+    card={**CARD,"pricing":{"market":125,"currency":"USD","source":"unverified feed","verified":False,"valuation_eligible":False}}
+    item=service.create(card,source_event_id="unpriced-scan")["item"]
+    assert item["acquisition_valuation"]["market"]==125
+    assert item["acquisition_valuation"]["verified"] is False
+    assert item["acquisition_valuation"]["valuation_eligible"] is False
+
 def test_business_profile_audit_log_and_daily_backup_are_persistent(tmp_path):
     state_path=tmp_path/"inventory.json"
     service=InventoryService(state_path)

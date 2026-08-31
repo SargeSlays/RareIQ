@@ -1,0 +1,37 @@
+@import url('/static/overlay_theme.css?v=20260830-1');
+
+* { box-sizing: border-box; }
+html, body {
+  width: 100%; height: 100%; margin: 0; overflow: hidden;
+  background: transparent; font-family: Inter, "Segoe UI", Arial, sans-serif;
+  color: var(--overlay-text);
+}
+main { position: absolute; inset: 0; display: grid; place-items: center; padding: 5vh 4vw 9vh; opacity: 0; transition: opacity .25s ease; }
+main.live { opacity: 1; }
+.grid {
+  width: 100%; display: grid; min-height: 0;
+  grid-template-columns: repeat(var(--columns, 3), minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr); gap: min(1.4vw, 2vh);
+}
+article {
+  display: grid; grid-template-columns: minmax(0, 32%) minmax(0, 1fr);
+  align-items: center; gap: 1vw; min-width: 0; min-height: 0;
+  padding: min(1.2vw, 2vh); border: 1px solid var(--overlay-border);
+  border-top: 3px solid var(--overlay-accent); border-radius: var(--overlay-radius);
+  background: var(--overlay-panel-glass); box-shadow: var(--overlay-shadow);
+}
+article.no-artwork { grid-template-columns: 1fr; }
+img { width: 100%; height: 100%; min-height: 0; max-height: min(26vh, calc(64vh / var(--rows, 1))); object-fit: contain; }
+.slot { color: var(--overlay-accent); font-size: clamp(10px, .8vw, 17px); font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+h2 { margin: .5vw 0; font-size: clamp(15px, 1.7vw, 38px); line-height: 1.15; overflow-wrap: anywhere; }
+p { margin: 0; color: var(--overlay-muted); font-size: clamp(10px, .85vw, 17px); line-height: 1.45; overflow-wrap: anywhere; }
+.brand { position: absolute; right: 4vw; bottom: 3vh; color: var(--overlay-muted); font-size: clamp(10px, .72vw, 16px); font-weight: 700; letter-spacing: .16em; }
+.brand b { color: var(--overlay-accent); }
+.grid[data-density="dense"] { height: 100%; }
+.grid[data-density="dense"] h2 { font-size: clamp(12px, 1.25vw, 28px); }
+.grid[data-density="dense"] .slot { font-size: clamp(9px, .65vw, 14px); }
+@media (max-aspect-ratio: 1/1) {
+  .grid { grid-template-columns: repeat(min(var(--columns), 2), minmax(0, 1fr)); }
+  .grid[data-density="dense"] article { gap: 6px; padding: 6px; }
+}
+@media (prefers-reduced-motion: reduce) { main { transition: none; } }

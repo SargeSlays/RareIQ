@@ -1,0 +1,74 @@
+/* Multi-card operator workspace: one component, shared Command Deck tokens. */
+body.studiox-command-deck #multiCardPanel {
+  display:grid; align-content:start; gap:14px; min-width:0;
+  margin:0; padding:18px; box-sizing:border-box; border:0; border-radius:0;
+  background:var(--sx-surface); color:var(--sx-text);
+}
+body.studiox-command-deck #multiCardPanel[hidden],
+body.studiox-command-deck #multiCardPanel [hidden],
+body.studiox-command-deck #multiCardPanel article[data-state="waiting"],
+body.studiox-command-deck #inspectorSectionNav[hidden] { display:none!important; }
+#multiCardPanel .multi-card-panel-head { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:0 0 14px; border-bottom:1px solid var(--sx-divider); }
+#multiCardPanel .multi-card-panel-head span { display:block; font-size:10px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--sx-accent); }
+#multiCardPanel .multi-card-panel-head strong { display:block; margin-top:5px; font-size:20px; line-height:1.25; color:var(--sx-text); }
+#multiCardPanel button, #multiCardPanel select, #multiCardPanel .multi-card-overlay-link { min-height:38px; border:1px solid var(--sx-divider-strong); border-radius:2px; padding:9px 12px; background:var(--sx-surface-muted); color:var(--sx-text); font-size:12px; font-weight:700; line-height:1.3; cursor:pointer; }
+#multiCardPanel #multiCardCaptureButton { flex:none; background:var(--sx-accent)!important; border-color:var(--sx-accent)!important; color:var(--sx-chrome)!important; font-weight:800; }
+#multiCardPanel button:disabled { opacity:.55; cursor:not-allowed; }
+#multiCardPanel :is(button,select,a,input):focus-visible { outline:2px solid var(--sx-accent); outline-offset:3px; }
+#multiCardPanel button:not(:disabled):hover, #multiCardPanel .multi-card-overlay-link:hover { border-color:var(--sx-accent); }
+#multiCardPanel .multi-card-readiness { display:grid; grid-template-columns:8px minmax(0,1fr); gap:12px; align-items:start; padding:14px; border:1px solid var(--sx-divider); border-left:3px solid var(--sx-text-muted); border-radius:0; background:var(--sx-surface-raised); }
+#multiCardPanel .multi-card-readiness > i { height:8px; width:8px; border-radius:50%; margin-top:5px; background:var(--sx-text-muted); }
+#multiCardPanel .multi-card-readiness > div { display:grid; gap:5px; min-width:0; }
+#multiCardPanel .multi-card-readiness span { font-size:11px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--sx-text-soft); }
+#multiCardPanel .multi-card-readiness strong { font-size:16px; line-height:1.3; color:var(--sx-text); }
+#multiCardPanel .multi-card-readiness p { margin:0; font-size:12px; line-height:1.5; color:var(--sx-text-soft); }
+#multiCardPanel .multi-card-readiness:is([data-state="active"],[data-state="complete"]) { border-left-color:var(--sx-accent); }
+#multiCardPanel .multi-card-readiness:is([data-state="active"],[data-state="complete"]) > i { background:var(--sx-accent); }
+#multiCardPanel .multi-card-readiness[data-state="warning"] { border-left-color:var(--sx-warning); }
+#multiCardPanel .multi-card-readiness[data-state="warning"] > i { background:var(--sx-warning); }
+#multiCardPanel .multi-card-readiness[data-state="warning"] span { color:var(--sx-warning); }
+#multiCardPanel .multi-card-controls { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+#multiCardPanel .multi-card-controls label { display:grid; align-content:center; gap:8px; min-width:0; margin:0; padding:12px; border:1px solid var(--sx-divider); border-radius:0; background:var(--sx-chrome); }
+#multiCardPanel .multi-card-count-option > span { font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--sx-text-soft); }
+#multiCardPanel .multi-card-count-option select { width:100%; min-width:0; font-size:12px; }
+#multiCardPanel .multi-card-controls .multi-card-unique-option { display:flex; align-items:center; gap:10px; cursor:pointer; }
+#multiCardPanel .multi-card-unique-option input { accent-color:var(--sx-accent); flex:none; }
+#multiCardPanel .multi-card-unique-option span { display:grid; gap:5px; min-width:0; }
+#multiCardPanel .multi-card-unique-option strong { font-size:12px; color:var(--sx-text); }
+#multiCardPanel .multi-card-unique-option small { font-size:11px; line-height:1.4; color:var(--sx-text-muted); }
+#multiCardPanel .multi-card-results { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:10px; min-width:0; align-items:stretch; }
+#multiCardPanel .multi-card-results article { position:relative; display:grid; grid-template-columns:72px minmax(0,1fr); grid-template-rows:auto auto auto auto auto 1fr auto; align-content:start; align-items:start; gap:6px 12px; min-width:0; min-height:0; padding:14px; border:1px solid var(--sx-divider-strong); border-top:2px solid var(--sx-text-muted); border-radius:0; background:var(--sx-surface-raised); overflow-wrap:anywhere; }
+#multiCardPanel .multi-card-results article[data-state="verified"] { border-top-color:var(--sx-accent); }
+#multiCardPanel .multi-card-results article[data-state="review-needed"] { border-top-color:var(--sx-warning); }
+#multiCardPanel .multi-card-results article > span { grid-column:1; grid-row:1; color:var(--sx-text-muted); font-size:10px; font-weight:800; letter-spacing:.1em; }
+#multiCardPanel .multi-card-results article > img { grid-column:1; grid-row:2/5; width:72px; height:101px; object-fit:contain; background:var(--sx-chrome); border:1px solid var(--sx-divider); border-radius:2px; }
+#multiCardPanel .multi-card-results article > strong { grid-column:2; grid-row:2; font-size:17px; line-height:1.25; margin:0; color:var(--sx-text); }
+#multiCardPanel .multi-card-results article > p { grid-column:2; grid-row:3; margin:0; font-size:11px; line-height:1.4; color:var(--sx-text-soft); }
+#multiCardPanel .multi-card-artwork-note { grid-column:2; grid-row:4; font-size:10px; line-height:1.4; color:var(--sx-text-muted); }
+#multiCardPanel article:not(:has(img:not([hidden]))) > :is(strong,p,.multi-card-artwork-note) { grid-column:1/-1; }
+#multiCardPanel .multi-card-facts { grid-column:1/-1; grid-row:5; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:8px 0 0; padding-top:12px; border-top:1px solid var(--sx-divider); }
+#multiCardPanel .multi-card-facts > div { display:grid; gap:4px; min-width:0; }
+#multiCardPanel .multi-card-facts dt { margin:0; font-size:9px; line-height:1.3; font-weight:700; color:var(--sx-text-muted); letter-spacing:.05em; text-transform:uppercase; }
+#multiCardPanel .multi-card-facts dd { margin:0; font-size:11px; line-height:1.4; color:var(--sx-text-soft); }
+#multiCardPanel .multi-card-verification { grid-column:1/-1; grid-row:6; margin:4px 0; color:var(--sx-warning); font-size:10px; line-height:1.4; }
+#multiCardPanel article[data-state="verified"] .multi-card-verification { color:var(--sx-accent); }
+#multiCardPanel .multi-card-show-toggle { grid-column:1/-1; grid-row:7; width:100%; margin-top:6px; }
+#multiCardPanel .multi-card-show-toggle[aria-pressed="true"] { background:var(--sx-accent-soft); border-color:var(--sx-accent-strong); color:var(--sx-accent); }
+#multiCardPanel .multi-card-empty { margin:0; padding:22px; border:1px dashed var(--sx-divider-strong); color:var(--sx-text-muted); text-align:center; font-size:13px; line-height:1.5; }
+#multiCardPanel .multi-card-held { display:grid; gap:5px; padding:12px; border:1px solid var(--sx-warning); background:var(--sx-warning-soft); font-size:11px; line-height:1.4; color:var(--sx-text-soft); }
+#multiCardPanel .multi-card-held strong { color:var(--sx-warning); }
+#multiCardPanel .multi-card-selection-status { margin:0; padding-top:12px; border-top:1px solid var(--sx-divider); color:var(--sx-text-soft); font-size:11px; }
+#multiCardPanel .multi-card-overlay-link { display:block; text-align:center; text-decoration:none; font-size:12px; }
+@container result-panel (max-width:420px) {
+  body.studiox-command-deck #multiCardPanel { padding:12px; gap:12px; }
+  #multiCardPanel .multi-card-controls { grid-template-columns:1fr; }
+  #multiCardPanel .multi-card-panel-head strong { font-size:17px; }
+}
+@container result-panel (min-width:421px) and (max-width:700px) {
+  body.studiox-command-deck #multiCardPanel { padding:12px; gap:10px; }
+  #multiCardPanel .multi-card-results article { grid-template-columns:52px minmax(0,1fr); gap:3px 8px; padding:8px; }
+  #multiCardPanel .multi-card-results article > img { width:52px; height:73px; }
+  #multiCardPanel .multi-card-results article > strong { font-size:14px; }
+  #multiCardPanel .multi-card-facts { grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; padding-top:6px; }
+  #multiCardPanel .multi-card-panel-head strong { font-size:18px; }
+}

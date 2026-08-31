@@ -50,8 +50,10 @@ def test_voice_mod_builds_a_processed_media_stream():
 def test_voice_mod_persists_preferences_and_stops_capture_cleanly():
     assert 'VOICE_MOD_PREFERENCES_KEY="rareiq.voiceMod.preferences.v1"' in STUDIO
     assert "function restoreVoiceModPreferences" in STUDIO
-    assert "voiceModState.inputStream?.getTracks().forEach(track=>track.stop())" in STUDIO
-    assert "voiceModState.context.close()" in STUDIO
+    assert "[previous.inputStream,previous.destination?.stream]" in STUDIO
+    assert "previous.context.close()" in STUDIO
+    stop = STUDIO[STUDIO.index("async function stopVoiceMod") : STUDIO.index("async function handleVoiceModInputEnded")]
+    assert stop.index("window.rareiqVoiceModStream=null") < stop.index("await previous.context.close()")
     assert 'navigator.mediaDevices?.addEventListener?.("devicechange",()=>refreshVoiceModInputs()' in STUDIO
 
 
@@ -85,6 +87,18 @@ def test_voice_mod_uses_a_compact_desktop_control_grid_with_safe_fallbacks():
     assert "align-content: start !important" in voice_mod
     assert "@media (max-width: 1100px)" in voice_mod
     assert "@media (max-width: 900px)" in voice_mod
+
+
+def test_voice_mod_uses_the_full_wide_desktop_stage_without_stretching_its_content_rows():
+    voice_mod = CSS[CSS.index("/* Voice Mod */") : CSS.index("/* Camera FX */")]
+    assert "@media (min-width: 1800px)" in voice_mod
+    assert 'body.studiox-ui4.studiox-premium.studiox-command-deck[data-ui4-workspace="voice-mod"]' in voice_mod
+    assert "width: 100% !important" in voice_mod
+    assert "max-width: none !important" in voice_mod
+    assert "grid-template-columns: minmax(0, 1.35fr) minmax(620px, .65fr) !important" in voice_mod
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr)) !important" in voice_mod
+    assert ".voice-mod-control-card > label" in voice_mod
+    assert "grid-column: span 2 !important" in voice_mod
 
 
 def test_voice_mod_reports_truthful_microphone_discovery_state():

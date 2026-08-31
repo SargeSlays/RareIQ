@@ -28,7 +28,7 @@ RECEIPT_TYPES = {
 class InventoryService:
     """Copy-level stock ledger with immutable sleeve IDs and auditable sales."""
 
-    SCHEMA_VERSION = 8
+    SCHEMA_VERSION = 9
     TAX_CATEGORIES = {"fees": "Commissions and fees", "shipping": "Shipping and postage", "supplies": "Office expense and supplies", "packs": "Cost of goods sold", "boxes": "Cost of goods sold", "other": "Other business expense"}
 
     def __init__(self, state_path: Path) -> None:
@@ -205,13 +205,18 @@ class InventoryService:
         result["active_listing"] = next((dict(listing) for listing in reversed(item.get("listings") or []) if listing.get("status") == "active"), None)
         return result
 
-    def create(self, card: dict[str, Any], *, cost_basis: Any = 0, asking_price: Any = None, condition: str = "raw", location: str = "", notes: str = "", allocation_group: str = "", allocation_weight: Any = 1.0) -> dict[str, Any]:
-        result = self.create_many(card, quantity=1, cost_basis=cost_basis, asking_price=asking_price, condition=condition, location=location, notes=notes, allocation_group=allocation_group, allocation_weight=allocation_weight)
+    def create(self, card: dict[str, Any], *, cost_basis: Any = 0, asking_price: Any = None, condition: str = "raw", location: str = "", notes: str = "", allocation_group: str = "", allocation_weight: Any = 1.0, source_event_id: str = "") -> dict[str, Any]:
+        result = self.create_many(card, quantity=1, cost_basis=cost_basis, asking_price=asking_price, condition=condition, location=location, notes=notes, allocation_group=allocation_group, allocation_weight=allocation_weight, source_event_id=source_event_id)
         if not result.get("created"):
             return {"created": False, "reason": result.get("reason")}
-        return {"created": True, "item": result["items"][0]}
+        return {
+            "created": True,
+            "item": result["items"][0],
+            "duplicate_suppressed": bool(result.get("duplicate_suppressed")),
+            "reason": result.get("reason"),
+        }
 
-    def create_many(self, card: dict[str, Any], *, quantity: int = 1, cost_basis: Any = 0, asking_price: Any = None, condition: str = "raw", location: str = "", notes: str = "", allocation_group: str = "", allocation_weight: Any = 1.0) -> dict[str, Any]:
+    def create_many(self, card: dict[str, Any], *, quantity: int = 1, cost_basis: Any = 0, asking_price: Any = None, condition: str = "raw", location: str = "", notes: str = "", allocation_group: str = "", allocation_weight: Any = 1.0, source_event_id: str = "") -> dict[str, Any]:
         if not isinstance(card, dict) or not (card.get("english_name") or card.get("card_name")):
             return {"created": False, "reason": "card_identity_required"}
         try:
@@ -226,6 +231,22 @@ class InventoryService:
         items = []
         with self._lock:
             group_key = str(allocation_group or "")[:120]
+            source_event_key = str(source_event_id or "").strip()[:160]
+            if source_event_key:
+                existing = [
+                    item for item in self._items.values()
+                    if item.get("source_event_id") == source_event_key
+                ]
+                if existing:
+                    existing.sort(key=lambda item: int(item.get("batch_copy_number") or 0))
+                    return {
+                        "created": True,
+                        "duplicate_suppressed": True,
+                        "reason": "duplicate_source_event",
+                        "batch_id": existing[0].get("batch_id"),
+                        "quantity": len(existing),
+                        "items": [self._public(item) for item in existing],
+                    }
             if group_key and group_key in self._locked_allocations:
                 return {"created": False, "reason": "allocation_group_locked"}
             for copy_number in range(1, count + 1):
@@ -235,6 +256,7 @@ class InventoryService:
                 item = {
                     "item_id": item_id, "status": "in_stock", "created_at": now, "updated_at": now,
                     "batch_id": batch_id, "batch_copy_number": copy_number, "batch_quantity": count,
+                    "source_event_id": source_event_key or None,
                     "version_key": card.get("version_key"), "card_name": card.get("card_name"),
                     "english_name": card.get("english_name") or card.get("card_name"), "printed_name": card.get("printed_name"),
                     "set_name": card.get("set_name"), "set_code": card.get("set_code") or card.get("set_id"),
@@ -249,7 +271,7 @@ class InventoryService:
                 }
                 self._items[item_id] = item
                 items.append(item)
-            self._audit("inventory.created", "inventory_batch", batch_id, {"quantity": count, "allocation_group": group_key})
+            self._audit("inventory.created", "inventory_batch", batch_id, {"quantity": count, "allocation_group": group_key, "source_event_id": source_event_key or None})
             self._persist()
         return {"created": True, "batch_id": batch_id, "quantity": count, "items": [self._public(item) for item in items]}
 

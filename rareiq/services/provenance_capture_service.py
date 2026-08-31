@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import math
 import os
 import threading
 import uuid
@@ -26,6 +28,7 @@ WORKFLOWS = {"single-card-sales", "pack-ripping", "pack-battle"}
 TRIGGERS = {"manual", "exact-match", "rarity-threshold", "value-threshold", "qualifying-hit"}
 CAPTURE_TYPES = {"full_frame", "card_crop"}
 PLAYER_SIDES = {"player-1", "player-2"}
+LOGGER = logging.getLogger(__name__)
 
 
 def _utc_now() -> str:
@@ -40,9 +43,20 @@ def _optional_text(value: Any, limit: int = 120) -> str | None:
 def _positive_int(value: Any) -> int | None:
     try:
         number = int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
     return number if number > 0 else None
+
+
+def _probability(value: Any) -> float | None:
+    """Missing or invalid evidence is not a zero-confidence measurement."""
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if math.isfinite(number) and 0.0 <= number <= 1.0 else None
 
 
 class ProvenanceCaptureService:
@@ -109,7 +123,9 @@ class ProvenanceCaptureService:
 
     @classmethod
     def normalize_settings(cls, value: dict[str, Any] | None) -> dict[str, Any]:
-        value = dict(value or {})
+        if value is not None and not isinstance(value, dict):
+            raise ValueError("Provenance settings must be an object.")
+        value = value or {}
         defaults = cls.default_settings()
         workflow = str(value.get("workflowMode") or value.get("workflow") or defaults["workflowMode"])
         trigger = str(value.get("triggerReason") or value.get("trigger_type") or defaults["triggerReason"])
@@ -119,11 +135,14 @@ class ProvenanceCaptureService:
             raise ValueError("Unsupported provenance trigger.")
         try:
             confidence = float(value.get("minimumConfidence", defaults["minimumConfidence"]))
-        except (TypeError, ValueError) as exc:
+        except (TypeError, ValueError, OverflowError) as exc:
             raise ValueError("Minimum confidence must be numeric.") from exc
         if not 0.0 <= confidence <= 1.0:
             raise ValueError("Minimum confidence must be between 0 and 1.")
-        requested = dict(value.get("captureTypes") or {})
+        requested = value.get("captureTypes")
+        if requested is not None and not isinstance(requested, dict):
+            raise ValueError("Capture types must be an object.")
+        requested = requested or {}
         side = _optional_text(value.get("playerSide"))
         return {
             **defaults,
@@ -155,7 +174,10 @@ class ProvenanceCaptureService:
             except FileNotFoundError:
                 continue
             except (json.JSONDecodeError, ValueError, OSError):
-                continue
+                # Legacy fallback is only for migration from a missing file;
+                # damaged current settings must never rearm an old workflow.
+                LOGGER.warning("Provenance settings unavailable at %s; automatic capture disabled", path)
+                return self.default_settings()
         return self.default_settings()
 
     def save_settings(self, value: dict[str, Any]) -> dict[str, Any]:
@@ -197,23 +219,34 @@ class ProvenanceCaptureService:
         settings = self.settings()
         if not settings["enabled"]:
             return {"ok": False, "captured": False, "reason": "disabled"}
-        trigger = settings["triggerReason"]
-        if trigger == "manual":
+        if settings["triggerReason"] == "manual":
             return {"ok": False, "captured": False, "reason": "manual_only"}
+        # All automatic entry points share the same gate in capture().
+        return self.capture(trigger=settings["triggerReason"], snapshot=snapshot, settings=settings)
+
+    def _automatic_block_reason(
+        self, snapshot: dict[str, Any], settings: dict[str, Any], trigger: str
+    ) -> str | None:
+        if not settings["enabled"]:
+            return "disabled"
+        if trigger != settings["triggerReason"]:
+            return "trigger_not_armed"
         verdict = self._identity_verdict(snapshot)
         confidence = self._confidence(snapshot)
         if verdict != "exact-match":
-            return {"ok": False, "captured": False, "reason": "identity_not_exact"}
+            return "identity_not_exact"
+        if confidence is None:
+            return "invalid_confidence"
         if confidence < settings["minimumConfidence"]:
-            return {"ok": False, "captured": False, "reason": "confidence_below_threshold"}
+            return "confidence_below_threshold"
         primary = dict(snapshot.get("primary_candidate") or {})
         if trigger == "rarity-threshold":
-            return {"ok": False, "captured": False, "reason": "rarity_trigger_unavailable"}
+            return "rarity_trigger_unavailable"
         if trigger == "value-threshold":
-            return {"ok": False, "captured": False, "reason": "value_trigger_unavailable"}
-        if trigger == "qualifying-hit" and not primary.get("qualifying_hit"):
-            return {"ok": False, "captured": False, "reason": "qualifying_hit_unavailable"}
-        return self.capture(trigger=trigger, snapshot=snapshot, settings=settings)
+            return "value_trigger_unavailable"
+        if trigger == "qualifying-hit" and primary.get("qualifying_hit") is not True:
+            return "qualifying_hit_unavailable"
+        return None
 
     def capture(
         self,
@@ -222,12 +255,21 @@ class ProvenanceCaptureService:
         snapshot: dict[str, Any] | None = None,
         settings: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        snapshot = deepcopy(snapshot or {})
-        settings = self.normalize_settings(settings or self.settings())
-        camera = self._camera_context()
-        identity = self._identity(snapshot)
-        generation = int(snapshot.get("generation") or 0)
-        dedupe_key = self._dedupe_key(generation, identity, camera)
+        try:
+            snapshot = deepcopy(snapshot or {})
+            settings = self.normalize_settings(self.settings() if settings is None else settings)
+            if trigger not in TRIGGERS:
+                raise ValueError("Unsupported provenance trigger.")
+            if trigger != "manual":
+                reason = self._automatic_block_reason(snapshot, settings, trigger)
+                if reason:
+                    return {"ok": False, "captured": False, "reason": reason}
+            camera = self._camera_context()
+            identity = self._identity(snapshot)
+            generation = int(snapshot.get("generation") or 0)
+            dedupe_key = self._dedupe_key(generation, identity, camera)
+        except Exception as exc:
+            return self._capture_failure(exc)
         with self._lock:
             if trigger != "manual" and dedupe_key in self._dedupe:
                 return {
@@ -250,6 +292,7 @@ class ProvenanceCaptureService:
                 self._pending_dedupe.add(dedupe_key)
             self._inflight = True
             self._last_status = {"state": "capturing", "event_id": None, "error": None}
+        created_event_dir: Path | None = None
         try:
             frame = self._frame_provider()
             if frame is None or getattr(frame, "size", 0) == 0:
@@ -259,6 +302,7 @@ class ProvenanceCaptureService:
             day = datetime.now(timezone.utc)
             event_dir = self._safe_event_dir(day, event_id)
             event_dir.mkdir(parents=True, exist_ok=False)
+            created_event_dir = event_dir
             assets: list[dict[str, Any]] = []
             requested = settings["captureTypes"]
             if requested["fullFrame"] or not requested["cardFocus"]:
@@ -309,14 +353,32 @@ class ProvenanceCaptureService:
                 "event": deepcopy(event),
             }
         except Exception as exc:
-            with self._lock:
-                self._last_status = {"state": "error", "event_id": None, "error": str(exc)}
-            return {"ok": False, "captured": False, "reason": "capture_failed", "error": str(exc)}
+            if created_event_dir is not None:
+                self._discard_failed_bundle(created_event_dir)
+            return self._capture_failure(exc)
         finally:
             with self._lock:
                 if trigger != "manual":
                     self._pending_dedupe.discard(dedupe_key)
                 self._inflight = False
+
+    def _capture_failure(self, exc: Exception) -> dict[str, Any]:
+        with self._lock:
+            self._last_status = {"state": "error", "event_id": None, "error": str(exc)}
+        return {"ok": False, "captured": False, "reason": "capture_failed", "error": str(exc)}
+
+    def _discard_failed_bundle(self, event_dir: Path) -> None:
+        """Remove only files owned by this failed attempt, never prior evidence."""
+        try:
+            event_dir.resolve().relative_to(self.root)
+            for filename in (
+                "full-frame.png", "full-frame.tmp", "card-crop.png", "card-crop.tmp",
+                "event.json", "event.json.tmp",
+            ):
+                (event_dir / filename).unlink(missing_ok=True)
+            event_dir.rmdir()
+        except (OSError, ValueError):
+            LOGGER.warning("Could not clean failed provenance bundle %s", event_dir)
 
     def list_events(self, limit: int = 20) -> list[dict[str, Any]]:
         limit = max(1, min(100, int(limit)))
@@ -352,8 +414,12 @@ class ProvenanceCaptureService:
         }
         revision_dir = self._safe_event_dir(datetime.now(timezone.utc), revision_id)
         revision_dir.mkdir(parents=True, exist_ok=False)
-        self._atomic_json(revision_dir / "event.json", revision)
-        self._append_event(revision)
+        try:
+            self._atomic_json(revision_dir / "event.json", revision)
+            self._append_event(revision)
+        except Exception:
+            self._discard_failed_bundle(revision_dir)
+            raise
         return deepcopy(revision)
 
     def asset_path(self, event_id: str, asset_id: str) -> Path | None:
@@ -386,8 +452,11 @@ class ProvenanceCaptureService:
 
     @staticmethod
     def _identity_verdict(snapshot: dict[str, Any]) -> str:
+        candidate = snapshot.get("primary_candidate")
         exact_match = (
-            str(snapshot.get("verification_state") or "").upper() == "VERIFIED"
+            isinstance(candidate, dict)
+            and bool(candidate)
+            and str(snapshot.get("verification_state") or "").upper() == "VERIFIED"
             and snapshot.get("has_reference_evidence") is True
             and snapshot.get("identity_consistent") is True
             and snapshot.get("recognition_locked") is True
@@ -434,20 +503,19 @@ class ProvenanceCaptureService:
         }
 
     @staticmethod
-    def _confidence(snapshot: dict[str, Any]) -> float:
-        try:
-            return float(snapshot.get("overall_confidence") or snapshot.get("confidence") or 0.0)
-        except (TypeError, ValueError):
-            return 0.0
+    def _confidence(snapshot: dict[str, Any]) -> float | None:
+        # An authoritative zero/invalid score must not fall back to a higher one.
+        return _probability(snapshot.get("overall_confidence", snapshot.get("confidence")))
 
     @classmethod
     def _recognition_evidence(cls, snapshot: dict[str, Any], settings: dict[str, Any]) -> dict[str, Any]:
         if not settings["includeRecognitionEvidence"]:
             return {"verdict": cls._identity_verdict(snapshot)}
+        artwork = snapshot.get("artwork_index")
         return {
             "verdict": cls._identity_verdict(snapshot),
             "recognition_confidence": cls._confidence(snapshot),
-            "visual_confidence": snapshot.get("artwork_index", {}).get("top_score"),
+            "visual_confidence": _probability(artwork.get("top_score")) if isinstance(artwork, dict) else None,
             "verification_state": snapshot.get("verification_state"),
             "has_reference_evidence": bool(snapshot.get("has_reference_evidence")),
         }
@@ -494,38 +562,70 @@ class ProvenanceCaptureService:
         return output
 
     def _append_event(self, event: dict[str, Any]) -> None:
-        line = json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n"
+        line = (json.dumps(event, ensure_ascii=False, sort_keys=True, allow_nan=False) + "\n").encode("utf-8")
         with self._lock:
-            with self.index_path.open("a", encoding="utf-8") as handle:
-                handle.write(line)
-                handle.flush()
-                os.fsync(handle.fileno())
+            with self.index_path.open("a+b", buffering=0) as handle:
+                handle.seek(0, os.SEEK_END)
+                previous_size = handle.tell()
+                # Keep an interrupted tail separate from the next valid record.
+                if previous_size:
+                    handle.seek(-1, os.SEEK_END)
+                    if handle.read(1) != b"\n":
+                        line = b"\n" + line
+                try:
+                    if handle.write(line) != len(line):
+                        raise OSError("Incomplete provenance index write.")
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                except OSError:
+                    # Do not report failure then reload that event as saved.
+                    handle.truncate(previous_size)
+                    handle.flush()
+                    raise
             self._events[event["event_id"]] = deepcopy(event)
             self._event_roots[event["event_id"]] = self.root
 
     def _load_index(self) -> None:
         for root in (*self.legacy_roots, self.root):
+            path = root / "events.jsonl"
             try:
-                lines = (root / "events.jsonl").read_text(encoding="utf-8").splitlines()
-            except (FileNotFoundError, OSError):
+                handle = path.open(encoding="utf-8", errors="replace")
+            except OSError:
                 continue
-            for line in lines:
-                try:
-                    event = json.loads(line)
-                    event_id = str(event["event_id"])
-                except (json.JSONDecodeError, KeyError, TypeError):
-                    continue
-                self._events[event_id] = event
-                self._event_roots[event_id] = root
-                if event.get("trigger_reason") != "manual" and not event.get("revision_of"):
-                    camera = dict(event.get("camera") or {})
-                    identity = dict(event.get("identity") or {})
-                    key = self._dedupe_key(int(event.get("recognition_generation") or 0), identity, camera)
-                    self._dedupe[key] = event_id
+            with handle:
+                for number, line in enumerate(handle, 1):
+                    try:
+                        event = json.loads(line)
+                        event_id = event["event_id"]
+                        if not isinstance(event_id, str) or not event_id:
+                            raise ValueError("Missing event identifier.")
+                        if not isinstance(event.get("created_at", ""), str):
+                            raise ValueError("Invalid event timestamp.")
+                        camera = event.get("camera", {})
+                        identity = event.get("identity", {})
+                        assets = event.get("assets", [])
+                        if not isinstance(camera, dict) or not isinstance(identity, dict):
+                            raise ValueError("Invalid event context.")
+                        if not isinstance(assets, list) or any(not isinstance(asset, dict) for asset in assets):
+                            raise ValueError("Invalid event assets.")
+                        generation = int(event.get("recognition_generation") or 0)
+                    except (ValueError, KeyError, TypeError, OverflowError):
+                        LOGGER.warning("Ignoring invalid provenance index entry %s:%d", path, number)
+                        continue
+                    self._events[event_id] = event
+                    self._event_roots[event_id] = root
+                    # Generation counters restart with the server. Old sessions
+                    # remain readable but cannot claim this session's captures.
+                    if (
+                        event.get("server_session_id") == self.server_session_id
+                        and event.get("trigger_reason") != "manual"
+                        and not event.get("revision_of")
+                    ):
+                        self._dedupe[self._dedupe_key(generation, identity, camera)] = event_id
 
     @staticmethod
     def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(path.suffix + ".tmp")
-        temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+        temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True, allow_nan=False), encoding="utf-8")
         os.replace(temporary, path)

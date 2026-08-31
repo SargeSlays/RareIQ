@@ -81,11 +81,17 @@ def test_recent_scans_use_existing_history_once_and_render_newest_first() -> Non
     script = read("studiox.js")
     loader = function_body(script, "loadUI4RecentScans", "setUI4InspectorView")
     renderer = function_body(script, "renderUI4RecentScans", "loadUI4RecentScans")
+    initializer = script[
+        script.index("function initializeStudioXUI4"):
+        script.index('document.addEventListener("DOMContentLoaded"')
+    ]
     assert script.count('/api/recent-pulls?limit=20') == 1
     assert "Number(right.timestamp||0)-Number(left.timestamp||0)" in renderer
     assert ".slice(0,20)" in renderer
     assert 'title.textContent="No recent scans"' in renderer
     assert "renderUI4RecentScans(Array.isArray(payload.cards)?payload.cards:[])" in loader
+    assert 'setUI4InspectorView("current",false);\n  // Hydrate the history badge once' in initializer
+    assert initializer.count("loadUI4RecentScans();") == 1
     assert script.count("setInterval(()=>{if(document.hidden!==true)loadRecognition()},600)") == 1
     assert "setInterval(loadUI4RecentScans" not in script
 

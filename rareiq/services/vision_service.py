@@ -962,6 +962,9 @@ class VisionService:
         }
 
         self._latest_jpeg: bytes | None = None
+        self._output_jpeg_lock = threading.Lock()
+        self._output_jpeg_key: tuple | None = None
+        self._output_jpeg: bytes | None = None
         self._latest_frame: np.ndarray | None = None
         self._latest_crop: np.ndarray | None = None
 
@@ -1363,6 +1366,25 @@ class VisionService:
     def latest_jpeg(self) -> bytes | None:
         with self._lock:
             return self._latest_jpeg
+
+    def clean_output_jpeg(self) -> bytes | None:
+        """Encode a clean frame only on demand, once for all OBS subscribers."""
+        with self._output_jpeg_lock:
+            with self._lock:
+                stamp = self._latest_frame_at
+                if not self._running or self._latest_frame is None or stamp is None or time.time() - stamp > 2:
+                    return None
+                key = (self._stream_session_id, stamp)
+                if key == self._output_jpeg_key:
+                    return self._output_jpeg
+                frame = self._latest_frame.copy()
+            height, width = frame.shape[:2]
+            if width > 1920:
+                frame = cv2.resize(frame, (1920, max(1, round(height * 1920 / width))), interpolation=cv2.INTER_AREA)
+            ok, encoded = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 88])
+            self._output_jpeg_key = key
+            self._output_jpeg = encoded.tobytes() if ok else None
+            return self._output_jpeg
 
     def latest_crop(self) -> np.ndarray | None:
         with self._lock:

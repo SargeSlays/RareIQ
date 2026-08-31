@@ -32,7 +32,7 @@ def test_preflight_ui_has_readiness_verdict_and_checks():
     for token in ('id="showPreflight"', 'id="showPreflightVerdict"', 'id="showPreflightChecks"', 'id="showPreflightRefresh"', 'id="showPreflightSignals"', 'id="showPreflightLocalSignal"', 'id="showPreflightObsSignal"', 'id="showPreflightDestinationSignal"', 'id="showPreflightLiveSignal"'):
         assert token in CONTROL
     assert "async function loadShowPreflight" in JS
-    assert 'api("/api/production/preflight")' in JS
+    assert 'api("/api/production/preflight?workflow="+encodeURIComponent(workflow)' in JS
     assert "renderShowPreflight" in JS
     assert "const escapeHtml" in JS
     assert 'id="showStartButton"' in CONTROL

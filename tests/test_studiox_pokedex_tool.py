@@ -42,7 +42,7 @@ def test_pokedex_overlay_is_16_by_9_and_obeys_on_air_state():
     assert 'payload?.reveal?.hit_tier' in overlay
     assert "reveal-medium" in overlay
     assert "reveal-grail" in overlay
-    assert 'fetch("/api/rare-intelligence/current"' in overlay
+    assert 'RareIQOverlay.json("/api/rare-intelligence/current"' in overlay
     assert '@app.get("/overlay/rare-intelligence")' in server
     assert '@app.get("/api/rare-intelligence/current")' in server
     assert '@app.post("/api/rare-intelligence/on-air")' in server

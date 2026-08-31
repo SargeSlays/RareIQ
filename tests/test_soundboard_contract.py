@@ -15,7 +15,11 @@ def test_soundboard_api_and_reorderable_tool_exist():
 
 def test_soundboard_plays_and_stops_host_selected_audio():
     assert "function playSoundboardPad(pad)" in STUDIO
-    assert "player.play().then(startSoundboardPlaybackSync).catch" in STUDIO
+    assert "player.play().then(()=>{if(!disposed){" in STUDIO
+    assert "window.RareIQSoundboardOutput?.add(player,pad,soundboardVolume()/100);startSoundboardPlaybackSync()" in STUDIO
+    assert "window.RareIQSoundboardOutput?.remove(player)" in STUDIO
+    assert ").catch(error=>dispose(error))" in STUDIO
+    assert 'player.removeEventListener("error",failed)' in STUDIO
     assert '$("soundboardStop")?.addEventListener' in STUDIO
     assert 'accept="audio/mpeg,audio/wav,audio/ogg"' in CONTROL
 

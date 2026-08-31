@@ -10,11 +10,12 @@ DECK = (ROOT / "rareiq/web/static/studiox_command_deck.css").read_text(encoding=
 
 def test_creator_rail_is_real_accessible_navigation():
     assert 'id="creatorWorkspaceTabs" role="tablist" aria-label="Creator Studio views"' in CONTROL
-    assert CONTROL.count('data-creator-view="') == 3
+    assert CONTROL.count('data-creator-view="') == 4
     for view, panel in (
         ("rules", "creatorRevealConfig"),
         ("live", "creatorRevealMonitor"),
         ("assets", "creatorAssetPanel"),
+        ("chase", "creatorChasePanel"),
     ):
         assert f'data-creator-view="{view}"' in CONTROL
         assert f'aria-controls="{panel}"' in CONTROL
@@ -100,3 +101,28 @@ def test_creator_command_deck_uses_compact_production_layouts():
     assert "grid-template-columns: repeat(10, minmax(28px, 1fr)) !important" in creator
     assert "grid-template-columns: repeat(4, minmax(0, 1fr)) !important" in creator
     assert "max-height: 160px !important" in creator
+
+
+def test_creator_owns_the_wide_operator_stage_without_a_centered_content_cap():
+    creator_start = DECK.index("/* Creator */")
+    creator_end = DECK.index("/* Soundboard */", creator_start)
+    creator = DECK[creator_start:creator_end]
+    assert "@media (min-width: 1800px)" in creator
+    assert '.workspace[data-workspace="creator"] > .full-shell' in creator
+    assert "width: 100% !important" in creator
+    assert "max-width: none !important" in creator
+    assert "grid-template-columns: repeat(5, minmax(0, 1fr)) !important" in creator
+    assert "grid-template-columns: repeat(12, minmax(0, 1fr)) !important" in creator
+    assert ".creator-reveal-monitor > .creator-hit-decision" in creator
+    assert ".creator-reveal-monitor > .creator-reaction-preview" in creator
+    assert "grid-template-columns: repeat(6, minmax(0, 1fr)) !important" in creator
+
+
+def test_creator_chase_uses_available_height_and_one_persistent_editor():
+    assert 'id="creatorChaseFrame" data-src="/creator/set-chase?embed=creator"' in CONTROL
+    assert 'height:1300px' not in CONTROL
+    assert '!chaseFrame.hasAttribute("src")' in SCRIPT
+    assert '.workspace[data-workspace="creator"][data-creator-view="chase"] .full-shell > .content' in DECK
+    assert ':is(.creator-reveal-layout, #creatorChasePanel)[hidden]' in DECK
+    frame = DECK.split('#creatorChaseFrame {', 1)[1].split('}', 1)[0]
+    assert 'flex: 1 1 0' in frame and 'min-height: 0' in frame

@@ -21,7 +21,8 @@ def test_workspace_consumes_viewport_without_uncapped_stage():
 def test_4k_assets_are_cache_busted_together():
     css_marker = next(value for value in HTML.splitlines() if "studiox_update15.css?v=" in value)
     script_marker = next(value for value in HTML.splitlines() if "studiox.js?v=" in value)
-    assert css_marker.split("?v=", 1)[1].split('"', 1)[0] == script_marker.split("?v=", 1)[1].split('"', 1)[0]
+    # The build version is shared; independent feature cache keys may differ.
+    assert css_marker.split("?v=", 1)[1].split('&', 1)[0].split('"', 1)[0] == script_marker.split("?v=", 1)[1].split('&', 1)[0].split('"', 1)[0]
 
 
 def test_light_mode_is_preserved_by_final_layer():

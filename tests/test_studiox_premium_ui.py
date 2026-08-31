@@ -226,7 +226,7 @@ def test_inspector_section_jump_navigation_is_available() -> None:
     html = read("control.html")
     script = read("studiox.js")
     assert 'id="inspectorSectionNav"' in html
-    for target in ("cardContextHeader", "recognitionSignalPanel", "widgetWorkspace"):
+    for target in ("recognitionWorkspace", "widgetWorkspace"):
         assert f'data-inspector-section="{target}"' in html
     assert 'currentView.scrollTo({' in script
 

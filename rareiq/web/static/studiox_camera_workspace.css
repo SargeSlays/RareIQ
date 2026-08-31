@@ -1,0 +1,258 @@
+/* Camera tiles own their header and media bounds. Keep all layout modes here,
+   independent of the inspector's width and the legacy single-camera chrome. */
+#cameraWorkspace {
+  --cw-toolbar: 68px;
+  --cw-header: 108px;
+  --cw-gap: 8px;
+  --cw-width: calc((100% - var(--cw-gap)) / 2);
+  --cw-height: calc(100% - var(--cw-toolbar));
+  --cw-half-height: calc((100% - var(--cw-toolbar) - var(--cw-gap)) / 2);
+  position: relative !important;
+  padding: 0 !important;
+  grid-template: none !important;
+  gap: 0 !important;
+  container: camera-workspace / inline-size;
+}
+#cameraWorkspace :is(.camera-tile-header, .camera-stage-inner, #secondaryWorkspaceBay, #cameraWorkspaceSlot3, #cameraWorkspaceSlot4) { transition: none !important; }
+#cameraWorkspace[data-camera-layout="single"] { --cw-width: 100%; --cw-header: 64px; }
+#cameraWorkspace[data-camera-layout="quad"] { --cw-height: var(--cw-half-height); }
+#cameraWorkspace #productionControlsDrawer {
+  position: absolute !important;
+  inset: 0 0 auto !important;
+  height: var(--cw-toolbar) !important;
+  min-height: var(--cw-toolbar) !important;
+  margin: 0 !important;
+}
+#cameraWorkspace #viewerInspectionHeader {
+  position: absolute !important;
+  inset: var(--cw-toolbar) auto auto 0 !important;
+  width: var(--cw-width) !important;
+  margin: 0 !important;
+}
+#cameraWorkspace .camera-stage-inner {
+  position: absolute !important;
+  inset: calc(var(--cw-toolbar) + var(--cw-header)) auto auto 0 !important;
+  width: var(--cw-width) !important;
+  height: calc(var(--cw-height) - var(--cw-header)) !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  aspect-ratio: auto !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+#cameraWorkspace :is(#secondaryWorkspaceBay, #cameraWorkspaceSlot3, #cameraWorkspaceSlot4) {
+  position: absolute !important;
+  inset: var(--cw-toolbar) 0 auto auto !important;
+  display: grid !important;
+  grid-template: var(--cw-header) minmax(0, 1fr) / minmax(0, 1fr) !important;
+  width: var(--cw-width) !important;
+  height: var(--cw-height) !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  aspect-ratio: auto !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--sx-canvas) !important;
+  box-shadow: none !important;
+}
+#cameraWorkspace[data-camera-layout="triple"] :is(#secondaryWorkspaceBay, #cameraWorkspaceSlot3) { height: var(--cw-half-height) !important; }
+#cameraWorkspace[data-camera-layout="triple"] #cameraWorkspaceSlot3,
+#cameraWorkspace[data-camera-layout="quad"] :is(#cameraWorkspaceSlot3, #cameraWorkspaceSlot4) {
+  top: calc(var(--cw-toolbar) + var(--cw-half-height) + var(--cw-gap)) !important;
+}
+#cameraWorkspace[data-camera-layout="quad"] #cameraWorkspaceSlot3 { left: 0 !important; right: auto !important; }
+#cameraWorkspace :is(#secondaryWorkspaceBay, #cameraWorkspaceSlot3, #cameraWorkspaceSlot4)[hidden],
+#cameraWorkspace[data-camera-layout="single"] #secondaryWorkspaceBay { display: none !important; }
+
+/* All four headers use the same source/side grid. Actions occupy the identity
+   row, never the select row, so a narrow tile cannot push a selector offscreen. */
+#cameraWorkspace .camera-tile-header {
+  box-sizing: border-box !important;
+  display: grid !important;
+  grid-template: "identity action" 26px "source side" 52px / minmax(0, 1fr) 112px !important;
+  align-items: center !important;
+  gap: 8px !important;
+  height: var(--cw-header) !important;
+  min-height: var(--cw-header) !important;
+  min-width: 0 !important;
+  padding: 10px 12px !important;
+  overflow: visible !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--sx-divider-strong) !important;
+  border-radius: 0 !important;
+  background: var(--sx-chrome) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+#cameraWorkspace .camera-tile-header .camera-tile-identity {
+  grid-area: identity !important;
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 3px 6px !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+#cameraWorkspace .camera-tile-header .camera-tile-identity > :first-child {
+  display: inline !important;
+  font-size: 11px !important;
+  line-height: 16px !important;
+  font-weight: 750 !important;
+  color: var(--sx-text) !important;
+  white-space: nowrap !important;
+}
+#cameraWorkspace .camera-tile-header .camera-slot-badge {
+  display: inline !important;
+  font-size: 9px !important;
+  line-height: 14px !important;
+  border-radius: 3px !important;
+  color: var(--sx-text-soft) !important;
+  background: var(--sx-surface-raised) !important;
+}
+#cameraWorkspace .camera-tile-header .camera-slot-badge[data-role="active"] { color: var(--sx-accent) !important; }
+#cameraWorkspace .camera-tile-header .camera-tile-status {
+  display: inline !important;
+  font-size: 9px !important;
+  line-height: 14px !important;
+  font-style: normal !important;
+  color: var(--sx-text-muted) !important;
+}
+#cameraWorkspace .camera-tile-header .camera-tile-control {
+  display: grid !important;
+  grid-template: 12px 36px / minmax(0, 1fr) !important;
+  gap: 4px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  overflow: visible !important;
+}
+#cameraWorkspace .camera-tile-header .camera-source-control { grid-area: source !important; }
+#cameraWorkspace .camera-tile-header .camera-side-control { grid-area: side !important; }
+#cameraWorkspace .camera-tile-header .camera-tile-control > span {
+  display: block !important;
+  font-size: 10px !important;
+  line-height: 12px !important;
+  letter-spacing: .06em !important;
+  color: var(--sx-text-soft) !important;
+}
+#cameraWorkspace .camera-tile-header :is(select, button),
+#cameraWorkspace [data-choose-camera-slot] {
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 8px !important;
+  font: 600 12px/1.2 system-ui, sans-serif !important;
+  color: var(--sx-text) !important;
+  background: var(--sx-surface-raised) !important;
+  border: 1px solid var(--sx-divider-strong) !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+#cameraWorkspace .camera-tile-header select { width: 100% !important; max-width: 100% !important; }
+#cameraWorkspace .camera-tile-header > button {
+  grid-area: action !important;
+  justify-self: end !important;
+  width: auto !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  font-size: 11px !important;
+}
+#cameraWorkspace .camera-tile-header > button::after { content: none !important; }
+#cameraWorkspace .camera-tile-header > button[hidden],
+#cameraWorkspace [data-choose-camera-slot][hidden] { display: none !important; }
+#cameraWorkspace :is(select, button):focus-visible { outline: 2px solid var(--sx-accent) !important; outline-offset: 2px !important; }
+#cameraWorkspace .camera-tile-header > button:not(:disabled) { color: var(--sx-accent) !important; border-color: var(--sx-accent) !important; }
+#cameraWorkspace[data-camera-layout="single"] #viewerInspectionHeader {
+  grid-template: "identity source side" 44px / minmax(90px, 140px) minmax(0, 420px) 140px !important;
+  gap: 12px !important;
+}
+#cameraWorkspace[data-camera-layout="single"] #viewerInspectionHeader .camera-tile-control { grid-template-rows: 10px 30px !important; }
+#cameraWorkspace[data-camera-layout="single"] #viewerInspectionHeader select { height: 30px !important; min-height: 30px !important; }
+
+#cameraWorkspace :is(.secondary-bay-content, .camera-workspace-staging-surface) {
+  position: relative !important;
+  inset: auto !important;
+  display: grid !important;
+  place-content: center !important;
+  place-items: center !important;
+  gap: 8px !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--sx-canvas) !important;
+  color: var(--sx-text-soft) !important;
+}
+#cameraWorkspace :is(.secondary-bay-unavailable, .camera-workspace-staging-surface) {
+  text-align: center !important;
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+}
+#cameraWorkspace .secondary-bay-unavailable { display: grid; place-items: center; gap: 8px; padding: 16px; background: transparent !important; }
+#cameraWorkspace .secondary-bay-unavailable::before { content: none !important; }
+#cameraWorkspace :is(.secondary-bay-unavailable, .camera-workspace-staging-surface) > strong { font-size: 12px !important; color: var(--sx-text) !important; }
+#cameraWorkspace :is(#secondaryBayImage, .camera-slot-preview) {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  background: #000 !important;
+  z-index: 1;
+}
+#cameraWorkspace :is(#secondaryBayImage, .camera-slot-preview, #secondaryBayUnavailable)[hidden] { display: none !important; }
+#cameraWorkspace .camera-stage-inner .camera-feed-state-shield { top: 12px !important; left: 12px !important; }
+#cameraWorkspace #viewerBridgeState,
+#cameraWorkspace #cameraPlaceholder.hidden,
+#cameraWorkspace #cameraRecovery { display: none !important; }
+#cameraWorkspace #cameraRecovery.visible:not(.suppressed) {
+  position: absolute !important;
+  inset: 50% auto auto 50% !important;
+  transform: translate(-50%, -50%) !important;
+  z-index: 5 !important;
+  display: grid !important;
+  gap: 8px !important;
+  width: min(320px, calc(100% - 32px)) !important;
+  padding: 16px !important;
+  border: 1px solid var(--sx-divider-strong) !important;
+  border-radius: 4px !important;
+  background: var(--sx-chrome) !important;
+  color: var(--sx-text) !important;
+  text-align: center !important;
+}
+#cameraWorkspace #recognitionWorkflowPrompt { top: calc(var(--cw-toolbar) + var(--cw-header) + 12px) !important; max-width: calc(var(--cw-width) - 24px) !important; left: calc(var(--cw-width) / 2) !important; }
+#cameraWorkspace[data-camera-layout="quad"] .premium-scan-status { top: auto !important; bottom: calc(var(--cw-half-height) + var(--cw-gap) + 12px) !important; max-width: calc(var(--cw-width) - 24px) !important; }
+
+@container camera-workspace (max-width: 800px) {
+  #cameraWorkspace .camera-tile-header .camera-tile-status { display: none !important; }
+  #cameraWorkspace[data-camera-layout="single"] #viewerInspectionHeader { grid-template-columns: 90px minmax(0, 1fr) 110px !important; }
+  #cameraWorkspace:not([data-camera-layout="single"]) #recognitionWorkflowPrompt {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    padding: 10px !important;
+  }
+  #cameraWorkspace:not([data-camera-layout="single"]) #recognitionWorkflowPrompt > div { grid-column: 1 / -1 !important; }
+  #cameraWorkspace:not([data-camera-layout="single"]) #recognitionWorkflowPrompt strong { font-size: 12px !important; line-height: 16px !important; }
+  #cameraWorkspace:not([data-camera-layout="single"]) #recognitionWorkflowPrompt span { display: none !important; }
+  #cameraWorkspace:not([data-camera-layout="single"]) #recognitionWorkflowPrompt button { width: 100% !important; min-width: 0 !important; }
+}
+@media (max-width: 959px) {
+  #cameraWorkspace { --cw-toolbar: 54px; }
+  #cameraWorkspace:not([data-camera-layout="single"]) { min-height: 640px !important; }
+}
+@container camera-workspace (max-width: 500px) {
+  #cameraWorkspace .camera-tile-header { grid-template-columns: minmax(0, 1fr) 86px !important; padding-inline: 6px !important; gap: 8px 4px !important; }
+  #cameraWorkspace .camera-tile-header .camera-slot-badge { display: none !important; }
+  #cameraWorkspace .camera-tile-header select { font-size: 11px !important; padding-inline: 4px !important; }
+}

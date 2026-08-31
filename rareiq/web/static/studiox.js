@@ -18,6 +18,7 @@ const BROADCAST_WORKSPACE_VIEW_KEY="rareiq.broadcastWorkspaceView";
 let studioXExactMatchMomentKey = null;
 let studioXExactMatchMomentTimer = null;
 let recognitionPresentationMemory={key:"ready",presentation:null,changedAt:0};
+let latestSingleCameraPresentation=null;
 const RECOGNITION_LATENCY_SESSION_KEY="rareiq.recognitionLatency.session.v1";
 let recognitionLatencySamples=loadRecognitionLatencySamples();
 let lastRecognitionLatencySampleKey="";
@@ -110,6 +111,7 @@ const CAMERA_FX_PREFERENCES_KEY="rareiq.cameraFx.preferences.v1";
 const VOICE_MOD_PRESETS={clean:"Clean Studio",deep:"Deep Broadcast",robot:"Robot",radio:"Radio",megaphone:"Megaphone"};
 let voiceModState={context:null,inputStream:null,source:null,inputGain:null,dryGain:null,wetGain:null,outputGain:null,monitorGain:null,destination:null,analyser:null,nodes:[],oscillators:[],meterFrame:0,active:false};
 let voiceModRequestGeneration=0;
+let voiceModInputRequest=0;
 let cameraFxState={enabled:false,frame:0,lastFrame:0};
 
 const studioThemeMedia=window.matchMedia("(prefers-color-scheme: light)");
@@ -356,8 +358,8 @@ function approvedInventoryRarityWeight(card={}){return {"Special":8,"Illustratio
 async function approvedInventoryAllocation(card={}){const prefs=approvedInventoryPrefs();if(prefs.costMode==="fixed")return {cost:prefs.cost,currency:"USD",description:`Fixed ${portfolioMoney(prefs.cost,"USD")} per card`};const payload=await api("/api/production/session/pack-economics"),economics=payload.economics||{},settings=economics.settings||{},packCost=Number(economics.effective_pack_cost||0),currency=settings.currency||"USD";if(prefs.costMode==="rarity_weighted"){const weight=approvedInventoryRarityWeight(card);return {cost:0,currency,weighted:true,totalPackCost:packCost,weight,description:`${portfolioMoney(packCost,currency)} rarity-weighted pack ledger · ${weight}× weight`}}const cards=Math.max(1,Number(prefs.cardsPerPack||6));return {cost:Math.round(packCost/cards*100)/100,currency,description:`${portfolioMoney(packCost,currency)} pack ÷ ${cards} cards`}}
 async function refreshApprovedInventoryCostPreview(){const allocation=await approvedInventoryAllocation(lastApprovedInventoryCard||{});if($("approvedInventoryCostPreview"))$("approvedInventoryCostPreview").textContent=allocation.weighted?`${allocation.description}. Every approved card in this pack is rebalanced automatically.`:`${allocation.description} = ${portfolioMoney(allocation.cost,allocation.currency)} cost basis per approved card.`;return allocation}
 async function lockInventoryAllocation(group){if(!group)return null;const result=await api("/api/inventory/allocations/lock",{method:"POST",body:JSON.stringify({group})});if(result.locked&&activeInventoryAllocationGroup===group)activeInventoryAllocationGroup="";return result}
-async function createApprovedInventory(card=lastApprovedInventoryCard){if(!card)throw new Error("Approve an exact card first.");if(!(card.set_id||card.set_code||card.set_name)||!(card.collector_number||card.card_number))throw new Error("Exact set and collector number are required for inventory.");const prefs=approvedInventoryPrefs(),allocation=await approvedInventoryAllocation(card),inventoryCard={...card,currency:allocation.currency},payload={card:inventoryCard,cost_basis:allocation.cost,asking_price:null,condition:prefs.condition,location:prefs.location,notes:`Created from approved RareIQ scan · ${allocation.description}`,allocation_group:allocation.weighted?card._inventoryAllocationGroup||"":"",allocation_weight:allocation.weight||1};const result=await api("/api/inventory/items",{method:"POST",body:JSON.stringify(payload)});let item=result.item;if(!item?.item_id)throw new Error(result.reason||"Inventory item was not returned.");if(allocation.weighted){const balanced=await api("/api/inventory/allocations/rebalance",{method:"POST",body:JSON.stringify({group:payload.allocation_group,total_cost:allocation.totalPackCost,currency:allocation.currency})});item=(balanced.items||[]).find(candidate=>candidate.item_id===item.item_id)||item;if(card._inventoryAllocationComplete)await lockInventoryAllocation(payload.allocation_group)}lastApprovedInventoryCard=null;renderApprovedInventoryPrefs();notify(card._inventoryAllocationComplete?"Pack Ledger Locked":"Inventory Item Created",`${item.english_name||item.card_name} · ${item.item_id} · cost ${portfolioMoney(item.cost_basis,item.currency)}`,"success");if(prefs.openLabel)window.open(item.label_url,"_blank");loadInventory().catch(()=>{});return item}
-async function handleApprovedInventory(result){if(!result?.card||result.duplicate_suppressed)return;const reveal=result.reveal_sequence||{},packNumber=Math.max(1,Number(reveal.pack_number||$("sessionPacks")?.textContent||1)),sessionKey=String(result.session?.session_id||currentServerSessionId||"active-session"),group=`${sessionKey}:pack-${packNumber}`;activeInventoryAllocationGroup=group;lastApprovedInventoryCard={...result.card,_inventoryAllocationGroup:group,_inventoryAllocationComplete:Number(reveal.position||0)>=Number(reveal.expected_cards||Infinity)};renderApprovedInventoryPrefs();refreshApprovedInventoryCostPreview().catch(()=>{});if(approvedInventoryPrefs().auto)await createApprovedInventory(lastApprovedInventoryCard)}
+async function createApprovedInventory(card=lastApprovedInventoryCard){if(!card)throw new Error("Approve an exact card first.");if(!(card.set_id||card.set_code||card.set_name)||!(card.collector_number||card.card_number))throw new Error("Exact set and collector number are required for inventory.");const prefs=approvedInventoryPrefs(),allocation=await approvedInventoryAllocation(card),inventoryCard={...card,currency:allocation.currency},payload={card:inventoryCard,cost_basis:allocation.cost,asking_price:null,condition:prefs.condition,location:prefs.location,notes:`Created from approved RareIQ scan · ${allocation.description}`,allocation_group:allocation.weighted?card._inventoryAllocationGroup||"":"",allocation_weight:allocation.weight||1,source_event_id:card._inventorySourceEventId||""};const result=await api("/api/inventory/items",{method:"POST",body:JSON.stringify(payload)});let item=result.item;if(!item?.item_id)throw new Error(result.reason||"Inventory item was not returned.");if(allocation.weighted&&!result.duplicate_suppressed){const balanced=await api("/api/inventory/allocations/rebalance",{method:"POST",body:JSON.stringify({group:payload.allocation_group,total_cost:allocation.totalPackCost,currency:allocation.currency})});item=(balanced.items||[]).find(candidate=>candidate.item_id===item.item_id)||item;if(card._inventoryAllocationComplete)await lockInventoryAllocation(payload.allocation_group)}lastApprovedInventoryCard=null;renderApprovedInventoryPrefs();notify(result.duplicate_suppressed?"Already in Inventory":card._inventoryAllocationComplete?"Pack Ledger Locked":"Inventory Item Created",result.duplicate_suppressed?`${item.english_name||item.card_name} was already recorded for this approved scan.`:`${item.english_name||item.card_name} · ${item.item_id} · cost ${portfolioMoney(item.cost_basis,item.currency)}`,"success");if(prefs.openLabel&&!result.duplicate_suppressed)window.open(item.label_url,"_blank");loadInventory().catch(()=>{});return item}
+async function handleApprovedInventory(result){if(!result?.card||result.duplicate_suppressed)return;const reveal=result.reveal_sequence||{},packNumber=Math.max(1,Number(reveal.pack_number||$("sessionPacks")?.textContent||1)),sessionKey=String(result.session?.session_id||currentServerSessionId||"active-session"),group=`${sessionKey}:pack-${packNumber}`,sourceEventId=String(result.session?.last_added_card?.id||"");activeInventoryAllocationGroup=group;lastApprovedInventoryCard={...result.card,_inventoryAllocationGroup:group,_inventoryAllocationComplete:Number(reveal.position||0)>=Number(reveal.expected_cards||Infinity),_inventorySourceEventId:sourceEventId};renderApprovedInventoryPrefs();refreshApprovedInventoryCostPreview().catch(()=>{});if(approvedInventoryPrefs().auto)await createApprovedInventory(lastApprovedInventoryCard)}
 const AUTO_ADD_VERIFIED_KEY="rareiq.autoAddVerified.v1";
 const PACK_SPEED_RUN_KEY="rareiq.packSpeedRun.v1";
 const PACK_SPEED_HISTORY_KEY="rareiq.packSpeedHistory.v1";
@@ -696,8 +698,8 @@ function beginCardHandoff(outcome="cleared"){
   renderPackSpeedAutomationState(window.__rareiqCardContext||{});
   if($("decisionVerdict")) $("decisionVerdict").textContent=outcome==="approved"?"CARD APPROVED":outcome==="rejected"?"CARD REJECTED":"CLEARING CARD";
   if($("decisionCardName")) $("decisionCardName").textContent=outcome==="cleared"?"Preparing next scan":"Remove card from the scan zone";
-  if($("aiState")) $("aiState").textContent=outcome==="cleared"?"NEXT CARD":"REMOVE CARD";
-  if($("aiDetail")) $("aiDetail").textContent=outcome==="cleared"?"Present the next card when ready.":"RareIQ will hold this result until the card leaves view.";
+  latestSingleCameraPresentation={key:"ready",title:outcome==="cleared"?"NEXT CARD":"REMOVE CARD",detail:outcome==="cleared"?"Present the next card when ready.":"RareIQ will hold this result until the card leaves view."};
+  renderCameraRecognitionPresentation();
 }
 
 function observeCompletedCardRemoval(snapshot={}){
@@ -769,8 +771,8 @@ function completeCardHandoff(elapsedMs=null,method="removal"){
   else renderCardRemovalProgress(100,`Removal confirmed${timing} · ready for next`,true);
   if($("decisionVerdict")) $("decisionVerdict").textContent="READY FOR NEXT";
   if($("decisionCardName")) $("decisionCardName").textContent="Present next card";
-  if($("aiState")) $("aiState").textContent="READY";
-  if($("aiDetail")) $("aiDetail").textContent=method==="replacement"?"New card acquired. Recognition is continuing automatically.":"Place the next card inside the scan zone.";
+  latestSingleCameraPresentation={key:"ready",title:"READY",detail:method==="replacement"?"New card acquired. Recognition is continuing automatically.":"Place the next card inside the scan zone."};
+  renderCameraRecognitionPresentation();
   playCardHandoffReadySound();
   if(Number.isFinite(elapsedMs))recordCardHandoffTiming(elapsedMs,method);
   cardHandoffTimer=setTimeout(()=>{delete document.body.dataset.cardHandoff;renderCardRemovalProgress(0,"Waiting for removal",false);syncResultDecisionStrip()},900);
@@ -948,6 +950,7 @@ function applyCameraFit(mode){
 
   localStorage.setItem("rareiq.cameraFitMode",cameraFitMode);
   alignScanZone(window.__rareiqVisionTelemetry||{});
+  refreshMultiCardCameraOverlay();
 }
 
 function cycleCameraFit(){
@@ -976,10 +979,12 @@ function setStateChip(id,state,label){
 }
 
 function applyRecognitionPresentation(presentation){
-  const panel=$("recognitionStatePanel");
-  const label=$("recognitionStateLabel");
+  latestSingleCameraPresentation=presentation;
   const placeholder=$("cardPlaceholder");
   const key=presentation?.key||"ready";
+  if(["ready","detecting","scanning","error"].includes(key)){
+    renderRecognitionSpeed({presentation});
+  }
   document.body.dataset.recognitionPresentation=key;
   const title=presentation?.title||"READY";
   const detail=presentation?.detail||"";
@@ -989,11 +994,6 @@ function applyRecognitionPresentation(presentation){
     key==="exact-match"?"MATCH":"FUSION",
     title
   );
-  const legacyState=
-    key==="exact-match" ? "matched" :
-    key==="error" ? "error" :
-    key==="ready" ? "idle" :
-    "searching";
   clearTimeout(cardPlaceholderResetTimer);
   if(placeholder){
     placeholder.classList.remove(
@@ -1013,15 +1013,8 @@ function applyRecognitionPresentation(presentation){
   if($("cardPlaceholderDetail")){
     $("cardPlaceholderDetail").textContent=presentation?.placeholderDetail||detail;
   }
-  if($("aiState")) $("aiState").textContent=title;
-  if($("aiDetail")) $("aiDetail").textContent=detail;
   if($("confidence")) $("confidence").textContent=`${Math.round(confidence*100)}%`;
   if($("cardStatus")) $("cardStatus").textContent=title;
-  if($("cameraFeedStateLabel")) $("cameraFeedStateLabel").textContent=title;
-  if($("unifiedScanStatus")){
-    $("unifiedScanStatus").dataset.state=key;
-    $("unifiedScanStatus").dataset.presentation=key;
-  }
   const progressIndex={
     ready:0,
     detecting:1,
@@ -1041,7 +1034,30 @@ function applyRecognitionPresentation(presentation){
       stage.removeAttribute("aria-current");
     }
   });
+  renderCameraRecognitionPresentation();
+}
+
+function renderCameraRecognitionPresentation(){
+  // Single-card recognition keeps running behind a grid scan. Only the active
+  // workflow owns camera feedback; switching back restores its latest state.
+  let presentation=latestSingleCameraPresentation||{key:"ready",title:"READY",detail:"Waiting for a card."};
+  if(cameraConnectionAvailable===false){
+    presentation={key:"error",title:"CAMERA OFFLINE",detail:cameraConnectionFailure?.error||"Reconnect a camera to resume recognition."};
+  }else if(studioXRecognitionMode==="six-card-grid"){
+    presentation=window.RareIQMultiCard.cameraPresentation(multiCardLastPayload||{});
+  }
+  const {key,title,detail}=presentation;
+  const legacyState=key==="exact-match"?"matched":key==="error"?"error":key==="ready"?"idle":"searching";
+  const panel=$("recognitionStatePanel");
+  const label=$("recognitionStateLabel");
   const detailNode=$("recognitionStateDetail");
+  if($("cameraFeedStateLabel")) $("cameraFeedStateLabel").textContent=title;
+  if($("aiState")) $("aiState").textContent=title;
+  if($("aiDetail")) $("aiDetail").textContent=detail;
+  if($("unifiedScanStatus")){
+    $("unifiedScanStatus").dataset.state=key;
+    $("unifiedScanStatus").dataset.presentation=key;
+  }
   if(panel){
     panel.classList.remove("idle","searching","matched","captured","error");
     panel.classList.add(legacyState);
@@ -1078,6 +1094,50 @@ function setRecognitionState(state,detail=""){
     detail,
     confidence:0,
   });
+}
+
+function deriveRecognitionSpeed(context={}){
+  const pending={state:"idle",label:"Match speed",value:"—",title:"Match timing appears after the current card is analyzed."};
+  const key=context.presentation?.key||"ready";
+  if(!["exact-match","candidate-found","verifying","review-needed","set-mismatch"].includes(key)) return pending;
+  const snapshot=context.snapshot||{};
+  const raw=snapshot.raw_recognition||snapshot.payload||snapshot.latest||{};
+  // The state envelope may retain the previous worker's timings during a handoff.
+  // Never attach those measurements to the replacement card.
+  if(raw.generation!=null&&snapshot.generation!=null&&Number(raw.generation)!==Number(snapshot.generation)) return pending;
+  if(snapshot.result_current===false) return pending;
+  const timings=snapshot.stage_timings||{};
+  const rawTimings=raw.stage_timings||{};
+  const measured=(values)=>values.find(value=>
+    (typeof value==="number"||typeof value==="string"&&value.trim()!=="")&&
+    Number.isFinite(Number(value))&&Number(value)>=0
+  );
+  // Prefer camera-to-result elapsed time, including queueing. Do not add stage
+  // timers: preflight/search timers can overlap and inflate the displayed speed.
+  const capture=measured([snapshot.capture_to_result_ms,timings.capture_to_result_ms,raw.capture_to_result_ms,rawTimings.capture_to_result_ms]);
+  const processing=measured([timings.total_ms,snapshot.last_latency_ms,rawTimings.total_ms,raw.last_latency_ms,raw.latency_ms]);
+  const elapsed=capture??processing;
+  if(elapsed===undefined) return pending;
+  const milliseconds=Number(elapsed);
+  const value=milliseconds<1?"<1 ms":milliseconds<1000?`${Math.round(milliseconds)} ms`:`${(milliseconds/1000).toFixed(2)} s`;
+  const matched=key==="exact-match"&&context.verified===true;
+  const candidate=Boolean(context.card)&&["candidate-found","verifying"].includes(key);
+  return {
+    state:matched?"matched":candidate?"candidate":"analysis",
+    label:matched?"Matched in":candidate?"Candidate in":"Analyzed in",
+    value,
+    title:`${capture!==undefined?"Camera capture to result, including queueing":"Recognition processing time"} for the latest scan of this card. ${matched?"Identity verified.":"Identity is not yet verified."}`,
+  };
+}
+
+function renderRecognitionSpeed(context={}){
+  const badge=$("recognitionSpeed");
+  if(!badge) return;
+  const model=deriveRecognitionSpeed(context);
+  badge.dataset.state=model.state;
+  badge.title=model.title;
+  $("recognitionSpeedLabel").textContent=model.label;
+  $("recognitionSpeedValue").textContent=model.value;
 }
 
 function renderRecognitionLatencyTrace(snapshot={},raw={}){
@@ -1350,7 +1410,7 @@ async function toggleAutoCapture(){
 const WORKSPACE_COMMAND_TITLES={
   live:"Live identification",
   collection:"Collection intelligence",
-  broadcast:"Production console",
+  broadcast:"Streaming studio",
   creator:"Creator studio",
   soundboard:"Soundboard",
   "voice-mod":"Voice studio",
@@ -1403,18 +1463,102 @@ function switchWorkspace(name){
 }
 
 function voiceModPreferences(){try{return JSON.parse(localStorage.getItem(VOICE_MOD_PREFERENCES_KEY)||"{}")||{}}catch(_error){return {}}}
-function saveVoiceModPreferences(){try{localStorage.setItem(VOICE_MOD_PREFERENCES_KEY,JSON.stringify({deviceId:$("voiceModInput")?.value||"",preset:$("voiceModPreset")?.value||"clean",gain:Number($("voiceModGain")?.value||100),mix:Number($("voiceModMix")?.value||75),output:Number($("voiceModOutput")?.value||100),monitor:Boolean($("voiceModMonitor")?.checked)}))}catch(_error){}}
+function saveVoiceModPreferences(){try{localStorage.setItem(VOICE_MOD_PREFERENCES_KEY,JSON.stringify({deviceId:$("voiceModInput")?.dataset.devicesReady==="true"?$("voiceModInput").value:voiceModPreferences().deviceId||"",preset:$("voiceModPreset")?.value||"clean",gain:Number($("voiceModGain")?.value||100),mix:Number($("voiceModMix")?.value||75),output:Number($("voiceModOutput")?.value||100),monitor:Boolean($("voiceModMonitor")?.checked)}))}catch(_error){}}
 function setVoiceModStatus(state,label){const host=$("voiceModState"),meter=document.querySelector(".voice-mod-meter-card"),start=$("voiceModStart"),stop=$("voiceModStop");if(host){host.dataset.state=state;host.querySelector("span").textContent=label}if(meter)meter.dataset.state=state;if(start)start.disabled=state==="live"||state==="starting";if(stop){stop.disabled=!["live","starting"].includes(state);stop.textContent=state==="starting"?"Cancel":"Stop"}}
 function setVoiceModInputStatus(message,state="ready"){const status=$("voiceModInputStatus");if(status){status.textContent=message;status.dataset.state=state}}
-async function refreshVoiceModInputs(){if(!navigator.mediaDevices?.enumerateDevices)throw new Error("Microphone selection is not supported in this browser.");const devices=(await navigator.mediaDevices.enumerateDevices()).filter(device=>device.kind==="audioinput"),select=$("voiceModInput");if(!select)return devices;const preferred=select.value||voiceModPreferences().deviceId||"",selectable=devices.filter(device=>device.deviceId);select.replaceChildren(new Option("Default microphone",""),...selectable.map((device,index)=>new Option(device.label||`Microphone ${index+1}`,device.deviceId)));if([...select.options].some(option=>option.value===preferred))select.value=preferred;if(!devices.length)setVoiceModInputStatus("No microphones detected. Connect an input, then refresh.","error");else if(devices.some(device=>!device.deviceId||!device.label))setVoiceModInputStatus(`${devices.length} microphone${devices.length===1?"":"s"} detected · start once to grant access and reveal device names.`,"permission");else setVoiceModInputStatus(`${devices.length} microphone${devices.length===1?"":"s"} available.`,"ready");return devices}
+async function refreshVoiceModInputs(){
+  if(!navigator.mediaDevices?.enumerateDevices)throw new Error("Microphone selection is not supported in this browser.");
+  const request=++voiceModInputRequest;
+  const devices=(await navigator.mediaDevices.enumerateDevices()).filter(device=>device.kind==="audioinput"),select=$("voiceModInput");
+  if(!select||request!==voiceModInputRequest)return devices;
+  const preferred=select.value||voiceModPreferences().deviceId||"",selectable=devices.filter(device=>device.deviceId);
+  const missing=Boolean(preferred&&!selectable.some(device=>device.deviceId===preferred));
+  select.replaceChildren(new Option("Default microphone",""),...selectable.map((device,index)=>new Option(device.label||`Microphone ${index+1}`,device.deviceId)),...(missing?[new Option("Saved microphone (unavailable)",preferred)]:[]));
+  select.value=preferred;select.dataset.devicesReady="true";
+  if(missing)setVoiceModInputStatus("The selected microphone is unavailable. Reconnect it or choose another input.","error");
+  else if(!devices.length)setVoiceModInputStatus("No microphones detected. Connect an input, then refresh.","error");
+  else if(devices.some(device=>!device.deviceId||!device.label))setVoiceModInputStatus(`${devices.length} microphone${devices.length===1?"":"s"} detected · start once to grant access and reveal device names.`,"permission");
+  else setVoiceModInputStatus(`${devices.length} microphone${devices.length===1?"":"s"} available.`,"ready");
+  return devices;
+}
 function voiceModDistortion(amount=35){const curve=new Float32Array(44100),k=Number(amount),deg=Math.PI/180;for(let i=0;i<curve.length;i++){const x=i*2/curve.length-1;curve[i]=(3+k)*x*20*deg/(Math.PI+k*Math.abs(x))}return curve}
 function connectVoiceModPreset(context,input,wet,preset){const nodes=[],oscillators=[];let tail=input;const add=node=>{tail.connect(node);tail=node;nodes.push(node);return node};if(preset==="deep"){const low=add(context.createBiquadFilter());low.type="lowpass";low.frequency.value=1450;low.Q.value=.7;const bass=add(context.createBiquadFilter());bass.type="lowshelf";bass.frequency.value=210;bass.gain.value=8;const compressor=add(context.createDynamicsCompressor());compressor.threshold.value=-24;compressor.ratio.value=4}else if(preset==="robot"){const mod=add(context.createGain());mod.gain.value=.58;const oscillator=context.createOscillator(),depth=context.createGain();oscillator.frequency.value=42;depth.gain.value=.42;oscillator.connect(depth);depth.connect(mod.gain);oscillator.start();oscillators.push(oscillator);nodes.push(depth);const band=add(context.createBiquadFilter());band.type="bandpass";band.frequency.value=1200;band.Q.value=.8}else if(preset==="radio"){const high=add(context.createBiquadFilter());high.type="highpass";high.frequency.value=420;const low=add(context.createBiquadFilter());low.type="lowpass";low.frequency.value=3200;const compressor=add(context.createDynamicsCompressor());compressor.threshold.value=-30;compressor.ratio.value=8}else if(preset==="megaphone"){const band=add(context.createBiquadFilter());band.type="bandpass";band.frequency.value=1650;band.Q.value=.75;const shaper=add(context.createWaveShaper());shaper.curve=voiceModDistortion(55);shaper.oversample="2x";const compressor=add(context.createDynamicsCompressor());compressor.threshold.value=-28;compressor.ratio.value=10}tail.connect(wet);return {nodes,oscillators}}
-function updateVoiceModLevels(){const gain=Number($("voiceModGain")?.value||100),mix=Number($("voiceModMix")?.value||75),output=Number($("voiceModOutput")?.value||100),monitor=$("voiceModMonitor")?.checked?1:0;if($("voiceModGainValue"))$("voiceModGainValue").textContent=`${gain}%`;if($("voiceModMixValue"))$("voiceModMixValue").textContent=`${mix}%`;if($("voiceModOutputValue"))$("voiceModOutputValue").textContent=`${output}%`;if(voiceModState.inputGain)voiceModState.inputGain.gain.value=gain/100;if(voiceModState.dryGain)voiceModState.dryGain.gain.value=1-mix/100;if(voiceModState.wetGain)voiceModState.wetGain.gain.value=mix/100;if(voiceModState.outputGain)voiceModState.outputGain.gain.value=output/100;if(voiceModState.monitorGain)voiceModState.monitorGain.gain.value=monitor;saveVoiceModPreferences()}
+function updateVoiceModLevels(persist=true){const gain=Number($("voiceModGain")?.value||100),mix=Number($("voiceModMix")?.value||75),output=Number($("voiceModOutput")?.value||100),monitor=$("voiceModMonitor")?.checked?1:0;if($("voiceModGainValue"))$("voiceModGainValue").textContent=`${gain}%`;if($("voiceModMixValue"))$("voiceModMixValue").textContent=`${mix}%`;if($("voiceModOutputValue"))$("voiceModOutputValue").textContent=`${output}%`;if(voiceModState.inputGain)voiceModState.inputGain.gain.value=gain/100;if(voiceModState.dryGain)voiceModState.dryGain.gain.value=1-mix/100;if(voiceModState.wetGain)voiceModState.wetGain.gain.value=mix/100;if(voiceModState.outputGain)voiceModState.outputGain.gain.value=output/100;if(voiceModState.monitorGain)voiceModState.monitorGain.gain.value=monitor;if(persist)saveVoiceModPreferences()}
 function meterVoiceMod(){cancelAnimationFrame(voiceModState.meterFrame);if(!voiceModState.active||!voiceModState.analyser)return;const samples=new Uint8Array(voiceModState.analyser.fftSize);voiceModState.analyser.getByteTimeDomainData(samples);let sum=0;for(const value of samples){const centered=(value-128)/128;sum+=centered*centered}const rms=Math.sqrt(sum/samples.length),db=rms?20*Math.log10(rms):-Infinity,level=Math.max(0,Math.min(100,(db+60)/60*100));if($("voiceModMeterFill"))$("voiceModMeterFill").style.width=`${level}%`;if($("voiceModLevel"))$("voiceModLevel").textContent=Number.isFinite(db)?`${db.toFixed(1)} dB`:"−∞ dB";voiceModState.meterFrame=requestAnimationFrame(meterVoiceMod)}
-async function stopVoiceMod(){voiceModRequestGeneration+=1;cancelAnimationFrame(voiceModState.meterFrame);voiceModState.oscillators.forEach(oscillator=>{try{oscillator.stop()}catch(_error){}});voiceModState.inputStream?.getTracks().forEach(track=>track.stop());if(voiceModState.context&&voiceModState.context.state!=="closed")await voiceModState.context.close();voiceModState={context:null,inputStream:null,source:null,inputGain:null,dryGain:null,wetGain:null,outputGain:null,monitorGain:null,destination:null,analyser:null,nodes:[],oscillators:[],meterFrame:0,active:false};window.rareiqVoiceModStream=null;if($("voiceModMeterFill"))$("voiceModMeterFill").style.width="0%";if($("voiceModLevel"))$("voiceModLevel").textContent="−∞ dB";if($("voiceModRoute"))$("voiceModRoute").textContent="RareIQ stream unavailable until started";setVoiceModStatus("idle","Microphone idle")}
-async function handleVoiceModInputEnded(track){if(!voiceModState.active||!voiceModState.inputStream?.getTracks().includes(track))return;await stopVoiceMod();setVoiceModStatus("error","Microphone disconnected");setVoiceModInputStatus("The active microphone disconnected. Reconnect it, then refresh inputs.","error");notify("Voice Mod Disconnected","The active microphone stopped sending audio.","error");refreshVoiceModInputs().catch(()=>{})}
-async function startVoiceMod(){if(!navigator.mediaDevices?.getUserMedia)throw new Error("Microphone capture is not supported in this browser.");if(voiceModState.active)await stopVoiceMod();const requestGeneration=++voiceModRequestGeneration;setVoiceModStatus("starting","Requesting microphone");const deviceId=$("voiceModInput")?.value||"";let stream=null,context=null;try{stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:deviceId?{exact:deviceId}:undefined,echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});if(requestGeneration!==voiceModRequestGeneration){stream.getTracks().forEach(track=>track.stop());return}const AudioContextClass=window.AudioContext||window.webkitAudioContext;if(!AudioContextClass)throw new Error("Live audio processing is not supported in this browser.");context=new AudioContextClass();await context.resume();if(requestGeneration!==voiceModRequestGeneration){stream.getTracks().forEach(track=>track.stop());await context.close().catch(()=>{});return}const source=context.createMediaStreamSource(stream),inputGain=context.createGain(),dryGain=context.createGain(),wetGain=context.createGain(),mixBus=context.createGain(),outputGain=context.createGain(),analyser=context.createAnalyser(),monitorGain=context.createGain(),destination=context.createMediaStreamDestination();analyser.fftSize=1024;source.connect(inputGain);inputGain.connect(dryGain);dryGain.connect(mixBus);const preset=$("voiceModPreset")?.value||"clean",effect=connectVoiceModPreset(context,inputGain,wetGain,preset);wetGain.connect(mixBus);mixBus.connect(outputGain);outputGain.connect(analyser);analyser.connect(destination);analyser.connect(monitorGain);monitorGain.connect(context.destination);voiceModState={context,inputStream:stream,source,inputGain,dryGain,wetGain,outputGain,monitorGain,destination,analyser,nodes:effect.nodes,oscillators:effect.oscillators,meterFrame:0,active:true};stream.getAudioTracks()[0]?.addEventListener("ended",event=>handleVoiceModInputEnded(event.target).catch(error=>notify("Voice Mod Cleanup Failed",error.message||String(error),"error")),{once:true});window.rareiqVoiceModStream=destination.stream;if($("voiceModPresetName"))$("voiceModPresetName").textContent=VOICE_MOD_PRESETS[preset]||preset;if($("voiceModRoute"))$("voiceModRoute").textContent="Processed RareIQ audio stream ready";updateVoiceModLevels();setVoiceModStatus("live","Voice Mod live");refreshVoiceModInputs().catch(()=>{});meterVoiceMod();notify("Voice Mod Live",`${VOICE_MOD_PRESETS[preset]||preset} processing is active.`,"success")}catch(error){if(requestGeneration!==voiceModRequestGeneration){stream?.getTracks().forEach(track=>track.stop());if(context&&context.state!=="closed")await context.close().catch(()=>{});return}if(voiceModState.inputStream===stream)await stopVoiceMod().catch(()=>{});else{stream?.getTracks().forEach(track=>track.stop());if(context&&context.state!=="closed")await context.close().catch(()=>{})}window.rareiqVoiceModStream=null;setVoiceModStatus("error","Microphone unavailable");setVoiceModInputStatus("Microphone access failed. Check browser permission and the selected input.","error");throw error}}
-function restoreVoiceModPreferences(){const prefs=voiceModPreferences();if($("voiceModPreset"))$("voiceModPreset").value=VOICE_MOD_PRESETS[prefs.preset]?prefs.preset:"clean";[["voiceModGain",prefs.gain??100],["voiceModMix",prefs.mix??75],["voiceModOutput",prefs.output??100]].forEach(([id,value])=>{if($(id))$(id).value=String(value)});if($("voiceModMonitor"))$("voiceModMonitor").checked=Boolean(prefs.monitor);updateVoiceModLevels()}
+async function stopVoiceMod(){
+  voiceModRequestGeneration+=1;
+  const previous=voiceModState;
+  // Detach synchronously: an old close promise must never own a newer session.
+  voiceModState={context:null,inputStream:null,source:null,inputGain:null,dryGain:null,wetGain:null,outputGain:null,monitorGain:null,destination:null,analyser:null,nodes:[],oscillators:[],meterFrame:0,active:false};
+  window.rareiqVoiceModStream=null;
+  cancelAnimationFrame(previous.meterFrame);
+  previous.oscillators.forEach(oscillator=>{try{oscillator.stop()}catch(_error){}});
+  [previous.inputStream,previous.destination?.stream].forEach(stream=>stream?.getTracks().forEach(track=>{try{track.stop()}catch(_error){}}));
+  if($("voiceModMeterFill"))$("voiceModMeterFill").style.width="0%";
+  if($("voiceModLevel"))$("voiceModLevel").textContent="−∞ dB";
+  if($("voiceModRoute"))$("voiceModRoute").textContent="RareIQ stream unavailable until started";
+  setVoiceModStatus("idle","Microphone idle");
+  if(previous.context&&previous.context.state!=="closed")await previous.context.close();
+}
+async function handleVoiceModInputEnded(track){
+  if(!voiceModState.active||!voiceModState.inputStream?.getTracks().includes(track))return;
+  const cleanup=stopVoiceMod(),generation=voiceModRequestGeneration;
+  try{await cleanup;}catch(_error){}
+  if(generation!==voiceModRequestGeneration)return;
+  setVoiceModStatus("error","Microphone disconnected");
+  setVoiceModInputStatus("The active microphone disconnected. Reconnect it, then refresh inputs.","error");
+  notify("Voice Mod Disconnected","The active microphone stopped sending audio.","error");
+  refreshVoiceModInputs().catch(()=>{});
+}
+async function startVoiceMod(){
+  if(!navigator.mediaDevices?.getUserMedia)throw new Error("Microphone capture is not supported in this browser.");
+  const cleanup=(voiceModState.active||voiceModState.inputStream||voiceModState.context)?stopVoiceMod():null;
+  const requestGeneration=++voiceModRequestGeneration;
+  setVoiceModStatus("starting","Requesting microphone");
+  const input=$("voiceModInput"),deviceId=(input?.dataset.devicesReady==="true"?input.value:voiceModPreferences().deviceId||input?.value)||"";
+  let stream=null,context=null;
+  try{
+    if(cleanup)await cleanup;
+    if(requestGeneration!==voiceModRequestGeneration)return;
+    stream=await navigator.mediaDevices.getUserMedia({audio:{deviceId:deviceId?{exact:deviceId}:undefined,echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false});
+    if(requestGeneration!==voiceModRequestGeneration){stream.getTracks().forEach(track=>track.stop());return}
+    const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+    if(!AudioContextClass)throw new Error("Live audio processing is not supported in this browser.");
+    context=new AudioContextClass();
+    // Cancel must own acquired media even while the audio device is resuming.
+    voiceModState={...voiceModState,inputStream:stream,context};
+    await context.resume();
+    if(requestGeneration!==voiceModRequestGeneration){stream.getTracks().forEach(track=>track.stop());await context.close().catch(()=>{});return}
+    const track=stream.getAudioTracks()[0];
+    if(!track||track.readyState==="ended")throw new Error("The selected microphone disconnected before startup completed.");
+    const source=context.createMediaStreamSource(stream),inputGain=context.createGain(),dryGain=context.createGain(),wetGain=context.createGain(),mixBus=context.createGain(),outputGain=context.createGain(),analyser=context.createAnalyser(),monitorGain=context.createGain(),destination=context.createMediaStreamDestination();
+    analyser.fftSize=1024;source.connect(inputGain);inputGain.connect(dryGain);dryGain.connect(mixBus);
+    const preset=$("voiceModPreset")?.value||"clean",effect=connectVoiceModPreset(context,inputGain,wetGain,preset);
+    wetGain.connect(mixBus);mixBus.connect(outputGain);outputGain.connect(analyser);analyser.connect(destination);analyser.connect(monitorGain);monitorGain.connect(context.destination);
+    voiceModState={context,inputStream:stream,source,inputGain,dryGain,wetGain,outputGain,monitorGain,destination,analyser,nodes:effect.nodes,oscillators:effect.oscillators,meterFrame:0,active:true};
+    track.addEventListener("ended",event=>handleVoiceModInputEnded(event.target).catch(error=>notify("Voice Mod Cleanup Failed",error.message||String(error),"error")),{once:true});
+    window.rareiqVoiceModStream=destination.stream;
+    if($("voiceModPresetName"))$("voiceModPresetName").textContent=VOICE_MOD_PRESETS[preset]||preset;
+    if($("voiceModRoute"))$("voiceModRoute").textContent="Processed RareIQ audio stream ready";
+    updateVoiceModLevels();setVoiceModStatus("live","Voice Mod live");refreshVoiceModInputs().catch(()=>{});meterVoiceMod();
+    notify("Voice Mod Live",`${VOICE_MOD_PRESETS[preset]||preset} processing is active.`,"success");
+  }catch(error){
+    if(requestGeneration!==voiceModRequestGeneration){stream?.getTracks().forEach(track=>track.stop());if(context&&context.state!=="closed")await context.close().catch(()=>{});return}
+    if(voiceModState.inputStream===stream&&stream){
+      const stopping=stopVoiceMod(),generation=voiceModRequestGeneration;
+      await stopping.catch(()=>{});
+      if(generation!==voiceModRequestGeneration)return;
+    }else{
+      stream?.getTracks().forEach(track=>track.stop());
+      if(context&&context.state!=="closed")await context.close().catch(()=>{});
+      if(requestGeneration!==voiceModRequestGeneration)return;
+    }
+    window.rareiqVoiceModStream=null;setVoiceModStatus("error","Microphone unavailable");
+    setVoiceModInputStatus("Microphone access failed. Check browser permission and the selected input.","error");
+    throw error;
+  }
+}
+function restoreVoiceModPreferences(){const prefs=voiceModPreferences();if($("voiceModPreset"))$("voiceModPreset").value=VOICE_MOD_PRESETS[prefs.preset]?prefs.preset:"clean";[["voiceModGain",prefs.gain??100],["voiceModMix",prefs.mix??75],["voiceModOutput",prefs.output??100]].forEach(([id,value])=>{if($(id))$(id).value=String(value)});if($("voiceModMonitor"))$("voiceModMonitor").checked=Boolean(prefs.monitor);updateVoiceModLevels(false)}
 const CAMERA_FX_PRESETS={clean:{brightness:100,contrast:100,saturation:100,sepia:0,hue:0},vibrant:{brightness:104,contrast:112,saturation:145,sepia:0,hue:0},cinematic:{brightness:92,contrast:128,saturation:86,sepia:12,hue:-8},warm:{brightness:103,contrast:106,saturation:118,sepia:22,hue:-7},cool:{brightness:101,contrast:108,saturation:112,sepia:0,hue:12},noir:{brightness:98,contrast:145,saturation:0,sepia:0,hue:0},vintage:{brightness:98,contrast:108,saturation:78,sepia:38,hue:-12}};
 function cameraFxPreferences(){try{return JSON.parse(localStorage.getItem(CAMERA_FX_PREFERENCES_KEY)||"{}")||{}}catch(_error){return {}}}
 function cameraFxValues(){return {enabled:cameraFxState.enabled,preset:document.querySelector("[data-camera-fx-preset][aria-pressed=true]")?.dataset.cameraFxPreset||"clean",brightness:Number($("cameraFxBrightness")?.value||100),contrast:Number($("cameraFxContrast")?.value||100),saturation:Number($("cameraFxSaturation")?.value||100),blur:Number($("cameraFxBlur")?.value||0),chroma:Boolean($("cameraFxChroma")?.checked),keyColor:$("cameraFxKeyColor")?.value||"#00ff00",tolerance:Number($("cameraFxTolerance")?.value||32),softness:Number($("cameraFxSoftness")?.value||18)}}
@@ -1507,17 +1651,91 @@ function renderBroadcastDestinationsUnavailable(error){
 async function loadBroadcastDestinations(){try{const payload=await api("/api/production/destinations");renderBroadcastDestinations(payload);return payload;}catch(error){renderBroadcastDestinationsUnavailable(error);throw error;}}
 async function saveObsSettings(event){event.preventDefault();const scene_map={};document.querySelectorAll("#obsSceneMap select").forEach(select=>{if(select.value)scene_map[select.dataset.rareiqScene]=select.value;});const payload=await api("/api/production/obs/settings",{method:"POST",body:JSON.stringify({host:$("obsHost")?.value.trim()||"127.0.0.1",port:Number($("obsPort")?.value)||4455,password:$("obsPassword")?.value||"",enabled:Boolean($("obsEnabled")?.checked),scene_map})});if($("obsPassword"))$("obsPassword").value="";renderObsStatus(payload);notify(payload.obs?.connected?"OBS Connected":"OBS Settings Saved",payload.obs?.connected?"RareIQ scene synchronization is ready.":payload.obs?.error||"OBS is not connected.",payload.obs?.connected?"success":"error");}
 async function obsCommand(action,scene=null){const payload=await api("/api/production/obs/command",{method:"POST",body:JSON.stringify({action,scene})});renderObsStatus(payload);return payload;}
-function renderObsBootstrap(payload={}){const result=payload.bootstrap||payload,plan=result.plan||[],created=new Set((result.created||[]).map(item=>item.scene)),skipped=new Map((result.skipped||[]).map(item=>[item.scene,item.reason])),ready=result.ready===true||result.dry_run===false&&!result.diagnostic;const status=$("obsBootstrapStatus"),create=$("obsBootstrapCreate"),diagnostic=result.diagnostic||{};if(create)create.disabled=!ready;if(status){status.dataset.state=ready?"ready":"blocked";status.querySelector("strong").textContent=ready?"AUTHENTICATED · READY":"SETUP REQUIRED";status.querySelector("span").textContent=ready?`${result.create_count??plan.length} to create · ${result.preserve_count??0} existing scenes preserved · ${result.obs_version||"OBS"}`:diagnostic.action||diagnostic.message||"Connect OBS WebSocket, then preview again.";}if($("obsBootstrapPlan"))$("obsBootstrapPlan").replaceChildren(...plan.map(item=>{const row=document.createElement("article");row.innerHTML="<div><strong></strong><code></code></div><span></span>";row.querySelector("strong").textContent=item.scene;row.querySelector("code").textContent=item.url;row.querySelector("span").textContent=result.dry_run?(item.action==="preserve"?"PRESERVE":"CREATE"):created.has(item.scene)?"CREATED":skipped.get(item.scene)||"SKIPPED";row.dataset.state=created.has(item.scene)?"created":skipped.has(item.scene)||item.action==="preserve"?"skipped":"planned";return row;}));}
-async function bootstrapObs(dry_run){if(!dry_run&&!confirm("Create the planned RareIQ scenes and browser inputs in connected OBS? Existing scenes will be skipped."))return;const payload=await api("/api/production/obs/bootstrap",{method:"POST",body:JSON.stringify({base_url:location.origin,dry_run})});renderObsBootstrap(payload);if(!dry_run){renderObsStatus(payload.bootstrap?.status||{});const mapped=Object.keys(payload.bootstrap?.mapped||{}).length;notify("OBS Bootstrap Complete",`${payload.bootstrap?.created?.length||0} created · ${payload.bootstrap?.skipped?.length||0} preserved · ${mapped} cues mapped`,"success");}}
+function renderObsBootstrap(payload={}){
+  const result=payload.bootstrap||payload,plan=result.plan||[];
+  const created=new Set((result.created||[]).map(item=>item.scene));
+  const skipped=new Map((result.skipped||[]).map(item=>[item.scene,item.reason]));
+  const ready=result.ready===true,status=$("obsBootstrapStatus"),create=$("obsBootstrapCreate"),diagnostic=result.diagnostic||{};
+  if(create)create.disabled=!ready;
+  if(status){
+    status.dataset.state=ready?"ready":"blocked";
+    status.querySelector("strong").textContent=ready?(result.dry_run?"AUTHENTICATED · READY":"SETUP COMPLETE"):"SETUP REQUIRED";
+    status.querySelector("span").textContent=ready
+      ?`${result.create_count??plan.length} to create or complete · ${result.preserve_count??0} existing scenes preserved · ${result.obs_version||"OBS"}`
+      :diagnostic.action||diagnostic.message||"Connect OBS WebSocket, then preview again.";
+  }
+  if($("obsBootstrapPlan"))$("obsBootstrapPlan").replaceChildren(...plan.map(item=>{
+    const row=document.createElement("article");
+    row.innerHTML="<div><strong></strong><small></small><code></code></div><span></span>";
+    row.querySelector("strong").textContent=item.scene;
+    row.querySelector("small").textContent=broadcastSourceFormat(item);
+    row.querySelector("code").textContent=item.url;
+    row.querySelector("span").textContent=result.dry_run
+      ?({preserve:"PRESERVE",complete:"COMPLETE EMPTY SCENE",create:"CREATE"}[item.action]||(ready?"CREATE":"CONNECT TO INSPECT"))
+      :created.has(item.scene)?"CREATED":skipped.get(item.scene)||"SKIPPED";
+    row.dataset.state=created.has(item.scene)?"created":skipped.has(item.scene)||item.action==="preserve"?"skipped":"planned";
+    return row;
+  }));
+}
+function broadcastSourceFormat(item={}){
+  const dimensions=item.width&&item.height?`${item.width} × ${item.height}`:"Set dimensions in OBS";
+  return `${dimensions} · ${item.audio?"Audio only · Control audio via OBS":item.placement==="bottom-center"?"Bottom strip · Silent":"Fit to canvas · Silent"}`;
+}
+async function bootstrapObs(dry_run){
+  if(!dry_run&&!confirm("Create the planned RareIQ scenes and browser inputs in connected OBS? Existing nonempty scenes will be preserved; empty RareIQ scenes will be completed."))return;
+  const payload=await api("/api/production/obs/bootstrap",{method:"POST",body:JSON.stringify({base_url:location.origin,dry_run})});
+  renderObsBootstrap(payload);
+  if(!dry_run){
+    const result=payload.bootstrap||{};
+    renderObsStatus(result.status||{});
+    const mapped=Object.keys(result.mapped||{}).length;
+    if(result.ready!==true){
+      notify("OBS Setup Incomplete",result.diagnostic?.message||"Some browser sources could not be created. Review the setup plan.","error");
+      return;
+    }
+    notify("OBS Bootstrap Complete",`${result.created?.length||0} created · ${result.preserve_count||0} preserved · ${mapped} cues mapped`,"success");
+  }
+}
 function renderRecordingSettings(payload={}){const settings=payload.settings||payload;if($("recordingPreset"))$("recordingPreset").value=settings.preset||"balanced";if($("recordingMinimumFree"))$("recordingMinimumFree").value=String(settings.minimum_free_gb||2);if($("recordingOutputDir"))$("recordingOutputDir").value=settings.output_dir||"";if($("recordingCommand"))$("recordingCommand").value=settings.command_template||"";if($("recordingDiskEstimate"))$("recordingDiskEstimate").textContent=`${(Number(settings.free_bytes||0)/1073741824).toFixed(1)} GB free · about ${Number(settings.estimated_minutes||0).toLocaleString()} recording minutes`;}
-function renderEncoderGuide(payload={}){const capabilities=payload.capabilities||{},sources=payload.browser_sources||{},origin=location.origin;if($("recordingFfmpegStatus"))$("recordingFfmpegStatus").textContent=`FFmpeg: ${capabilities.ffmpeg?.installed?"Detected":"Not detected"}`;if($("recordingObsStatus"))$("recordingObsStatus").textContent=`OBS: ${capabilities.obs?.installed?"Detected":"Not detected"}`;if($("recordingUseTestPreset"))$("recordingUseTestPreset").dataset.command=capabilities.templates?.["ffmpeg-test"]||"";if($("recordingUseDevicePreset"))$("recordingUseDevicePreset").dataset.command=capabilities.templates?.["ffmpeg-device"]||"";const grid=$("recordingBrowserSources");if(grid)grid.replaceChildren(...Object.entries(sources).map(([name,path])=>{const row=document.createElement("article"),url=`${origin}${path}`;row.innerHTML="<div><strong></strong><code></code></div><button type=\"button\">Copy</button>";row.querySelector("strong").textContent=name.replaceAll("_"," ");row.querySelector("code").textContent=url;row.querySelector("button").addEventListener("click",()=>navigator.clipboard.writeText(url).then(()=>notify("URL Copied",url,"success")).catch(()=>notify("Copy Failed","Select and copy the displayed URL.","error")));return row;}));}
+function renderEncoderGuide(payload={}){
+  const capabilities=payload.capabilities||{},origin=location.origin;
+  const sources=Array.isArray(payload.browser_source_details)?payload.browser_source_details:
+    Object.entries(payload.browser_sources||{}).map(([key,path])=>({key,path,label:key.replaceAll("_"," ")}));
+  if($("recordingFfmpegStatus"))$("recordingFfmpegStatus").textContent=`FFmpeg: ${capabilities.ffmpeg?.installed?"Detected":"Not detected"}`;
+  if($("recordingObsStatus"))$("recordingObsStatus").textContent=`OBS: ${capabilities.obs?.installed?"Detected":"Not detected"}`;
+  if($("recordingUseTestPreset"))$("recordingUseTestPreset").dataset.command=capabilities.templates?.["ffmpeg-test"]||"";
+  if($("recordingUseDevicePreset"))$("recordingUseDevicePreset").dataset.command=capabilities.templates?.["ffmpeg-device"]||"";
+  const grid=$("recordingBrowserSources");
+  if(grid)grid.replaceChildren(...sources.map(item=>{
+    const row=document.createElement("article"),url=`${origin}${item.path}`;
+    row.dataset.source=item.key;
+    row.innerHTML='<div><strong></strong><small></small><code></code></div><button type="button">Copy URL</button>';
+    row.querySelector("strong").textContent=item.label;
+    row.querySelector("small").textContent=broadcastSourceFormat(item);
+    row.querySelector("code").textContent=url;
+    const copy=row.querySelector("button");
+    copy.setAttribute("aria-label",`Copy ${item.label} source URL`);
+    copy.addEventListener("click",async()=>{
+      try{await navigator.clipboard.writeText(url);notify("URL Copied",url,"success");}
+      catch{notify("Copy Failed","Select and copy the displayed URL.","error");}
+    });
+    return row;
+  }));
+}
 async function loadRecordingSettings(){const payload=await api("/api/production/recording/settings");renderRecordingSettings(payload);renderEncoderGuide(payload);return payload;}
 async function saveRecordingSettings(event){event.preventDefault();const payload=await api("/api/production/recording/settings",{method:"POST",body:JSON.stringify({preset:$("recordingPreset")?.value||"balanced",minimum_free_gb:Number($("recordingMinimumFree")?.value)||2,output_dir:$("recordingOutputDir")?.value.trim()||"recordings",command_template:$("recordingCommand")?.value.trim()||""})});renderRecordingSettings(payload.settings);notify("Recording Settings Saved","Run a test before relying on the encoder during a show.","success");}
-async function testRecordingSettings(){if($("recordingTest"))$("recordingTest").disabled=true;if($("recordingTestResult"))$("recordingTestResult").textContent="Testing encoder for two seconds…";try{const payload=await api("/api/production/recording/test",{method:"POST"});if($("recordingTestResult"))$("recordingTestResult").textContent=payload.test?.verified?`Verified · ${payload.test.output_bytes} bytes written`:"Test finished but output could not be verified";notify(payload.test?.verified?"Recording Verified":"Recording Unverified",payload.test?.output_path||"Check encoder configuration.",payload.test?.verified?"success":"error");}finally{if($("recordingTest"))$("recordingTest").disabled=false;await loadRecordingSettings();}}
+async function testRecordingSettings(){if($("recordingTest"))$("recordingTest").disabled=true;if($("recordingTestResult"))$("recordingTestResult").textContent="Testing encoder for two seconds…";try{const payload=await api("/api/production/recording/test",{method:"POST"});if($("recordingTestResult"))$("recordingTestResult").textContent=payload.test?.verified?`Verified · ${payload.test.output_bytes} bytes written`:"Test finished but output could not be verified";notify(payload.test?.verified?"Recording Verified":"Recording Unverified",payload.test?.output_path||"Check encoder configuration.",payload.test?.verified?"success":"error");}finally{if($("recordingTest"))$("recordingTest").disabled=false;await loadRecordingSettings().catch(()=>{});}}
 function sessionTime(seconds){const value=Math.max(0,Math.floor(seconds));return [Math.floor(value/3600),Math.floor(value%3600/60),value%60].map(item=>String(item).padStart(2,"0")).join(":");}
 function productionMetadataPayload(){return{name:$("productionSessionName")?.value.trim()||"",customer:$("productionSessionCustomer")?.value.trim()||"",break_id:$("productionSessionBreakId")?.value.trim()||"",operator_notes:$("productionSessionNotes")?.value.trim()||""}}
 async function saveProductionSessionMetadata(event){event?.preventDefault();const payload=await api("/api/production/session/metadata",{method:"POST",body:JSON.stringify(productionMetadataPayload())});renderProductionSession(payload);notify("Session Details Saved","Archive and reports will use these identifiers.","success");}
-function renderProductionSession(payload={}){productionSessionState=payload.session||productionSessionState;const active=Boolean(productionSessionState.active),events=productionSessionState.events||[],workspace=document.querySelector('.workspace[data-workspace="broadcast"]');if(workspace)workspace.dataset.productionSession=active?"live":"idle";if($("productionSessionTitle"))$("productionSessionTitle").textContent=active?"Production Session Live":"Show Not Started";if($("productionSessionStart"))$("productionSessionStart").disabled=active;if($("productionSessionStop"))$("productionSessionStop").disabled=!active;if($("productionRecordingStatus"))$("productionRecordingStatus").textContent=productionSessionState.recording?.configured?(productionSessionState.recording.active?"Recording hook: active":"Recording hook: ready"):"Recording hook: not configured";if($("productionEventLog"))$("productionEventLog").replaceChildren(...(events.length?events.slice().reverse().slice(0,25).map(event=>{const row=document.createElement("article");row.innerHTML="<div><strong></strong><small></small></div><span></span>";row.querySelector("strong").textContent=event.title;row.querySelector("small").textContent=event.detail||event.kind;row.querySelector("span").textContent=new Date(event.timestamp*1000).toLocaleTimeString();return row;}):[Object.assign(document.createElement("p"),{textContent:"No session events yet."})]));updateProductionSessionClock();}
+function recordingStatusText(recording={}) {
+  if(recording.stopping)return "Recording: finalizing…";
+  if(recording.last_error)return `Recording: ${recording.last_error}`;
+  if(recording.active)return recording.healthy?"Recording: active":"Recording: waiting for encoder output";
+  if(recording.verified)return "Recording: output saved";
+  return recording.configured?"Recording: ready":"Recording: not configured";
+}
+function renderProductionSession(payload={}){productionSessionState=payload.session||productionSessionState;const active=Boolean(productionSessionState.active),events=productionSessionState.events||[],workspace=document.querySelector('.workspace[data-workspace="broadcast"]');if(workspace)workspace.dataset.productionSession=active?"live":"idle";if($("productionSessionTitle"))$("productionSessionTitle").textContent=active?"Production Session Live":"Show Not Started";if($("productionSessionStart"))$("productionSessionStart").disabled=active;if($("productionSessionStop"))$("productionSessionStop").disabled=!active;if($("productionRecordingStatus"))$("productionRecordingStatus").textContent=recordingStatusText(productionSessionState.recording);if($("productionEventLog"))$("productionEventLog").replaceChildren(...(events.length?events.slice().reverse().slice(0,25).map(event=>{const row=document.createElement("article");row.innerHTML="<div><strong></strong><small></small></div><span></span>";row.querySelector("strong").textContent=event.title;row.querySelector("small").textContent=event.detail||event.kind;row.querySelector("span").textContent=new Date(event.timestamp*1000).toLocaleTimeString();return row;}):[Object.assign(document.createElement("p"),{textContent:"No session events yet."})]));updateProductionSessionClock();if(active&&$("showWorkflow"))$("showWorkflow").value=productionSessionState.output_intent?.workflow==="studio"?"studio":"cards";syncShowStartAvailability();}
 function updateProductionSessionClock(){const elapsed=productionSessionState.started_at?((productionSessionState.active?Date.now()/1000:productionSessionState.ended_at||Date.now()/1000)-productionSessionState.started_at):0;if($("productionSessionClock"))$("productionSessionClock").textContent=sessionTime(elapsed);}
 async function loadProductionSession(){const payload=await api("/api/production/session");renderProductionSession(payload);if(!productionSessionTimer)productionSessionTimer=setInterval(updateProductionSessionClock,1000);return payload;}
 async function setProductionSession(active){if(!active)return stopProductionShow();const payload=await api("/api/production/session/start",{method:"POST",body:JSON.stringify(productionMetadataPayload())});renderProductionSession(payload);notify("Session Started","Operator logging is active.","success");}
@@ -1528,12 +1746,45 @@ function healthCard(name,state){const card=document.querySelector(`[data-health=
 async function acknowledgeOperatorHealthIncident(incidentId,button){if(!incidentId)return;if(button)button.disabled=true;try{const payload=await api(`/api/production/health/incidents/${encodeURIComponent(incidentId)}/acknowledge`,{method:"POST"});renderOperatorHealthJournal(payload.health_journal||[]);notify("Incident Acknowledged","The risk remains active until health evidence clears.","success");}catch(error){if(button)button.disabled=false;notify("Acknowledgment Failed",error.message||String(error),"error");}}
 function renderOperatorHealthJournal(entries=[]){const list=$("operatorHealthJournalList"),count=$("operatorHealthJournalCount"),recent=Array.isArray(entries)?entries.slice(-6).reverse():[];if(count)count.textContent=entries.length?`${entries.length} event${entries.length===1?"":"s"}`:"No events";if(!list)return;if(!recent.length){const empty=document.createElement("p");empty.textContent="No live incidents recorded.";list.replaceChildren(empty);return;}list.replaceChildren(...recent.map(entry=>{const row=document.createElement("article"),copy=document.createElement("div"),title=document.createElement("strong"),detail=document.createElement("small"),controls=document.createElement("aside"),state=document.createElement("b"),guidance=Array.isArray(entry.guidance)?entry.guidance.filter(Boolean):[];row.dataset.state=entry.state||"active";row.dataset.acknowledged=entry.acknowledged_at?"true":"false";title.textContent=entry.title||"Production health changed";detail.textContent=`${entry.detail||"No detail available"} · ${new Date(Number(entry.timestamp||0)*1000).toLocaleTimeString()}`;state.textContent=entry.acknowledged_at?"acknowledged":entry.state||"active";copy.append(title,detail);if(guidance.length){const guide=document.createElement("details"),summary=document.createElement("summary"),steps=document.createElement("ol");summary.textContent="Guided response";guidance.forEach(text=>{const step=document.createElement("li");step.textContent=text;steps.append(step);});guide.append(summary,steps);copy.append(guide);}controls.append(state);if(entry.state!=="resolved"){const acknowledge=document.createElement("button");acknowledge.type="button";acknowledge.className="operator-health-ack";acknowledge.textContent=entry.acknowledged_at?"Acknowledged":"Acknowledge";acknowledge.disabled=Boolean(entry.acknowledged_at);acknowledge.addEventListener("click",()=>acknowledgeOperatorHealthIncident(entry.id,acknowledge));controls.append(acknowledge);}row.append(copy,controls);return row;}));}
 function renderOperatorHealth(payload={}){const sessions=payload.sessions||[],connected=Number(payload.connected_cameras)||0,configured=Number(payload.configured_cameras)||0,program=Number(payload.program_slot)||1,programCamera=payload.program_camera||{},programReady=Boolean(programCamera.ready),sessionActive=Boolean(payload.session_active),risks=Array.isArray(payload.risks)?payload.risks:[],criticalRisk=risks.find(risk=>risk?.severity==="critical"),riskDetails=risks.map(risk=>risk?.detail).filter(Boolean),riskActions=[...new Set(risks.map(risk=>risk?.action).filter(Boolean))],replaySeconds=Math.round(Number(payload.replay_buffered_frames||0)/Math.max(1,Number(payload.replay_fps)||5)),recognition=String(payload.recognition_state||"ready").replaceAll("_"," "),confidence=Math.round(Number(payload.recognition_confidence||0)*((Number(payload.recognition_confidence||0)<=1)?100:1)),audioActive=(soundboardQueue?.length||0)>0||Boolean(spotifyState?.playback?.is_playing),layers=[];if(payload.production_screen_visible)layers.push("Screen");if(payload.graphic_visible)layers.push("Graphic");if($("operatorCameraHealth"))$("operatorCameraHealth").textContent=`${connected}/${configured||sessions.length||0} Online`;if($("operatorCameraDetail"))$("operatorCameraDetail").textContent=configured?"Configured production sources":"No cameras configured";if($("operatorProgramHealth"))$("operatorProgramHealth").textContent=programReady?`Camera ${program} Live`:`Camera ${program} Attention`;if($("operatorSceneDetail"))$("operatorSceneDetail").textContent=programCamera.detail||payload.active_scene_id||"Manual switcher";if($("operatorRecognitionHealth"))$("operatorRecognitionHealth").textContent=recognition;if($("operatorRecognitionDetail"))$("operatorRecognitionDetail").textContent=`${confidence}% confidence`;if($("operatorAudioHealth"))$("operatorAudioHealth").textContent=audioActive?"Active":"Idle";if($("operatorAudioDetail"))$("operatorAudioDetail").textContent=spotifyState?.playback?.is_playing?"Spotify playing":soundboardQueue?.length?`${soundboardQueue.length} sound(s) queued`:"Outputs ready";if($("operatorReplayHealth"))$("operatorReplayHealth").textContent=replaySeconds>=3?"Ready":"Buffering";if($("operatorReplayDetail"))$("operatorReplayDetail").textContent=`${replaySeconds}s rolling buffer`;if($("operatorOutputHealth"))$("operatorOutputHealth").textContent=layers.length?layers.join(" + "):"Clean";if($("operatorOutputDetail"))$("operatorOutputDetail").textContent=layers.length?"Active on browser output":"No takeover active";healthCard("cameras",connected>0||configured===0?"good":"bad");healthCard("program",programReady?"good":programCamera.state==="warn"?"warn":"bad");healthCard("recognition",recognition.includes("error")?"bad":"good");healthCard("replay",replaySeconds>=3?"good":"warn");healthCard("output",layers.length?"active":"good");const alert=$("operatorHealthAlert");if(alert){alert.hidden=!sessionActive||!criticalRisk;alert.dataset.state=criticalRisk?.severity||"clear";alert.dataset.riskCount=String(risks.length);}if($("operatorHealthAlertTitle"))$("operatorHealthAlertTitle").textContent=criticalRisk?(risks.length>1?`${criticalRisk.title} · ${risks.length} risks`:criticalRisk.title):"Live session healthy";if($("operatorHealthAlertDetail"))$("operatorHealthAlertDetail").textContent=riskDetails.join(" · ")||"The Program camera is producing fresh frames.";if($("operatorHealthAlertAction"))$("operatorHealthAlertAction").textContent=riskActions.join(" · ")||"No operator action required.";const unhealthy=!programReady||configured>0&&connected===0;if($("operatorHealthSummary"))$("operatorHealthSummary").textContent=criticalRisk?`LIVE SESSION AT RISK${risks.length>1?` · ${risks.length}`:""}`:unhealthy?"ACTION REQUIRED":"SYSTEMS READY";if($("operatorHealthUpdated"))$("operatorHealthUpdated").textContent=`Updated ${new Date().toLocaleTimeString()}`;}
-async function loadOperatorHealth(){const payload=await api("/api/production/operator-health");renderOperatorHealth(payload);renderOperatorHealthJournal(payload.health_journal||[]);if(!operatorHealthTimer)operatorHealthTimer=setInterval(()=>{if(document.hidden!==true&&document.body.dataset.ui4Workspace==="broadcast")loadOperatorHealth().catch(()=>{});},3000);return payload;}
+async function loadOperatorHealth(){const payload=await api("/api/production/operator-health?workflow="+encodeURIComponent(showWorkflow()));renderOperatorHealth(payload);const cardHealth=document.querySelector('[data-health="recognition"]');if(cardHealth)cardHealth.hidden=!payload.recognition_required;renderOperatorHealthJournal(payload.health_journal||[]);if(!operatorHealthTimer)operatorHealthTimer=setInterval(()=>{if(document.hidden!==true&&document.body.dataset.ui4Workspace==="broadcast")loadOperatorHealth().catch(()=>{});},3000);return payload;}
 let showPreflightState={ready:false,local_ready:false,broadcast_ready:false};
-function syncShowStartAvailability(){const wantsStream=Boolean($("showStartObsStream")?.checked),localReady=Boolean(showPreflightState.local_ready??showPreflightState.ready),broadcastReady=Boolean(showPreflightState.broadcast_ready),sessionActive=Boolean(productionSessionState.active),button=$("showStartButton"),progress=$("showStartProgress");if(button)button.disabled=!localReady||sessionActive||(wantsStream&&!broadcastReady);if(progress&&!sessionActive)progress.textContent=!localReady?"Preflight must pass before startup.":wantsStream&&!broadcastReady?"OBS streaming blocked · verify a destination first.":broadcastReady?"Broadcast ready. Startup will secure Main Card output first.":"Local show ready · platform output is not verified.";}
+let showPreflightGeneration=0,showStartPending=false;
+function showWorkflow(){return $("showWorkflow")?.value==="cards"?"cards":"studio";}
+function syncShowStartAvailability(){
+  const wantsStream=Boolean($("showStartObsStream")?.checked),matching=showPreflightState.workflow===showWorkflow();
+  const localReady=matching&&Boolean(showPreflightState.local_ready??showPreflightState.ready),broadcastReady=matching&&Boolean(showPreflightState.broadcast_ready),sessionActive=Boolean(productionSessionState.active);
+  const button=$("showStartButton"),progress=$("showStartProgress");
+  if($("showWorkflow"))$("showWorkflow").disabled=showStartPending||sessionActive;
+  if(button)button.disabled=showStartPending||!localReady||sessionActive||(wantsStream&&!broadcastReady);
+  if(progress&&!sessionActive&&!showStartPending)progress.textContent=!localReady?"Preflight must pass before startup.":wantsStream&&!broadcastReady?"OBS streaming blocked · verify a destination first.":showWorkflow()==="cards"?"Ready for card show startup · Main Card will be reset.":"Ready for local production · prepared Program will be kept. OBS is required to broadcast.";
+}
 function renderShowPreflight(payload={}){const preflight=payload.preflight||{},checks=preflight.checks||[],blockers=preflight.blockers||[],warnings=preflight.warnings||[],broadcast=preflight.broadcast||{},localReady=Boolean(preflight.local_ready??preflight.ready),broadcastReady=Boolean(preflight.broadcast_ready),root=$("showPreflight");showPreflightState={...preflight,ready:localReady,local_ready:localReady,broadcast_ready:broadcastReady};if(root)root.dataset.state=!localReady?"blocked":broadcastReady?"ready":"local";if($("showPreflightVerdict"))$("showPreflightVerdict").textContent=!localReady?"NOT READY":broadcastReady?"READY TO GO LIVE":"LOCAL SHOW READY";if($("showPreflightSummary"))$("showPreflightSummary").textContent=!localReady?`${blockers.length} blocking issue${blockers.length===1?"":"s"} must be fixed before startup.`:broadcastReady?"Core production systems and a verified destination are ready.":"Local production can start, but platform output is not verified.";if($("showPreflightCounts"))$("showPreflightCounts").textContent=`${blockers.length} blocker${blockers.length===1?"":"s"} · ${warnings.length} warning${warnings.length===1?"":"s"}`;if($("showPreflightUpdated"))$("showPreflightUpdated").textContent=`Checked ${new Date((Number(preflight.checked_at)||Date.now()/1000)*1000).toLocaleTimeString()}`;const setSignal=(id,state,label)=>{const node=$(id);if(node){node.dataset.state=state;node.textContent=label;}};setSignal("showPreflightLocalSignal",localReady?"ready":"blocked",localReady?"LOCAL · READY":"LOCAL · BLOCKED");setSignal("showPreflightObsSignal",broadcast.encoder_connected?"ready":"warning",broadcast.encoder_connected?(broadcast.encoder_streaming?"OBS · STREAMING":"OBS · CONNECTED"):"OBS · OFFLINE");setSignal("showPreflightDestinationSignal",broadcast.connector_ready?"ready":"warning",broadcast.connector_ready?`DESTINATION · ${(broadcast.ready_destinations||[]).join(", ")||"READY"}`:"DESTINATION · UNVERIFIED");setSignal("showPreflightLiveSignal",broadcast.platform_live_verified?"live":"warning",broadcast.platform_live_verified?`ON AIR · ${(broadcast.live_destinations||[]).join(", ")||"VERIFIED"}`:"ON AIR · UNVERIFIED");syncShowStartAvailability();if($("showPreflightChecks"))$("showPreflightChecks").innerHTML=checks.map(check=>`<article data-state="${escapeHtml(check.state||"warn")}"><i>${check.state==="pass"?"✓":check.state==="fail"?"!":"•"}</i><div><strong>${escapeHtml(check.label||"Check")}</strong><span>${escapeHtml(check.detail||"")}</span>${check.action?`<small>${escapeHtml(check.action)}</small>`:""}</div><b>${escapeHtml(String(check.state||"warn").toUpperCase())}</b></article>`).join("")||"<p>No preflight checks returned.</p>";}
-async function loadShowPreflight(){const payload=await api("/api/production/preflight");renderShowPreflight(payload);if(payload.destinations)renderBroadcastDestinations(payload.destinations);return payload;}
-async function startProductionShow(){const button=$("showStartButton"),progress=$("showStartProgress");if(button)button.disabled=true;if(progress)progress.textContent="Starting show · securing Main Card output…";try{const payload=await api("/api/production/show/start",{method:"POST",body:JSON.stringify({...productionMetadataPayload(),start_obs_stream:Boolean($("showStartObsStream")?.checked),start_obs_recording:Boolean($("showStartObsRecording")?.checked)})});renderProductionSession(payload);renderProductionSwitcher(payload.safe||{});renderObsStatus(payload.obs||{});if(progress)progress.textContent=(payload.steps||[]).map(step=>`${step.state==="pass"?"✓":step.state==="warn"?"!":"–"} ${step.detail}`).join(" · ");notify("Show Started",`${(payload.steps||[]).filter(step=>step.state==="pass").length} startup steps completed.`,"success");await Promise.all([loadShowPreflight(),loadOperatorHealth()]);return payload;}catch(error){if(error.payload?.preflight)renderShowPreflight({preflight:error.payload.preflight});if(progress)progress.textContent=error.payload?.reason==="preflight_blocked"?"Startup blocked. Resolve the failed preflight checks.":error.payload?.reason==="broadcast_destination_unverified"?"OBS streaming blocked. Verify a platform destination first.":error.message||String(error);throw error;}finally{if(button&&!productionSessionState.active)syncShowStartAvailability();}}
+async function loadShowPreflight(){
+  const generation=++showPreflightGeneration,workflow=showWorkflow();
+  showPreflightState={ready:false,local_ready:false,broadcast_ready:false,workflow};
+  syncShowStartAvailability();
+  if($("showPreflight"))$("showPreflight").dataset.state="checking";
+  if($("showPreflightVerdict"))$("showPreflightVerdict").textContent="CHECKING";
+  if($("showPreflightSummary"))$("showPreflightSummary").textContent="Checking the selected show's requirements…";
+  ["Local","Obs","Destination","Live"].forEach(key=>{const signal=$(`showPreflight${key}Signal`);if(signal){signal.dataset.state="checking";signal.textContent=`${key==="Live"?"ON AIR":key.toUpperCase()} · CHECKING`;}});
+  if($("showPreflightCounts"))$("showPreflightCounts").textContent="Checking requirements…";
+  if($("showPreflightUpdated"))$("showPreflightUpdated").textContent="New check in progress";
+  if($("showPreflightChecks"))$("showPreflightChecks").replaceChildren();
+  try{
+    const payload=await api("/api/production/preflight?workflow="+encodeURIComponent(workflow),{retries:0});
+    if(generation!==showPreflightGeneration||workflow!==showWorkflow())return payload;
+    renderShowPreflight(payload);if(payload.destinations)renderBroadcastDestinations(payload.destinations);return payload;
+  }catch(error){
+    if(generation===showPreflightGeneration){
+      if($("showPreflight"))$("showPreflight").dataset.state="blocked";
+      if($("showPreflightVerdict"))$("showPreflightVerdict").textContent="CHECK FAILED";
+      if($("showPreflightSummary"))$("showPreflightSummary").textContent="Readiness could not be checked. Run Preflight again.";
+      syncShowStartAvailability();
+    }
+    throw error;
+  }
+}
+async function startProductionShow(){if(showStartPending||productionSessionState.active)return;showStartPending=true;syncShowStartAvailability();const button=$("showStartButton"),progress=$("showStartProgress");if(button)button.disabled=true;if(progress)progress.textContent=showWorkflow()==="cards"?"Starting card show · resetting Main Card…":"Starting show · keeping prepared Program…";try{const payload=await api("/api/production/show/start",{method:"POST",retries:0,body:JSON.stringify({...productionMetadataPayload(),workflow:showWorkflow(),start_obs_stream:Boolean($("showStartObsStream")?.checked),start_obs_recording:Boolean($("showStartObsRecording")?.checked)})});renderProductionSession(payload);renderProductionSwitcher(payload.safe||{});renderObsStatus(payload.obs||{});if(progress)progress.textContent=(payload.steps||[]).map(step=>`${step.state==="pass"?"✓":step.state==="warn"?"!":"–"} ${step.detail}`).join(" · ");notify("Show Started",`${(payload.steps||[]).filter(step=>step.state==="pass").length} startup steps completed.`,"success");await Promise.all([loadShowPreflight(),loadOperatorHealth()]);return payload;}catch(error){if(error.payload?.preflight)renderShowPreflight({preflight:error.payload.preflight});if(progress)progress.textContent=error.payload?.reason==="preflight_blocked"?"Startup blocked. Resolve the failed preflight checks.":error.payload?.reason==="broadcast_destination_unverified"?"OBS streaming blocked. Verify a platform destination first.":error.message||String(error);throw error;}finally{showStartPending=false;syncShowStartAvailability();}}
 async function activateOperatorSafeScene(){stopProductionRundown();stopAllSoundboardAudio();const state=await api("/api/production/safe",{method:"POST"});renderProductionSwitcher(state);renderProductionScreen(state.screen||{});await loadOperatorHealth();const detail=state.obs_warning?`Local recovery complete; OBS warning: ${state.obs_warning}`:"Camera 1 live; overlays, replay, automation, sounds, and mapped OBS output restored";logProductionEvent("safety","SAFE recovery activated",detail);notify(state.obs_warning?"Safe Scene · OBS Attention":"Safe Scene Active",state.obs_warning?"RareIQ recovered locally, but OBS did not confirm the mapped Main scene.":"Camera 1 and mapped OBS Main are live; takeover layers and automation are stopped.",state.obs_warning?"warning":"success");}
 let productionRundown=[],productionRundownIndex=0,productionRundownTimer=0,productionRundownRunning=false;
 const productionRundownKey="rareiq.production.rundown.v1";
@@ -1571,9 +1822,91 @@ async function takeProductionShot(cut=false){const transition=cut?"cut":$("produ
 function handleProductionShortcut(event){if(document.body.dataset.ui4Workspace!=="broadcast"||isTypingTarget(event.target)||isInteractiveShortcutTarget(event.target)||event.repeat)return;if(event.altKey&&!event.ctrlKey&&!event.metaKey&&/^[1-9]$/.test(event.key)){const scene=productionScenes[Number(event.key)-1];if(scene){event.preventDefault();takeProductionScene(scene).catch(()=>{});}return;}if(event.altKey||event.ctrlKey||event.metaKey||event.shiftKey)return;if(event.key.toLowerCase()==="g"){event.preventDefault();goProductionRundown().catch(error=>notify("Cue Failed",error.message||String(error),"error"));}else if(event.code==="Space"){event.preventDefault();takeProductionShot(true).catch(()=>{});}else if(event.key==="Enter"){event.preventDefault();takeProductionShot(false).catch(()=>{});}else if(event.key.toLowerCase()==="b"){event.preventDefault();applyProductionScreenPreset("brb");takeProductionScreen().catch(()=>{});}else if(event.key.toLowerCase()==="l"){event.preventDefault();hideProductionScreen().catch(()=>{});}else if(/^[1-4]$/.test(event.key))setProductionPreview(Number(event.key)).catch(()=>{});}
 function productionGraphicPayload(){return {kind:$("productionGraphicKind")?.value||"lower-third",style:$("productionGraphicStyle")?.value||"glass",accent:$("productionGraphicAccent")?.value||"cyan",duration_ms:Number($("productionGraphicDuration")?.value)||0,title:$("productionGraphicTitle")?.value||"",subtitle:$("productionGraphicSubtitle")?.value||"",image_url:$("productionGraphicPreviewFrame")?.dataset.imageUrl||""};}
 async function sendProductionGraphic(action){const options={method:"POST"};if(action!=="hide")options.body=JSON.stringify(productionGraphicPayload());const payload=await api(`/api/production/graphics/${action}`,options),previewLayout=document.querySelector(".production-graphics-layout");if(previewLayout)previewLayout.dataset.graphicState=action;if(action!=="preview")logProductionEvent("graphic",action==="hide"?"Graphic hidden":`Graphic: ${payload.graphic?.title||"On air"}`,payload.graphic?.subtitle||"");notify(action==="take"?"Graphic On Air":action==="hide"?"Graphic Hidden":"Graphic Previewed",payload.graphic?.title||"Broadcast graphics updated.","success");return payload;}
-function renderProductionReplay(payload={}){if($("productionReplayBuffer"))$("productionReplayBuffer").textContent=`${Math.round((payload.buffered_frames||0)/(payload.fps||5))}s buffered · ${payload.highlights?.length||0} highlights`;const history=$("productionReplayHistory"),items=payload.highlights||[];if(history)history.replaceChildren(...(items.length?items.map(item=>{const card=document.createElement("article");card.className="production-replay-item";card.innerHTML=`<div><strong></strong><span></span></div><button type="button">TAKE REPLAY</button>`;card.querySelector("strong").textContent=item.name;card.querySelector("span").textContent=`${item.duration_seconds}s · Camera ${item.slot_id} · ${new Date(item.created_at*1000).toLocaleTimeString()}`;card.querySelector("button").addEventListener("click",()=>takeProductionReplay(item.id).catch(error=>notify("Replay Failed",error.message||String(error),"error")));return card;}):[Object.assign(document.createElement("p"),{textContent:"No highlights saved yet."})]));}
-async function loadProductionReplay(){const payload=await api("/api/production/replay");renderProductionReplay(payload);return payload;}
-async function markProductionReplay(){const payload=await api("/api/production/replay/mark",{method:"POST",body:JSON.stringify({seconds:Number($("productionReplayLength")?.value)||8,name:$("productionReplayName")?.value||"Highlight"})});await loadProductionReplay();notify("Highlight Saved",payload.highlight?.name||"Replay is ready.","success");}
+function renderProductionReplay(payload={}){
+  if($("productionReplayBuffer"))$("productionReplayBuffer").textContent=payload.last_error||`${Math.round((payload.buffered_frames||0)/(payload.fps||5))}s buffered · ${payload.highlights?.length||0} highlights`;
+  if(!productionAutoClipBusy)renderProductionAutoClip(payload.auto_clip);
+  const history=$("productionReplayHistory"),items=payload.highlights||[];
+  const signature=JSON.stringify(items);
+  if(!history||history.dataset.signature===signature)return;
+  history.dataset.signature=signature;
+  history.replaceChildren(...(items.length?items.map(item=>{
+    const card=document.createElement("article");card.className="production-replay-item";
+    card.innerHTML=`<div><strong></strong><span></span></div><button type="button">TAKE REPLAY</button>`;
+    card.querySelector("strong").textContent=item.name;
+    card.querySelector("span").textContent=`${item.auto_clip?"Auto Clip · ":""}${item.duration_seconds}s · Camera ${item.slot_id} · ${new Date(item.created_at*1000).toLocaleTimeString()}`;
+    card.querySelector("button").addEventListener("click",()=>takeProductionReplay(item.id).catch(error=>notify("Replay Failed",error.message||String(error),"error")));
+    if(item.video_available){const download=document.createElement("a");download.className="riq-button";download.href=`/api/production/replay/${encodeURIComponent(item.id)}/download`;download.textContent="Download MP4";card.append(download);}
+    return card;
+  }):[Object.assign(document.createElement("p"),{textContent:"No highlights saved yet."})]));
+}
+let productionReplayRefreshTimer=0,productionReplayRequest=null;
+async function loadProductionReplay(){
+  if(!productionReplayRefreshTimer)productionReplayRefreshTimer=setInterval(()=>{if(document.hidden!==true&&document.body.dataset.ui4Workspace==="broadcast")loadProductionReplay().catch(()=>{});},2000);
+  if(productionReplayRequest)return productionReplayRequest;
+  productionReplayRequest=api("/api/production/replay").then(payload=>{renderProductionReplay(payload);return payload;}).catch(error=>{if(!productionAutoClipBusy)renderProductionAutoClip(null);throw error;}).finally(()=>{productionReplayRequest=null;});
+  return productionReplayRequest;
+}
+let productionAutoClipState=null,productionAutoClipBusy=false,productionAutoClipConfigLoaded=false;
+function autoClipStatusText(state){
+  if(!state)return "Status unavailable. Refresh before arming Auto Clip.";
+  const mode=state.enabled?"Armed":"Disarmed";
+  if(state.saving)return `${mode} · Finalizing a silent MP4…`;
+  if(state.pending_count)return `${mode} · ${state.pending_count} clip${state.pending_count===1?"":"s"} capturing post-roll…`;
+  const result=state.last_result;
+  const reasons={auto_clip_buffer_warming:"Skipped a pull: the pre-roll buffer was not ready.",auto_clip_buffer_interrupted:"Clip skipped: Program changed or camera frames were interrupted.",auto_clip_queue_full:"Skipped a pull: the clip queue was full.",auto_clip_cancelled:"Pending clips cancelled.",clip_encoding_failed:"Clip failed: the MP4 encoder could not finish.",replay_storage_unavailable:"Clip failed: the replay storage is unavailable.",auto_clip_save_failed:"Clip failed. Check storage and camera status before retrying."};
+  if(result?.created)return `${mode} · Saved ${result.name||"verified pull"} · ${state.saved_count} this run`;
+  if(result?.reason)return `${mode} · ${reasons[result.reason]||result.reason}`;
+  return state.enabled?"Armed · Waiting for the next qualifying verified card. Warm the Program buffer first.":"Disarmed · Save your settings, then arm for future verified pulls.";
+}
+function renderProductionAutoClip(state,resetForm=false){
+  productionAutoClipState=state||null;
+  const arm=$("productionAutoClipArm"),status=$("productionAutoClipStatus");
+  if(status)status.textContent=autoClipStatusText(state);
+  if(arm){arm.disabled=productionAutoClipBusy||!state||(!state.enabled&&state.saving);arm.textContent=state?.enabled?"Disarm Auto Clip":"Arm Auto Clip";arm.setAttribute("aria-pressed",String(Boolean(state?.enabled)));}
+  if(state&&(!productionAutoClipConfigLoaded||resetForm)){
+    for(const [id,key] of [["productionAutoClipTier","minimum_tier"],["productionAutoClipPre","pre_seconds"],["productionAutoClipPost","post_seconds"]])if($(id))$(id).value=String(state.config[key]);
+    productionAutoClipConfigLoaded=true;
+  }
+  const dirty=state&&!state.enabled&&[["productionAutoClipTier","minimum_tier"],["productionAutoClipPre","pre_seconds"],["productionAutoClipPost","post_seconds"]].some(([id,key])=>$(id)&&String($(id).value)!==String(state.config[key]));
+  if(dirty){if(arm)arm.disabled=true;if(status)status.textContent="Unsaved settings · Save settings before arming Auto Clip.";}
+  for(const id of ["productionAutoClipTier","productionAutoClipPre","productionAutoClipPost","productionAutoClipSave"])if($(id))$(id).disabled=productionAutoClipBusy||!state||state.enabled||state.saving;
+}
+async function updateProductionAutoClip(action){
+  if(productionAutoClipBusy||!productionAutoClipState)return null;
+  const enabled=productionAutoClipState.enabled;
+  const payload=action==="arm"?{enabled:!enabled}:{minimum_tier:$("productionAutoClipTier").value,pre_seconds:Number($("productionAutoClipPre").value),post_seconds:Number($("productionAutoClipPost").value)};
+  productionAutoClipBusy=true;
+  renderProductionAutoClip(productionAutoClipState);
+  try{
+    // Drain any older status read before applying the mutation's authoritative state.
+    if(productionReplayRequest)await productionReplayRequest.catch(()=>{});
+    const result=await api(`/api/production/auto-clip/${action}`,{method:"POST",body:JSON.stringify(payload)});
+    renderProductionAutoClip(result,action==="settings");
+    return result;
+  }catch(error){
+    renderProductionAutoClip(null);
+    throw error;
+  }finally{
+    productionAutoClipBusy=false;
+    renderProductionAutoClip(productionAutoClipState);
+  }
+}
+let productionReplayMarkPending=false;
+async function markProductionReplay(){
+  if(productionReplayMarkPending)return null;
+  productionReplayMarkPending=true;
+  const button=$("productionReplayMark");
+  if(button)button.disabled=true;
+  try{
+    const payload=await api("/api/production/replay/mark",{method:"POST",body:JSON.stringify({seconds:Number($("productionReplayLength")?.value)||8,name:$("productionReplayName")?.value||"Highlight"})});
+    notify("Highlight Saved",payload.highlight?.name||"Replay is ready.","success");
+    await loadProductionReplay().catch(()=>{});
+    return payload;
+  }finally{
+    productionReplayMarkPending=false;
+    if(button)button.disabled=false;
+  }
+}
 async function takeProductionReplay(id){await api("/api/production/replay/take",{method:"POST",body:JSON.stringify({highlight_id:id,speed:Number($("productionReplaySpeed")?.value)||1})});logProductionEvent("replay","Replay on air",id);notify("Replay On Air","The selected highlight is playing.","success");}
 async function stopProductionReplay(){await api("/api/production/replay/stop",{method:"POST"});notify("Back To Live","Replay output returned to Program.","success");}
 const productionScreenPresets={"starting-soon":{title:"Starting Soon",message:"The stream will begin shortly.",minutes:5,accent:"cyan"},brb:{title:"Be Right Back",message:"We are taking a short break.",minutes:2,accent:"purple"},ending:{title:"Thanks for Watching",message:"Follow and subscribe for the next live card stream.",minutes:0,accent:"gold"},countdown:{title:"Countdown",message:"Get ready — we are almost live.",minutes:10,accent:"green"}};
@@ -1593,9 +1926,65 @@ function setSpotifyAvailability(payload={}){const connected=payload.connected===
 function renderSpotifySetup(payload={}){const card=$("spotifySetupCard"),configured=payload.configured===true;if(card)card.hidden=configured;if($("spotifyClientId"))$("spotifyClientId").value=payload.client_id||"";if($("spotifyRedirectUri"))$("spotifyRedirectUri").value=spotifyRuntimeRedirectUri(payload);if($("spotifyDeveloperDashboard")&&payload.developer_dashboard_url)$("spotifyDeveloperDashboard").href=payload.developer_dashboard_url;if($("spotifySetupStatus"))$("spotifySetupStatus").textContent=configured?"Client ID saved":"Setup required";["spotifyConnect","spotifyToolConnect"].forEach(id=>{const button=$(id);if(button){button.dataset.configured=String(configured);button.textContent=payload.connected?`Connected${payload.profile?.display_name?` · ${payload.profile.display_name}`:""}`:configured?"Authorize Spotify":"Set Up Spotify";}})}
 async function saveSpotifySetup(){const button=$("spotifySaveSetup"),clientId=$("spotifyClientId")?.value?.trim()||"",redirectUri=$("spotifyRedirectUri")?.value?.trim()||"";if(!clientId)throw new Error("Paste the Client ID from your Spotify developer app.");if(button){button.disabled=true;button.textContent="Saving…"}try{const payload=await api("/api/spotify/setup",{method:"POST",body:JSON.stringify({client_id:clientId,redirect_uri:redirectUri})});renderSpotifySetup(payload);notify("Spotify Setup Saved","Opening Spotify authorization…","success");window.location.assign("/api/spotify/connect")}finally{if(button){button.disabled=false;button.textContent="Save & Continue"}}}
 async function startSpotifyConnection(event){event?.preventDefault?.();const payload=await api("/api/spotify/setup",{retries:0});renderSpotifySetup(payload);if(!payload.configured){switchWorkspace("spotify");$("spotifySetupCard")?.scrollIntoView({behavior:"smooth",block:"start"});notify("Spotify Setup Required","Create a Spotify developer app and paste its Client ID.","error");return}window.location.assign("/api/spotify/connect")}
-function renderSpotify(payload={}){spotifyState=payload;const playback=payload.playback||{},item=playback.item||{},image=item.album?.images?.[0]?.url||"",artist=(item.artists||[]).map(value=>value.name).join(", ")||"Connect your account to begin",duration=Number(item.duration_ms)||0,progress=Number(playback.progress_ms)||0,percent=duration?Math.min(100,progress/duration*100):0;[["spotifyTrackName","spotifyArtistName","spotifyAlbumArt","spotifyAlbumPlaceholder","spotifyProgress","spotifyTime"],["spotifyToolTrack","spotifyToolArtist","spotifyToolArt",null,"spotifyToolProgress",null]].forEach(([trackId,artistId,artId,placeholderId,progressId,timeId])=>{if($(trackId))$(trackId).textContent=item.name||(!payload.configured?"Spotify setup required":"Spotify not connected");if($(artistId))$(artistId).textContent=artist;if($(artId)){if(image){$(artId).src=image;$(artId).hidden=false}else $(artId).hidden=true;}if(placeholderId&&$(placeholderId))$(placeholderId).hidden=Boolean(image);if($(progressId))$(progressId).style.width=`${percent}%`;if(timeId&&$(timeId))$(timeId).textContent=`${spotifyTime(progress)} / ${spotifyTime(duration)}`;});["spotifyConnect","spotifyToolConnect"].forEach(id=>{const button=$(id);if(button)button.textContent=payload.connected?`Connected${payload.profile?.display_name?` · ${payload.profile.display_name}`:""}`:payload.configured?"Authorize Spotify":"Set Up Spotify";});const devices=$("spotifyDevice");if(devices){const previous=devices.value;devices.replaceChildren(...((payload.devices||[]).length?payload.devices.map(device=>new Option(`${device.name}${device.is_active?" · Active":""}`,device.id)):[new Option("No Spotify device available","")]));devices.value=(payload.devices||[]).find(device=>device.is_active)?.id||(payload.devices||[]).some(device=>device.id===previous)?previous:devices.value;}if($("spotifyVolume"))$("spotifyVolume").value=String(playback.device?.volume_percent??50);setSpotifyAvailability(payload);if(!payload.configured)renderSpotifyError("Complete the one-time setup above to connect Spotify.");}
+function spotifySelectedDevice(devices=[],previous=""){
+  return devices.find(device=>device.is_active&&device.id)?.id
+    ||devices.find(device=>device.id===previous)?.id
+    ||devices.find(device=>device.id)?.id||"";
+}
+function renderSpotify(payload={}){
+  spotifyState=payload;
+  const playback=payload.playback||{},item=playback.item||{};
+  const image=item.album?.images?.[0]?.url||"";
+  const artist=(item.artists||[]).map(value=>value.name).join(", ")
+    ||(payload.connected?"Choose a track on Spotify or search below":"Connect your account to begin");
+  const duration=Math.max(0,Number(item.duration_ms)||0),progress=Math.max(0,Number(playback.progress_ms)||0);
+  const percent=duration?Math.min(100,progress/duration*100):0;
+  const idleTitle=payload.connected?"Nothing playing":payload.configured?"Spotify not connected":"Spotify setup required";
+  const players=[
+    ["spotifyTrackName","spotifyArtistName","spotifyAlbumArt","spotifyAlbumPlaceholder","spotifyProgress","spotifyTime"],
+    ["spotifyToolTrack","spotifyToolArtist","spotifyToolArt",null,"spotifyToolProgress",null]
+  ];
+  for(const [trackId,artistId,artId,placeholderId,progressId,timeId] of players){
+    if($(trackId))$(trackId).textContent=item.name||idleTitle;
+    if($(artistId))$(artistId).textContent=artist;
+    const art=$(artId);
+    if(art){art.hidden=!image;if(image)art.src=image;else art.removeAttribute("src");}
+    if(placeholderId&&$(placeholderId))$(placeholderId).hidden=Boolean(image);
+    if($(progressId))$(progressId).style.width=`${percent}%`;
+    if(timeId&&$(timeId))$(timeId).textContent=`${spotifyTime(progress)} / ${spotifyTime(duration)}`;
+  }
+  for(const id of ["spotifyConnect","spotifyToolConnect"]){
+    const button=$(id);
+    if(button)button.textContent=payload.connected?`Connected${payload.profile?.display_name?` · ${payload.profile.display_name}`:""}`:payload.configured?"Authorize Spotify":"Set Up Spotify";
+  }
+  const select=$("spotifyDevice"),devices=Array.isArray(payload.devices)?payload.devices:[];
+  if(select){
+    const selected=spotifySelectedDevice(devices,select.value);
+    select.replaceChildren(...(devices.length
+      ?devices.map(device=>new Option(`${device.name}${device.is_active?" · Active":""}`,device.id))
+      :[new Option("No Spotify device available","")]));
+    select.value=selected;
+  }
+  if($("spotifyVolume")&&document.activeElement!==$("spotifyVolume"))$("spotifyVolume").value=String(playback.device?.volume_percent??50);
+  setSpotifyAvailability(payload);
+  if(!payload.configured)renderSpotifyError("Complete the one-time setup above to connect Spotify.");
+}
 function renderSpotifyEnhancements(){const playback=spotifyState.playback||{},queue=spotifyState.queue||[],isPlaying=playback.is_playing===true;if($("spotifyPlay"))$("spotifyPlay").textContent=isPlaying?"❚❚":"▶";if($("spotifyToolPlay"))$("spotifyToolPlay").textContent=isPlaying?"❚❚":"▶";if($("spotifyShuffle")){$("spotifyShuffle").setAttribute("aria-pressed",String(playback.shuffle_state===true));$("spotifyShuffle").classList.toggle("active",playback.shuffle_state===true);}if($("spotifyRepeat")){$("spotifyRepeat").dataset.repeat=playback.repeat_state||"off";$("spotifyRepeat").textContent=`Repeat ${playback.repeat_state||"off"}`;}if($("spotifyQueueCount"))$("spotifyQueueCount").textContent=`${queue.length} tracks`;if($("spotifyQueue"))$("spotifyQueue").replaceChildren(...(queue.length?queue.map(item=>spotifyResultCard(item,"queue")):[Object.assign(document.createElement("p"),{textContent:"Spotify's upcoming tracks will appear here."})]));const duck=localStorage.getItem("rareiq.spotify.duckSoundboard")==="true";["spotifyDuckEnabled","spotifyAppDuckEnabled"].forEach(id=>{if($(id))$(id).checked=duck;});}
-async function loadSpotify(){const payload=await api("/api/spotify/status");renderSpotifySetup(payload);renderSpotify(payload);renderSpotifyEnhancements();if(payload.connected&&!spotifyRefreshTimer)spotifyRefreshTimer=setInterval(()=>{if(document.hidden!==true)loadSpotify().catch(()=>{})},5000);if(!payload.connected&&spotifyRefreshTimer){clearInterval(spotifyRefreshTimer);spotifyRefreshTimer=0;}if(payload.connected)loadSpotifyPlaylists().catch(()=>{});return payload;}
+let spotifyStatusRequest=null;
+function loadSpotify({refreshPlaylists=true}={}){
+  if(spotifyStatusRequest)return spotifyStatusRequest;
+  spotifyStatusRequest=(async()=>{
+    const payload=await api("/api/spotify/status");
+    renderSpotifySetup(payload);renderSpotify(payload);renderSpotifyEnhancements();
+    if(payload.connected&&!spotifyRefreshTimer)spotifyRefreshTimer=setInterval(()=>{
+      if(document.hidden!==true)loadSpotify({refreshPlaylists:false}).catch(()=>{});
+    },5000);
+    if(!payload.connected&&spotifyRefreshTimer){clearInterval(spotifyRefreshTimer);spotifyRefreshTimer=0;}
+    if(payload.connected&&refreshPlaylists)loadSpotifyPlaylists().catch(()=>{});
+    return payload;
+  })().finally(()=>{spotifyStatusRequest=null;});
+  return spotifyStatusRequest;
+}
 async function spotifyCommand(action,extra={}){await api("/api/spotify/player",{method:"POST",body:JSON.stringify({action,device_id:$("spotifyDevice")?.value||null,...extra})});setTimeout(()=>loadSpotify().catch(()=>{}),250);}
 function spotifyResultCard(item,type="track"){const card=document.createElement("article");card.className="spotify-result-card";const image=item.album?.images?.[0]?.url||item.images?.[0]?.url;if(image){const img=document.createElement("img");img.src=image;img.alt="";card.append(img);}const copy=document.createElement("div"),name=document.createElement("strong"),meta=document.createElement("span");name.textContent=item.name||"Untitled";meta.textContent=type==="track"||type==="queue"?(item.artists||[]).map(value=>value.name).join(", "):`${item.tracks?.total||0} tracks`;copy.append(name,meta);const actions=document.createElement("span");if(type==="track")[["Play","play"],["Queue","queue"]].forEach(([label,action])=>{const button=document.createElement("button");button.type="button";button.textContent=label;button.addEventListener("click",()=>spotifyCommand(action,{uri:item.uri}).catch(error=>notify("Spotify Command Failed",error.message||String(error),"error")));actions.append(button);});if(type==="playlist"){const button=document.createElement("button");button.type="button";button.textContent="Play";button.addEventListener("click",()=>spotifyCommand("play",{uri:item.uri}).catch(error=>notify("Spotify Playlist Failed",error.message||String(error),"error")));actions.append(button);}card.append(copy,actions);return card;}
 function setSpotifyDucking(enabled){const active=Boolean(enabled);localStorage.setItem("rareiq.spotify.duckSoundboard",String(active));["spotifyDuckEnabled","spotifyAppDuckEnabled"].forEach(id=>{if($(id))$(id).checked=active;});if(!active&&spotifyDuckedVolume!==null){const restore=spotifyDuckedVolume;spotifyDuckedVolume=null;spotifyCommand("volume",{volume_percent:restore}).catch(()=>{});}}
@@ -1659,7 +2048,16 @@ async function setLiveRevealEffect(key,enabled){const payload=await api("/api/cr
 let soundboardState={pads:[],assets:[]};
 const SOUNDBOARD_LAYOUT_KEY="rareiq.soundboard.layouts.v1";
 let soundboardLayouts={active:0,locked:false,presets:[]};
-function loadSoundboardLayouts(){try{const saved=JSON.parse(localStorage.getItem(SOUNDBOARD_LAYOUT_KEY)||"{}");soundboardLayouts={active:Math.max(0,Math.min(9,Number(saved.active)||0)),locked:Boolean(saved.locked),presets:Array.isArray(saved.presets)?saved.presets.slice(0,10):[]};}catch{soundboardLayouts={active:0,locked:false,presets:[]};}}
+function loadSoundboardLayouts(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(SOUNDBOARD_LAYOUT_KEY)||"{}")||{};
+    const presets=Array.isArray(saved.presets)?saved.presets.slice(0,10).map((preset,index)=>({
+      name:String(preset?.name||`Preset ${index+1}`).slice(0,30),
+      order:Array.isArray(preset?.order)?[...new Set(preset.order.filter(id=>typeof id==="string"))]:[],
+    })):[];
+    soundboardLayouts={active:Math.max(0,Math.min(9,Math.trunc(Number(saved.active)||0))),locked:saved.locked===true,presets};
+  }catch{soundboardLayouts={active:0,locked:false,presets:[]};}
+}
 function saveSoundboardLayouts(){localStorage.setItem(SOUNDBOARD_LAYOUT_KEY,JSON.stringify(soundboardLayouts));}
 function ensureSoundboardLayouts(){if(!soundboardLayouts.presets.length)soundboardLayouts.presets=[{name:"Default",order:soundboardState.pads.map(pad=>pad.id)}];while(soundboardLayouts.presets.length<10)soundboardLayouts.presets.push({name:`Preset ${soundboardLayouts.presets.length+1}`,order:[]});soundboardLayouts.active=Math.min(soundboardLayouts.active,9);}
 function orderedSoundboardPads(){ensureSoundboardLayouts();const order=soundboardLayouts.presets[soundboardLayouts.active].order||[],rank=new Map(order.map((id,index)=>[id,index]));soundboardState.pads.sort((a,b)=>(rank.get(a.id)??999)-(rank.get(b.id)??999));return soundboardState.pads;}
@@ -1670,6 +2068,7 @@ function setSoundboardPreset(index){soundboardLayouts.active=Math.max(0,Math.min
 function toggleSoundboardLayoutLock(){soundboardLayouts.locked=!soundboardLayouts.locked;saveSoundboardLayouts();syncSoundboardLayoutControls();renderSoundboard(soundboardState);renderSoundboardApp();refreshSoundPadImages();}
 function enableSoundboardDrag(container,selector){if(!container||soundboardLayouts.locked)return;container.querySelectorAll(selector).forEach(button=>{button.draggable=true;button.addEventListener("dragstart",event=>{button.classList.add("is-dragging");event.dataTransfer.setData("text/plain",button.dataset.padId||"");event.dataTransfer.effectAllowed="move"});button.addEventListener("dragend",()=>button.classList.remove("is-dragging"));button.addEventListener("dragover",event=>{event.preventDefault();button.classList.add("is-drag-over")});button.addEventListener("dragleave",()=>button.classList.remove("is-drag-over"));button.addEventListener("drop",event=>{event.preventDefault();button.classList.remove("is-drag-over");const sourceId=event.dataTransfer.getData("text/plain"),targetId=button.dataset.padId;if(!sourceId||!targetId||sourceId===targetId)return;const from=soundboardState.pads.findIndex(pad=>pad.id===sourceId),to=soundboardState.pads.findIndex(pad=>pad.id===targetId);if(from<0||to<0)return;const [moved]=soundboardState.pads.splice(from,1);soundboardState.pads.splice(to,0,moved);storeCurrentSoundboardOrder();renderSoundboard(soundboardState);renderSoundboardApp();refreshSoundPadImages();});});}
 const activeSoundboardPlayers=new Set();
+const soundboardPlayerDisposers=new WeakMap();
 let soundboardPlaybackFrame=0;
 const soundboardQueue=[];
 function soundboardPlaybackMode(){return localStorage.getItem("rareiq.soundboard.playbackMode")==="layer"?"layer":"queue";}
@@ -1681,13 +2080,63 @@ function renderSoundboardQueueList(containerId,compact=false){const list=$(conta
 function syncSoundboardQueueCount(){const label=`${soundboardQueue.length} queued`;if($("soundboardToolQueueCount"))$("soundboardToolQueueCount").textContent=label;if($("soundboardAppQueueCount"))$("soundboardAppQueueCount").textContent=label;renderSoundboardQueueList("soundboardToolQueue",true);renderSoundboardQueueList("soundboardAppQueue");}
 function soundboardVolume(){const value=Number(localStorage.getItem("rareiq.soundboard.volume")??100);return Math.max(0,Math.min(100,Number.isFinite(value)?value:100));}
 function formatSoundboardTime(seconds){const safe=Math.max(0,Number.isFinite(seconds)?seconds:0),minutes=Math.floor(safe/60);return `${minutes}:${String(Math.floor(safe%60)).padStart(2,"0")}`;}
-function syncSoundboardPlayback(){const players=[...activeSoundboardPlayers],activeIds=new Set(players.map(player=>player.dataset.padId));document.querySelectorAll("[data-pad-id]").forEach(button=>button.classList.toggle("is-playing",activeIds.has(button.dataset.padId)));const current=players.at(-1),duration=Number(current?.duration),elapsed=Number(current?.currentTime)||0,remaining=Number.isFinite(duration)?Math.max(0,duration-elapsed):0,progress=Number.isFinite(duration)&&duration>0?Math.min(100,elapsed/duration*100):0;[["soundboardToolNowPlaying","soundboardToolNowPlayingName","soundboardToolNowPlayingTime","soundboardToolNowPlayingProgress"],["soundboardAppNowPlaying","soundboardAppNowPlayingName","soundboardAppNowPlayingTime","soundboardAppNowPlayingProgress"]].forEach(([wrapId,nameId,timeId,progressId])=>{const wrap=$(wrapId),name=$(nameId),time=$(timeId),bar=$(progressId);if(wrap)wrap.dataset.state=current?"playing":"idle";if(name)name.textContent=current?.dataset.padLabel||"Nothing playing";if(time)time.textContent=current?(Number.isFinite(duration)?`${formatSoundboardTime(remaining)} left · ${formatSoundboardTime(elapsed)} / ${formatSoundboardTime(duration)}`:"Loading…"):"0:00 left";if(bar)bar.style.width=`${progress}%`;});if(players.length)soundboardPlaybackFrame=requestAnimationFrame(syncSoundboardPlayback);else soundboardPlaybackFrame=0;}
+function syncSoundboardPlayback(){cancelAnimationFrame(soundboardPlaybackFrame);soundboardPlaybackFrame=0;const players=[...activeSoundboardPlayers],activeIds=new Set(players.map(player=>player.dataset.padId));document.querySelectorAll("[data-pad-id]").forEach(button=>button.classList.toggle("is-playing",activeIds.has(button.dataset.padId)));const current=players.at(-1),duration=Number(current?.duration),elapsed=Number(current?.currentTime)||0,remaining=Number.isFinite(duration)?Math.max(0,duration-elapsed):0,progress=Number.isFinite(duration)&&duration>0?Math.min(100,elapsed/duration*100):0;[["soundboardToolNowPlaying","soundboardToolNowPlayingName","soundboardToolNowPlayingTime","soundboardToolNowPlayingProgress"],["soundboardAppNowPlaying","soundboardAppNowPlayingName","soundboardAppNowPlayingTime","soundboardAppNowPlayingProgress"]].forEach(([wrapId,nameId,timeId,progressId])=>{const wrap=$(wrapId),name=$(nameId),time=$(timeId),bar=$(progressId);if(wrap)wrap.dataset.state=current?"playing":"idle";if(name)name.textContent=current?.dataset.padLabel||"Nothing playing";if(time)time.textContent=current?(Number.isFinite(duration)?`${formatSoundboardTime(remaining)} left · ${formatSoundboardTime(elapsed)} / ${formatSoundboardTime(duration)}`:"Loading…"):"0:00 left";if(bar)bar.style.width=`${progress}%`;});if(players.length)soundboardPlaybackFrame=requestAnimationFrame(syncSoundboardPlayback);else soundboardPlaybackFrame=0;}
 function startSoundboardPlaybackSync(){if(!soundboardPlaybackFrame)soundboardPlaybackFrame=requestAnimationFrame(syncSoundboardPlayback);}
-function stopAllSoundboardAudio(){soundboardQueue.splice(0);activeSoundboardPlayers.forEach(player=>{player.pause();player.currentTime=0;player.remove()});activeSoundboardPlayers.clear();if(spotifyDuckedVolume!==null){const restore=spotifyDuckedVolume;spotifyDuckedVolume=null;spotifyCommand("volume",{volume_percent:restore}).catch(()=>{});}if(soundboardPlaybackFrame)cancelAnimationFrame(soundboardPlaybackFrame);soundboardPlaybackFrame=0;syncSoundboardQueueCount();syncSoundboardPlayback();}
-function startSoundboardPad(pad,queued=false){if(localStorage.getItem("rareiq.spotify.duckSoundboard")==="true"&&spotifyState.connected&&spotifyDuckedVolume===null){spotifyDuckedVolume=Number(spotifyState.playback?.device?.volume_percent??50);spotifyCommand("volume",{volume_percent:Math.max(5,Math.round(spotifyDuckedVolume*.3))}).catch(()=>{});}const player=new Audio(pad.asset.url);player.volume=soundboardVolume()/100;player.dataset.padId=pad.id;player.dataset.padLabel=pad.label||pad.asset.name||"Sound";activeSoundboardPlayers.add(player);const dispose=()=>{activeSoundboardPlayers.delete(player);player.remove();if(queued&&soundboardQueue.length)startSoundboardPad(soundboardQueue.shift(),true);syncSoundboardQueueCount();if(!activeSoundboardPlayers.size){if(spotifyDuckedVolume!==null){const restore=spotifyDuckedVolume;spotifyDuckedVolume=null;spotifyCommand("volume",{volume_percent:restore}).catch(()=>{});}if(soundboardPlaybackFrame)cancelAnimationFrame(soundboardPlaybackFrame);soundboardPlaybackFrame=0;syncSoundboardPlayback();}};player.addEventListener("ended",dispose,{once:true});player.addEventListener("error",dispose,{once:true});player.play().then(startSoundboardPlaybackSync).catch(error=>{dispose();notify("Sound Blocked",error.message||"Browser prevented playback.","error")});syncSoundboardPlayback();}
+function releaseSoundboardDucking(){
+  if(spotifyDuckedVolume===null)return;
+  const restore=spotifyDuckedVolume;spotifyDuckedVolume=null;
+  spotifyCommand("volume",{volume_percent:restore}).catch(()=>{});
+}
+function stopAllSoundboardAudio(){
+  soundboardQueue.splice(0);
+  // Dispose before pause/load can reject pending play promises or emit errors.
+  [...activeSoundboardPlayers].forEach(player=>soundboardPlayerDisposers.get(player)?.(null,true));
+  releaseSoundboardDucking();
+  syncSoundboardQueueCount();
+  syncSoundboardPlayback();
+}
+function startSoundboardPad(pad,queued=false){
+  if(!pad?.asset?.url)return;
+  if(localStorage.getItem("rareiq.spotify.duckSoundboard")==="true"&&spotifyState.connected&&spotifyDuckedVolume===null){
+    spotifyDuckedVolume=Number(spotifyState.playback?.device?.volume_percent??50);
+    spotifyCommand("volume",{volume_percent:Math.max(5,Math.round(spotifyDuckedVolume*.3))}).catch(()=>{});
+  }
+  const player=new Audio(pad.asset.url);
+  player.volume=window.RareIQSoundboardOutput?.localVolume(soundboardVolume()/100)??soundboardVolume()/100;
+  player.dataset.padId=pad.id;player.dataset.padLabel=pad.label||pad.asset.name||"Sound";
+  activeSoundboardPlayers.add(player);
+  let disposed=false;
+  const dispose=(error=null,cancelled=false)=>{
+    if(disposed)return;
+    disposed=true;
+    window.RareIQSoundboardOutput?.remove(player);
+    player.removeEventListener("ended",ended);player.removeEventListener("error",failed);
+    activeSoundboardPlayers.delete(player);soundboardPlayerDisposers.delete(player);
+    player.pause();player.removeAttribute("src");player.load();player.remove();
+    if(error&&!cancelled)notify("Sound Unavailable",error.message||"Audio could not be played.","error");
+    if(!cancelled&&!activeSoundboardPlayers.size&&soundboardQueue.length)startSoundboardPad(soundboardQueue.shift(),true);
+    syncSoundboardQueueCount();
+    if(!activeSoundboardPlayers.size)releaseSoundboardDucking();
+    syncSoundboardPlayback();
+  };
+  const ended=()=>dispose(),failed=()=>dispose(new Error(`${pad.label||"Sound"} could not be loaded or decoded.`));
+  soundboardPlayerDisposers.set(player,dispose);
+  player.addEventListener("ended",ended,{once:true});player.addEventListener("error",failed,{once:true});
+  try{player.play().then(()=>{if(!disposed){window.RareIQSoundboardOutput?.add(player,pad,soundboardVolume()/100);startSoundboardPlaybackSync()}}).catch(error=>dispose(error));}
+  catch(error){dispose(error);}
+  syncSoundboardPlayback();
+}
 function playSoundboardPad(pad){if(!pad?.asset?.url)return;if(soundboardPlaybackMode()==="queue"&&activeSoundboardPlayers.size){soundboardQueue.push(pad);syncSoundboardQueueCount();return;}startSoundboardPad(pad,soundboardPlaybackMode()==="queue");}
-function setSoundboardVolume(value){const volume=Math.max(0,Math.min(100,Number(value)||0));localStorage.setItem("rareiq.soundboard.volume",String(volume));activeSoundboardPlayers.forEach(player=>{player.volume=volume/100});[["soundboardVolume","soundboardVolumeValue"],["soundboardAppVolume","soundboardAppVolumeValue"]].forEach(([inputId,labelId])=>{if($(inputId))$(inputId).value=String(volume);if($(labelId))$(labelId).textContent=`${volume}%`;});}
-function refreshSoundPadImages(){const playable=soundboardState.pads.filter(pad=>pad.asset);[["#soundboardPads .studiox-sound-pad",playable],["#cameraSoundboardPads .camera-sound-pad",playable.slice(0,6)],["#soundboardAppGrid .soundboard-app-pad",playable]].forEach(([selector,pads])=>document.querySelectorAll(selector).forEach((button,index)=>{const image=pads[index]?.image_asset?.url;if(image){button.classList.add("has-pad-image");button.style.setProperty("--pad-image",`url("${image}")`)}else{button.classList.remove("has-pad-image");button.style.removeProperty("--pad-image")}}));}
+function setSoundboardVolume(value){const volume=Math.max(0,Math.min(100,Number(value)||0));localStorage.setItem("rareiq.soundboard.volume",String(volume));activeSoundboardPlayers.forEach(player=>{player.volume=window.RareIQSoundboardOutput?.localVolume(volume/100)??volume/100});window.RareIQSoundboardOutput?.volume(volume/100);[["soundboardVolume","soundboardVolumeValue"],["soundboardAppVolume","soundboardAppVolumeValue"]].forEach(([inputId,labelId])=>{if($(inputId))$(inputId).value=String(volume);if($(labelId))$(labelId).textContent=`${volume}%`;});}
+function refreshSoundPadImages(){
+  const pads=new Map(soundboardState.pads.map(pad=>[pad.id,pad]));
+  document.querySelectorAll("#soundboardPads [data-pad-id],#cameraSoundboardPads [data-pad-id],#soundboardAppGrid [data-pad-id]").forEach(button=>{
+    const image=pads.get(button.dataset.padId)?.image_asset?.url;
+    button.classList.toggle("has-pad-image",Boolean(image));
+    if(image)button.style.setProperty("--pad-image",`url("${image}")`);
+    else button.style.removeProperty("--pad-image");
+  });
+}
 function addSoundboardImageControls(){const visuals=soundboardState.assets.filter(asset=>asset.kind==="visual");document.querySelectorAll("#soundboardPadConfig .studiox-soundboard-config-row").forEach((row,index)=>{const select=document.createElement("select");select.dataset.soundboardImage=String(index);select.append(new Option("No button image",""),...visuals.map(asset=>new Option(asset.name,asset.id)));select.value=soundboardState.pads[index]?.image_asset_id||"";const upload=document.createElement("label");upload.className="riq-button soundboard-image-upload";upload.textContent="Image";const input=document.createElement("input");input.type="file";input.accept="image/png,image/jpeg,image/webp,image/gif";input.addEventListener("change",()=>uploadSoundboardPadImage(index,input.files?.[0]).catch(error=>notify("Image Not Added",error.message||String(error),"error")));upload.append(input);row.insertBefore(select,row.lastElementChild);row.insertBefore(upload,row.lastElementChild)});}
 async function uploadSoundboardPadImage(index,file){if(!file)return;const result=await uploadCreatorAsset(file),asset=result?.asset;if(!asset?.id||asset.kind!=="visual")throw new Error("A valid image was not returned");soundboardState.assets=[...soundboardState.assets.filter(item=>item.id!==asset.id),asset];soundboardState.pads[index]={...soundboardState.pads[index],image_asset_id:asset.id,image_asset:asset};await saveSoundboard();await loadSoundboard();}
 function renderSoundboard(payload={}){soundboardState={pads:Array.isArray(payload.pads)?payload.pads:[],assets:Array.isArray(payload.assets)?payload.assets:[]};const audioAssets=soundboardState.assets.filter(asset=>asset.kind==="audio"),playable=orderedSoundboardPads().filter(p=>p.asset),makePad=(pad,quick=false)=>{const button=document.createElement("button");button.type="button";button.className=quick?"camera-sound-pad":"studiox-sound-pad";button.dataset.padId=pad.id;button.textContent=pad.label;button.title=soundboardLayouts.locked?`Play ${pad.label}`:`Play or drag ${pad.label}`;button.addEventListener("click",()=>playSoundboardPad(pad));return button;};const pads=$("soundboardPads");if(pads){pads.replaceChildren(...(playable.length?playable.map(pad=>makePad(pad)):[Object.assign(document.createElement("p"),{textContent:"Add audio to create your first sound pad."})]));enableSoundboardDrag(pads,".studiox-sound-pad");}const quickPads=$("cameraSoundboardPads");if(quickPads){quickPads.replaceChildren(...playable.slice(0,6).map(pad=>makePad(pad,true)));quickPads.hidden=playable.length===0;}const config=$("soundboardPadConfig");if(config)config.replaceChildren(...soundboardState.pads.map((pad,index)=>{const row=document.createElement("div");row.className="studiox-soundboard-config-row";const label=document.createElement("input");label.value=pad.label||`Sound ${index+1}`;label.maxLength=40;label.dataset.soundboardLabel=String(index);const select=document.createElement("select");select.dataset.soundboardAsset=String(index);select.append(new Option("Choose audio",""),...audioAssets.map(asset=>new Option(asset.name,asset.id)));select.value=pad.asset_id||"";const remove=document.createElement("button");remove.type="button";remove.className="riq-button";remove.textContent="Remove";remove.addEventListener("click",()=>{soundboardState.pads.splice(index,1);storeCurrentSoundboardOrder();renderSoundboard(soundboardState);renderSoundboardApp();addSoundboardImageControls();refreshSoundPadImages();});row.append(label,select,remove);return row;}));if($("soundboardToolPadCount"))$("soundboardToolPadCount").textContent=`${soundboardState.pads.length} / 50`;syncSoundboardLayoutControls();setStudioXWidgetState("soundboard","available");}
@@ -1733,7 +2182,18 @@ async function loadSoundboard(){loadSoundboardLayouts();const payload=await api(
 async function saveSoundboardApp(){soundboardState.pads=soundboardState.pads.map((pad,index)=>{const label=document.querySelector(`[data-soundboard-app-label='${index}']`),asset=document.querySelector(`[data-soundboard-app-asset='${index}']`);return {...pad,label:label?.value||pad.label,asset_id:asset?asset.value||null:pad.asset_id};});const payload=await api("/api/soundboard",{method:"POST",body:JSON.stringify({pads:soundboardState.pads})});renderSoundboard({pads:payload.soundboard||[],assets:soundboardState.assets});renderSoundboardApp();notify("Soundboard Saved","Your 50-pad layout is ready.","success");}
 async function uploadSoundboardFiles(files){for(const file of Array.from(files||[]))await uploadSoundboardAudio(file);await loadSoundboard();}
 async function saveSoundboard(){const pads=soundboardState.pads.map((pad,index)=>({...pad,label:document.querySelector(`[data-soundboard-label='${index}']`)?.value||pad.label,asset_id:document.querySelector(`[data-soundboard-asset='${index}']`)?.value||null,image_asset_id:document.querySelector(`[data-soundboard-image='${index}']`)?.value||pad.image_asset_id||null}));const payload=await api("/api/soundboard",{method:"POST",body:JSON.stringify({pads})});renderSoundboard({pads:payload.soundboard||[],assets:soundboardState.assets});refreshSoundPadImages();notify("Soundboard Saved","Your streamer pads are ready.","success");}
-async function uploadSoundboardAudio(file){if(!file)return;const result=await uploadCreatorAsset(file);const asset=result?.asset;if(!asset?.id)throw new Error("Uploaded audio was not returned by the server");const current=await api("/api/soundboard"),pads=(current.pads||[]).map(pad=>({id:pad.id,label:pad.label,asset_id:pad.asset_id}));if(pads.length>=50)throw new Error("Soundboard supports up to 50 pads");pads.push({id:`pad-${Date.now()}`,label:asset.name||file.name.replace(/\.[^.]+$/,"")||`Sound ${pads.length+1}`,asset_id:asset.id});const saved=await api("/api/soundboard",{method:"POST",body:JSON.stringify({pads})});renderSoundboard({pads:saved.soundboard||[],assets:[...(current.assets||[]).filter(item=>item.id!==asset.id),asset]});notify("Sound Pad Added",`${asset.name} is ready in the camera toolbar.`,"success");}
+async function uploadSoundboardAudio(file){
+  if(!file)return;
+  const current=await api("/api/soundboard");
+  const pads=(current.pads||[]).map(pad=>({id:pad.id,label:pad.label,asset_id:pad.asset_id,image_asset_id:pad.image_asset_id||null}));
+  if(pads.length>=50)throw new Error("Soundboard supports up to 50 pads");
+  const result=await uploadCreatorAsset(file),asset=result?.asset;
+  if(!asset?.id||asset.kind!=="audio")throw new Error("Uploaded audio was not returned by the server");
+  pads.push({id:crypto.randomUUID?.()||`pad-${Date.now()}`,label:asset.name||file.name.replace(/\.[^.]+$/,"")||`Sound ${pads.length+1}`,asset_id:asset.id});
+  const saved=await api("/api/soundboard",{method:"POST",body:JSON.stringify({pads})});
+  renderSoundboard({pads:saved.soundboard||[],assets:[...(current.assets||[]).filter(item=>item.id!==asset.id),asset]});
+  notify("Sound Pad Added",`${asset.name} is ready in the camera toolbar.`,"success");
+}
 
 async function replayCreatorReveal(revealId){
   const payload=await api("/api/creator/reveal-sequence/replay",{method:"POST",body:JSON.stringify({reveal_id:revealId})});
@@ -2636,6 +3096,7 @@ const CREATOR_WORKSPACE_COPY={
   rules:["Reveal Rules","Configure suspense, qualification thresholds, copy, and safe preview controls."],
   live:["Live Reveal State","Monitor the current pack, qualification evidence, and recent reveal history."],
   assets:["Reaction Asset Library","Upload licensed media and map explicit audio and visual reactions by tier."],
+  chase:["Set Chase Bar","Curate case hits and top hits, preview set-inspired themes, and publish a rotating browser source."],
 };
 
 function setCreatorWorkspaceView(requested,{persist=true,focus=false}={}){
@@ -2643,10 +3104,14 @@ function setCreatorWorkspaceView(requested,{persist=true,focus=false}={}){
   if(!workspace||!tabs)return "rules";
   const view=Object.hasOwn(CREATOR_WORKSPACE_COPY,requested)?requested:"rules",layout=workspace.querySelector(".creator-reveal-layout"),config=$("creatorRevealConfig"),monitor=$("creatorRevealMonitor"),assets=$("creatorAssetPanel");
   workspace.dataset.creatorView=view;
-  if(layout)layout.hidden=view==="assets";
+  if(layout)layout.hidden=view==="assets"||view==="chase";
   if(config)config.hidden=view!=="rules";
   if(monitor)monitor.hidden=view!=="live";
   if(assets)assets.hidden=view!=="assets";
+  if($("creatorChasePanel"))$("creatorChasePanel").hidden=view!=="chase";
+  // Keep one editor document alive: tab changes must not reload an unsaved draft.
+  const chaseFrame=$("creatorChaseFrame");
+  if(view==="chase"&&chaseFrame&&!chaseFrame.hasAttribute("src"))chaseFrame.src=chaseFrame.dataset.src;
   tabs.querySelectorAll("[data-creator-view]").forEach(button=>{
     const selected=button.dataset.creatorView===view;
     button.classList.toggle("active",selected);
@@ -2681,13 +3146,13 @@ function initializeCreatorWorkspace(){
 }
 
 const BROADCAST_WORKSPACE_PANELS={
-  live:[".workspace-readiness",".production-session-metadata",".production-session",".operator-health",".show-preflight",".production-switcher-shell"],
+  live:[".workspace-readiness",".studio-product-bar",".production-session-metadata",".production-session",".operator-health",".show-preflight",".production-switcher-shell"],
   destinations:[".broadcast-destinations"],
   show:[".rundown-safety",".rundown-library",".rundown-preflight",".production-rundown",".production-scenes"],
   graphics:[".production-graphics",".production-replay",".production-screens"],
   insights:[".pack-economics",".pack-tracker",".card-show-analytics",".show-analytics"],
   history:[".break-history-controls",".break-history",".production-report-actions"],
-  setup:[".obs-diagnostic",".obs-bootstrap",".obs-control",".encoder-guide",".recording-settings"],
+  setup:[".obs-diagnostic",".obs-bootstrap",".obs-source-audit",".broadcast-output",".obs-control",".encoder-guide",".recording-settings"],
 };
 
 const AI_LAB_VIEW_KEY="rareiq.ai-lab.view.v1";
@@ -3780,17 +4245,72 @@ async function updateTCGSelection(){
 
 function readPackSession(){try{return JSON.parse(localStorage.getItem(STUDIOX_PACK_SESSION_KEY)||"null")}catch{return null}}
 function writePackSession(session){try{session?localStorage.setItem(STUDIOX_PACK_SESSION_KEY,JSON.stringify(session)):localStorage.removeItem(STUDIOX_PACK_SESSION_KEY)}catch{}}
+function activePackWorkflowStatus(status={}){
+  const session=readPackSession();
+  if(!session?.active)return status;
+  return{
+    ...status,
+    selection_mode:"pack",
+    locked:true,
+    active_set:status.active_set||{
+      id:session.set_id||session.reference_id||"",
+      set_id:session.set_id||"",
+      name:session.set_name||session.set_id||"Pack set",
+      language:session.language||"Any language",
+    },
+  };
+}
+function activePackMatch(){
+  const session=readPackSession();
+  if(!session?.active)return packArtworkIndex.last_match||null;
+  return{
+    ...(packArtworkIndex.last_match||{}),
+    id:session.reference_id||packArtworkIndex.last_match?.id||"",
+    set_id:session.set_id||packArtworkIndex.last_match?.set_id||"",
+    set_name:session.set_name||packArtworkIndex.last_match?.set_name||"Pack set",
+    language:session.language||packArtworkIndex.last_match?.language||"Any language",
+  };
+}
+function packSessionProgressState(session){
+  const size=Math.max(1,Math.min(30,Number(session?.size)||10));
+  const confirmed=Math.max(0,Math.min(size,Number(session?.last_confirmed_position)||0));
+  const complete=Boolean(session?.complete)||confirmed>=size;
+  const card=complete?size:Math.max(1,Math.min(size,Number(session?.card)||confirmed+1));
+  const rareSlot=Math.max(1,Math.min(size,Number(session?.rare_slot)||size));
+  const observedRareSlot=Math.max(0,Math.min(size,Number(session?.observed_rare_slot)||0));
+  const rareStatus=observedRareSlot
+    ? `Hit evidence recorded at card ${observedRareSlot}`
+    : complete
+      ? "Rare-slot evidence not recorded"
+      : card===rareSlot
+        ? `Rare slot now · card ${rareSlot}`
+        : confirmed>=rareSlot
+          ? `Rare slot passed · awaiting hit evidence`
+          : `Rare slot expected at card ${rareSlot}`;
+  return{size,confirmed,complete,card,rareSlot,observedRareSlot,rareStatus,progress:complete?100:Math.round(confirmed/size*100)};
+}
 function renderPackSession(){
   const session=readPackSession(),active=Boolean(session?.active);
   document.body.dataset.packSession=active?"active":"";
+  const progress=$("packSessionProgress");
+  if(progress)progress.hidden=!active;
   if($("nextPackSessionButton")) $("nextPackSessionButton").hidden=!active;
-  if(!active)return;
-  const card=Math.max(1,Math.min(Number(session.card||1),Number(session.size||10)));
-  const complete=Boolean(session.complete);
+  if(!active){
+      return;
+  }
+  const state=packSessionProgressState(session),{card,complete}=state;
+  progress?.setAttribute("aria-label",complete?`Pack ${Number(session.pack_number)||1} complete, ${state.size} cards`:`Pack ${Number(session.pack_number)||1}, card ${card} of ${state.size}. ${state.rareStatus}`);
+  if(progress){progress.dataset.state=complete?"complete":state.card===state.rareSlot?"rare":"active";progress.style.setProperty("--pack-progress",`${state.progress}%`);progress.style.setProperty("--pack-rare-position",`${Math.max(2,Math.min(98,(state.rareSlot-.5)/state.size*100))}%`)}
+  setCardText("packSessionPackLabel",`Pack ${Number(session.pack_number)||1}`);
+  setCardText("packSessionCardCount",complete?`${state.size} / ${state.size} complete`:`${state.confirmed} / ${state.size} cards`);
+  setCardText("packSessionRareStatus",state.rareStatus);
+  if($("packSessionProgressFill"))$("packSessionProgressFill").style.width=`${state.progress}%`;
+  if($("packSessionRareMarker"))$("packSessionRareMarker").style.left=`${Math.max(2,Math.min(98,(state.rareSlot-.5)/state.size*100))}%`;
   if($("setContextStatus")) $("setContextStatus").textContent=complete
-    ? `${session.set_name} · PACK COMPLETE · ${session.size}/${session.size}`
-    : `${session.set_name} · ${session.language||"Any language"} · CARD ${card}/${session.size}`;
+    ? `${session.set_name} · PACK COMPLETE · ${state.size}/${state.size}`
+    : `${session.set_name} · ${session.language||"Any language"} · CARD ${card}/${state.size}`;
   if($("nextPackSessionButton")) $("nextPackSessionButton").textContent=complete?"Scan Next Pack":"Next Pack";
+  renderPackRecognition(activePackMatch(),true);
 }
 function advancePackSessionCard(revealState=null){
   const session=readPackSession();if(!session?.active)return;
@@ -3841,7 +4361,22 @@ async function chooseRecognitionWorkflow(workflow="identify"){
   notify(pack?"Pack Scan Armed":"Card Identify Ready",pack?"Place a wrapper in view. Pack artwork detection is now active.":"RareIQ will identify single cards across all downloaded sets. Pack detection is off.","success");
 }
 
+function handleRecognitionSetModeChange(event){
+  const mode=event?.target?.value||"auto";
+  if($("recognitionWorkflowPrompt"))$("recognitionWorkflowPrompt").hidden=true;
+  try{sessionStorage.setItem(STUDIOX_WORKFLOW_SESSION_KEY,mode==="pack"?"pack":"identify")}catch(_error){}
+  return updateRecognitionSetContext();
+}
+
 async function initializeRecognitionWorkflow(){
+  const activePack=readPackSession();
+  if(activePack?.active){
+    try{sessionStorage.setItem(STUDIOX_WORKFLOW_SESSION_KEY,"pack");localStorage.setItem(STUDIOX_SET_MODE_KEY,"pack")}catch(_error){}
+    if($("setContextMode"))$("setContextMode").value="pack";
+    renderRecognitionSetContext(activePackWorkflowStatus({locked:true}));
+    renderPackSession();
+    return;
+  }
   let choice="";try{choice=sessionStorage.getItem(STUDIOX_WORKFLOW_SESSION_KEY)||""}catch(_error){}
   if(choice)return;
   try{localStorage.setItem(STUDIOX_SET_MODE_KEY,"auto");localStorage.setItem(STUDIOX_PACK_AUTO_DETECT_KEY,"false")}catch(_error){}
@@ -3851,6 +4386,7 @@ async function initializeRecognitionWorkflow(){
 }
 
 function renderRecognitionSetContext(status={}){
+  status=activePackWorkflowStatus(status);
   const mode=status.selection_mode||"auto";
   const active=status.active_set||{};
   if($("setContextMode")) $("setContextMode").value=mode;
@@ -3863,8 +4399,9 @@ function renderRecognitionSetContext(status={}){
     : "All downloaded sets";
   document.body.dataset.setContext=mode;
   renderRecognitionWorkflowChrome(mode);
+  syncCommandDeckSummary();
   packAutoLocked=Boolean(mode==="pack"&&status.locked);
-  renderPackRecognition(mode==="pack"?packArtworkIndex.last_match:null,Boolean(status.locked));
+  renderPackRecognition(mode==="pack"?activePackMatch():null,Boolean(status.locked));
   if(mode==="pack"&&!status.locked)schedulePackAutoDetect();else stopPackAutoDetect();
 }
 
@@ -3903,16 +4440,56 @@ function renderPackArtworkReadiness(){
     : count
       ? `${selected.set_name||selected.name} · ${count} learned view${count===1?"":"s"} · ready to scan`
       : `${selected.set_name||selected.name} · not learned yet`;
+  renderPackLearningCoach();
+}
+
+function renderPackLearningCoach({match=null,locked=false,state=""}={}){
+  const coach=$("packWrapperCoach");
+  if(!coach)return;
+  const selected=selectedRecognitionSet(),count=selectedPackReferenceCount(),referenceCount=Number(packArtworkIndex.reference_count||0);
+  const selectedName=selected?.set_name||selected?.name||selected?.set_id||selected?.id||"";
+  let title="Scan a known wrapper",detail=referenceCount?`${referenceCount} learned wrapper view${referenceCount===1?" is":"s are"} ready for matching.`:"Choose a set and teach RareIQ its first wrapper view.",coachState=state||"waiting";
+  if(selectedName&&count){title=`${selectedName} · ${count} learned view${count===1?"":"s"}`;detail="Scan this wrapper now, or save another clear camera angle.";coachState=state||"configured"}
+  else if(selectedName){title=`${selectedName} · ready to learn`;detail="Place the full wrapper inside the scan zone, then save the current view.";coachState=state||"learning"}
+  if(match){title=locked?`Set confirmed · ${match.set_name||match.set_id}`:`Verifying · ${match.set_name||match.set_id}`;detail=locked?"Review the pack profile, then begin card scanning.":"RareIQ found the wrapper and is confirming its set.";coachState=locked?"ready":"verifying"}
+  coach.dataset.state=coachState;
+  setCardText("packWrapperCoachTitle",title);
+  setCardText("packWrapperCoachDetail",detail);
+  if($("packChooseSetButton"))$("packChooseSetButton").textContent=selectedName?"Change Set":"Choose Set";
+  if($("packScanWrapperButton"))$("packScanWrapperButton").disabled=!referenceCount;
+  if($("packLearnWrapperButton")){
+    $("packLearnWrapperButton").disabled=!selectedName;
+    $("packLearnWrapperButton").textContent=count?"Add Wrapper View":"Save Current Wrapper";
+  }
+}
+
+function renderPackWorkflowRail({found=false,locked=false,session=readPackSession()}={}){
+  const progress=session?.active?packSessionProgressState(session):null;
+  const states={
+    mode:["complete","Armed"],
+    wrapper:found?["complete","Recognized"]:["active","Show or learn"],
+    set:locked?["complete","Locked"]:found?["active","Verifying"]:["waiting","Waiting"],
+    cards:progress
+      ? [progress.complete?"complete":"active",progress.complete?`${progress.size}/${progress.size} complete`:`${progress.confirmed}/${progress.size} cards`]
+      : locked?["active","Ready to start"]:["waiting","Not started"],
+  };
+  document.querySelectorAll("#packWorkflowRail [data-pack-step]").forEach(step=>{
+    const [state,label]=states[step.dataset.packStep]||["waiting","Waiting"];
+    step.dataset.state=state;
+    const detail=step.querySelector("small");
+    if(detail)detail.textContent=label;
+  });
 }
 
 function renderPackRecognition(match=null,locked=false){
   const panel=$("packRecognitionPanel");
   if(!panel) return;
   const found=Boolean(match?.set_id||match?.set_name);
+  const session=readPackSession(),progress=session?.active?packSessionProgressState(session):null;
   panel.hidden=($("setContextMode")?.value||"auto")!=="pack";
-  panel.dataset.state=found?"matched":"waiting";
-  setCardText("packRecognitionTitle",found?"Pack Match Found":"Ready to identify a pack");
-  setCardText("packRecognitionBadge",found?"SET MATCH":"WAITING");
+  panel.dataset.state=progress?.complete?"complete":progress?"scanning":locked?"ready":found?"verifying":"waiting";
+  setCardText("packRecognitionTitle",progress?.complete?"Pack complete — ready for the next wrapper":progress?`Scanning cards · ${progress.confirmed}/${progress.size}`:locked?"Set locked — ready for cards":found?"Pack candidate found":"Ready to identify a pack");
+  setCardText("packRecognitionBadge",progress?.complete?"COMPLETE":progress?"SCANNING":locked?"READY":found?"VERIFYING":"WAITING");
   setCardText("packRecognitionSet",found?(match.set_name||match.set_id):"No pack scanned");
   setCardText("packRecognitionLanguage",found?(match.language||"Any"):"—");
   setCardText("packRecognitionSetId",found?(match.set_id||"—"):"—");
@@ -3920,11 +4497,18 @@ function renderPackRecognition(match=null,locked=false){
   setCardText("packRecognitionLock",locked?"Locked for card OCR":"Not locked");
   setCardText("packRecognitionEvidence",found
     ? `Artwork ${Math.round(Number(match.hash_score||0)*100)}% · color ${Math.round(Number(match.color_score||0)*100)}%`
-    : "Choose a set to learn its first wrapper, or scan a learned pack.");
+    : "Show a learned wrapper, or choose a set above and teach RareIQ its first pack view.");
   setCardText("packRecognitionConfirmation",found&&locked
     ? `${match.set_name||match.set_id} is now the active card-recognition set`
-    : "Waiting for pack evidence");
-  if($("packStartCardsButton")) $("packStartCardsButton").disabled=!(found&&locked);
+    : found
+      ? "Wrapper found. Confirming the set before card scanning starts."
+      : "Waiting for a learned wrapper or a new pack view");
+  if($("packStartCardsButton")){
+    $("packStartCardsButton").disabled=Boolean(progress)||!(found&&locked);
+    $("packStartCardsButton").textContent=progress?.complete?"Pack Complete":progress?`Card ${progress.card} of ${progress.size}`:found&&locked?"Start Scanning Cards":"Waiting for Set Lock";
+  }
+  renderPackWorkflowRail({found,locked,session});
+  renderPackLearningCoach({match:found?match:null,locked});
   const image=$("packRecognitionImage"),placeholder=$("packRecognitionPlaceholder");
   if(image){image.hidden=!found;if(found)image.src=`/api/recognition/pack-reference/${encodeURIComponent(match.id)}?v=${Date.now()}`;}
   if(placeholder)placeholder.hidden=found;
@@ -3949,6 +4533,7 @@ async function loadRecognitionSets(){
     renderRecognitionSetContext(payload.status||{});
     try{
       const authoritative=Boolean(payload.status?.locked);
+      const activePack=Boolean(readPackSession()?.active);
       if(authoritative){
         const active=payload.status.active_set||{};
         const activeId=String(active.set_id||active.id||"");
@@ -3958,8 +4543,9 @@ async function loadRecognitionSets(){
           return parts[2]===activeId&&(!activeLanguage||String(parts[1]||"").toLowerCase()===activeLanguage);
         });
         if(activeOption) select.value=activeOption.value;
-        localStorage.setItem(STUDIOX_SET_MODE_KEY,payload.status.selection_mode||"auto");
+        localStorage.setItem(STUDIOX_SET_MODE_KEY,activePack?"pack":payload.status.selection_mode||"auto");
         if(activeOption) localStorage.setItem(STUDIOX_SET_CHOICE_KEY,activeOption.value);
+        if(activePack)sessionStorage.setItem(STUDIOX_WORKFLOW_SESSION_KEY,"pack");
       }else{
         const savedMode=localStorage.getItem(STUDIOX_SET_MODE_KEY);
         const savedChoice=localStorage.getItem(STUDIOX_SET_CHOICE_KEY);
@@ -4006,6 +4592,7 @@ async function updateRecognitionSetContext(){
 
 async function scanPackSet(silent=false){
   if(!silent&&$("setContextStatus")) $("setContextStatus").textContent="Reading pack artwork…";
+  if(!silent){const coach=$("packWrapperCoach");if(coach)coach.dataset.state="scanning";setCardText("packWrapperCoachTitle","Scanning wrapper…");setCardText("packWrapperCoachDetail","Comparing the current frame with learned wrapper views.")}
   try{
     const payload=await api("/api/recognition/scan-pack",{method:"POST"});
     if(payload.pack_match) packArtworkIndex.last_match=payload.pack_match;
@@ -4016,6 +4603,7 @@ async function scanPackSet(silent=false){
     return Boolean(payload.pack_match&&payload.locked);
   }catch(error){
     if(!silent&&$("setContextStatus")) $("setContextStatus").textContent=error.message||"Pack not recognized";
+    if(!silent){const coach=$("packWrapperCoach");if(coach)coach.dataset.state="error";setCardText("packWrapperCoachTitle","Wrapper not recognized");setCardText("packWrapperCoachDetail","Try a clearer view, or choose the set and save this wrapper.")}
     return false;
   }
 }
@@ -4034,7 +4622,7 @@ async function startCardsFromPack(automatic=false){
       body:JSON.stringify({mode:"manual",set_id:match.set_id,set_name:match.set_name,language:match.language,provider:match.provider})
     });
     const select=$("setContextSelect");
-    if($("setContextMode")) $("setContextMode").value="manual";
+    if($("setContextMode")) $("setContextMode").value="pack";
     if(select){
       const option=[...select.options].find(item=>{
         const [provider,language,setId]=item.value.split("|");
@@ -4042,8 +4630,7 @@ async function startCardsFromPack(automatic=false){
       });
       if(option) select.value=option.value;
     }
-    try{localStorage.setItem(STUDIOX_SET_MODE_KEY,"manual");localStorage.setItem(STUDIOX_SET_CHOICE_KEY,select?.value||"");}catch(_error){}
-    renderRecognitionSetContext(payload);
+    try{localStorage.setItem(STUDIOX_SET_MODE_KEY,"pack");localStorage.setItem(STUDIOX_SET_CHOICE_KEY,select?.value||"");sessionStorage.setItem(STUDIOX_WORKFLOW_SESSION_KEY,"pack");}catch(_error){}
     let rearmed=true;
     try{await requestNextRecognition();}catch(_clearError){rearmed=false;}
     let revealState=null;
@@ -4055,7 +4642,9 @@ async function startCardsFromPack(automatic=false){
         revealState=nextPayload.state||revealState;
       }
     }catch(_revealError){}
-    writePackSession({active:true,reference_id:match.id||"",set_id:match.set_id,set_name:match.set_name||match.set_id,language:match.language||"Any language",size:Number(revealState?.expected_cards||10),card:Number(revealState?.position||0)+1,pack_number:Number(revealState?.pack_number||1),complete:false,profile_observed:false});
+    const profile=packProfileFor(match);
+    writePackSession({active:true,reference_id:match.id||"",set_id:match.set_id,set_name:match.set_name||match.set_id,language:match.language||"Any language",size:Number(revealState?.expected_cards||profile.expectedCards||10),rare_slot:Number(revealState?.rare_slot||profile.rareSlot),card:Number(revealState?.position||0)+1,last_confirmed_position:Number(revealState?.position||0),pack_number:Number(revealState?.pack_number||1),complete:false,profile_observed:false});
+    renderRecognitionSetContext({...payload,selection_mode:"pack",locked:true,active_set:payload.active_set||{set_id:match.set_id,name:match.set_name||match.set_id,language:match.language||"Any language"}});
     renderPackSession();
     notify(
       rearmed?(automatic?"Card Scanning Started Automatically":"Pack Set Locked"):"Pack Set Locked · Clear Manually",
@@ -4077,14 +4666,17 @@ async function learnPackSet(){
     return;
   }
   if($("setContextStatus")) $("setContextStatus").textContent="Learning pack artwork…";
+  const coach=$("packWrapperCoach");if(coach)coach.dataset.state="scanning";setCardText("packWrapperCoachTitle","Saving wrapper view…");setCardText("packWrapperCoachDetail","RareIQ is linking the current frame to the selected set.");
   try{
     const payload=await api("/api/recognition/learn-pack",{
       method:"POST",body:JSON.stringify({mode:"pack",set_id:selected.set_id||selected.id,set_name:selected.set_name||selected.name,language:selected.language,provider:selected.provider})
     });
     packArtworkIndex=payload.status||packArtworkIndex;
     renderPackArtworkReadiness();
+    if(coach)coach.dataset.state="saved";setCardText("packWrapperCoachDetail","Wrapper view saved. You can scan it now or add another angle.");
   }catch(error){
     if($("setContextStatus")) $("setContextStatus").textContent=error.message||"Pack learning failed";
+    if(coach)coach.dataset.state="error";setCardText("packWrapperCoachTitle","Wrapper view not saved");setCardText("packWrapperCoachDetail",error.message||"Keep the full wrapper visible and try again.");
   }
 }
 
@@ -4099,6 +4691,8 @@ function syncRecognitionModeWorkspace(){
   document.body.dataset.recognitionMode=studioXRecognitionMode;
   const panel=$("multiCardPanel");
   if(panel) panel.hidden=!isMulti;
+  const sectionNav=$("inspectorSectionNav");
+  if(sectionNav)sectionNav.hidden=isMulti;
 
   // Responsive layouts re-parent inspector sections. Always clear stale mode
   // classes globally before applying the current mode to the live parent.
@@ -4131,17 +4725,22 @@ function setRecognitionMode(mode){
     clearTimeout(multiCardPollTimer);
     renderMultiCardCameraOverlay([]);
   }
+  renderCameraRecognitionPresentation();
 }
 
 function multiCardName(card={}){
-  return card.english_name||card.printed_name||card.name||"Candidate found";
+  return window.RareIQMultiCard.name(card);
 }
 
 function multiCardReferenceImage(card={}){
-  const direct=card.reference_image_url||card.image_url||"";
-  if(direct) return String(direct).replaceAll("\\","/");
-  const local=card.image_path||card.reference_image||card.local_image||"";
-  return local?`/api/reference-image?path=${encodeURIComponent(String(local))}`:"";
+  return window.RareIQMultiCard.referenceImage(card);
+}
+
+const multiCardOverlayBindings=new WeakMap();
+
+function refreshMultiCardCameraOverlay(){
+  const overlay=$("multiCardCameraOverlay");
+  if(overlay)multiCardOverlayBindings.get(overlay)?.schedule();
 }
 
 function renderMultiCardCameraOverlay(slots=[],selectedSlots=[],forceSinglePicker=false){
@@ -4149,22 +4748,52 @@ function renderMultiCardCameraOverlay(slots=[],selectedSlots=[],forceSinglePicke
   const stage=overlay?.parentElement;
   const image=$("cameraFeed");
   if(!overlay||!stage||!image) return;
-  const width=stage.clientWidth||1;
-  const height=stage.clientHeight||1;
+  let binding=multiCardOverlayBindings.get(overlay);
+  if(!binding){
+    binding={slots:[],selectedSlots:[],forceSinglePicker:false,frame:null};
+    binding.schedule=()=>{
+      if(binding.frame!==null)return;
+      binding.frame=requestAnimationFrame(()=>{
+        binding.frame=null;
+        renderMultiCardCameraOverlay(binding.slots,binding.selectedSlots,binding.forceSinglePicker);
+      });
+    };
+    binding.observer=typeof ResizeObserver==="function"?new ResizeObserver(binding.schedule):null;
+    binding.observer?.observe(stage);
+    binding.observer?.observe(image);
+    image.addEventListener("load",binding.schedule);
+    window.addEventListener("resize",binding.schedule,{passive:true});
+    window.addEventListener("pagehide",()=>{
+      binding.observer?.disconnect();
+      image.removeEventListener("load",binding.schedule);
+      window.removeEventListener("resize",binding.schedule);
+      if(binding.frame!==null)cancelAnimationFrame(binding.frame);
+      multiCardOverlayBindings.delete(overlay);
+    },{once:true});
+    multiCardOverlayBindings.set(overlay,binding);
+  }
+  binding.slots=slots;binding.selectedSlots=selectedSlots;binding.forceSinglePicker=forceSinglePicker;
+  const stageBounds=stage.getBoundingClientRect();
+  const imageBounds=image.getBoundingClientRect();
+  const width=stage.clientWidth;
+  const height=stage.clientHeight;
   overlay.setAttribute("viewBox",`0 0 ${width} ${height}`);
+  overlay.setAttribute("preserveAspectRatio","none");
   overlay.replaceChildren();
-  if(studioXRecognitionMode!=="six-card-grid"&&!forceSinglePicker){overlay.hidden=true;return}
-  const naturalWidth=image.naturalWidth||width;
-  const naturalHeight=image.naturalHeight||height;
-  const contain=getComputedStyle(image).objectFit==="contain";
-  const scale=contain?Math.min(width/naturalWidth,height/naturalHeight):Math.max(width/naturalWidth,height/naturalHeight);
-  const renderedWidth=naturalWidth*scale;
-  const renderedHeight=naturalHeight*scale;
-  const offsetX=(width-renderedWidth)/2;
-  const offsetY=(height-renderedHeight)/2;
+  const naturalWidth=image.naturalWidth,naturalHeight=image.naturalHeight;
+  if((studioXRecognitionMode!=="six-card-grid"&&!forceSinglePicker)||!width||!height||!naturalWidth||!naturalHeight){overlay.hidden=true;return}
+  const fit=getComputedStyle(image).objectFit;
+  const containScale=Math.min(imageBounds.width/naturalWidth,imageBounds.height/naturalHeight);
+  const scale=fit==="cover"?Math.max(imageBounds.width/naturalWidth,imageBounds.height/naturalHeight)
+    :fit==="none"?1:fit==="scale-down"?Math.min(1,containScale):containScale;
+  const renderedWidth=fit==="fill"?imageBounds.width:naturalWidth*scale;
+  const renderedHeight=fit==="fill"?imageBounds.height:naturalHeight*scale;
+  const offsetX=imageBounds.left-stageBounds.left-stage.clientLeft+(imageBounds.width-renderedWidth)/2;
+  const offsetY=imageBounds.top-stageBounds.top-stage.clientTop+(imageBounds.height-renderedHeight)/2;
   const namespace="http://www.w3.org/2000/svg";
   const selected=new Set(selectedSlots.map(Number));
-  slots.filter(item=>Array.isArray(item.polygon)&&item.polygon.length===4).forEach(item=>{
+  slots.filter(item=>Array.isArray(item.polygon)&&item.polygon.length===4&&item.polygon.every(point=>
+    Array.isArray(point)&&point.length===2&&point.every(value=>typeof value==="number"&&Number.isFinite(value)))).forEach(item=>{
     const points=item.polygon.map(point=>[offsetX+Number(point[0])*renderedWidth,offsetY+Number(point[1])*renderedHeight]);
     const polygon=document.createElementNS(namespace,"polygon");
     polygon.setAttribute("points",points.map(point=>point.join(",")).join(" "));
@@ -4220,15 +4849,53 @@ async function recognizePickedSingleCard(slot,automatic=false){
   setRecognitionState("captured",`Card ${Number(slot)} submitted for single-card recognition.`);
 }
 
+function multiCardWorkspacePresentation(payload={},detected=0,completed=0,capacity=6){
+  return window.RareIQMultiCard.presentation(payload,capacity);
+}
+
+function renderMultiCardWorkspaceState(payload={},detected=0,completed=0,capacity=6){
+  const presentation=multiCardWorkspacePresentation(payload,detected,completed,capacity);
+  const readiness=$("multiCardReadiness");
+  if(readiness) readiness.dataset.state=presentation.state;
+  setCardText("multiCardStateBadge",presentation.badge);
+  setCardText("multiCardSummary",presentation.summary);
+  setCardText("multiCardGuidance",presentation.guidance);
+}
+
+let multiCardLastPayload=null;
+let multiCardStatusRequest=null;
+let multiCardSelectionPending=false;
+
 function renderMultiCardStatus(payload={}){
-  const slots=Array.isArray(payload.slots)?payload.slots:[];
+  multiCardLastPayload=payload;
+  const slots=window.RareIQMultiCard.visibleSlots(payload);
   const selectedSlots=Array.isArray(payload.selected_slots)?payload.selected_slots.map(Number):[];
   const capacity=Math.max(2,Math.min(12,Number(payload.max_cards||$("multiCardMaxCards")?.value||6)));
-  document.querySelectorAll("[data-multi-card-slot]").forEach(node=>{node.hidden=Number(node.dataset.multiCardSlot)>capacity});
-  renderMultiCardCameraOverlay(slots,selectedSlots);
+  const results=$("multiCardResults");
+  if(results) results.dataset.count=String(slots.length);
+  const activeSlots=new Set(slots.map(item=>Number(item.slot)));
+  document.querySelectorAll("[data-multi-card-slot]").forEach(node=>{
+    node.hidden=!activeSlots.has(Number(node.dataset.multiCardSlot));
+    if(node.hidden){node.replaceChildren();delete node.dataset.signature;}
+  });
+  const empty=$("multiCardEmpty");
+  if(empty){
+    empty.hidden=slots.length>0;
+    empty.textContent=payload.status==="detecting"?"Finding complete card regions…":"No card results yet. Scan the cards currently in view.";
+  }
+  // Restored results belong to a previous capture, not the current live frame.
+  renderMultiCardCameraOverlay(payload.restored===true||payload.ok===false?[]:slots,selectedSlots);
   slots.forEach(item=>{
     const node=document.querySelector(`[data-multi-card-slot="${item.slot}"]`);
     if(!node) return;
+    const selected=selectedSlots.includes(Number(item.slot));
+    const signature=JSON.stringify([item,selected,multiCardSelectionPending,payload.ok]);
+    if(node.dataset.signature===signature)return;
+    node.dataset.signature=signature;
+    if(!node.querySelector("strong")){
+      const number=document.createElement("span"),title=document.createElement("strong"),detail=document.createElement("p");
+      number.textContent=String(item.slot).padStart(2,"0");node.append(number,title,detail);
+    }
     node.dataset.state=item.status||"empty";
     const title=node.querySelector("strong");
     const detail=node.querySelector("p");
@@ -4238,25 +4905,31 @@ function renderMultiCardStatus(payload={}){
     node.classList.toggle("is-output-selected",selectedSlots.includes(Number(item.slot)));
     let showButton=node.querySelector(".multi-card-show-toggle");
     if(!showButton){showButton=document.createElement("button");showButton.type="button";showButton.className="multi-card-show-toggle";showButton.dataset.slot=String(item.slot);node.appendChild(showButton)}
-    showButton.textContent=selectedSlots.includes(Number(item.slot))?"On Screen":"Show";
-    showButton.setAttribute("aria-pressed",String(selectedSlots.includes(Number(item.slot))));
-    showButton.disabled=!item.card;
+    const ready=window.RareIQMultiCard.ready(item);
+    showButton.textContent=selected?"Hide from screen":ready?"Show":"Needs verification";
+    showButton.setAttribute("aria-pressed",String(selected));
+    showButton.disabled=multiCardSelectionPending||payload.ok===false||(!ready&&!selected);
     let artwork=node.querySelector("img");
     const referenceImage=item.card?multiCardReferenceImage(card):"";
     if(referenceImage){
-      if(!artwork){artwork=document.createElement("img");artwork.alt="";node.querySelector("span")?.after(artwork)}
-      artwork.src=referenceImage;artwork.hidden=false;
+      if(!artwork){artwork=document.createElement("img");node.querySelector("span")?.after(artwork)}
+      artwork.alt=`${multiCardName(card)} · ${ready?"catalog reference":"unverified candidate reference"}`;
+      artwork.onerror=()=>{artwork.hidden=true;const note=node.querySelector(".multi-card-artwork-note");if(note)note.textContent="Catalog image unavailable";};
+      if(artwork.getAttribute("src")!==referenceImage){artwork.hidden=false;artwork.src=referenceImage;}
     }else if(artwork){artwork.remove()}
-    if(title) title.textContent=item.card?multiCardName(card):String(item.status||"Waiting").replaceAll("-"," ");
+    let artworkNote=node.querySelector(".multi-card-artwork-note");
+    if(!artworkNote){artworkNote=document.createElement("small");artworkNote.className="multi-card-artwork-note";node.appendChild(artworkNote)}
+    artworkNote.textContent=referenceImage?(artwork?.hidden?"Catalog image unavailable":ready?"Catalog reference":"Candidate reference · unverified"):ready?"Catalog image unavailable":"No catalog image · identity not matched";
+    if(title) title.textContent=item.card?multiCardName(card):item.name_candidate||"Unidentified card";
     let facts=node.querySelector(".multi-card-facts");
     if(!facts){facts=document.createElement("dl");facts.className="multi-card-facts";node.appendChild(facts)}
     const identifier=item.printed_code||item.collector_number||card.collector_number||card.card_number||"--";
     const setName=card.set_name||card.set||card.set_id||"Unknown set";
     const language=card.language_code||card.language||item.language||"--";
-    const confidence=Math.round(Number(item.confidence||card.confidence||0)*100);
-    const statusLabel=item.verified?"Verified":item.card?"Review needed":String(item.status||"Waiting").replaceAll("-"," ");
+    const confidence=window.RareIQMultiCard.confidence(item);
+    const statusLabel=ready?"Verified":item.status==="recognizing"?"Analyzing":"Review needed";
     facts.replaceChildren();
-    [["Card #",identifier],["Set",setName],["Confidence",`${confidence}%`],["Status",statusLabel],["Language",language]].forEach(([label,value])=>{
+    [["Card #",identifier],["Set",setName],["Confidence",confidence],["Status",statusLabel],["Language",language]].forEach(([label,value])=>{
       const row=document.createElement("div");
       const term=document.createElement("dt");term.textContent=label;
       const description=document.createElement("dd");description.textContent=String(value);
@@ -4265,11 +4938,11 @@ function renderMultiCardStatus(payload={}){
     let verification=node.querySelector(".multi-card-verification");
     if(!verification){verification=document.createElement("small");verification.className="multi-card-verification";node.appendChild(verification)}
     const temporalProgress=Number(item.temporal_confirmation_progress||0);
-    verification.textContent=item.temporal_confirmation
+    verification.textContent=ready&&item.temporal_confirmation
       ?"Temporally verified"
       :!item.verified&&temporalProgress>0
       ?`Confirming ${temporalProgress}/${Number(item.temporal_confirmation_required||2)}`
-      :item.verified
+      :ready
       ?"Exact this scan"
       :item.card
       ?"Provisional · needs confirmation"
@@ -4277,62 +4950,74 @@ function renderMultiCardStatus(payload={}){
     verification.hidden=!verification.textContent;
     if(detail){
       detail.textContent=item.card
-        ?`${statusLabel} · ${selectedSlots.includes(Number(item.slot))?"Selected for screen":"Not on screen"}`
+        ?`${statusLabel} · ${selected&&ready?"On screen":selected?"Output held":"Not on screen"}`
         :item.status==="not-detected"
         ?"No card detected"
         :item.status==="recognizing"
         ?"Analyzing card"
-        :"Waiting for capture";
+        :"No verified identity · scan again";
     }
+    node.setAttribute("aria-label",`Card slot ${Number(item.slot)}: ${title?.textContent||"waiting"}. ${detail?.textContent||""}`.trim());
   });
   const detected=Number(payload.detected_count||0);
   const completed=Number(payload.completed_count||0);
-  setCardText(
-    "multiCardSummary",
-    payload.status==="complete"
-      ?`${detected} card${detected===1?"":"s"} processed · select Show for on-screen output`
-      :payload.status==="recognizing"
-      ?`Recognizing ${detected} cards · ${completed} complete`
-      :payload.status==="no-cards-detected"
-      ?"No cards detected · increase spacing and try again"
-      :"Ready for multi-card capture"
-  );
-  setCardText(
-    "multiCardGuidance",
-    payload.status==="recognizing"
-      ?`Keep all ${detected} detected card${detected===1?"":"s"} still while RareIQ verifies each one.`
-      :"Arrange up to twelve cards with clear gaps, then scan the full zone."
-  );
-  if(studioXRecognitionMode==="six-card-grid"&&payload.status==="recognizing"){
-    clearTimeout(multiCardPollTimer);
-    multiCardPollTimer=setTimeout(loadMultiCardStatus,80);
+  renderMultiCardWorkspaceState(payload,detected,completed,capacity);
+  renderCameraRecognitionPresentation();
+  const onScreen=slots.filter(item=>selectedSlots.includes(item.slot)&&window.RareIQMultiCard.ready(item)).length;
+  setCardText("multiCardSelectionStatus",payload.ok===false?"Screen status unavailable":onScreen?`${onScreen} verified ${onScreen===1?"card":"cards"} on screen`:"No cards on screen");
+  clearTimeout(multiCardPollTimer);
+  if(studioXRecognitionMode==="six-card-grid"&&payload.status==="recognizing"&&!multiCardSelectionPending){
+    multiCardPollTimer=setTimeout(loadMultiCardStatus,350);
   }
 }
 
 async function loadMultiCardStatus(){
-  try{renderMultiCardStatus(await api("/api/multi-card/status"))}
-  catch(error){console.warn("multi_card_status_failed",error)}
+  if(multiCardStatusRequest)return multiCardStatusRequest;
+  if(multiCardSelectionPending||recognitionMutationInFlight())return null;
+  multiCardStatusRequest=(async()=>{
+    try{renderMultiCardStatus(await api("/api/multi-card/status"))}
+    catch(error){
+      renderMultiCardStatus({...multiCardLastPayload,ok:false,status:"error",message:"Scan status unavailable. Reconnect and scan again before sending results on screen."});
+      console.warn("multi_card_status_failed",error);
+    }
+  })();
+  try{return await multiCardStatusRequest}finally{multiCardStatusRequest=null}
 }
 
 async function captureMultiCardGrid(){
   if(recognitionMutationInFlight())return null;
+  if(multiCardSelectionPending)return null;
   setRecognitionCaptureBusy(true);
   try{
+  clearTimeout(multiCardPollTimer);
+  if(multiCardStatusRequest)await multiCardStatusRequest;
   const uniqueVariants=Boolean($("multiCardUniqueVariants")?.checked);
   const requestedCards=Math.max(2,Math.min(12,Number($("multiCardMaxCards")?.value||6)));
-  setCardText("multiCardSummary",`Detecting up to ${requestedCards} cards…`);
+  renderMultiCardStatus({status:"detecting",max_cards:requestedCards,slots:[]});
   const payload=await api("/api/multi-card/capture",{
     method:"POST",
     body:JSON.stringify({unique_variants:uniqueVariants,max_cards:requestedCards})
   });
   renderMultiCardStatus(payload);
   return payload;
+  }catch(error){
+    renderMultiCardStatus({ok:false,status:"error",slots:[],message:error.message||"Scan failed. Check the camera and try again."});
+    throw error;
   }finally{setRecognitionCaptureBusy(false);}
 }
 
 async function toggleMultiCardOutput(slot){
+  if(multiCardSelectionPending||recognitionMutationInFlight())return;
+  multiCardSelectionPending=true;
+  if(multiCardLastPayload)renderMultiCardStatus(multiCardLastPayload);
+  try{
+  if(multiCardStatusRequest)await multiCardStatusRequest;
   const current=await api("/api/multi-card/status");
+  renderMultiCardStatus(current);
+  if(current.ok===false)throw new Error("Scan status is unavailable. Reconnect before changing screen output.");
   const selected=new Set((current.selected_slots||[]).map(Number));
+  const item=(current.slots||[]).find(item=>Number(item.slot)===Number(slot));
+  if(!selected.has(Number(slot))&&!window.RareIQMultiCard.ready(item))throw new Error("This card still needs verification. Reposition it and scan again.");
   selected.has(Number(slot))?selected.delete(Number(slot)):selected.add(Number(slot));
   const payload=await api("/api/multi-card/select",{method:"POST",body:JSON.stringify({slots:[...selected]})});
   renderMultiCardStatus(payload);
@@ -4342,6 +5027,13 @@ async function toggleMultiCardOutput(slot){
     studioXPokedexKey=String(identity.card_id||`${identity.set_name||""}:${identity.collector_number||""}:${identity.card_name||""}`);
     renderPokedexPayload(studioXPokedexPayload);
     setStudioXWidgetState("pokedex",studioXPokedexPayload.status||"available");
+  }
+  }catch(error){
+    notify("Screen selection not updated",error.message||"Try again.","error");
+    throw error;
+  }finally{
+    multiCardSelectionPending=false;
+    if(multiCardLastPayload)renderMultiCardStatus(multiCardLastPayload);
   }
 }
 
@@ -5124,7 +5816,7 @@ function cameraWorkspaceSourceOwner(value,slot){
 function cameraWorkspaceSlotSignature(slots=[]){
   return JSON.stringify(slots.map(slot=>[
     slot.slot_id,slot.source_id,slot.role,slot.side,slot.connection_state,
-    slot.connected,slot.frame_id,slot.worker_alive,slot.error
+    slot.connected,slot.worker_alive,slot.error
   ]));
 }
 
@@ -5135,6 +5827,7 @@ function syncCameraWorkspaceSlotStates(slots=[],options={}){
   slots.forEach(slot=>{
     const id=String(slot.slot_id);
     cameraWorkspaceSlotStates[id]=slot;
+    if(!options.force&&["assign","side"].some(action=>cameraWorkspaceSlotActions.has(`${action}-${id}`))) return;
     cameraWorkspacePreferences.sources[id]=slot.source
       ?cameraOptionValue(slot.source,slot.slot_id-1)
       :null;
@@ -5173,6 +5866,8 @@ function cameraWorkspaceVisibleSlots(layout=cameraWorkspacePreferences.layout){
   return layout==="single"?[1]:layout==="dual-side"?[1,2]:layout==="triple"?[1,2,3]:[1,2,3,4];
 }
 
+const cameraWorkspaceSourceOptionSignatures=new WeakMap();
+
 function syncCameraWorkspaceSourceOptions(){
   const active=$("cameraSelect");
   if(!active) return;
@@ -5181,6 +5876,13 @@ function syncCameraWorkspaceSourceOptions(){
     const select=selectForSlot(slot);
     if(!select) return;
     const current=slot===1?active.value:cameraWorkspacePreferences.sources[String(slot)];
+    // Frame updates must not close native pickers or rebuild unchanged options.
+    const signature=JSON.stringify([
+      [...active.options].map(option=>[option.value,option.textContent,option.disabled,option.parentElement?.label]),
+      cameraWorkspacePreferences.sources,current,slot
+    ]);
+    if(cameraWorkspaceSourceOptionSignatures.get(select)===signature) return;
+    if(document.activeElement===select&&select.options.length>1) return;
     select.replaceChildren();
     const prompt=document.createElement("option");
     prompt.value="";
@@ -5211,6 +5913,8 @@ function syncCameraWorkspaceSourceOptions(){
       select.appendChild(missing);
     }
     select.value=current||"";
+    cameraWorkspaceSourceOptionSignatures.set(select,signature);
+    select.title=select.selectedOptions?.[0]?.textContent||"Choose a camera source";
   });
 }
 
@@ -5239,7 +5943,7 @@ function renderCameraWorkspace(){
     renderCameraWorkspaceSlotStatus(slot);
     const preview=$(`cameraSlot${slot}Preview`);
     if(preview){
-      if(source){
+      if(source&&visible.has(slot)){
         preview.hidden=false;
         preview.onload=()=>{
           if($(`cameraSlot${slot}Connection`)) $(`cameraSlot${slot}Connection`).textContent="CONNECTED";
@@ -5265,8 +5969,10 @@ function renderCameraWorkspace(){
     const detail=tile?.querySelector(".camera-workspace-staging-surface span");
     if(detail&&!source){
       detail.hidden=false;
-      detail.innerHTML="No camera selected<br>Choose a source from Manage Cameras";
+      detail.innerHTML="No camera selected<br>Choose a source above";
     }
+    const choose=tile?.querySelector("[data-choose-camera-slot]");
+    if(choose) choose.hidden=Boolean(source);
   });
   const bay=$("secondaryWorkspaceBay");
   if(bay) bay.hidden=!visible.has(2);
@@ -5288,6 +5994,11 @@ function cameraWorkspaceConnectionPresentation(slot){
 function renderCameraWorkspaceSlotStatus(slot){
   const snapshot=cameraWorkspaceSlotStates[String(slot)]||{};
   const presentation=cameraWorkspaceConnectionPresentation(slot);
+  const busy=["assign","side","activate","reconnect"].some(action=>cameraWorkspaceSlotActions.has(`${action}-${slot}`));
+  const source=slot===1?$("cameraSlot1Source"):slot===2?$("stagingSourceSelect"):$(`cameraSlot${slot}Source`);
+  if(source){source.disabled=busy;source.setAttribute("aria-busy",String(busy));}
+  const side=$(`cameraSlot${slot}Side`);
+  if(side) side.disabled=busy;
   const status=$(`cameraSlot${slot}Connection`);
   const role=slot===2?$("secondaryBayBadge"):$(`cameraSlot${slot}Role`);
   const roleName=String(snapshot.role||(slot===cameraWorkspacePreferences.activeSlot?"active":"staging")).toLowerCase();
@@ -5311,7 +6022,7 @@ function renderCameraWorkspaceSlotStatus(slot){
   const promote=slot===2?$("promoteStagingButton"):$(`promoteCameraSlot${slot}`);
   if(promote){
     promote.hidden=presentation.assigned&&["degraded","unavailable","disconnected"].includes(presentation.key);
-    promote.disabled=!presentation.assigned||roleName==="active"||cameraWorkspaceSlotActions.has(`activate-${slot}`);
+    promote.disabled=!presentation.assigned||roleName==="active"||busy;
     promote.textContent=cameraWorkspaceSlotActions.has(`activate-${slot}`)?"Activating…":roleName==="active"?"Active":"Activate";
   }
 }
@@ -5320,7 +6031,22 @@ function setCameraWorkspaceLayout(layout){
   cameraWorkspacePreferences=normalizeCameraWorkspacePreferences({...cameraWorkspacePreferences,layout});
   saveCameraWorkspacePreferences();
   renderCameraWorkspace();
+  renderSecondaryWorkspaceBay();
   alignScanZone(window.__rareiqVisionTelemetry||{});
+}
+
+function chooseCameraWorkspaceSource(slot){
+  const select=slot===1?$("cameraSlot1Source"):slot===2?$("stagingSourceSelect"):$(`cameraSlot${slot}Source`);
+  if(!select||select.disabled) return;
+  select.focus();
+  try{select.showPicker?.();}catch{/* Focus still supports keyboard selection. */}
+}
+
+function manageCameraWorkspace(){
+  setCameraWorkspaceLayout("quad");
+  const slot=[2,3,4].find(id=>!cameraWorkspacePreferences.sources[String(id)])||1;
+  const select=slot===1?$("cameraSlot1Source"):slot===2?$("stagingSourceSelect"):$(`cameraSlot${slot}Source`);
+  select?.focus();
 }
 
 async function setCameraWorkspaceSource(slot,value){
@@ -5355,11 +6081,14 @@ async function setCameraWorkspaceSource(slot,value){
   }catch(error){
     cameraWorkspacePreferences.sources[String(slot)]=previous;
     if(slot===2) secondaryBayPreferences.stagingSource=previousStaging;
+    saveSecondaryBayPreferences();
+    saveCameraWorkspacePreferences();
     notify("Camera Assignment Failed",error.message||"Could not assign camera.","error");
   }finally{
     cameraWorkspaceSlotActions.delete(actionKey);
   }
   renderCameraWorkspace();
+  renderSecondaryWorkspaceBay();
 }
 
 async function setCameraWorkspaceSide(slot,value){
@@ -5531,18 +6260,8 @@ function normalizeSecondarySourcePair(){
 }
 
 function syncSecondarySourceOptions(){
-  const activeSelect=$("cameraSelect");
-  const staging=$("stagingSourceSelect");
-  if(!activeSelect||!staging) return;
-  const current=secondaryBayPreferences.stagingSource;
-  staging.innerHTML='<option value="">No staging camera</option>';
-  [...activeSelect.options].filter(option=>option.value).forEach(option=>{
-    const clone=document.createElement("option");
-    clone.value=option.value;
-    clone.textContent=option.textContent;
-    staging.appendChild(clone);
-  });
-  secondaryBayPreferences.stagingSource=current;
+  // Camera 2 uses the same ownership-safe option renderer as the other slots.
+  syncCameraWorkspaceSourceOptions();
   normalizeSecondarySourcePair();
   saveSecondaryBayPreferences();
   renderSecondaryWorkspaceBay();
@@ -5587,7 +6306,7 @@ function renderSecondaryWorkspaceBay(context=window.__rareiqCardContext||null){
   normalizeSecondarySourcePair();
   const effective=deriveAutoSecondaryBayPresentation(context);
   const mode=effective.mode;
-  const visible=effective.visible&&mode!=="hidden";
+  const visible=effective.visible&&mode!=="hidden"&&cameraWorkspaceVisibleSlots().includes(2);
   bay.hidden=!visible;
   bay.dataset.bayMode=mode;
   bay.dataset.baySize=effective.size;
@@ -5609,7 +6328,11 @@ function renderSecondaryWorkspaceBay(context=window.__rareiqCardContext||null){
   ["swapSourcesButton","promoteStagingButton"].forEach(id=>{
     if($(id)) $(id).disabled=!twoSources;
   });
-  if(!visible) return;
+  if(!visible){
+    $("secondaryBayImage")?.removeAttribute("src");
+    $("secondaryBroadcastPreview")?.removeAttribute("src");
+    return;
+  }
   if($("secondaryBayBadge")){
     $("secondaryBayBadge").textContent=mode==="camera-2"?"STAGING":"ACTIVE";
   }
@@ -5632,7 +6355,7 @@ function renderSecondaryWorkspaceBay(context=window.__rareiqCardContext||null){
     }else{
       setSecondaryBayUnavailable(
         "CAMERA 2",
-        "No camera selected\nChoose a source from Manage Cameras"
+        "No camera selected\nChoose a source above"
       );
     }
   }else if(mode==="card-focus"){
@@ -6539,6 +7262,33 @@ async function loadRecognition(){
       candidate_reference_only:true,
     }:null;
 
+    const reviewReferenceCandidate=(()=>{
+      const candidate=snapshot?.primary_candidate;
+      const source=String(candidate?.source||"").toLowerCase();
+      const referenceSource=
+        candidate?.reference_image_url||
+        candidate?.image_url||
+        candidate?.image_path||
+        candidate?.reference_image||
+        candidate?.local_image||
+        "";
+      return Boolean(
+        String(snapshot?.verification_state||"").toUpperCase()==="REVIEW_NEEDED"&&
+        snapshot?.has_reference_evidence===true&&
+        candidate&&
+        candidate.retrieval_only!==true&&
+        source!=="ocr_provisional"&&
+        referenceSource&&
+        !String(referenceSource).startsWith("/api/camera/")
+      )?candidate:null;
+    })();
+    const reviewReferencePreview=reviewReferenceCandidate?{
+      ...reviewReferenceCandidate,
+      provisional:true,
+      candidate_reference_only:true,
+      review_reference_preview:true,
+    }:null;
+
     let card =
       authoritativeSetLockedCandidate ||
       canonicalCard ||
@@ -6549,6 +7299,7 @@ async function loadRecognition(){
       presentableProvisional ||
       presentableCandidate ||
       identityMatchedReferencePreview ||
+      reviewReferencePreview ||
       null;
 
     const authoritativeVerificationState=String(
@@ -8401,6 +9152,7 @@ function reorderStudioXWidgetByDrop(sourceId,targetId,placeAfter=false){
 
 function applyStudioXWidgetLayout({persist=false}={}){
   const workspace=$("widgetWorkspace");
+  const recognitionWorkspace=$("recognitionWorkspace");
   if(!workspace) return;
   studioXWidgetLayout=normalizeStudioXWidgetLayout(
     studioXWidgetLayout||loadStudioXWidgetLayout()
@@ -8413,10 +9165,13 @@ function applyStudioXWidgetLayout({persist=false}={}){
   );
   studioXWidgetLayout.order=[...pinned,...unpinned];
   studioXWidgetLayout.order.forEach(id=>{
-    const widget=workspace.querySelector(`[data-studiox-widget="${id}"]`);
+    const widget=document.querySelector(`[data-studiox-widget="${id}"]`);
     if(!widget) return;
     ensureStudioXWidgetChrome(widget);
-    workspace.appendChild(widget);
+    const target=id==="identify"&&recognitionWorkspace
+      ?recognitionWorkspace
+      :workspace;
+    target.appendChild(widget);
     widget.hidden=studioXWidgetLayout.hidden.includes(id);
     widget.classList.toggle(
       "is-collapsed",
@@ -8512,12 +9267,28 @@ function setPremiumIntelligenceTab(name="identify"){
 function provisionalIdentityCard(card=null){
   if(!card) return null;
   return {
+    id:card.id||card.card_id||null,
+    card_id:card.card_id||card.id||null,
     name:card.english_name||card.canonical_name||card.printed_name||card.name||"Candidate",
     english_name:card.english_name||card.canonical_name||null,
     printed_name:card.printed_name||null,
+    set_id:card.set_id||card.set_code||null,
+    set_code:card.set_code||card.set_id||null,
+    set_name:card.set_name||null,
+    collector_number:card.collector_number||card.card_number||null,
     language:card.language||card.language_code||null,
+    rarity:card.rarity||null,
+    source:card.source||null,
+    reference_image_url:card.reference_image_url||null,
+    image_url:card.image_url||null,
+    image_path:card.image_path||null,
+    reference_image:card.reference_image||null,
+    local_image:card.local_image||null,
     visual_score:card.visual_score??card.artwork_score??card.score??null,
     score:card.score??card.fused_score??null,
+    candidate_reference_only:card.candidate_reference_only===true,
+    review_reference_preview:card.review_reference_preview===true,
+    set_mismatch:card.set_mismatch===true,
     provisional:true,
   };
 }
@@ -8634,6 +9405,7 @@ function renderLiveAnalysisTimeline(context){
   const timeline=$("liveAnalysisTimeline");
   const header=$("cardContextHeader");
   const pending=$("identityPendingPlaceholder");
+  const workspace=$("recognitionWorkspace");
   if(!timeline||!header||!pending) return;
   const recognized=context.verified||hasTruthfulRecognizedIdentity(context);
   const showCardContext=recognized||context.presentation.key==="set-mismatch";
@@ -8645,6 +9417,7 @@ function renderLiveAnalysisTimeline(context){
   const signalPanel=$("recognitionSignalPanel");
   if(currentView) currentView.dataset.presentationState=state;
   if(inspectorMain) inspectorMain.dataset.presentationState=state;
+  if(workspace) workspace.dataset.identityContext=showCardContext?"available":"missing";
   timeline.hidden=!scanning;
   pending.hidden=showCardContext;
   if(signalPanel) signalPanel.hidden=unavailable;
@@ -9275,7 +10048,7 @@ async function setPokedexOnAir(enabled){
   return true;
 }
 
-const RARE_INTELLIGENCE_THEME_DEFAULTS={preset:"rareiq",accent_color:"#a6e8ce",secondary_color:"#4f9f83",background_color:"#080d0a",text_color:"#f5f2e9",panel_opacity:.96,corner_radius:12,scale:100,alignment:"left",font:"inter",brand_text:"RAREIQ · LIVE INTELLIGENCE",show_art:true,show_facts:true,show_flavor:true,show_brand:true};
+const RARE_INTELLIGENCE_THEME_DEFAULTS={preset:"rareiq",accent_color:"#8be8ca",secondary_color:"#48b995",background_color:"#18222e",text_color:"#f4f7fa",panel_opacity:.96,corner_radius:4,scale:100,alignment:"left",font:"inter",brand_text:"RAREIQ · LIVE INTELLIGENCE",show_art:true,show_facts:true,show_flavor:true,show_brand:true};
 const RARE_INTELLIGENCE_THEME_PRESETS={
   rareiq:{...RARE_INTELLIGENCE_THEME_DEFAULTS},
   minimal:{preset:"minimal",accent_color:"#f5f2e9",secondary_color:"#8d958f",background_color:"#090b0a",text_color:"#f5f2e9",panel_opacity:.82,corner_radius:6,scale:90,alignment:"left",font:"system",brand_text:"",show_art:true,show_facts:false,show_flavor:false,show_brand:false},
@@ -9286,7 +10059,7 @@ function readRareIntelligenceTheme(){
   const theme={...RARE_INTELLIGENCE_THEME_DEFAULTS};
   Object.entries(RI_THEME_FIELDS).forEach(([key,id])=>{const input=$(id);if(input) theme[key]=input.type==="checkbox"?input.checked:input.value});
   theme.panel_opacity=Number($("riThemeOpacity")?.value||96)/100;
-  theme.corner_radius=Number($("riThemeRadius")?.value||12);
+  theme.corner_radius=Number($("riThemeRadius")?.value??4);
   theme.scale=Number($("riThemeScale")?.value||100);
   return theme;
 }
@@ -9337,6 +10110,7 @@ function updateSharedCardContext(context){
   applyStudioXExactMatchMoment(context);
   updateViewerInspectionHeader(context);
   applyRecognitionPresentation(context.presentation);
+  renderRecognitionSpeed(context);
   if(context.verified===true){
     updateConfidenceRing(Math.max(
       normalize(context.presentation?.confidence||0),
@@ -9454,9 +10228,15 @@ function syncResultDecisionStrip(){const name=$("cardName")?.textContent?.trim()
 
 function syncCommandDeckSummary(){
   const source=$("activeCameraName")?.textContent?.trim()||$("cameraSelect")?.selectedOptions?.[0]?.textContent?.trim()||"No active camera";
-  const recognition=$("recognitionModeSelect")?.selectedOptions?.[0]?.textContent?.trim()||"Single card";
+  const recognitionMode=$("recognitionModeSelect")?.selectedOptions?.[0]?.textContent?.trim()||"Single Card";
+  const setMode=$("setContextMode")?.value||"auto";
+  const recognition=setMode==="pack"?"Pack Scan":recognitionMode;
   setCardText("commandDeckSourceSummary",source);
   setCardText("commandDeckRecognitionSummary",recognition);
+  const recognitionTrigger=$("commandDeckRecognitionSummary");
+  if(recognitionTrigger)recognitionTrigger.dataset.workflow=setMode==="pack"?"pack":"card";
+  recognitionTrigger?.setAttribute("aria-label",`Recognition mode: ${recognition}. Change recognition mode`);
+  if(recognitionTrigger) recognitionTrigger.title=`Change recognition mode · ${recognition}`;
 }
 
 function setCommandDeckPanel(panel){
@@ -9466,6 +10246,7 @@ function setCommandDeckPanel(panel){
   $("scanSetupDrawer")?.setAttribute("aria-hidden",String(!setupOpen));
   $("productionControlsDrawer")?.setAttribute("aria-hidden",String(!(productionPersistent||productionOpen)));
   $("commandDeckSetupButton")?.setAttribute("aria-expanded",String(setupOpen));
+  $("commandDeckRecognitionSummary")?.setAttribute("aria-expanded",String(setupOpen));
   $("commandDeckProductionButton")?.setAttribute("aria-expanded",String(productionPersistent||productionOpen));
 }
 
@@ -9489,6 +10270,10 @@ function initializeStudioXUI4(){
   if(workflowPrompt&&workflowPrompt.parentElement!==camera)camera.appendChild(workflowPrompt);
   const toggleCommandDeckPanel=panel=>setCommandDeckPanel(document.body.dataset.commandDeckPanel===panel?"":panel);
   $("commandDeckSetupButton")?.addEventListener("click",()=>toggleCommandDeckPanel("setup"));
+  $("commandDeckRecognitionSummary")?.addEventListener("click",()=>{
+    setCommandDeckPanel("setup");
+    requestAnimationFrame(()=>$("recognitionModeSelect")?.focus());
+  });
   $("commandDeckProductionButton")?.addEventListener("click",()=>{if(window.matchMedia("(min-width: 960px)").matches){$("productionControlsDrawer")?.querySelector("button, select")?.focus();return}toggleCommandDeckPanel("production")});
   document.addEventListener("pointerdown",event=>{
     const panel=document.body.dataset.commandDeckPanel;
@@ -9547,18 +10332,6 @@ function initializeStudioXUI4(){
   dock.classList.add("ui4-diagnostics-drawer");
   dock.setAttribute("aria-hidden","true");
   if(dock.parentElement!==camera) camera.appendChild(dock);
-
-  const rail=document.querySelector(".ui4-navigation-rail");
-  if(rail && !rail.querySelector('[data-ui4-action="rail"]')){
-    const toggle=document.createElement("button");
-    toggle.className="ui4-rail-toggle";
-    toggle.dataset.ui4Action="rail";
-    toggle.type="button";
-    toggle.setAttribute("aria-label","Toggle compact navigation");
-    toggle.textContent="Menu";
-    toggle.addEventListener("click",()=>document.body.classList.toggle("ui4-rail-compact"));
-    rail.prepend(toggle);
-  }
 
   const recovery=toolbar.querySelector('[onclick="reconnectCamera()"]');
   if(recovery) recovery.textContent="Reconnect Camera";
@@ -9649,7 +10422,7 @@ function initializeStudioXUI4(){
     if(child!==primaryTabs&&!child.classList.contains("inspector-head")) currentView.appendChild(child);
   });
   inspector.append(currentView,recentView);
-  const operatorInspectorSections={cardContextHeader:"card",recognitionSignalPanel:"signals",widgetWorkspace:"tools"};
+  const operatorInspectorSections={recognitionWorkspace:"card",widgetWorkspace:"tools"};
   const setOperatorInspectorSection=(button,{focus=false}={})=>{
     const targetId=button?.dataset?.inspectorSection;
     const section=operatorInspectorSections[targetId];
@@ -9676,7 +10449,7 @@ function initializeStudioXUI4(){
     const next=event.key==="Home"?0:event.key==="End"?buttons.length-1:(current+(event.key==="ArrowRight"?1:-1)+buttons.length)%buttons.length;
     setOperatorInspectorSection(buttons[next],{focus:true});
   });
-  setOperatorInspectorSection(inspectorSectionNav?.querySelector('[data-inspector-section="cardContextHeader"]'));
+  setOperatorInspectorSection(inspectorSectionNav?.querySelector('[data-inspector-section="recognitionWorkspace"]'));
   if($("inspectorEmpty")) $("inspectorEmpty").style.display="none";
   if($("inspectorMain")) $("inspectorMain").style.display="grid";
   primaryTabs?.querySelectorAll("[data-inspector-view]").forEach(button=>{
@@ -9810,10 +10583,12 @@ function initializeStudioXUI4(){
     const button=event.target.closest("[data-camera-layout-option]");
     if(button) setCameraWorkspaceLayout(button.dataset.cameraLayoutOption);
   });
-  $("manageCamerasButton")?.addEventListener("click",()=>{
-    const actions=document.querySelector(".camera-source-compact-menu");
-    actions?.focus();
-    actions?.scrollIntoView({block:"nearest",inline:"nearest"});
+  $("manageCamerasButton")?.addEventListener("click",manageCameraWorkspace);
+  document.querySelectorAll("[data-choose-camera-slot]").forEach(button=>{
+    button.addEventListener("click",()=>chooseCameraWorkspaceSource(Number(button.dataset.chooseCameraSlot)));
+  });
+  document.querySelectorAll(".camera-source-control select").forEach(select=>{
+    select.addEventListener("blur",syncCameraWorkspaceSourceOptions);
   });
   $("cameraPtzButton")?.addEventListener("click",async()=>{
     const panel=$("cameraPtzPanel");
@@ -9901,9 +10676,12 @@ function initializeStudioXUI4(){
   }
   setPremiumIntelligenceTab("identify");
   setUI4InspectorView("current",false);
+  // Hydrate the history badge once without adding another polling loop. The
+  // Recent Scans view stays hidden until the operator opens it.
+  loadUI4RecentScans();
   setUI4DiagnosticsOpen(false);
   setUI4HealthOpen(false);
-  switchWorkspace("live");
+  switchWorkspace(window.RareIQStudioShell?.initialWorkspace()||"broadcast");
 }
 
 
@@ -9919,6 +10697,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   initializeLibraryConsole();
   initializeSettingsConsole();
   initializeBroadcastWorkspace();
+  window.RareIQStudioShell?.init({navigate:switchWorkspace,view:setBroadcastWorkspaceView});
   loadTCGGames().then(loadRecognitionSets).catch(()=>loadRecognitionSets());
   $("tcgGameSelect")?.addEventListener("change",updateTCGSelection);
   renderAutoAddVerified();
@@ -9939,13 +10718,20 @@ document.addEventListener("DOMContentLoaded",()=>{
     renderAutoAddVerified();
     notify("Pack Speed Updated",event.target.checked?"Armed for the next card · adaptive removal timing enabled.":"Manual approval mode active.","success");
   });
-  $("setContextMode")?.addEventListener("change",updateRecognitionSetContext);
+  $("setContextMode")?.addEventListener("change",event=>handleRecognitionSetModeChange(event));
   $("setContextSelect")?.addEventListener("change",updateRecognitionSetContext);
   $("setContextSearch")?.addEventListener("input",event=>renderRecognitionSetOptions(event.target.value));
   $("workflowIdentifyButton")?.addEventListener("click",()=>chooseRecognitionWorkflow("identify").catch(error=>notify("Workflow Not Changed",error.message||String(error),"error")));
   $("workflowPackButton")?.addEventListener("click",()=>chooseRecognitionWorkflow("pack").catch(error=>notify("Workflow Not Changed",error.message||String(error),"error")));
+  $("packReturnToCardsButton")?.addEventListener("click",()=>chooseRecognitionWorkflow("identify").catch(error=>notify("Workflow Not Changed",error.message||String(error),"error")));
   $("scanPackSetButton")?.addEventListener("click",scanPackSet);
   $("learnPackSetButton")?.addEventListener("click",learnPackSet);
+  $("packChooseSetButton")?.addEventListener("click",()=>{
+    setCommandDeckPanel("setup");
+    requestAnimationFrame(()=>$("setContextSelect")?.focus());
+  });
+  $("packScanWrapperButton")?.addEventListener("click",()=>scanPackSet(false));
+  $("packLearnWrapperButton")?.addEventListener("click",learnPackSet);
   if($("packAutoDetect"))$("packAutoDetect").checked=packAutoDetectEnabled();
   $("packAutoDetect")?.addEventListener("change",event=>{try{localStorage.setItem(STUDIOX_PACK_AUTO_DETECT_KEY,String(event.target.checked))}catch(_error){}if(event.target.checked){packAutoLocked=false;schedulePackAutoDetect(100)}else stopPackAutoDetect();notify(event.target.checked?"Automatic Pack Detection On":"Automatic Pack Detection Off",event.target.checked?"Known wrappers will activate their set automatically.":"Use Scan Pack whenever you want to identify a wrapper.","success")});
   if($("packAutoAdvance"))$("packAutoAdvance").checked=packAutoAdvanceEnabled();
@@ -9985,9 +10771,11 @@ document.addEventListener("DOMContentLoaded",()=>{
   const maxCards=$("multiCardMaxCards");
   if(maxCards){
     try{maxCards.value=localStorage.getItem(STUDIOX_MULTI_CARD_COUNT_KEY)||"12"}catch(_error){}
+    renderMultiCardWorkspaceState({},0,0,Number(maxCards.value||6));
     maxCards.addEventListener("change",()=>{
       try{localStorage.setItem(STUDIOX_MULTI_CARD_COUNT_KEY,maxCards.value)}catch(_error){}
-      document.querySelectorAll("[data-multi-card-slot]").forEach(node=>{node.hidden=Number(node.dataset.multiCardSlot)>Number(maxCards.value||6)});
+      // This controls the next capture, not which previous results remain visible.
+      if(!multiCardLastPayload||multiCardLastPayload.status==="idle")renderMultiCardWorkspaceState({},0,0,Number(maxCards.value||12));
     });
   }
   $("multiCardResults")?.addEventListener("click",event=>{
@@ -10216,6 +11004,14 @@ document.addEventListener("DOMContentLoaded",()=>{
   $("operatorHealthRefresh")?.addEventListener("click",()=>loadOperatorHealth().catch(error=>notify("Health Check Failed",error.message||String(error),"error")));
   $("showPreflightRefresh")?.addEventListener("click",()=>loadShowPreflight().then(payload=>{const preflight=payload.preflight||{};notify(preflight.broadcast_ready?"Ready To Go Live":preflight.local_ready?"Local Show Ready":"Preflight Needs Attention",preflight.broadcast_ready?"Core systems and a verified destination passed.":preflight.local_ready?"Local systems passed; platform output remains unverified.":`${preflight.blockers?.length||0} blocker(s) found.`,preflight.broadcast_ready?"success":preflight.local_ready?"warning":"error");}).catch(error=>notify("Preflight Failed",error.message||String(error),"error")));
   $("showStartObsStream")?.addEventListener("change",syncShowStartAvailability);
+  $("showWorkflow")?.addEventListener("change",()=>{
+    showPreflightState={ready:false,local_ready:false,broadcast_ready:false};
+    syncShowStartAvailability();
+    $("showWorkflowHelp").textContent=showWorkflow()==="cards"
+      ?"Checks card recognition and Camera 1. Startup resets to Main Card and clears card overlays."
+      :"Keeps your prepared Program scene. Card recognition is not required. Your selected Program camera must still be ready.";
+    loadShowPreflight().catch(()=>notify("Preflight unavailable","Run Preflight again before starting the show.","error"));
+  });
   $("showStartButton")?.addEventListener("click",()=>startProductionShow().catch(error=>notify("Show Not Started",error.payload?.reason==="preflight_blocked"?"Resolve the blocking preflight checks first.":error.payload?.reason==="broadcast_destination_unverified"?"Verify a platform destination before starting OBS streaming.":error.message||String(error),"error")));
   $("operatorSafeScene")?.addEventListener("click",()=>activateOperatorSafeScene().catch(error=>notify("Safe Recovery Failed",error.message||String(error),"error")));
   $("productionSessionStart")?.addEventListener("click",()=>setProductionSession(true).catch(error=>notify("Session Not Started",error.message||String(error),"error")));
@@ -10247,6 +11043,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   $("obsRecordToggle")?.addEventListener("click",()=>obsCommand(obsState.recording?"stop-record":"start-record").catch(error=>notify("OBS Recording Failed",error.message||String(error),"error")));
   $("obsBootstrapPreview")?.addEventListener("click",()=>bootstrapObs(true).catch(error=>notify("Bootstrap Preview Failed",error.message||String(error),"error")));
   $("obsBootstrapCreate")?.addEventListener("click",()=>bootstrapObs(false).catch(error=>notify("OBS Bootstrap Failed",error.message||String(error),"error")));
+  window.RareIQObsSourceAudit?.init({request:api,format:broadcastSourceFormat});
   $("rundownTemplateSave")?.addEventListener("click",saveRundownTemplate);
   $("rundownTemplateLoad")?.addEventListener("click",loadRundownTemplate);
   $("rundownDuplicate")?.addEventListener("click",duplicateProductionCue);
@@ -10265,6 +11062,9 @@ document.addEventListener("DOMContentLoaded",()=>{
   $("productionGraphicCardFill")?.addEventListener("click",fillProductionGraphicFromCard);
   $("productionReplayMark")?.addEventListener("click",()=>markProductionReplay().catch(error=>notify("Highlight Not Saved",error.message||String(error),"error")));
   $("productionReplayStop")?.addEventListener("click",()=>stopProductionReplay().catch(error=>notify("Replay Not Stopped",error.message||String(error),"error")));
+  $("productionAutoClipArm")?.addEventListener("click",()=>updateProductionAutoClip("arm").catch(error=>notify("Auto Clip Not Updated",error.message||String(error),"error")));
+  $("productionAutoClipForm")?.addEventListener("submit",event=>{event.preventDefault();updateProductionAutoClip("settings").catch(error=>notify("Auto Clip Settings Not Saved",error.message||String(error),"error"));});
+  $("productionAutoClipForm")?.addEventListener("input",()=>renderProductionAutoClip(productionAutoClipState));
   document.querySelectorAll("[data-production-screen-preset]").forEach(button=>button.addEventListener("click",()=>applyProductionScreenPreset(button.dataset.productionScreenPreset)));
   $("productionScreenForm")?.addEventListener("submit",event=>{event.preventDefault();takeProductionScreen().catch(error=>notify("Screen Not Taken",error.message||String(error),"error"));});
   $("productionScreenHide")?.addEventListener("click",()=>hideProductionScreen().catch(error=>notify("Screen Not Hidden",error.message||String(error),"error")));

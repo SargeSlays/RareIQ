@@ -1,0 +1,120 @@
+/* Inspector components respond to their available width, not monitor width. */
+#inspectorCurrentPanel { container: inspector-content / inline-size; }
+#inspectorCurrentPanel #resultDecisionStrip {
+  display: grid !important;
+  grid-template: "identity automatic" auto "actions actions" auto / minmax(0, 1fr) 150px !important;
+  gap: 8px 12px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 10px 12px !important;
+}
+#inspectorCurrentPanel #resultDecisionStrip > .result-decision-identity { grid-area: identity !important; min-width: 0 !important; }
+#inspectorCurrentPanel #resultDecisionStrip > .auto-add-verified-control {
+  grid-area: automatic !important; position: static !important; inset: auto !important;
+  width: 100% !important; min-width: 0 !important; height: 46px !important; min-height: 46px !important; margin: 0 !important;
+}
+#inspectorCurrentPanel #resultDecisionStrip > .result-decision-actions { grid-area: actions !important; width: 100% !important; height: 34px !important; margin: 0 !important; }
+#inspectorCurrentPanel #resultDecisionStrip .result-decision-actions button { height: 34px !important; min-height: 34px !important; }
+#inspectorCurrentPanel #decisionCardName { min-height: 0 !important; font-size: 22px !important; overflow-wrap: anywhere; }
+#inspectorCurrentPanel #decisionGuidance { font-size: 11px !important; line-height: 1.35 !important; }
+#inspectorCurrentPanel #resultDecisionStrip .result-decision-identity > * { margin: 0 !important; }
+#inspectorCurrentPanel #resultDecisionStrip #decisionVerdict { height: 20px !important; min-height: 20px !important; padding: 2px 6px !important; font-size: 10px !important; }
+#inspectorCurrentPanel #resultDecisionStrip > :is(.card-removal-progress,.pack-speed-run,.pack-run-detail) { grid-column: 1 / -1 !important; }
+
+/* A two-row species profile cannot force a narrow Tools panel wider. */
+#inspectorCurrentPanel #pokedexContent {
+  grid-template: "art profile" auto "facts facts" auto "flavor flavor" auto / 72px minmax(0, 1fr) !important;
+  gap: 8px 12px !important; min-width: 0 !important; width: 100% !important;
+}
+#inspectorCurrentPanel #pokedexContent > img { grid-area: art !important; width: 72px !important; height: 72px !important; object-fit: contain !important; }
+#inspectorCurrentPanel #pokedexContent .studiox-pokedex-profile { grid-area: profile !important; min-width: 0 !important; }
+#inspectorCurrentPanel #pokedexContent .studiox-pokedex-facts { grid-area: facts !important; display: grid !important; grid-template-columns: minmax(0,.65fr) minmax(0,.65fr) minmax(0,1.7fr) !important; gap: 6px !important; margin: 0 !important; }
+#inspectorCurrentPanel #pokedexContent .studiox-pokedex-facts > div { min-width: 0 !important; padding: 7px !important; }
+#inspectorCurrentPanel #pokedexContent .studiox-pokedex-facts dd { overflow-wrap: anywhere !important; font-size: 11px !important; line-height: 1.3 !important; }
+#inspectorCurrentPanel #pokedexContent .studiox-pokedex-facts :is(dt,dd) { margin: 0 !important; }
+#inspectorCurrentPanel #pokedexContent .studiox-pokedex-facts dt { font-size: 9px !important; line-height: 1.3 !important; margin-bottom: 4px !important; }
+#inspectorCurrentPanel #pokedexContent .studiox-pokedex-profile { display: flex !important; flex-direction: column !important; align-items: flex-start !important; justify-content: flex-start !important; gap: 3px !important; }
+#inspectorCurrentPanel #pokedexContent .studiox-pokedex-profile > * { margin: 0 !important; min-height: 0 !important; }
+#inspectorCurrentPanel #pokedexContent #pokedexNumber { font-size: 9px !important; line-height: 1.2 !important; letter-spacing: .08em !important; }
+#inspectorCurrentPanel #pokedexContent #pokedexGenus { font-size: 11px !important; line-height: 1.2 !important; }
+#inspectorCurrentPanel #pokedexFlavor { grid-area: flavor !important; min-width: 0 !important; min-height: 0 !important; margin: 0 !important; white-space: normal !important; font-size: 11px !important; line-height: 1.4 !important; }
+#inspectorCurrentPanel [data-studiox-widget="pokedex"] .studiox-pokedex-broadcast { display: flex !important; flex-wrap: wrap !important; gap: 6px !important; min-width: 0 !important; }
+#inspectorCurrentPanel #pokedexBroadcastStatus { flex: 1 1 140px !important; min-width: 0 !important; white-space: normal !important; }
+
+@container inspector-content (min-width: 480px) {
+  #inspectorCurrentPanel #pokedexContent { grid-template: "art profile facts" auto "flavor flavor flavor" auto / 64px minmax(0,.8fr) minmax(0,1.2fr) !important; }
+  #inspectorCurrentPanel #pokedexContent > img { width: 64px !important; height: 64px !important; }
+}
+@container inspector-content (min-width: 740px) {
+  #inspectorCurrentPanel #resultDecisionStrip { grid-template: "identity automatic" auto "identity actions" auto / minmax(0,1fr) minmax(300px,.8fr) !important; }
+  #inspectorCurrentPanel #pokedexContent { grid-template: "art profile facts" auto "flavor flavor flavor" auto / 92px minmax(0,.8fr) minmax(0,1.2fr) !important; }
+  #inspectorCurrentPanel #pokedexContent > img { width: 92px !important; height: 92px !important; }
+}
+
+/* Compact the repeated chrome, not the reference image or actionable evidence. */
+@media (min-width: 960px) and (max-width: 2399px) {
+  #inspectorCurrentPanel #resultDecisionStrip { padding-block: 6px !important; }
+  #inspectorCurrentPanel #inspectorMain { padding: 8px 12px !important; gap: 8px !important; }
+  #inspectorCurrentPanel #inspectorSectionNav { height: 42px !important; min-height: 42px !important; }
+  #inspectorCurrentPanel #inspectorSectionNav button { height: 40px !important; min-height: 40px !important; }
+  #inspectorCurrentPanel #recognitionWorkspace { gap: 0 !important; }
+  #inspectorCurrentPanel #recognitionWorkspace > .studiox-recognition-workspace-head { padding: 8px 12px !important; min-height: 0 !important; }
+  #inspectorCurrentPanel #cardContextHeader { padding: 10px !important; min-height: 0 !important; grid-template-columns: 84px minmax(0,1fr) !important; gap: 12px !important; }
+  #inspectorCurrentPanel #cardContextHeader .card-showcase { width: 84px !important; min-width: 0 !important; }
+  #inspectorCurrentPanel #cardArt { width: 84px !important; height: 118px !important; min-height: 0 !important; }
+  #inspectorCurrentPanel #cardArt img { width: 100% !important; height: 100% !important; object-fit: contain !important; }
+  #inspectorCurrentPanel #cardName { font-size: 22px !important; margin: 0 !important; }
+  #inspectorCurrentPanel #cardContextHeader .card-info { gap: 2px !important; }
+  #inspectorCurrentPanel #cardContextHeader .ui4-identity-grid { gap: 4px !important; }
+  #inspectorCurrentPanel #cardContextHeader .ui4-identity-grid > div { padding: 5px 6px !important; min-height: 0 !important; }
+  #inspectorCurrentPanel #recognitionSignalPanel { grid-template: "title title" auto "ring signals" auto / 44px minmax(0,1fr) !important; padding: 8px 10px !important; min-height: 0 !important; gap: 6px 10px !important; }
+  #inspectorCurrentPanel #recognitionSignalPanel .recognition-signal-title { grid-area: title !important; min-height: 0 !important; padding-bottom: 5px !important; margin: 0 !important; }
+  #inspectorCurrentPanel #recognitionSignalPanel .recognition-signal-title strong { font-size: 13px !important; }
+  #inspectorCurrentPanel #recognitionSignalPanel .confidence-ring { grid-area: ring !important; width: 44px !important; height: 44px !important; }
+  #inspectorCurrentPanel #recognitionSignalPanel .signal-list { grid-area: signals !important; gap: 5px 8px !important; margin: 0 !important; padding: 0 !important; }
+  #inspectorCurrentPanel #recognitionSignalPanel .signal { min-height: 30px !important; padding: 5px 7px !important; }
+  #inspectorCurrentPanel #recognitionSignalPanel .signal :is(span,b) { font-size: 11px !important; }
+  #inspectorCurrentPanel #recognitionWorkspace [data-studiox-widget="identify"] > .studiox-widget-content { padding: 8px 10px !important; }
+  #inspectorCurrentPanel .studiox-identity-evidence { gap: 5px !important; padding-top: 6px !important; margin: 0 !important; }
+  #inspectorCurrentPanel .studiox-identity-evidence > div { padding: 6px 8px !important; min-height: 0 !important; }
+  #inspectorCurrentPanel .studiox-identity-evidence :is(span,b) { line-height: 1.25 !important; }
+  #inspectorCurrentPanel #recognitionWorkspace .studiox-identity-review { min-height: 28px !important; margin-top: 6px !important; }
+  #inspectorCurrentPanel #widgetWorkspace { padding: 0 !important; gap: 8px !important; }
+  #inspectorCurrentPanel #inspectorMain #widgetWorkspace { padding: 0 !important; margin: 0 !important; }
+  #inspectorCurrentPanel #recognitionWorkspace #cardContextHeader .ui4-identity-grid { gap: 3px !important; margin-top: 2px !important; }
+  #inspectorCurrentPanel #recognitionWorkspace #cardContextHeader .ui4-identity-grid > div { gap: 2px !important; }
+  #inspectorCurrentPanel [data-studiox-widget="pokedex"] { padding: 10px !important; }
+  #inspectorCurrentPanel [data-studiox-widget="pokedex"] > .studiox-widget-header { min-height: 28px !important; margin-bottom: 8px !important; padding-bottom: 6px !important; }
+  #inspectorCurrentPanel #pokedexName { font-size: 21px !important; min-height: 0 !important; }
+  #inspectorCurrentPanel [data-studiox-widget="pokedex"] .studiox-pokedex-broadcast { margin-top: 8px !important; padding-top: 8px !important; }
+  /* Own the compact sizing above legacy workspace selectors as well. */
+  #inspectorCurrentPanel #recognitionWorkspace #cardContextHeader { padding: 10px !important; }
+  #inspectorCurrentPanel #recognitionWorkspace #cardContextHeader .card-info { gap: 2px !important; }
+  #inspectorCurrentPanel #recognitionWorkspace #cardContextHeader .ui4-identity-grid > div { padding: 4px 6px !important; }
+  #inspectorCurrentPanel #recognitionWorkspace #recognitionSignalPanel { padding: 8px 10px !important; }
+  #inspectorCurrentPanel #recognitionWorkspace #recognitionSignalPanel .signal { min-height: 26px !important; padding: 3px 6px !important; gap: 2px 6px !important; }
+  #inspectorCurrentPanel #recognitionWorkspace #recognitionSignalPanel .signal { grid-template-rows: auto 4px !important; }
+  #inspectorCurrentPanel #recognitionWorkspace #recognitionSignalPanel .signal .bar { height: 4px !important; }
+  #inspectorCurrentPanel #recognitionWorkspace .studiox-identity-evidence-heading { min-height: 0 !important; padding: 0 0 5px !important; margin: 0 !important; }
+  #inspectorCurrentPanel #recognitionWorkspace .studiox-identity-evidence-heading > div { display: flex !important; align-items: center !important; gap: 8px !important; }
+  #inspectorCurrentPanel #recognitionWorkspace .studiox-identity-evidence-heading span { font-size: 9px !important; line-height: 12px !important; }
+  #inspectorCurrentPanel #recognitionWorkspace .studiox-recognition-workspace-head { padding: 6px 10px !important; gap: 4px !important; }
+  #inspectorCurrentPanel #recognitionWorkspace #cardContextHeader .ui4-translation-block { display: flex !important; flex-wrap: wrap !important; gap: 4px 10px !important; margin: 0 !important; }
+  #inspectorCurrentPanel #recognitionWorkspace #cardContextHeader .ui4-translation-block > * { margin: 0 !important; }
+  #inspectorCurrentPanel #recognitionWorkspace #identifyEvidence > div { display: grid !important; grid-template-columns: minmax(0,1fr) !important; gap: 2px !important; padding: 5px 6px !important; }
+  #inspectorCurrentPanel #recognitionWorkspace #identifyEvidence span { font-size: 9px !important; line-height: 1.2 !important; }
+  #inspectorCurrentPanel #recognitionWorkspace #identifyEvidence b { font-size: 11px !important; line-height: 1.2 !important; }
+  #inspectorCurrentPanel [data-studiox-widget="pokedex"] > .studiox-widget-header button { height: 28px !important; min-height: 28px !important; }
+  #inspectorCurrentPanel [data-studiox-widget="pokedex"] .studiox-pokedex-number { font-size: 9px !important; line-height: 1.3 !important; }
+  #inspectorCurrentPanel [data-studiox-widget="pokedex"] .studiox-pokedex-broadcast > :is(label,a,button) { min-height: 28px !important; padding: 5px 8px !important; }
+  #inspectorCurrentPanel [data-studiox-widget="pokedex"] .studiox-pokedex-broadcast { align-items: center !important; }
+  #inspectorCurrentPanel [data-studiox-widget="pokedex"] .studiox-pokedex-broadcast > label { height: 28px !important; flex: 0 0 auto !important; display: inline-flex !important; align-items: center !important; }
+  #inspectorCurrentPanel #widgetWorkspace [data-studiox-widget="pokedex"] { margin-bottom: 0 !important; }
+  #inspectorCurrentPanel #recognitionWorkspace .studiox-recognition-workspace-head > div { gap: 2px !important; }
+  #inspectorCurrentPanel #recognitionWorkspace .studiox-recognition-workspace-head > div > span { font-size: 9px !important; line-height: 11px !important; }
+  #inspectorCurrentPanel #recognitionWorkspace .studiox-recognition-workspace-head strong { font-size: 14px !important; line-height: 17px !important; }
+}
+
+@container inspector-content (max-width: 390px) {
+  #inspectorCurrentPanel #resultDecisionStrip { grid-template: "identity" auto "automatic" auto "actions" auto / minmax(0,1fr) !important; }
+}

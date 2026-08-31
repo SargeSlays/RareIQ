@@ -695,6 +695,35 @@ class CameraManagerService:
         if source_id and slot_id != self.active_slot_id():
             self._ensure_preview_session(str(source_id)).subscribe()
 
+    def acquire_output(self, slot_id: int) -> tuple[Callable[[], bytes | None], Callable[[], None]]:
+        """Lease the existing capture owner; never open another handle for OBS.
+
+        Release captures the session, not the mutable slot assignment. Changing
+        sources cannot leak a subscriber on the old device.
+        """
+        slot_id = self._validate_slot(slot_id)
+        with self._operation_lock:
+            source_id = self._slots[slot_id].get("source_id")
+            if not source_id:
+                raise ValueError("Camera slot is not assigned")
+            if slot_id == self.active_slot_id():
+                def active_frame() -> bytes | None:
+                    with self._operation_lock:
+                        if slot_id != self.active_slot_id() or self._slots[slot_id].get("source_id") != source_id:
+                            return None
+                        return self.vision.clean_output_jpeg()
+                return active_frame, lambda: None
+            session = self._ensure_preview_session(str(source_id))
+            session.subscribe()
+
+        def frame() -> bytes | None:
+            with self._operation_lock:
+                if self._slots[slot_id].get("source_id") != source_id or slot_id == self.active_slot_id():
+                    return None
+                return session.latest_jpeg() if session.status()["connected"] else None
+
+        return frame, session.unsubscribe
+
     def unsubscribe_slot(self, slot_id: int) -> None:
         slot_id = self._validate_slot(slot_id)
         source_id = self._slots[slot_id].get("source_id")

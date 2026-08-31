@@ -405,3 +405,314 @@ def test_promoted_active_source_is_recorded_without_staging_capture(tmp_path):
     second = service.capture(trigger="manual", snapshot=_snapshot(2))
     assert second["event"]["camera"]["slot_id"] == 2
     assert second["event"]["camera"]["source_id"] == "camera-b"
+
+
+def _reopen(service, session_id=None):
+    return ProvenanceCaptureService(
+        service.root,
+        server_session_id=session_id or service.server_session_id,
+        frame_provider=service._frame_provider,
+        crop_provider=service._crop_provider,
+        camera_context_provider=service._camera_context_provider,
+    )
+
+
+@pytest.mark.parametrize("confidence", [float("nan"), float("inf"), -float("inf"), -0.1, 1.1, "bad", None, True])
+def test_invalid_confidence_never_arms_capture_even_at_zero_threshold(service, confidence):
+    service.save_settings({"enabled": True, "minimumConfidence": 0})
+    snapshot = _snapshot(confidence=confidence)
+    snapshot["confidence"] = 1.0
+
+    result = service.evaluate_recognition(snapshot)
+
+    assert result["captured"] is False
+    assert result["reason"] == "invalid_confidence"
+    assert service.list_events() == []
+
+
+def test_authoritative_zero_confidence_does_not_fall_back_to_secondary_score(service):
+    service.save_settings({"enabled": True})
+    snapshot = {**_snapshot(confidence=0), "confidence": 0.99}
+    assert service.evaluate_recognition(snapshot)["reason"] == "confidence_below_threshold"
+    assert service.list_events() == []
+
+
+def test_legacy_confidence_is_used_only_when_overall_score_is_absent(service):
+    service.save_settings({"enabled": True})
+    snapshot = _snapshot()
+    del snapshot["overall_confidence"]
+    snapshot["confidence"] = 0.99
+    assert service.evaluate_recognition(snapshot)["captured"] is True
+
+
+@pytest.mark.parametrize("qualifying_hit", ["false", "true", 1, [], {}])
+def test_qualifying_hit_requires_explicit_backend_boolean(service, qualifying_hit):
+    service.save_settings({"enabled": True, "triggerReason": "qualifying-hit"})
+    snapshot = _snapshot()
+    snapshot["primary_candidate"]["qualifying_hit"] = qualifying_hit
+    assert service.evaluate_recognition(snapshot)["reason"] == "qualifying_hit_unavailable"
+    assert service.list_events() == []
+
+
+def test_qualifying_hit_true_can_capture(service):
+    service.save_settings({"enabled": True, "triggerReason": "qualifying-hit"})
+    snapshot = _snapshot()
+    snapshot["primary_candidate"]["qualifying_hit"] = True
+    assert service.evaluate_recognition(snapshot)["captured"] is True
+
+
+def test_verified_flags_without_candidate_do_not_create_exact_match_proof(service):
+    service.save_settings({"enabled": True})
+    snapshot = {**_snapshot(), "primary_candidate": None}
+    assert service.evaluate_recognition(snapshot)["reason"] == "identity_not_exact"
+    assert service.capture(snapshot=snapshot)["event"]["identity"]["identity_verdict"] == "unknown"
+
+
+def test_direct_automatic_capture_cannot_bypass_safety_gate(service):
+    assert service.capture(trigger="exact-match", snapshot=_snapshot())["reason"] == "disabled"
+    service.save_settings({"enabled": True})
+    assert service.capture(trigger="exact-match", snapshot=_snapshot(verified=False))["reason"] == "identity_not_exact"
+    assert service.list_events() == []
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_manual_trigger_never_captures_from_recognition_events(service, enabled):
+    service.save_settings({"enabled": enabled, "triggerReason": "manual"})
+    assert service.evaluate_recognition(_snapshot())["reason"] == ("manual_only" if enabled else "disabled")
+    assert service.list_events() == []
+
+
+def test_automatic_capture_cannot_override_the_configured_trigger(service):
+    service.save_settings({"enabled": True, "triggerReason": "value-threshold"})
+    result = service.capture(trigger="exact-match", snapshot=_snapshot())
+    assert result["reason"] == "trigger_not_armed"
+    assert service.list_events() == []
+
+
+def test_dedupe_reloads_only_within_original_server_session(service):
+    service.save_settings({"enabled": True})
+    first = service.evaluate_recognition(_snapshot())
+    same_session = _reopen(service)
+    assert same_session.evaluate_recognition(_snapshot())["eventId"] == first["eventId"]
+    assert len(same_session.list_events()) == 1
+
+    new_session = _reopen(service, "new-server")
+    second = new_session.evaluate_recognition(_snapshot())
+    assert second["captured"] is True
+    assert second["eventId"] != first["eventId"]
+    assert len(new_session.list_events()) == 2
+    assert _reopen(new_session).evaluate_recognition(_snapshot())["duplicate"] is True
+
+
+def test_capture_context_failure_is_reported_and_retry_is_not_blocked(service, monkeypatch):
+    provider = service._camera_context_provider
+
+    def offline():
+        raise OSError("camera disconnected")
+
+    monkeypatch.setattr(service, "_camera_context_provider", offline)
+    result = service.capture(snapshot=_snapshot())
+    assert result["reason"] == "capture_failed"
+    assert service.capability()["status"]["state"] == "error"
+    assert service.list_events() == []
+    monkeypatch.setattr(service, "_camera_context_provider", provider)
+    assert service.capture(snapshot=_snapshot())["captured"] is True
+
+
+@pytest.mark.parametrize("generation", ["not-a-generation", float("inf")])
+def test_invalid_generation_returns_failure_without_escaping_capture(service, generation):
+    result = service.capture(snapshot=_snapshot(generation=generation))
+    assert result["reason"] == "capture_failed"
+    assert service.list_events() == []
+
+
+@pytest.mark.parametrize("payload", [42, "old-settings", {"captureTypes": 42}])
+def test_malformed_saved_settings_fail_closed(service, payload):
+    service.settings_path.write_text(json.dumps(payload), encoding="utf-8")
+    assert service.settings() == service.default_settings()
+    assert service.evaluate_recognition(_snapshot())["reason"] == "disabled"
+
+
+def test_corrupt_primary_settings_do_not_rearm_old_legacy_configuration(service, tmp_path):
+    legacy_root = tmp_path / "legacy"
+    legacy_root.mkdir()
+    (legacy_root / "settings.json").write_text('{"enabled": true}', encoding="utf-8")
+    service.legacy_roots = (legacy_root,)
+    service.settings_path.write_text("{interrupted settings", encoding="utf-8")
+    assert service.settings() == service.default_settings()
+    assert service.evaluate_recognition(_snapshot())["reason"] == "disabled"
+
+
+@pytest.mark.parametrize("artwork_index", [None, {"top_score": float("nan")}, {"top_score": float("inf")}])
+def test_manual_proof_uses_null_for_unavailable_confidence(service, artwork_index):
+    snapshot = {**_snapshot(confidence=float("nan")), "artwork_index": artwork_index}
+    result = service.capture(snapshot=snapshot)
+    assert result["captured"] is True
+    assert result["event"]["recognition"]["recognition_confidence"] is None
+    assert result["event"]["recognition"]["visual_confidence"] is None
+    json.dumps(result["event"], allow_nan=False)
+
+
+def test_corrupt_index_record_does_not_hide_valid_history_or_prevent_restart(service):
+    first = service.capture(snapshot=_snapshot())
+    broken = {**first["event"], "event_id": "broken", "trigger_reason": "exact-match", "recognition_generation": "bad", "camera": 42}
+    with service.index_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(broken) + "\n")
+    second = service.capture(snapshot=_snapshot(8))
+    reopened = _reopen(service)
+    assert {event["event_id"] for event in reopened.list_events()} == {first["eventId"], second["eventId"]}
+
+
+def test_partial_index_tail_does_not_swallow_the_next_saved_event(service):
+    first = service.capture(snapshot=_snapshot())
+    with service.index_path.open("ab") as handle:
+        handle.write(b'{"event_id":"interrupted')
+    second = service.capture(snapshot=_snapshot(8))
+    assert second["captured"] is True
+    reopened = _reopen(service)
+    assert {event["event_id"] for event in reopened.list_events()} == {first["eventId"], second["eventId"]}
+
+
+def test_index_sync_failure_does_not_reappear_as_success_after_restart(service, monkeypatch):
+    original = service.capture(snapshot=_snapshot())
+    index_before = service.index_path.read_bytes()
+
+    def disk_full(_fd):
+        raise OSError("index sync failed")
+
+    with monkeypatch.context() as patch:
+        patch.setattr("rareiq.services.provenance_capture_service.os.fsync", disk_full)
+        result = service.capture(snapshot=_snapshot(8))
+    assert result["captured"] is False
+    assert service.index_path.read_bytes() == index_before
+    assert [event["event_id"] for event in _reopen(service).list_events()] == [original["eventId"]]
+    assert len(list(service.root.rglob("event.json"))) == 1
+    assert len(list(service.root.rglob("*.png"))) == 1
+    assert service.capture(snapshot=_snapshot(8))["captured"] is True
+
+
+@pytest.mark.parametrize("failure_point", ["crop", "manifest"])
+def test_partial_capture_failure_removes_only_its_own_new_bundle(service, monkeypatch, failure_point):
+    original = service.capture(snapshot=_snapshot())["event"]
+    image_path = service.asset_path(original["event_id"], original["assets"][0]["asset_id"])
+    original_bytes = image_path.read_bytes()
+    settings = {"captureTypes": {"fullFrame": True, "cardFocus": True}}
+
+    if failure_point == "crop":
+        write_image = service._write_image
+
+        def fail_crop(event_dir, event_id, asset_type, image):
+            if asset_type == "card_crop":
+                raise OSError("crop write failed")
+            return write_image(event_dir, event_id, asset_type, image)
+
+        monkeypatch.setattr(service, "_write_image", fail_crop)
+    else:
+        def fail_manifest(path, payload):
+            path.with_suffix(".json.tmp").write_text("partial", encoding="utf-8")
+            raise OSError("manifest write failed")
+
+        monkeypatch.setattr(service, "_atomic_json", fail_manifest)
+
+    result = service.capture(snapshot=_snapshot(8), settings=settings)
+    assert result["captured"] is False
+    assert image_path.read_bytes() == original_bytes
+    assert len(list(service.root.rglob("event.json"))) == 1
+    assert len(list(service.root.rglob("*.png"))) == 1
+    assert not list(service.root.rglob("*.tmp"))
+    assert service.list_events() == [original]
+
+
+def test_failed_correction_preserves_original_and_leaves_no_revision(service, monkeypatch):
+    original = service.capture(snapshot=_snapshot())["event"]
+    index_before = service.index_path.read_bytes()
+
+    def disk_full(_fd):
+        raise OSError("index sync failed")
+
+    with monkeypatch.context() as patch:
+        patch.setattr("rareiq.services.provenance_capture_service.os.fsync", disk_full)
+        with pytest.raises(OSError, match="index sync failed"):
+            service.correct_event(original["event_id"], {"identity": {"english_name": "Not saved"}})
+    assert service.index_path.read_bytes() == index_before
+    assert len(list(service.root.rglob("event.json"))) == 1
+    assert _reopen(service).list_events() == [original]
+
+
+def test_event_directory_collision_cannot_delete_existing_evidence(service, monkeypatch):
+    from types import SimpleNamespace
+
+    original = service.capture(snapshot=_snapshot())["event"]
+    image = service.asset_path(original["event_id"], original["assets"][0]["asset_id"])
+    before = image.read_bytes()
+    monkeypatch.setattr(
+        "rareiq.services.provenance_capture_service.uuid.uuid4",
+        lambda: SimpleNamespace(hex=original["event_id"]),
+    )
+    assert service.capture(snapshot=_snapshot(8))["captured"] is False
+    assert image.read_bytes() == before
+    assert _reopen(service).list_events() == [original]
+
+
+def test_short_index_write_is_a_failed_capture_not_confirmed_evidence(service, monkeypatch):
+    original = service.capture(snapshot=_snapshot())["event"]
+    before = service.index_path.read_bytes()
+    path_open = Path.open
+
+    class ShortWriter:
+        def __init__(self, handle):
+            self.handle = handle
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return self.handle.__exit__(*args)
+
+        def __getattr__(self, name):
+            return getattr(self.handle, name)
+
+        def write(self, data):
+            return self.handle.write(data[:len(data) // 2])
+
+    def open_short(path, mode="r", *args, **kwargs):
+        handle = path_open(path, mode, *args, **kwargs)
+        return ShortWriter(handle) if path == service.index_path and mode == "a+b" else handle
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "open", open_short)
+        result = service.capture(snapshot=_snapshot(8))
+    assert result["captured"] is False
+    assert service.index_path.read_bytes() == before
+    assert _reopen(service).list_events() == [original]
+
+
+@pytest.mark.parametrize("workflow,side", [("single-card-sales", None), ("pack-ripping", None), ("pack-battle", "player-2")])
+def test_workflow_context_round_trips_with_server_session(service, workflow, side):
+    result = service.capture(snapshot=_snapshot(), settings={
+        "workflowMode": workflow,
+        "customerId": "customer-1",
+        "vendorId": "vendor-1",
+        "packNumber": 3,
+        "turnNumber": 2,
+        "playerSide": side,
+    })
+    event = _reopen(service).get_event(result["eventId"])
+    assert event["workflow"] == workflow
+    assert event["server_session_id"] == "server-test"
+    assert event["context"] == {
+        "customer": "customer-1", "vendor": "vendor-1", "pack_id": 3,
+        "turn_id": 2, "player_side": side or "player-1",
+    }
+
+
+def test_corrections_preserve_original_manifest_and_image_bytes_across_restart(service):
+    original = service.capture(snapshot=_snapshot())["event"]
+    image = service.asset_path(original["event_id"], original["assets"][0]["asset_id"])
+    manifest = image.parent / "event.json"
+    before = (image.read_bytes(), manifest.read_bytes())
+    revision = service.correct_event(original["event_id"], {"identity": {"english_name": "Corrected"}})
+    reopened = _reopen(service)
+    assert (image.read_bytes(), manifest.read_bytes()) == before
+    assert reopened.get_event(original["event_id"]) == original
+    assert reopened.get_event(revision["event_id"])["revision_of"] == original["event_id"]

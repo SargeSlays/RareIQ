@@ -14,7 +14,10 @@ def test_every_frontend_source_asset_is_referenced() -> None:
         if path.is_file() and path.suffix in {".css", ".html", ".js"}
     )
     source = {path: path.read_text(encoding="utf-8") for path in assets}
-    server_source = SERVER.read_text(encoding="utf-8")
+    server_source = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(SERVER.parent.glob("*.py"))
+    )
     unreachable = []
 
     for asset in assets:

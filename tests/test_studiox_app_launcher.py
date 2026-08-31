@@ -6,7 +6,7 @@ CSS=Path("rareiq/web/static/studiox_update15.css").read_text(encoding="utf-8")
 def test_left_navigation_uses_accessible_app_icons():
     # Ten application launchers plus the separate theme control icon.
     assert CONTROL.count('class="nav-app-icon"') == 11
-    for label in ("Live","Collection","Broadcast","Creator","Soundboard","Voice Mod","Camera Effects","AI Lab","Library","Settings"):
+    for label in ("Card Studio","Collection","Studio","Creator","Soundboard","Voice Mod","Camera Effects","AI Lab","Library","Settings"):
         assert f'aria-label="{label}"' in CONTROL
     assert "App-launcher navigation rail" in CSS
     assert ".nav-app-icon svg" in CSS

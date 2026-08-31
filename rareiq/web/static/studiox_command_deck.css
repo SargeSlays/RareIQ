@@ -1,6 +1,6 @@
 /* Rare IQ Studio X Command Deck
    Authoritative desktop presentation for the live operator workspace.
-   Legacy styles provide feature contracts; this file owns shell geometry,
+   Base feature styles provide behavior contracts; this file owns shell geometry,
    semantic surfaces, and responsive presentation. */
 
 html[data-theme="dark"] body.studiox-command-deck[data-studiox-visual-system="unified"] {
@@ -17,12 +17,13 @@ html[data-theme="dark"] body.studiox-command-deck[data-studiox-visual-system="un
   --sx-text-soft: #b5c0cc;
   --sx-text-muted: #778493;
   --sx-accent: #8be8ca;
+  --sx-on-accent: #0b1016;
   --sx-accent-strong: #48b995;
   --sx-accent-soft: rgba(72, 185, 149, .18);
   --sx-accent-faint: rgba(139, 232, 202, .08);
-  --sx-active: #4b9fff;
-  --sx-active-soft: rgba(75, 159, 255, .16);
-  --sx-active-faint: rgba(75, 159, 255, .08);
+  --sx-active: var(--sx-accent);
+  --sx-active-soft: var(--sx-accent-soft);
+  --sx-active-faint: var(--sx-accent-faint);
   --sx-warning: #f2b84b;
   --sx-warning-soft: rgba(242, 184, 75, .14);
   --sx-danger: #ed6a70;
@@ -41,6 +42,45 @@ html[data-theme="dark"] body.studiox-command-deck[data-studiox-visual-system="un
   --riq-discovery-amber: var(--sx-warning);
 }
 
+/* Automatic highlights share the production surfaces, not a second theme. */
+body.studiox-command-deck .production-auto-clip {
+  padding: 18px;
+  border: 1px solid var(--sx-divider-strong);
+  border-left: 3px solid var(--sx-accent-strong);
+  background: var(--sx-surface);
+  color: var(--sx-text);
+}
+body.studiox-command-deck .production-auto-clip > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+body.studiox-command-deck .production-auto-clip h4 { margin: 0 0 5px; font-size: 16px; }
+body.studiox-command-deck .production-auto-clip p { margin: 0; color: var(--sx-text-soft); font-size: 12px; line-height: 1.5; }
+body.studiox-command-deck #productionAutoClipForm {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.3fr) repeat(2, minmax(130px, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+}
+body.studiox-command-deck #productionAutoClipForm label { display: grid; gap: 8px; min-width: 0; }
+body.studiox-command-deck #productionAutoClipForm label span { color: var(--sx-text-soft); font-size: 11px; line-height: 1.4; }
+body.studiox-command-deck .production-auto-clip :is(input, select, button) { min-height: 40px; min-width: 0; border-radius: 0; }
+body.studiox-command-deck .production-auto-clip :is(input, select) { width: 100%; padding: 8px 10px; border: 1px solid var(--sx-divider-strong); color: var(--sx-text); background: var(--sx-surface-raised); }
+body.studiox-command-deck #productionAutoClipArm[aria-pressed="true"] { background: var(--sx-accent-soft); border-color: var(--sx-accent); color: var(--sx-accent); }
+body.studiox-command-deck .production-auto-clip .auto-clip-status { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--sx-divider); color: var(--sx-accent); }
+body.studiox-command-deck .production-auto-clip .auto-clip-note { margin-top: 6px; max-width: 100ch; font-size: 11px; }
+body.studiox-command-deck .production-replay-item > a { grid-column: 1 / -1; text-align: center; text-decoration: none; }
+@media (max-width: 1000px) {
+  body.studiox-command-deck #productionAutoClipForm { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  body.studiox-command-deck #productionAutoClipForm { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* Collection operator flow: inventory first, bounded catalog browsing. */
 html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .full-shell > .content {
   display: flex !important;
@@ -51,6 +91,96 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
 html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .full-shell > .content > * {
   flex: 0 0 auto;
   margin-block: 0 !important;
+}
+
+/* A 4K display should add breathing room, not turn inventory controls into
+   full-screen ribbons. Keep the rail full height while bounding the working
+   canvas to the same readable measure used by the rest of the command deck. */
+@media (min-width: 1600px) {
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .full-shell > .content > * {
+    box-sizing: border-box;
+    width: min(100%, 2200px);
+    align-self: flex-start;
+  }
+}
+
+/* Collection intake is intentionally a two-row workflow. These grids replace
+   the legacy single ribbons that became unreadable on 4K and wrapped their
+   final action into an accidental third row at smaller desktop widths. */
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .approved-inventory-intake > div {
+  display: grid !important;
+  grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  align-items: end !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .approved-inventory-intake > div > :nth-child(1) { grid-column: span 3; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .approved-inventory-intake > div > :nth-child(2) { grid-column: span 3; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .approved-inventory-intake > div > :nth-child(3) { grid-column: span 2; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .approved-inventory-intake > div > :nth-child(4) { grid-column: span 2; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .approved-inventory-intake > div > :nth-child(5) { grid-column: span 2; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .approved-inventory-intake > div > :nth-child(6) { grid-column: span 4; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .approved-inventory-intake > div > :nth-child(7) { grid-column: span 3; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .approved-inventory-intake > div > :nth-child(8) { grid-column: span 5; }
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] #inventoryIntakeForm {
+  display: grid !important;
+  grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  align-items: end !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] #inventoryIntakeForm > :nth-child(1) { grid-column: span 4; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] #inventoryIntakeForm > :nth-child(2) { grid-column: span 2; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] #inventoryIntakeForm > :nth-child(3),
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] #inventoryIntakeForm > :nth-child(4),
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] #inventoryIntakeForm > :nth-child(5) { grid-column: span 2; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] #inventoryIntakeForm > :nth-child(6),
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] #inventoryIntakeForm > :nth-child(7) { grid-column: span 6; }
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] #inventoryLookupForm {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto auto !important;
+  gap: 10px !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .collection-goal-form {
+  display: grid !important;
+  grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .collection-goal-form > :nth-child(1) { grid-column: span 2; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .collection-goal-form > :nth-child(2) { grid-column: span 3; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .collection-goal-form > :nth-child(3) { grid-column: span 2; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .collection-goal-form > :nth-child(4) { grid-column: span 1; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .collection-goal-form > :nth-child(5) { grid-column: span 4; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .collection-goal-form > :nth-child(6) { grid-column: span 8; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .collection-goal-form > :nth-child(7) { grid-column: span 4; }
+
+@media (max-width: 1499px) {
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] :is(.approved-inventory-intake > div, #inventoryIntakeForm, .collection-goal-form) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] :is(.approved-inventory-intake > div, #inventoryIntakeForm, .collection-goal-form) > * {
+    grid-column: span 1 !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] :is(.approved-inventory-intake > div, #inventoryIntakeForm, .collection-goal-form) > :is(button, :last-child) {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+@media (max-width: 760px) {
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] :is(.approved-inventory-intake > div, #inventoryIntakeForm, #inventoryLookupForm, .collection-goal-form) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] :is(.approved-inventory-intake > div, #inventoryIntakeForm, #inventoryLookupForm, .collection-goal-form) > * {
+    grid-column: 1 !important;
+    width: 100% !important;
+  }
 }
 
 html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="collection"][data-collection-view="recent"] .collection-heading { order: 0; }
@@ -508,12 +638,13 @@ html[data-theme="light"] body.studiox-command-deck[data-studiox-visual-system="u
   --sx-text-soft: #425161;
   --sx-text-muted: #6c7a88;
   --sx-accent: #187f66;
+  --sx-on-accent: #ffffff;
   --sx-accent-strong: #12644f;
   --sx-accent-soft: rgba(24, 127, 102, .13);
   --sx-accent-faint: rgba(24, 127, 102, .065);
-  --sx-active: #2d78d4;
-  --sx-active-soft: rgba(45, 120, 212, .13);
-  --sx-active-faint: rgba(45, 120, 212, .065);
+  --sx-active: var(--sx-accent);
+  --sx-active-soft: var(--sx-accent-soft);
+  --sx-active-faint: var(--sx-accent-faint);
   --sx-warning: #a86a08;
   --sx-warning-soft: rgba(168, 106, 8, .11);
   --sx-danger: #b23e48;
@@ -627,6 +758,7 @@ body.studiox-command-deck .command-deck-actions {
   }
 
   body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] .ui4-center-column {
+    container: studio-content / inline-size;
     grid-template-rows: var(--command-deck-header) minmax(0, 1fr) !important;
   }
 
@@ -644,7 +776,7 @@ body.studiox-command-deck .command-deck-actions {
 
   body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] .ui4-top-app-bar {
     display: grid !important;
-    grid-template-columns: minmax(170px, 210px) minmax(240px, 1fr) auto !important;
+    grid-template-columns: 240px minmax(240px, 1fr) auto !important;
     align-items: center !important;
     width: 100% !important;
     height: var(--command-deck-header) !important;
@@ -658,8 +790,11 @@ body.studiox-command-deck .command-deck-actions {
   }
 
   body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] .ui4-top-app-bar .brand {
-    width: auto !important;
-    max-width: 210px !important;
+    width: max-content !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    padding: 0 !important;
+    justify-content: flex-start !important;
     gap: 9px !important;
   }
 
@@ -717,8 +852,40 @@ body.studiox-command-deck .command-deck-actions {
   }
 
   body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] #commandDeckRecognitionSummary {
-    padding-left: 18px !important;
+    position: relative !important;
+    min-height: 30px !important;
+    padding: 0 25px 0 18px !important;
+    border: 0 !important;
     border-left: 1px solid var(--riq-border-dark) !important;
+    border-radius: 0 !important;
+    color: var(--sx-text-soft) !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font: inherit !important;
+    font-size: 11px !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+  }
+
+  body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] #commandDeckRecognitionSummary::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    width: 6px;
+    height: 6px;
+    border-right: 1px solid currentColor;
+    border-bottom: 1px solid currentColor;
+    transform: translateY(-68%) rotate(45deg);
+  }
+
+  body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] #commandDeckRecognitionSummary:is(:hover, [aria-expanded="true"]) {
+    color: var(--sx-accent) !important;
+  }
+
+  body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] #commandDeckRecognitionSummary:focus-visible {
+    outline: 2px solid var(--sx-accent) !important;
+    outline-offset: 3px !important;
   }
 
   body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] .command-deck-actions {
@@ -747,7 +914,7 @@ body.studiox-command-deck .command-deck-actions {
 
   body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] .command-deck-actions > .premium-capture-action {
     min-width: 92px !important;
-    color: var(--riq-obsidian) !important;
+    color: var(--sx-on-accent) !important;
     border-color: transparent !important;
     background: var(--riq-signal-mint) !important;
   }
@@ -1198,7 +1365,7 @@ body.studiox-command-deck .command-deck-actions {
   }
 
   body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] .ui4-top-app-bar {
-    grid-template-columns: 160px minmax(0, 1fr) auto !important;
+    grid-template-columns: max-content minmax(0, 1fr) auto !important;
     gap: 10px !important;
     padding-inline: 10px !important;
   }
@@ -1208,9 +1375,14 @@ body.studiox-command-deck .command-deck-actions {
     min-width: 116px !important;
   }
 
-  body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] .command-deck-session > div > strong,
-  body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] #commandDeckRecognitionSummary {
+  body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] .command-deck-session > div > strong {
     display: none !important;
+  }
+
+  body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] #commandDeckRecognitionSummary {
+    display: inline-flex !important;
+    align-items: center !important;
+    max-width: 150px !important;
   }
 
   body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] #scanSetupDrawer {
@@ -1276,35 +1448,9 @@ html[data-theme="light"] body.studiox-ui4.studiox-premium.studiox-command-deck[d
   }
 
   html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .ui4-navigation-rail::before,
-  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .ui4-navigation-rail .ui4-rail-toggle::after,
   html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .ui4-navigation-rail .nav-button.active::before {
     display: none !important;
     content: none !important;
-  }
-
-  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .ui4-navigation-rail .ui4-rail-toggle {
-    width: 48px !important;
-    height: 36px !important;
-    min-height: 36px !important;
-    margin: 0 0 8px !important;
-    overflow: hidden !important;
-    border: 0 !important;
-    color: transparent !important;
-    background: transparent !important;
-    box-shadow: none !important;
-  }
-
-  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .ui4-navigation-rail .ui4-rail-toggle::before {
-    content: "";
-    display: block;
-    width: 22px;
-    height: 22px;
-    margin: auto;
-    background: center / contain no-repeat url("/static/brand/v1/logos/rare-iq-icon-dark.svg");
-  }
-
-  html[data-theme="light"] body.studiox-command-deck[data-studiox-visual-system="unified"] .ui4-navigation-rail .ui4-rail-toggle::before {
-    background-image: url("/static/brand/v1/logos/rare-iq-icon-light.svg");
   }
 
   html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .ui4-navigation-rail :is(.nav-button, .ui4-theme-toggle) {
@@ -1615,6 +1761,25 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   border-radius: 999px;
   background: var(--sx-divider-strong);
   background-clip: padding-box;
+}
+
+/* Operator feedback is an overlay. Keeping the dormant toast in normal flow
+   added a phantom page-height row and a scrollbar at native 4K. */
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .operator-toast {
+  position: fixed !important;
+  z-index: 1300 !important;
+  right: 24px !important;
+  bottom: 24px !important;
+  max-width: min(420px, calc(100vw - 48px)) !important;
+  margin: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateY(8px) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .operator-toast.visible {
+  opacity: 1 !important;
+  transform: translateY(0) !important;
 }
 
 /* Command Deck v3
@@ -2075,6 +2240,437 @@ html[data-theme] body.studiox-command-deck :is(
   }
 }
 
+/* Consolidated recognition workspace
+   Card identity, confidence, and verification evidence are one workflow.
+   Rare Intelligence remains the single secondary card surface beneath it. */
+
+/* The compact result timer stays visible independently of diagnostic panels. */
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studiox-recognition-workspace-head > .recognition-speed {
+  display: flex !important;
+  align-items: center !important;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px !important;
+  max-width: 48%;
+  padding: 6px 9px;
+  border: 1px solid var(--sx-divider);
+  border-radius: 4px;
+  background: var(--sx-surface);
+  color: var(--sx-text-soft);
+}
+
+.recognition-speed svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+}
+
+.recognition-speed b {
+  color: var(--sx-accent);
+  font: 750 14px/1.2 "JetBrains Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.recognition-speed[data-state="idle"] b { color: var(--sx-text-muted); }
+.recognition-speed[data-state="matched"] { border-color: var(--sx-accent-strong) !important; }
+
+@media (min-width: 960px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector-section-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector[data-operator-section="tools"] #recognitionWorkspace {
+    display: none !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector[data-operator-section="card"] #recognitionWorkspace {
+    box-sizing: border-box !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas:
+      "head"
+      "progress"
+      "pending"
+      "identity"
+      "signals"
+      "evidence" !important;
+    width: 100% !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    border: 1px solid var(--sx-divider) !important;
+    border-top: 2px solid var(--sx-accent) !important;
+    border-radius: 0 !important;
+    color: var(--sx-text) !important;
+    background: var(--sx-surface-raised) !important;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .16) !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace > [hidden] {
+    display: none !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studiox-recognition-workspace-head {
+    grid-area: head !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 16px !important;
+    min-height: 54px !important;
+    padding: 11px 16px !important;
+    border-bottom: 1px solid var(--sx-divider) !important;
+    background: var(--sx-chrome) !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studiox-recognition-workspace-head > div {
+    display: grid !important;
+    gap: 2px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studiox-recognition-workspace-head span {
+    color: var(--sx-accent) !important;
+    font-size: 9px !important;
+    font-weight: 850 !important;
+    letter-spacing: .14em !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studiox-recognition-workspace-head strong {
+    color: var(--sx-text) !important;
+    font-size: 16px !important;
+    line-height: 1.15 !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studiox-recognition-workspace-head small {
+    color: var(--sx-text-muted) !important;
+    font-size: 11px !important;
+    text-align: right !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace > :is(
+    #liveAnalysisTimeline,
+    #identityPendingPlaceholder,
+    #cardContextHeader,
+    #recognitionSignalPanel,
+    [data-studiox-widget="identify"]
+  ) {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace #liveAnalysisTimeline {
+    grid-area: progress !important;
+    border-bottom: 1px solid var(--sx-divider) !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace #identityPendingPlaceholder {
+    grid-area: pending !important;
+    border-bottom: 1px solid var(--sx-divider) !important;
+    border-left: 3px solid var(--sx-divider-strong) !important;
+    background: var(--sx-surface-muted) !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace #cardContextHeader {
+    grid-area: identity !important;
+    padding: 16px !important;
+    border-bottom: 1px solid var(--sx-divider) !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace #recognitionSignalPanel {
+    grid-area: signals !important;
+    padding: 16px !important;
+    border-bottom: 1px solid var(--sx-divider) !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace > [data-studiox-widget="identify"]:not([hidden]) {
+    grid-area: evidence !important;
+    display: block !important;
+    padding: 0 !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace > [data-studiox-widget="identify"] > .studiox-widget-header {
+    display: none !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace > [data-studiox-widget="identify"] > .studiox-widget-content {
+    display: block !important;
+    padding: 16px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector[data-operator-section="card"] #widgetWorkspace {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    padding-top: 0 !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector[data-operator-section="card"] #widgetWorkspace > [data-studiox-widget="pokedex"]:not([hidden]) {
+    display: block !important;
+    order: 1 !important;
+    margin: 0 !important;
+  }
+}
+
+@media (min-width: 2560px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector[data-operator-section="card"] #recognitionWorkspace {
+    grid-template-columns: minmax(340px, .9fr) minmax(0, 1.1fr) !important;
+    grid-template-areas:
+      "head head"
+      "progress progress"
+      "pending pending"
+      "identity signals"
+      "evidence evidence" !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace #cardContextHeader {
+    border-right: 1px solid var(--sx-divider) !important;
+    border-bottom: 1px solid var(--sx-divider) !important;
+  }
+}
+
+/* Unified runtime contract.
+   This is the final presentation boundary for the current Studio X page. Feature
+   stylesheets may own layout and behavior, but visible color and depth resolve
+   through the semantic command-deck tokens below. */
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .instant-splash {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 8000 !important;
+  display: grid !important;
+  place-items: center !important;
+  pointer-events: none !important;
+  background: var(--sx-canvas) !important;
+  animation: commandDeckSplashOut .8s ease forwards !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .instant-splash .brand-lockup-image {
+  width: min(360px, 54vw) !important;
+  min-width: 0 !important;
+  height: auto !important;
+  background: transparent !important;
+}
+
+@keyframes commandDeckSplashOut {
+  0%, 50% { opacity: 1; visibility: visible; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .shortcut-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 6500 !important;
+  display: none !important;
+  place-items: center !important;
+  padding: 16px !important;
+  background: color-mix(in srgb, var(--sx-canvas) 86%, transparent) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .shortcut-overlay.visible {
+  display: grid !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .shortcut-panel {
+  box-sizing: border-box !important;
+  width: min(680px, calc(100vw - 32px)) !important;
+  padding: 20px !important;
+  border: 1px solid var(--sx-divider-strong) !important;
+  border-radius: 6px !important;
+  background: var(--sx-surface-raised) !important;
+  color: var(--sx-text) !important;
+  box-shadow: var(--sx-shadow-float) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .shortcut-panel :is(h2, p) {
+  margin: 0 !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .shortcut-panel p {
+  margin-top: 5px !important;
+  color: var(--sx-text-muted) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .shortcut-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  margin-top: 16px !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .shortcut-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 10px 12px !important;
+  border: 1px solid var(--sx-divider) !important;
+  border-radius: 4px !important;
+  background: var(--sx-surface-muted) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .shortcut-row span {
+  color: var(--sx-text-soft) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .shortcut-row kbd {
+  min-width: 48px !important;
+  padding: 6px 8px !important;
+  border: 1px solid var(--sx-divider-strong) !important;
+  border-radius: 3px !important;
+  background: var(--sx-surface) !important;
+  color: var(--sx-text) !important;
+  text-align: center !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .shortcut-close {
+  width: 100% !important;
+  min-height: var(--sx-control-height) !important;
+  margin-top: 16px !important;
+  border: 1px solid var(--sx-accent) !important;
+  border-radius: 4px !important;
+  background: var(--sx-accent) !important;
+  color: var(--sx-canvas) !important;
+  font-weight: 850 !important;
+}
+
+@media (max-width: 560px) {
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .shortcut-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(
+  .brand-logo-image,
+  .brand-lockup-image,
+  .brand-watermark,
+  .brand-context-icon,
+  .ui4-card-placeholder-logo
+) {
+  background: transparent !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace:not([data-workspace="live"]) :is(
+  input,
+  select,
+  textarea
+) {
+  border-color: var(--sx-divider) !important;
+  background: var(--sx-surface) !important;
+  color: var(--sx-text) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace:not([data-workspace="live"]) :is(
+  input,
+  select,
+  textarea,
+  button
+):focus-visible {
+  outline: 2px solid var(--sx-accent) !important;
+  outline-offset: 2px !important;
+}
+
+/* Broadcast was the final workspace retaining its pre-brand cyan/navy module
+   palette. Preserve all production state and layout while routing its surfaces,
+   controls, and separators through the shared system. */
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] :is(
+  .production-screens,
+  .production-rundown,
+  .operator-health,
+  .production-session,
+  .encoder-guide,
+  .obs-control,
+  .obs-bootstrap,
+  .show-analytics
+) {
+  border-color: var(--sx-divider) !important;
+  background: var(--sx-surface-raised) !important;
+  color: var(--sx-text) !important;
+  box-shadow: var(--sx-shadow-soft) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] :is(
+  .production-screen-presets article,
+  .production-screen-presets button,
+  .production-rundown-list li,
+  .operator-health-grid article,
+  .operator-health-journal,
+  .operator-health-journal article,
+  .production-event-log article,
+  .browser-source-grid article,
+  .obs-scene-map,
+  .obs-bootstrap-plan article,
+  .show-analytics-summary article,
+  .show-analytics-panels > article,
+  .rundown-library
+) {
+  border-color: var(--sx-divider) !important;
+  background: var(--sx-surface-muted) !important;
+  color: var(--sx-text-soft) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] :is(
+  .production-screens,
+  .production-rundown,
+  .operator-health,
+  .operator-health-journal,
+  .production-session,
+  .encoder-guide,
+  .obs-control,
+  .obs-bootstrap,
+  .show-analytics
+) :is(header, footer) {
+  border-color: var(--sx-divider) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] :is(
+  .operator-health-ack,
+  .browser-source-grid button,
+  .production-screen-presets button,
+  .production-rundown-list button
+) {
+  border-color: var(--sx-divider-strong) !important;
+  background: var(--sx-surface) !important;
+  color: var(--sx-text-soft) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] :is(
+  .operator-health-ack,
+  .browser-source-grid button,
+  .production-screen-presets button,
+  .production-rundown-list button
+):hover:not(:disabled) {
+  border-color: var(--sx-accent) !important;
+  background: var(--sx-accent-faint) !important;
+  color: var(--sx-text) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] :is(
+  .operator-health-journal summary,
+  .browser-source-grid code,
+  .production-rundown-list li > span,
+  .obs-bootstrap-plan code
+) {
+  color: var(--sx-accent) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] :is(
+  #recordingFfmpegStatus,
+  #recordingObsStatus
+) {
+  border-color: var(--sx-divider) !important;
+  color: var(--sx-text-soft) !important;
+}
+
 @media (max-width: 1799px) {
   html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] [data-studiox-widget="pokedex"] .studiox-pokedex-broadcast {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
@@ -2234,7 +2830,7 @@ html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck .referenc
 html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck .reference-lightbox footer .primary {
   border-color: var(--sx-accent) !important;
   background: var(--sx-accent) !important;
-  color: var(--sx-action-text) !important;
+  color: var(--sx-on-accent) !important;
 }
 
 @media (max-width: 820px) {
@@ -2289,6 +2885,17 @@ html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-stud
   border-radius: 6px !important;
   background: var(--sx-surface) !important;
   box-shadow: var(--sx-shadow-soft) !important;
+}
+
+/* Collection is an operator workspace, not a narrow settings form. On wide
+   desktops its navigation and inventory canvas should occupy the application
+   stage instead of floating inside a centered 1880px island. */
+@media (min-width: 1800px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-ui4-workspace="collection"][data-studiox-visual-system="unified"] .workspace[data-workspace="collection"] .full-shell {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
 }
 
 html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .studiox-app-workspace .full-shell > .side-nav {
@@ -2467,7 +3074,7 @@ html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-stud
 
 html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .studiox-app-workspace :is(.riq-button.primary, .production-auto) {
   border-color: var(--sx-accent) !important;
-  color: var(--sx-canvas) !important;
+  color: var(--sx-on-accent) !important;
   background: var(--sx-accent) !important;
 }
 
@@ -2662,10 +3269,14 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
 html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] .broadcast-workspace-tabs {
   box-sizing: border-box !important;
   display: grid !important;
+  height: auto !important;
+  min-height: 54px !important;
+  flex-shrink: 0 !important;
   grid-template-columns: repeat(7, minmax(112px, 1fr)) !important;
   gap: 6px !important;
   padding: 7px !important;
   overflow-x: auto !important;
+  overflow-y: hidden !important;
   border: 1px solid var(--sx-divider) !important;
   border-radius: 4px !important;
   background: var(--sx-chrome) !important;
@@ -2845,7 +3456,166 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   color: var(--sx-accent) !important;
 }
 
+/* Broadcast live control is a switcher rack, not a pair of full-page videos.
+   On a wide operator display the verified monitors stay large while controls
+   and source inputs occupy the adjacent control bank. */
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] .production-header {
+  border-bottom-color: var(--sx-divider) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] .production-header > div:first-child > span {
+  color: var(--sx-accent) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] .production-monitor {
+  border-radius: 3px !important;
+  background: var(--sx-canvas) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] .production-monitor header {
+  border-bottom: 1px solid var(--sx-divider) !important;
+  background: var(--sx-chrome) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] :is(
+  .production-transition-bar,
+  .production-inputs button,
+  .production-next-tools
+) {
+  border-color: var(--sx-divider) !important;
+  border-radius: 3px !important;
+  color: var(--sx-text) !important;
+  background: var(--sx-surface-muted) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] .production-transition-bar select {
+  border-color: var(--sx-divider-strong) !important;
+  border-radius: 3px !important;
+  color: var(--sx-text) !important;
+  background: var(--sx-chrome) !important;
+}
+
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] .production-inputs button img {
+  border-radius: 2px !important;
+}
+
+@media (min-width: 1800px) and (min-height: 900px) {
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] > .show-preflight {
+    grid-column: 1 / span 7 !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] > .operator-health {
+    grid-column: 8 / -1 !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] .show-preflight-checks {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] > .production-switcher-shell {
+    display: grid !important;
+    grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+    align-items: start !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] .production-header {
+    grid-column: 1 / -1 !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] .production-monitors {
+    grid-column: 1 / span 8 !important;
+    grid-row: 2 / span 2 !important;
+    align-self: stretch !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] .production-transition-bar {
+    grid-column: 9 / -1 !important;
+    grid-row: 2 !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] .production-transition-bar > button {
+    min-height: 48px !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] .production-inputs {
+    grid-column: 9 / -1 !important;
+    grid-row: 3 !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] .production-inputs button img {
+    width: 100% !important;
+    height: clamp(140px, 12vh, 220px) !important;
+    aspect-ratio: auto !important;
+    object-fit: contain !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] .production-next-tools {
+    grid-column: 1 / -1 !important;
+  }
+}
+
 /* Creator */
+/* Set Chase owns one viewport. Only its editor scrolls, never both frame and host. */
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="creator"][data-creator-view="chase"] {
+  overflow: hidden !important;
+}
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="creator"][data-creator-view="chase"] > .full-shell {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="creator"][data-creator-view="chase"] .full-shell > .content {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 16px !important;
+}
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="creator"][data-creator-view="chase"] .studiox-app-heading {
+  flex: 0 0 auto !important;
+  min-height: 0 !important;
+  margin-bottom: 10px !important;
+  padding: 12px 16px !important;
+}
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="creator"] :is(.creator-reveal-layout, #creatorChasePanel)[hidden] {
+  display: none !important;
+}
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] #creatorChasePanel {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  gap: 10px;
+}
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .creator-chase-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--sx-text-soft);
+  font-size: 12px;
+}
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .creator-chase-toolbar > a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] #creatorChaseFrame {
+  display: block;
+  flex: 1 1 0;
+  width: 100%;
+  min-height: 0;
+  border: 1px solid var(--sx-divider);
+  border-radius: 4px;
+  background: var(--sx-chrome);
+  color-scheme: dark;
+}
 html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="creator"] :is(.creator-reveal-config, .creator-reveal-monitor, .creator-assets) {
   padding: 20px !important;
   border: 1px solid var(--sx-divider) !important;
@@ -3186,6 +3956,47 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   display: grid !important;
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   gap: 10px !important;
+}
+
+/* Creator is an operator workspace, not a centered marketing page. On wide
+   desktops its navigation and tools should own the available stage instead of
+   inheriting the legacy 1880px content cap. The denser grids keep individual
+   controls readable while using that additional working width deliberately. */
+@media (min-width: 1800px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-ui4-workspace="creator"][data-studiox-visual-system="unified"] .workspace[data-workspace="creator"] > .full-shell {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="creator"] .creator-reveal-config {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="creator"] .creator-reveal-monitor {
+    grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="creator"] .creator-reveal-monitor > div:first-child {
+    grid-column: 1 / 10 !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="creator"] .creator-reveal-monitor > strong {
+    grid-column: 10 / -1 !important;
+    justify-self: end !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="creator"] .creator-reveal-monitor > .creator-hit-decision {
+    grid-column: 1 / 7 !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="creator"] .creator-reveal-monitor > .creator-reaction-preview {
+    grid-column: 7 / -1 !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="creator"] .creator-tier-mapping {
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  }
 }
 
 @media (max-width: 1200px) {
@@ -3798,6 +4609,27 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   color: var(--sx-accent) !important;
 }
 
+@media (min-width: 1800px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-ui4-workspace="voice-mod"][data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-shell {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-ui4-workspace="voice-mod"][data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-grid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(620px, .65fr) !important;
+    gap: 16px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-ui4-workspace="voice-mod"][data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-control-card {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-ui4-workspace="voice-mod"][data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-control-card > label {
+    grid-column: span 2 !important;
+  }
+}
+
 @media (max-width: 1100px) {
   html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-control-card {
     grid-template-columns: minmax(0, 1fr) !important;
@@ -3837,9 +4669,10 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   display: grid !important;
   grid-template-rows: auto auto !important;
   align-content: start !important;
-  width: min(100%, 1600px) !important;
+  width: 100% !important;
+  max-width: none !important;
   min-height: 0 !important;
-  margin: 0 auto !important;
+  margin: 0 !important;
   padding: 0 !important;
   gap: 12px !important;
   border: 0 !important;
@@ -4168,13 +5001,24 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   z-index: 5 !important;
 }
 
+@media (min-width: 1800px) {
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="camera-fx"] .camera-fx-layout {
+    grid-template-columns: minmax(0, 1.3fr) minmax(620px, .7fr) !important;
+    gap: 16px !important;
+  }
+
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="camera-fx"] .camera-fx-sliders {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+}
+
 @media (max-width: 1400px) {
   html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="camera-fx"] .camera-fx-presets {
     grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="camera-fx"] .camera-fx-layout {
     grid-template-columns: minmax(0, 1fr) !important;
   }
@@ -6399,7 +7243,7 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
     background: var(--sx-chrome);
     color: var(--sx-text);
     box-shadow: 0 10px 24px rgba(0, 0, 0, .26);
-    font: 700 10px/1 var(--sx-font-mono);
+    font: 700 10px/1 Consolas, "Liberation Mono", monospace;
     letter-spacing: .02em;
     text-align: center;
     white-space: nowrap;
@@ -7496,3 +8340,542 @@ body.studiox-command-deck #inspectorMain .card-art {
     min-width: 0 !important;
   }
 }
+
+/* Final recognition composition ownership. */
+@media (min-width: 960px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector-section-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace > :is(
+    #liveAnalysisTimeline,
+    #identityPendingPlaceholder,
+    #cardContextHeader,
+    #recognitionSignalPanel,
+    [data-studiox-widget="identify"]
+  ) {
+    margin: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace #cardContextHeader,
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace #recognitionSignalPanel {
+    padding: 16px !important;
+    border-bottom: 1px solid var(--sx-divider) !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace > [data-studiox-widget="identify"] > .studiox-widget-content {
+    display: block !important;
+    padding: 16px !important;
+  }
+}
+
+/* Right-rail finish ownership.
+   Retire inherited density caps inside the consolidated recognition workspace so
+   labels, controls, and evidence size from their content instead of clipping. */
+@media (min-width: 960px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .result-decision-strip {
+    grid-template-rows: 54px 42px !important;
+    min-height: 148px !important;
+    padding-block: 18px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .result-decision-identity strong {
+    min-height: 30px !important;
+    overflow: visible !important;
+    line-height: 1.15 !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .auto-add-verified-control {
+    height: 54px !important;
+    min-height: 54px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .result-decision-actions {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    height: 42px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .result-decision-actions button {
+    height: 42px !important;
+    min-height: 42px !important;
+    padding-inline: 8px !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector-section-nav {
+    align-items: center !important;
+    height: 52px !important;
+    min-height: 52px !important;
+    overflow: hidden !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector-section-nav button {
+    align-self: center !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    line-height: 1 !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace #cardContextHeader .card-info {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-auto-rows: max-content !important;
+    align-content: center !important;
+    justify-content: stretch !important;
+    width: 100% !important;
+    height: auto !important;
+    gap: 4px !important;
+    overflow: visible !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace #cardContextHeader .card-info > * {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    min-width: 0 !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace #cardContextHeader .ui4-identity-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    width: 100% !important;
+    margin-top: 4px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace #cardContextHeader .ui4-identity-grid > div {
+    min-width: 0 !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace #cardContextHeader .ui4-identity-grid b {
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    line-height: 1.2 !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionSignalPanel .confidence-ring {
+    display: grid !important;
+    place-items: center !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionSignalPanel .confidence-ring > div {
+    display: grid !important;
+    place-items: center !important;
+    align-content: center !important;
+    width: 100% !important;
+    height: 100% !important;
+    gap: 2px !important;
+    line-height: 1 !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionSignalPanel .confidence-ring :is(b, span) {
+    display: block !important;
+    line-height: 1 !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace > [data-studiox-widget="identify"] {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace > [data-studiox-widget="identify"] > .studiox-widget-content {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace .studiox-identity-review {
+    min-width: 108px !important;
+    min-height: 34px !important;
+    margin-top: 10px !important;
+    font-size: 10px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #widgetWorkspace > [data-studiox-widget="pokedex"] {
+    overflow: visible !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #widgetWorkspace #pokedexName {
+    min-height: 28px !important;
+    line-height: 1.15 !important;
+  }
+}
+
+@media (min-width: 1800px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .result-decision-strip {
+    grid-template-columns: minmax(0, 1fr) clamp(390px, 42%, 440px) !important;
+  }
+}
+
+@media (min-width: 2560px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector[data-operator-section="card"] #recognitionWorkspace {
+    grid-template-columns: minmax(0, 1.06fr) minmax(0, .94fr) !important;
+  }
+
+}
+
+/* Live front-page state lock.
+   Runtime identity availability owns the grid explicitly. Hidden descendants and
+   stylesheet order must never reopen a blank identity track or split evidence. */
+@media (min-width: 960px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector[data-operator-section="card"] #recognitionWorkspace[data-identity-context="missing"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas:
+      "head"
+      "progress"
+      "pending"
+      "signals"
+      "evidence" !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace[data-identity-context="missing"] #cardContextHeader {
+    display: none !important;
+  }
+}
+
+@media (min-width: 2560px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector[data-operator-section="card"] #recognitionWorkspace[data-identity-context="available"] {
+    grid-template-columns: minmax(0, 1.06fr) minmax(0, .94fr) !important;
+    grid-template-areas:
+      "head head"
+      "progress progress"
+      "pending pending"
+      "identity signals"
+      "evidence evidence" !important;
+  }
+}
+
+/* Recognition / Tools is one segmented control, not two floating buttons. */
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector-section-nav {
+  box-sizing: border-box !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  height: 52px !important;
+  min-height: 52px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid var(--sx-divider) !important;
+  border-right: 0 !important;
+  border-left: 0 !important;
+  background: var(--sx-chrome) !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector-section-nav button {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  height: 50px !important;
+  min-height: 50px !important;
+  margin: 0 !important;
+  padding: 0 18px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--sx-text-soft) !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: .08em !important;
+  line-height: 1 !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector-section-nav button + button {
+  border-left: 1px solid var(--sx-divider) !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector-section-nav button[aria-current="true"] {
+  background: var(--sx-accent-faint) !important;
+  color: var(--sx-accent) !important;
+  box-shadow: inset 0 -2px var(--sx-accent) !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector-section-nav button:not([aria-current="true"]):hover {
+  background: var(--sx-surface-muted) !important;
+  color: var(--sx-text) !important;
+}
+
+/* Scaled-4K fit: preserve every card-intelligence surface without a rail scrollbar. */
+@media (min-width: 2400px) and (max-height: 1500px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #inspectorMain {
+    gap: 6px !important;
+    padding: 6px 12px 8px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studiox-recognition-workspace-head {
+    min-height: 0 !important;
+    padding: 7px 12px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace :is(#cardContextHeader, #recognitionSignalPanel) {
+    padding: 12px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #recognitionWorkspace > [data-studiox-widget="identify"] > .studiox-widget-content {
+    padding: 12px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studiox-identity-evidence {
+    padding-top: 8px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studiox-identity-evidence > div {
+    padding: 8px 10px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #inspectorMain #widgetWorkspace {
+    gap: 6px !important;
+    padding-bottom: 8px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .inspector[data-operator-section="card"] [data-studiox-widget="pokedex"] {
+    padding: 12px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] [data-studiox-widget="pokedex"] > .studiox-widget-header {
+    min-height: 30px !important;
+    margin-bottom: 8px !important;
+    padding-bottom: 6px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] [data-studiox-widget="pokedex"] .studiox-pokedex-broadcast {
+    margin-top: 8px !important;
+    padding-top: 8px !important;
+  }
+}
+
+/* Native-4K Tools fit. The Recognition workspace already fits without a rail
+   scrollbar; use the same compact rhythm when the full tool stack is visible. */
+@media (min-width: 2560px) and (min-height: 1500px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #inspectorMain #widgetWorkspace {
+    gap: 6px !important;
+    padding-bottom: 8px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #widgetWorkspace > .studiox-workbench-context {
+    padding: 8px 12px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #widgetWorkspace > .studiox-widget {
+    padding: 12px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #widgetWorkspace > .studiox-widget > .studiox-widget-header {
+    min-height: 32px !important;
+    margin-bottom: 7px !important;
+    padding-bottom: 5px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #widgetWorkspace > .studiox-live-sarge > .studiox-widget-content {
+    padding: 8px !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] #widgetWorkspace [data-studiox-widget="pokedex"] .studiox-pokedex-broadcast {
+    margin-top: 8px !important;
+    padding-top: 8px !important;
+  }
+}
+
+/* Capture feedback belongs to the active command-deck layer, not page flow. */
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .capture-banner {
+  box-sizing: border-box !important;
+  display: none !important;
+  position: fixed !important;
+  z-index: 1200 !important;
+  right: 24px !important;
+  bottom: 24px !important;
+  left: auto !important;
+  top: auto !important;
+  width: min(420px, calc(100vw - 48px)) !important;
+  min-height: 58px !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 12px 14px !important;
+  overflow: hidden !important;
+  border: 1px solid var(--sx-divider-strong) !important;
+  border-left: 3px solid var(--sx-accent) !important;
+  border-radius: 4px !important;
+  background: var(--sx-surface-raised) !important;
+  color: var(--sx-text) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .34) !important;
+  pointer-events: none !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .capture-banner.visible {
+  display: flex !important;
+  animation: commandDeckCaptureIn 180ms ease-out both !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .capture-banner.error {
+  border-left-color: var(--sx-danger) !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .capture-banner-icon {
+  box-sizing: border-box !important;
+  display: grid !important;
+  place-items: center !important;
+  flex: 0 0 30px !important;
+  width: 30px !important;
+  height: 30px !important;
+  border: 1px solid color-mix(in srgb, var(--sx-accent) 55%, transparent) !important;
+  border-radius: 50% !important;
+  background: var(--sx-accent-faint) !important;
+  color: var(--sx-accent) !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .capture-banner.error .capture-banner-icon {
+  border-color: color-mix(in srgb, var(--sx-danger) 55%, transparent) !important;
+  background: color-mix(in srgb, var(--sx-danger) 14%, transparent) !important;
+  color: var(--sx-danger) !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .capture-banner-copy {
+  display: grid !important;
+  min-width: 0 !important;
+  gap: 3px !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .capture-banner-copy strong,
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .capture-banner-copy span {
+  display: block !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .capture-banner-copy strong {
+  color: var(--sx-text) !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  letter-spacing: .08em !important;
+}
+
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .capture-banner-copy span {
+  color: var(--sx-text-soft) !important;
+  font-size: 11px !important;
+}
+
+@keyframes commandDeckCaptureIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 959px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .capture-banner {
+    right: 12px !important;
+    bottom: 76px !important;
+    width: calc(100vw - 24px) !important;
+  }
+}
+
+/* Broadcast is a production console, not an infinitely expanding report.
+   Bound the operator canvas on wide displays so every Broadcast view shares
+   one readable measure while the application shell continues to fill the
+   display. Narrower desktops retain the full available width. */
+@media (min-width: 1600px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studiox-app-workspace--broadcast.active {
+    box-sizing: border-box !important;
+    width: min(100%, 2480px) !important;
+    max-width: 2480px !important;
+    justify-self: start !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] > .broadcast-workspace-tabs {
+    grid-template-columns: repeat(7, minmax(132px, 176px)) !important;
+    width: max-content !important;
+    max-width: 100% !important;
+    justify-content: start !important;
+  }
+
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .workspace[data-workspace="broadcast"] .production-session-metadata {
+    grid-template-columns: minmax(250px, 1.15fr) minmax(220px, 1fr) minmax(220px, 1fr) minmax(320px, 1.45fr) auto !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .capture-banner.visible {
+    animation: none !important;
+  }
+}
+
+/* Live workspace ownership: the resize rail and desktop grid must share the
+   same width variable. The fallback preserves the selected Command Deck
+   preset until an operator explicitly resizes the inspector. */
+@media (min-width: 1101px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"][data-ui4-workspace="live"] .ui4-desktop-shell {
+    grid-template-columns: var(--command-deck-rail) minmax(0, 1fr) var(--sx-custom-inspector-width, var(--command-deck-inspector)) !important;
+  }
+}
+
+/* Header density follows its actual column, including a user-resized split. */
+@container studio-content (max-width: 760px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] .ui4-top-app-bar {
+    grid-template-columns: 116px minmax(0, 1fr) auto !important;
+    gap: 12px !important;
+    padding-inline: 12px !important;
+  }
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] .ui4-top-app-bar .brand-lockup-image {
+    width: 116px !important;
+    min-width: 116px !important;
+  }
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] :is(.brand-product-name, .command-deck-session > div) {
+    display: none !important;
+  }
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"] #commandDeckRecognitionSummary {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Keep the compact camera-state badge below the persistent camera controls.
+   Its previous absolute top overlapped the camera header and clipped the
+   first line at the upper-left edge of the media surface. */
+@media (min-width: 960px) {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] article.camera-workspace .camera-feed-state-shield {
+    top: calc(var(--command-deck-camera-toolbar-height) + var(--command-deck-camera-header-height) + 12px) !important;
+    left: 12px !important;
+  }
+}
+
+/* Notification foundations live with the current shell, not the retired
+   studiox_40 stylesheet. Responsive lane offsets above remain in effect. */
+body.studiox-command-deck #notificationStack {
+  position: fixed;
+  z-index: 6000;
+  inset: auto 16px 24px auto;
+  width: min(360px, calc(100vw - 32px));
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+body.studiox-command-deck #notificationStack .riq-notification {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 28px;
+  align-items: start;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--sx-divider-strong);
+  border-left: 3px solid var(--sx-accent);
+  border-radius: 8px;
+  background: var(--sx-surface-raised);
+  color: var(--sx-text);
+  box-shadow: 0 8px 24px var(--sx-chrome);
+  pointer-events: auto;
+}
+body.studiox-command-deck #notificationStack .riq-notification.error { border-left-color: var(--sx-danger); }
+body.studiox-command-deck #notificationStack .riq-notification.warning { border-left-color: var(--sx-warning); }
+body.studiox-command-deck #notificationStack .notification-icon { display: grid; place-items: center; width: 24px; height: 24px; color: var(--sx-accent); }
+body.studiox-command-deck #notificationStack .notification-icon:empty::before { content: "•"; }
+body.studiox-command-deck #notificationStack .riq-notification.success .notification-icon:empty::before { content: "✓"; }
+body.studiox-command-deck #notificationStack .riq-notification.warning .notification-icon:empty::before { content: "!"; color: var(--sx-warning); }
+body.studiox-command-deck #notificationStack .riq-notification.error .notification-icon { color: var(--sx-danger); }
+body.studiox-command-deck #notificationStack .notification-copy { min-width: 0; }
+body.studiox-command-deck #notificationStack .notification-copy strong { display: block; font-size: 13px; line-height: 1.4; }
+body.studiox-command-deck #notificationStack .notification-copy span { display: block; margin-top: 4px; color: var(--sx-text-soft); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+body.studiox-command-deck #notificationStack .notification-copy span[hidden] { display: none; }
+body.studiox-command-deck #notificationStack .notification-dismiss { color: var(--sx-text-soft); }
+body.studiox-command-deck #notificationStack .notification-dismiss:hover { color: var(--sx-text); background: var(--sx-accent-soft); }
+body.studiox-command-deck #notificationStack .notification-dismiss:focus-visible { outline-color: var(--sx-accent); }

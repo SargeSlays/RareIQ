@@ -441,24 +441,74 @@ class GlobalVisualIndexService:
             and Path(str(card.get("local_image"))).exists()
         )
 
-    def text_search(self, query: str, *, limit: int = 24) -> list[dict[str, Any]]:
-        """Search the complete disk-first visual catalog by card metadata."""
+    def set_options(self) -> list[dict[str, Any]]:
+        """Sets actually present in this searchable catalog, not download manifests."""
+        grouped: dict[tuple[str, str], dict[str, Any]] = {}
+        with self._lock:
+            for row in self._records:
+                set_id = str(row.get("set_id") or "").strip()
+                language = str(row.get("language") or "").strip()
+                if not set_id or not language:
+                    continue
+                key = (set_id, language.casefold())
+                option = grouped.setdefault(key, {
+                    "set_id": set_id, "set_name": str(row.get("set_name") or set_id),
+                    "language": language, "cards": 0,
+                })
+                option["cards"] += 1
+        return sorted(grouped.values(), key=lambda row: (
+            row["language"].casefold() != "english", row["set_name"].casefold(),
+            row["language"].casefold(), row["set_id"],
+        ))
+
+    def text_search(self, query: str, *, limit: int = 24, set_id: str | None = None, language: str | None = None) -> list[dict[str, Any]]:
+        """Compatibility entry point for existing recognition/catalog consumers."""
+        return self.catalog_search(query, limit=limit, set_id=set_id, language=language)["results"]
+
+    def catalog_search(self, query: str, *, limit: int = 24, set_id: str | None = None,
+                       language: str | None = None, rarity: str | list[str] | None = None,
+                       rarity_first: bool = False, highest_rarity_only: bool = False) -> dict[str, Any]:
+        """Filter before limiting; rarity facets describe the whole selected set.
+
+        A missing rarity filter means all cards. An explicit empty string selects
+        cards whose catalog rarity is unlisted. Lists match any selected label;
+        an empty list matches nothing. Recognition's relevance order is unchanged
+        unless a catalog caller explicitly requests rarity-first ordering.
+        """
+        from rareiq.services.catalog_rarity import rarity_priority, rarity_sort_key
+
         needle = " ".join(str(query or "").strip().casefold().split())
-        if len(needle) < 2:
-            return []
+        if len(needle) < 2 and not (set_id and language):
+            return {"results": [], "total": 0, "set_total": 0, "rarities": [], "selected_rarities": []}
         tokens = needle.split()
         with self._lock:
-            records = [dict(row) for row in self._records]
+            records = [dict(row) for row in self._records
+                       if (set_id is None or str(row.get("set_id") or "") == set_id)
+                       and (language is None or str(row.get("language") or "").casefold() == language.casefold())]
+        facets: dict[str, dict[str, Any]] = {}
+        for row in records:
+            label = str(row.get("rarity") or "").strip()
+            key = label.casefold()
+            facet = facets.setdefault(key, {"value": label, "count": 0})
+            facet["count"] += 1
+        options = sorted(facets.values(), key=lambda item: rarity_sort_key(item["value"], language))
+        selected = [rarity] if isinstance(rarity, str) else rarity
+        if highest_rarity_only:
+            top = rarity_priority(options[0]["value"], language) if options else None
+            selected = [item["value"] for item in options if rarity_priority(item["value"], language) == top]
+        rarity_keys = {value.strip().casefold() for value in selected} if selected is not None else None
         ranked: list[tuple[int, str, dict[str, Any]]] = []
         for row in records:
+            if rarity_keys is not None and str(row.get("rarity") or "").strip().casefold() not in rarity_keys:
+                continue
             name = str(row.get("english_name") or row.get("canonical_name") or row.get("printed_name") or row.get("name") or "").strip().casefold()
             printed_name = str(row.get("printed_name") or "").strip().casefold()
             collector = str(row.get("collector_number") or row.get("printed_code") or "").strip().casefold()
             set_name = str(row.get("set_name") or "").strip().casefold()
-            set_id = str(row.get("set_id") or row.get("set_code") or "").strip().casefold()
-            language = str(row.get("language") or "").strip().casefold()
+            row_set_id = str(row.get("set_id") or row.get("set_code") or "").strip().casefold()
+            row_language = str(row.get("language") or "").strip().casefold()
             card_id = str(row.get("id") or "").strip().casefold()
-            haystack = " ".join((name, printed_name, collector, set_name, set_id, language, card_id))
+            haystack = " ".join((name, printed_name, collector, set_name, row_set_id, row_language, card_id))
             collector_key = self._collector_key(collector)
             token_matches = [
                 (
@@ -484,12 +534,19 @@ class GlobalVisualIndexService:
                 else 0
             )
             score += 100 if needle in {name, printed_name} else 75 if name.startswith(needle) or printed_name.startswith(needle) else 55 if needle in name or needle in printed_name else 0
-            score += 35 if needle in {set_id, set_name} else 0
+            score += 35 if needle in {row_set_id, set_name} else 0
             score += 30 if needle in collector else 0
             score += sum(5 for token in tokens if token in name)
-            ranked.append((score, f"{name}|{set_id}|{collector}|{card_id}", row))
-        ranked.sort(key=lambda item: (-item[0], item[1]))
-        return [row for _, _, row in ranked[:max(1, min(100, int(limit)))]]
+            ranked.append((score, f"{name}|{row_set_id}|{collector}|{card_id}", row))
+        if rarity_first:
+            ranked.sort(key=lambda item: (-rarity_priority(item[2].get("rarity"), language), -item[0], item[1]))
+        else:
+            ranked.sort(key=lambda item: (-item[0], item[1]))
+        return {
+            "results": [row for _, _, row in ranked[:max(1, min(100, int(limit)))]],
+            "total": len(ranked), "set_total": len(records),
+            "rarities": options, "selected_rarities": selected,
+        }
 
     def search_image(
         self,
@@ -500,6 +557,7 @@ class GlobalVisualIndexService:
         set_name: str | None = None,
         language: str | None = None,
         collector_number: str | None = None,
+        card_name: str | None = None,
     ) -> dict[str, Any]:
         started = time.perf_counter()
         with self._lock:
@@ -519,10 +577,12 @@ class GlobalVisualIndexService:
         } - {""}
         wanted_language = str(language or "").strip().casefold()
         wanted_collector = self._collector_key(collector_number)
+        wanted_name = " ".join(str(card_name or "").casefold().split())
         filter_applied = bool(
             wanted_sets
             or (wanted_language and wanted_language not in {"any", "unknown"})
             or wanted_collector
+            or wanted_name
         )
         candidate_indices = np.asarray([
             index
@@ -547,6 +607,13 @@ class GlobalVisualIndexService:
                     or record.get("language_code")
                     or ""
                 ).strip().casefold() == wanted_language
+            )
+            and (
+                not wanted_name
+                or wanted_name in {
+                    " ".join(str(record.get(key) or "").casefold().split())
+                    for key in ("name", "canonical_name", "english_name", "printed_name")
+                }
             )
             and (
                 not wanted_collector

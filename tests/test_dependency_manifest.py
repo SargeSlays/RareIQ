@@ -21,6 +21,7 @@ IMPORT_TO_DISTRIBUTION = {
     "obsws_python": "obsws-python",
     "pydantic": "pydantic",
     "rapidocr": "rapidocr",
+    "starlette": "starlette",
     "uvicorn": "uvicorn",
 }
 

@@ -3,6 +3,8 @@ from pathlib import Path
 
 SERVER = Path("rareiq/web/server.py").read_text(encoding="utf-8")
 SERVICE = Path("rareiq/services/collection_service.py").read_text(encoding="utf-8")
+INVENTORY = Path("rareiq/services/inventory_service.py").read_text(encoding="utf-8")
+STUDIOX = Path("rareiq/web/static/studiox.js").read_text(encoding="utf-8")
 
 
 def test_collection_dashboard_is_one_consistent_service_snapshot():
@@ -21,3 +23,12 @@ def test_collection_history_has_explicit_bounds_and_migration():
     assert "MAX_CORRECTIONS = 5000" in SERVICE
     assert "MAX_ARCHIVED_GOALS = 1000" in SERVICE
     assert "def _migrate_loaded_state" in SERVICE
+
+
+def test_approved_scan_event_identity_reaches_the_inventory_ledger():
+    assert "source_event_id: str = Field(default=\"\", max_length=160)" in SERVER
+    assert "source_event_id=source_event_id" in INVENTORY
+    assert "duplicate_source_event" in INVENTORY
+    assert 'source_event_id:card._inventorySourceEventId||""' in STUDIOX
+    assert 'result.session?.last_added_card?.id||""' in STUDIOX
+    assert 'result.duplicate_suppressed?"Already in Inventory"' in STUDIOX

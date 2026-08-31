@@ -39,6 +39,14 @@ def test_studiox_uses_recognition_state_contract() -> None:
     assert 'Number(candidate?.signals?.language||0)>=1' in script
     assert '!String(referenceSource).startsWith("/api/camera/")' in script
     assert "candidate_reference_only:true" in script
+    assert "const reviewReferenceCandidate" in script
+    assert 'String(snapshot?.verification_state||"").toUpperCase()==="REVIEW_NEEDED"' in script
+    assert "snapshot?.has_reference_evidence===true" in script
+    assert 'source!=="ocr_provisional"' in script
+    assert "review_reference_preview:true" in script
+    assert "reviewReferencePreview ||" in script
+    assert "reference_image_url:card.reference_image_url||null" in script
+    assert "collector_number:card.collector_number||card.card_number||null" in script
     assert script.index("verifiedVisualCandidate ||", script.index("let card =")) < script.index("realIdentityCandidate ||", script.index("let card ="))
     assert script.index("presentableProvisional ||", script.index("let card =")) < script.index("presentableCandidate ||", script.index("let card ="))
     assert '$("cardName").textContent="Verifying Card"' in script
@@ -51,6 +59,28 @@ def test_studiox_uses_recognition_state_contract() -> None:
     assert "newestRecognitionRevision=-1" in script
     assert 'hadPreviousSession ? "server_session_changed"' in script
     assert 'if(serverSessionId && serverSessionId!==currentServerSessionId)' in script
+
+
+def test_review_reference_is_presentational_and_does_not_bypass_verification() -> None:
+    root = Path(__file__).resolve().parents[1]
+    script = (root / "rareiq" / "web" / "static" / "studiox.js").read_text(
+        encoding="utf-8"
+    )
+
+    review_start = script.index("const reviewReferenceCandidate")
+    review_end = script.index("let card =", review_start)
+    review = script[review_start:review_end]
+    assert 'candidate.retrieval_only!==true' in review
+    assert '!String(referenceSource).startsWith("/api/camera/")' in review
+    assert "provisional:true" in review
+    assert "candidate_reference_only:true" in review
+    assert "review_reference_preview:true" in review
+
+    verified_start = script.index("const verified = Boolean(")
+    verified_end = script.index("const presentationSnapshot", verified_start)
+    verified = script[verified_start:verified_end]
+    assert "isAuthoritativelyVerified(snapshot)" in verified
+    assert "reviewReferencePreview" not in verified
 
 
 def test_review_match_prefers_real_catalog_artwork_over_the_live_ocr_crop() -> None:

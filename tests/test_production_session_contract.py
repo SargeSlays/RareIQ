@@ -19,7 +19,7 @@ def test_session_event_and_report_endpoints_exist():
     assert 'RAREIQ_RECORDING_COMMAND' in SERVER
     assert 'RecordingService' in SERVER
     assert 'recording.start(' in SERVER
-    assert 'recording.stop()' in SERVER
+    assert 'await asyncio.to_thread(recording.stop, expected_session_id=session_id)' in SERVER
     assert '"recording": recording.status()' in SERVER
 
 

@@ -6,9 +6,7 @@ from typing import Any
 from rareiq.core.storage import storage
 
 
-DEFAULT_BRAND = {
-    "creator_name": "RareIQ Creator",
-    "logo_url": "",
+LEGACY_BRAND_COLORS = {
     "primary": "#56D8FF",
     "secondary": "#41E695",
     "intelligence": "#9D78FF",
@@ -19,12 +17,35 @@ DEFAULT_BRAND = {
     "border": "#22364D",
     "text": "#EAF2F8",
     "muted": "#86A0B8",
+}
+
+DEFAULT_BRAND = {
+    "creator_name": "RareIQ Creator",
+    "logo_url": "",
+    "primary": "#8be8ca",
+    "secondary": "#48b995",
+    "intelligence": "#b5c0cc",
+    "gold": "#f2b84b",
+    "danger": "#ed6a70",
+    "background": "#0b1016",
+    "panel": "#18222e",
+    "border": "#3a4b60",
+    "text": "#f4f7fa",
+    "muted": "#b5c0cc",
     "font_heading": "Space Grotesk",
     "font_body": "Inter",
     "font_numbers": "JetBrains Mono",
     "watermark_opacity": 0.72,
     "overlay_theme": "rareiq-core",
 }
+
+
+def current_brand(payload: dict[str, Any]) -> dict[str, Any]:
+    """Upgrade only an untouched old palette; never overwrite custom colors."""
+    result = {**DEFAULT_BRAND, **{key: value for key, value in payload.items() if key in DEFAULT_BRAND}}
+    if all(str(payload.get(key, "")).lower() == value.lower() for key, value in LEGACY_BRAND_COLORS.items()):
+        result.update({key: DEFAULT_BRAND[key] for key in LEGACY_BRAND_COLORS})
+    return result
 
 
 class BrandSettingsService:
@@ -40,7 +61,7 @@ class BrandSettingsService:
         try:
             payload = json.loads(self.path.read_text(encoding="utf-8"))
             if isinstance(payload, dict):
-                self._settings.update(payload)
+                self._settings = current_brand(payload)
         except Exception:
             pass
 

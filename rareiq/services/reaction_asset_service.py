@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import mimetypes
+import math
 import re
 import threading
 import time
@@ -35,11 +35,26 @@ class ReactionAssetService:
     def _load(self) -> None:
         try:
             payload = json.loads(self.state_path.read_text(encoding="utf-8"))
-            self._assets = payload.get("assets") if isinstance(payload.get("assets"), dict) else {}
+            if not isinstance(payload, dict):
+                return
+            assets = payload.get("assets") if isinstance(payload.get("assets"), dict) else {}
+            for asset_id, asset in assets.items():
+                if not isinstance(asset, dict) or asset.get("id") != asset_id:
+                    continue
+                rule = self.ALLOWED.get(str(asset.get("mime") or ""))
+                if not rule or asset.get("kind") != rule[0] or not isinstance(asset.get("path"), str):
+                    continue
+                try:
+                    created_at = float(asset.get("created_at") or 0)
+                except (ValueError, TypeError):
+                    created_at = 0
+                self._assets[asset_id] = {**asset, "created_at": created_at if math.isfinite(created_at) else 0}
             mapping = payload.get("mapping") if isinstance(payload.get("mapping"), dict) else {}
             for tier in self.TIERS:
                 if isinstance(mapping.get(tier), dict):
-                    self._mapping[tier].update(mapping[tier])
+                    for kind in ("audio", "visual"):
+                        value = mapping[tier].get(kind)
+                        self._mapping[tier][kind] = value if isinstance(value, str) else None
             soundboard = payload.get("soundboard") if isinstance(payload.get("soundboard"), list) else []
             self._soundboard = [self._sanitize_pad(pad, index) for index, pad in enumerate(soundboard[:50]) if isinstance(pad, dict)]
         except (OSError, ValueError, TypeError):
@@ -77,11 +92,20 @@ class ReactionAssetService:
         safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(name or f"asset{extension}").stem).strip("._")[:60] or "asset"
         path = self.root / kind / f"{asset_id}_{safe_name}{extension}"
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
         asset = {"id": asset_id, "name": safe_name, "kind": kind, "mime": mime, "size_bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "path": str(path), "created_at": time.time()}
         with self._lock:
-            self._assets[asset_id] = asset
-            self._persist()
+            try:
+                if path.write_bytes(data) != len(data):
+                    raise OSError("incomplete_asset_write")
+                self._assets[asset_id] = asset
+                self._persist()
+            except Exception:
+                self._assets.pop(asset_id, None)
+                try:
+                    path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                raise
         return {"created": True, "asset": self._public(asset)}
 
     @staticmethod
@@ -93,9 +117,12 @@ class ReactionAssetService:
             asset = self._assets.get(str(asset_id))
             if not asset:
                 return None
-            path = Path(str(asset.get("path") or "")).resolve()
-            root = self.root.resolve()
-            if not path.is_file() or root not in path.parents:
+            try:
+                path = Path(str(asset.get("path") or "")).resolve()
+                root = self.root.resolve()
+                if not path.is_file() or root not in path.parents:
+                    return None
+            except (OSError, ValueError):
                 return None
             return path, str(asset["mime"])
 
@@ -106,12 +133,17 @@ class ReactionAssetService:
         with self._lock:
             if asset_id:
                 asset = self._assets.get(asset_id)
-                if not asset:
+                if not asset or not self.get_path(asset_id):
                     return {"updated": False, "reason": "asset_not_found"}
                 if asset.get("kind") != kind:
                     return {"updated": False, "reason": "asset_kind_mismatch"}
+            previous = self._mapping[tier][kind]
             self._mapping[tier][kind] = asset_id or None
-            self._persist()
+            try:
+                self._persist()
+            except Exception:
+                self._mapping[tier][kind] = previous
+                raise
             return {"updated": True, **self.snapshot()}
 
     @staticmethod
@@ -121,29 +153,37 @@ class ReactionAssetService:
     def configure_soundboard(self, pads: list[dict[str, Any]]) -> dict[str, Any]:
         with self._lock:
             clean = [self._sanitize_pad(pad, index) for index, pad in enumerate(pads[:50]) if isinstance(pad, dict)]
+            if len({pad["id"] for pad in clean}) != len(clean):
+                return {"updated": False, "reason": "duplicate_pad_id"}
             for pad in clean:
                 asset = self._assets.get(str(pad.get("asset_id") or ""))
-                if pad.get("asset_id") and (not asset or asset.get("kind") != "audio"):
+                if pad.get("asset_id") and (not asset or asset.get("kind") != "audio" or not self.get_path(pad["asset_id"])):
                     return {"updated": False, "reason": "audio_asset_not_found"}
                 image = self._assets.get(str(pad.get("image_asset_id") or ""))
-                if pad.get("image_asset_id") and (not image or image.get("kind") != "visual"):
+                if pad.get("image_asset_id") and (not image or image.get("kind") != "visual" or not self.get_path(pad["image_asset_id"])):
                     return {"updated": False, "reason": "image_asset_not_found"}
+            previous = self._soundboard
             self._soundboard = clean
-            self._persist()
+            try:
+                self._persist()
+            except Exception:
+                self._soundboard = previous
+                raise
             return {"updated": True, **self.snapshot()}
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
-            assets = [self._public(asset) for asset in self._assets.values() if Path(str(asset.get("path") or "")).is_file()]
+            available = {asset_id: asset for asset_id, asset in self._assets.items() if self.get_path(asset_id)}
+            assets = [self._public(asset) for asset in available.values()]
             mapping: dict[str, dict[str, Any]] = {}
             for tier, values in self._mapping.items():
                 mapping[tier] = {}
                 for kind in ("audio", "visual"):
-                    asset = self._assets.get(values.get(kind) or "")
-                    mapping[tier][kind] = self._public(asset) if asset else None
+                    asset = available.get(values.get(kind) or "")
+                    mapping[tier][kind] = self._public(asset) if asset and asset.get("kind") == kind else None
             pads = []
             for pad in self._soundboard:
-                asset = self._assets.get(str(pad.get("asset_id") or ""))
-                image = self._assets.get(str(pad.get("image_asset_id") or ""))
+                asset = available.get(str(pad.get("asset_id") or ""))
+                image = available.get(str(pad.get("image_asset_id") or ""))
                 pads.append(dict(pad) | {"asset": self._public(asset) if asset and asset.get("kind") == "audio" else None, "image_asset": self._public(image) if image and image.get("kind") == "visual" else None})
             return {"assets": sorted(assets, key=lambda item: -item["created_at"]), "mapping": mapping, "soundboard": pads}

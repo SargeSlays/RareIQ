@@ -151,15 +151,20 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
     html = read("control.html")
     styles = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
     version = re.search(r'data-studiox-build="([^"]+)"', html).group(1)
-    assert styles[-6:] == [
+    assert styles[-11:] == [
         f"/static/studiox_ui4_tokens.css?v={version}",
-        f"/static/studiox_update15.css?v={version}&amp;shell=6.8.93-camera-workspace1",
+        f"/static/studiox_update15.css?v={version}&amp;shell=6.8.93-camera-workspace1&amp;media=20260830-2&amp;grid=20260830-1&amp;audit=20260830-2",
         f"/static/pack_run_coach.css?v={version}",
         "/static/brand/v1/rare-iq-tokens.css?v=1.0",
-        f"/static/rareiq_brand_v1.css?v={version}",
-        f"/static/studiox_command_deck.css?v={version}",
+        f"/static/rareiq_brand_v1.css?v={version}&amp;audit=20260830-2",
+        f"/static/studiox_command_deck.css?v={version}&amp;clips=20260830-1&amp;grid=20260830-1&amp;speed=20260830-2&amp;audit=20260830-2&amp;chase=20260831-6&amp;outputs=20260831-2",
+        "/static/studiox_camera_workspace.css?v=20260830-1",
+        "/static/studiox_multi_card.css?v=20260830-1",
+        "/static/studiox_inspector.css?v=20260830-2",
+        "/static/broadcast_output.css?v=20260831-4",
+        "/static/studio_shell.css?v=20260831-2",
     ]
-    assert len(styles) == 21
+    assert len(styles) == 12
     assert not any("studiox_60.css" in style for style in styles)
     assert not any("studiox_604.css" in style for style in styles)
 
@@ -264,11 +269,23 @@ def test_inspector_divider_supports_pointer_and_keyboard_resizing() -> None:
     assert 'handle.addEventListener("dblclick",()=>{delete document.body.dataset.inspectorResizing' in script
     assert "Structural fallback only. Command Deck owns the visible resize rail." in base_css
     assert "Authoritative inspector resize rail: integrated with the workspace divider." in deck_css
+    assert "var(--sx-custom-inspector-width, var(--command-deck-inspector))" in deck_css
     assert "top: 0 !important" in deck_css
     assert "bottom: 0 !important" in deck_css
     assert "repeating-linear-gradient" in deck_css
     assert "border-radius: 99px" not in deck_css
     assert "linear-gradient(180deg,rgba(19,53,68,.96),rgba(8,27,39,.98))" not in base_css
+
+
+def test_camera_state_shield_clears_persistent_camera_controls() -> None:
+    deck_css = read("studiox_command_deck.css")
+    assert "Keep the compact camera-state badge below the persistent camera controls." in deck_css
+    assert "article.camera-workspace .camera-feed-state-shield" in deck_css
+    assert (
+        "top: calc(var(--command-deck-camera-toolbar-height) + "
+        "var(--command-deck-camera-header-height) + 12px) !important"
+        in deck_css
+    )
 
 
 def test_shell_uses_one_consistent_eight_pixel_gap() -> None:

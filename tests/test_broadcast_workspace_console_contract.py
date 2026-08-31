@@ -31,7 +31,7 @@ def test_every_existing_broadcast_module_is_assigned_to_one_view() -> None:
         ".production-session-metadata", ".break-history-controls", ".break-history",
         ".production-report-actions", ".pack-economics", ".pack-tracker",
         ".card-show-analytics", ".show-analytics", ".obs-diagnostic",
-        ".obs-bootstrap", ".obs-control", ".encoder-guide", ".recording-settings",
+        ".obs-bootstrap", ".obs-source-audit", ".broadcast-output", ".obs-control", ".encoder-guide", ".recording-settings",
         ".production-session", ".operator-health", ".show-preflight",
         ".rundown-safety", ".rundown-library", ".rundown-preflight",
         ".production-rundown", ".production-switcher-shell", ".production-scenes",
@@ -74,7 +74,7 @@ def test_live_control_adapts_its_hierarchy_to_session_state() -> None:
 
 
 def test_broadcast_uses_the_shared_command_deck_identity() -> None:
-    assert 'broadcast:"Production console"' in JS
+    assert 'broadcast:"Streaming studio"' in JS
     assert 'setCardText("commandDeckWorkspaceTitle",title)' in JS
     assert "syncCommandDeckWorkspace(name);" in JS
 
@@ -99,3 +99,43 @@ def test_broadcast_metrics_and_filters_use_the_shared_semantic_surface_hierarchy
     assert "background: var(--sx-surface-muted) !important" in styles
     assert "background: var(--sx-surface) !important" in styles
     assert "background: var(--sx-chrome) !important" in styles
+
+
+def test_broadcast_runtime_panels_are_tokenized_by_the_authoritative_layer() -> None:
+    assert ".operator-health-journal" in DECK
+    assert ".production-event-log article" in DECK
+    assert "#recordingFfmpegStatus" in DECK
+    assert "#recordingObsStatus" in DECK
+    assert "background: var(--sx-surface) !important" in DECK
+    assert "border-color: var(--sx-divider) !important" in DECK
+
+
+def test_wide_broadcast_live_control_uses_a_bounded_switcher_rack() -> None:
+    start = DECK.index("/* Broadcast live control is a switcher rack")
+    styles = DECK[start : DECK.index("/* Creator */", start)]
+    assert "@media (min-width: 1800px) and (min-height: 900px)" in styles
+    assert "> .show-preflight" in styles
+    assert "grid-column: 1 / span 7 !important" in styles
+    assert "> .operator-health" in styles
+    assert "grid-column: 8 / -1 !important" in styles
+    assert ".show-preflight-checks" in styles
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr)) !important" in styles
+    assert ".production-monitors" in styles
+    assert "grid-column: 1 / span 8 !important" in styles
+    assert ".production-transition-bar" in styles
+    assert "grid-column: 9 / -1 !important" in styles
+    assert ".production-inputs" in styles
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr)) !important" in styles
+    assert "background: var(--sx-surface-muted) !important" in styles
+
+
+def test_wide_broadcast_workspace_uses_a_bounded_production_console_measure() -> None:
+    assert "width: min(100%, 2480px) !important" in DECK
+    assert "max-width: 2480px !important" in DECK
+    assert "justify-self: start !important" in DECK
+    assert "grid-template-columns: repeat(7, minmax(132px, 176px)) !important" in DECK
+    assert "width: max-content !important" in DECK
+
+
+def test_wide_broadcast_session_metadata_keeps_operational_fields_readable() -> None:
+    assert "grid-template-columns: minmax(250px, 1.15fr) minmax(220px, 1fr) minmax(220px, 1fr) minmax(320px, 1.45fr) auto !important" in DECK

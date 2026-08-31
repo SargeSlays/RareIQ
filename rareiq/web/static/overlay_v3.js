@@ -1,15 +1,12 @@
 
 const $=(id)=>document.getElementById(id);
-async function loadJson(path){return fetch(path,{cache:"no-store"}).then(r=>r.json())}
 function applyBrand(brand){
   const root=document.documentElement;
-  const map={background:"--bg",panel:"--panel",border:"--border",primary:"--primary",secondary:"--success",intelligence:"--intel",gold:"--gold",danger:"--danger",text:"--text",muted:"--muted"};
+  const map={background:"--overlay-chrome",panel:"--overlay-panel-glass",border:"--overlay-border",primary:"--overlay-accent",secondary:"--overlay-success",gold:"--overlay-warning",danger:"--overlay-danger",text:"--overlay-text",muted:"--overlay-muted"};
   Object.entries(map).forEach(([k,v])=>{if(brand[k])root.style.setProperty(v,brand[k])});
   if($("creatorName"))$("creatorName").textContent=brand.creator_name||"RareIQ Creator";
 }
-async function tick(){
-  try{
-    const [brandResult,stateResult]=await Promise.all([loadJson("/api/brand"),loadJson("/api/overlay/state")]);
+function renderOverlay([brandResult,stateResult]){
     applyBrand(brandResult.brand||{});
     const state=stateResult.state||{};
     const card=state.current_card_status==="verified"?(state.current_card||{}):{};
@@ -20,8 +17,13 @@ async function tick(){
     if($("boxValue"))$("boxValue").textContent=`$${Number(state.box_total||0).toFixed(2)}`;
     if($("packNumber"))$("packNumber").textContent=state.pack_number||1;
     if($("cardThumb")){
-      $("cardThumb").innerHTML=card.reference_image_url?`<img src="${card.reference_image_url}" alt="">`:"<span>Card artwork</span>";
+      const image=document.createElement(card.reference_image_url?"img":"span");
+      if(card.reference_image_url){image.src=card.reference_image_url;image.alt=""}else image.textContent="Card artwork";
+      $("cardThumb").replaceChildren(image);
     }
-  }catch{}
 }
-tick();setInterval(tick,750);
+RareIQOverlay.start({
+  load:signal=>Promise.all([RareIQOverlay.json("/api/brand",signal),RareIQOverlay.json("/api/overlay/state",signal)]),
+  render:renderOverlay,
+  clear:()=>renderOverlay([{}, {state:{}}]),
+});

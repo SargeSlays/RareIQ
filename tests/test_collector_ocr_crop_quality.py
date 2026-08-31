@@ -21,7 +21,7 @@ class SequencedOcr:
         self.results = results
         self.calls = 0
 
-    def __call__(self, _image: np.ndarray) -> FakeOcrResult:
+    def __call__(self, _image: np.ndarray, **_kwargs: object) -> FakeOcrResult:
         result = self.results[min(self.calls, len(self.results) - 1)]
         self.calls += 1
         return result
@@ -189,11 +189,38 @@ def test_single_footer_fast_pass_falls_back_to_720_pixel_detector() -> None:
 
     assert engine.last_shape is not None
     assert engine.last_shape[1] <= 720
+    assert engine.last_kwargs == {"use_det": True, "use_cls": True, "use_rec": True}
     runtime = service.status()["ocr_runtime"]
     assert runtime["footer_recognition_only_hits"] == 0
     assert runtime["footer_detector_fallbacks"] == 1
     assert runtime["footer_recognition_only_hit_rate"] == 0.0
     assert runtime["last_footer_mode"] == "detector_fallback"
+
+
+def test_general_ocr_restores_detector_after_stateful_fast_line_pass() -> None:
+    service = _service()
+    modes = []
+
+    class StatefulOcr:
+        # RapidOCR keeps non-None call options on the reused engine instance.
+        flags = {"use_det": True, "use_cls": True, "use_rec": True}
+
+        def __call__(self, _image, **kwargs):
+            self.flags.update(kwargs)
+            modes.append(dict(self.flags))
+            return FakeOcrResult(["029/084"] if self.flags["use_det"] else [], [0.94])
+
+    service._engine = StatefulOcr()
+    card = np.zeros((1400, 1000, 3), dtype=np.uint8)
+    for _ in range(2):
+        items, _diagnostics = service._run_collector_ocr_batched(card, "collector_frame_0", max_variants=1)
+        assert service._best_collector_number(items) == "029/084"
+        service._run_ocr(card[:180], "top")
+    assert modes == [
+        {"use_det": False, "use_cls": False, "use_rec": True},
+        {"use_det": True, "use_cls": True, "use_rec": True},
+        {"use_det": True, "use_cls": True, "use_rec": True},
+    ] * 2
 
 
 def test_low_latency_batched_collector_ocr_uses_two_complementary_treatments() -> None:

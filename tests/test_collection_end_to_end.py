@@ -1,4 +1,5 @@
 from rareiq.services.collection_service import CollectionService
+from rareiq.services.inventory_service import InventoryService
 
 
 def verified_card(number="160"):
@@ -33,3 +34,17 @@ def test_complete_collection_workflow_survives_backup_recovery(tmp_path):
     assert recovered["valuation"]["portfolio_value"] == 25.0
     assert recovered["goals"][0]["complete"] is True
     assert recovered["trade_copies"] == 1
+
+
+def test_one_approved_event_updates_collection_and_inventory_exactly_once(tmp_path):
+    collection = CollectionService(tmp_path / "collection.json")
+    inventory = InventoryService(tmp_path / "inventory.json")
+    card = verified_card()
+
+    assert collection.record(card, "approval-1")["recorded"] is True
+    assert collection.record(card, "approval-1")["reason"] == "duplicate_event"
+    assert inventory.create(card, source_event_id="approval-1")["duplicate_suppressed"] is False
+    assert inventory.create(card, source_event_id="approval-1")["duplicate_suppressed"] is True
+
+    assert collection.snapshot()["total_cards"] == 1
+    assert inventory.dashboard()["in_stock"] == 1

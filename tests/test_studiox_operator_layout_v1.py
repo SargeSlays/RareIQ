@@ -15,10 +15,16 @@ def test_command_deck_layout_is_versioned_and_enabled() -> None:
     assert 'class="studiox-ui4 studiox-premium studiox-command-deck"' in HTML
     assert 'studiox-operator studiox-command-deck' not in HTML
     assert 'data-operator-layout="v2"' in HTML
-    assert 'data-studiox-build="6.9.0-commanddeck67"' in HTML
+    assert 'data-studiox-build="6.9.0-commanddeck96"' in HTML
     assert 'data-studiox-visual-system="unified"' in HTML
-    assert '/static/rareiq_brand_v1.css?v=6.9.0-commanddeck67' in HTML
-    assert '/static/studiox_command_deck.css?v=6.9.0-commanddeck67' in HTML
+    assert '/static/rareiq_brand_v1.css?v=6.9.0-commanddeck96' in HTML
+    assert '/static/studiox_command_deck.css?v=6.9.0-commanddeck96' in HTML
+
+
+def test_navigation_rail_does_not_repeat_the_header_brand() -> None:
+    assert 'className="ui4-rail-toggle"' not in SCRIPT
+    assert 'aria-label","Toggle compact navigation"' not in SCRIPT
+    assert ".ui4-navigation-rail .ui4-rail-toggle::before" not in DECK_CSS
 
 
 def test_operator_layout_preserves_primary_live_contracts() -> None:
@@ -28,6 +34,7 @@ def test_operator_layout_preserves_primary_live_contracts() -> None:
         "multiCardCameraOverlay",
         "resultDecisionStrip",
         "inspectorSectionNav",
+        "recognitionWorkspace",
         "cardContextHeader",
         "recognitionSignalPanel",
         "widgetWorkspace",
@@ -76,7 +83,7 @@ def test_unified_visual_system_uses_obsidian_slate_depth_palette() -> None:
         "--sx-text-soft: #b5c0cc",
         "--sx-text-muted: #778493",
         "--sx-accent: #8be8ca",
-        "--sx-active: #4b9fff",
+        "--sx-active: var(--sx-accent)",
         "--sx-warning: #f2b84b",
         "--sx-danger: #ed6a70",
     ):
@@ -93,7 +100,7 @@ def test_unified_visual_system_uses_obsidian_slate_depth_palette() -> None:
         "--sx-divider-strong: #9eafbf",
         "--sx-text: #17212b",
         "--sx-accent: #187f66",
-        "--sx-active: #2d78d4",
+        "--sx-active: var(--sx-accent)",
     ):
         assert declaration in DECK_CSS
 
@@ -130,11 +137,19 @@ def test_command_deck_has_one_header_and_two_explicit_drawers() -> None:
     assert 'body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-command-deck-panel="production"] #productionControlsDrawer' in DECK_CSS
 
 
+def test_recognition_summary_is_an_accessible_shortcut_to_scan_setup() -> None:
+    assert HTML.count('id="commandDeckRecognitionSummary"') == 1
+    assert '<button id="commandDeckRecognitionSummary"' in HTML
+    assert 'aria-controls="scanSetupDrawer"' in HTML
+    assert 'aria-haspopup="dialog"' in HTML
+    assert '#commandDeckRecognitionSummary:focus-visible' in DECK_CSS
+
+
 def test_inspector_navigation_switches_views_instead_of_scrolling_to_panels() -> None:
-    assert 'const operatorInspectorSections={cardContextHeader:"card",recognitionSignalPanel:"signals",widgetWorkspace:"tools"}' in SCRIPT
+    assert 'const operatorInspectorSections={recognitionWorkspace:"card",widgetWorkspace:"tools"}' in SCRIPT
     assert "inspector.dataset.operatorSection=section" in SCRIPT
     assert 'currentView.scrollTo({top:0,behavior:"auto"})' in SCRIPT
-    assert 'setOperatorInspectorSection(inspectorSectionNav?.querySelector(\'[data-inspector-section="cardContextHeader"]\'))' in SCRIPT
+    assert 'setOperatorInspectorSection(inspectorSectionNav?.querySelector(\'[data-inspector-section="recognitionWorkspace"]\'))' in SCRIPT
 
 
 def test_operator_inspector_tabs_remain_keyboard_accessible() -> None:
@@ -144,14 +159,39 @@ def test_operator_inspector_tabs_remain_keyboard_accessible() -> None:
 
 
 def test_operator_views_keep_all_existing_surfaces_available() -> None:
-    assert '.inspector[data-operator-section="card"] #recognitionSignalPanel' in DECK_CSS
+    assert '.inspector[data-operator-section="card"] #recognitionWorkspace' in DECK_CSS
     assert '.inspector[data-operator-section="card"] #widgetWorkspace' in DECK_CSS
     assert '.inspector[data-operator-section="card"] #widgetWorkspace > :not(:is(' in DECK_CSS
     assert '[data-studiox-widget="identify"],' in DECK_CSS
     assert '[data-studiox-widget="pokedex"]' in DECK_CSS
-    assert '.inspector[data-operator-section="signals"] #recognitionSignalPanel' in DECK_CSS
+    assert '.inspector[data-operator-section="tools"] #recognitionWorkspace' in DECK_CSS
     assert '.inspector[data-operator-section="tools"] #widgetWorkspace' in DECK_CSS
     assert "display: grid !important" in DECK_CSS
+
+
+def test_recognition_workspace_unifies_identity_signals_and_evidence() -> None:
+    assert HTML.count('id="recognitionWorkspace"') == 1
+    assert 'aria-label="Card recognition workspace"' in HTML
+    assert HTML.count('data-inspector-section="recognitionWorkspace"') == 1
+    assert 'data-inspector-section="recognitionSignalPanel"' not in HTML
+    assert 'data-inspector-section="cardContextHeader"' not in HTML
+    assert 'const recognitionWorkspace=$("recognitionWorkspace")' in SCRIPT
+    assert 'const widget=document.querySelector(`[data-studiox-widget="${id}"]`)' in SCRIPT
+    assert 'const target=id==="identify"&&recognitionWorkspace' in SCRIPT
+    assert '?recognitionWorkspace' in SCRIPT
+    assert '#recognitionWorkspace > [data-studiox-widget="identify"] > .studiox-widget-header' in DECK_CSS
+    assert 'grid-template-columns: repeat(2, minmax(0, 1fr)) !important' in DECK_CSS
+
+
+def test_capture_feedback_is_a_contained_transient_surface() -> None:
+    assert 'id="captureBanner" role="status" aria-live="polite" aria-atomic="true"' in HTML
+    assert "/* Capture feedback belongs to the active command-deck layer, not page flow. */" in DECK_CSS
+    assert ".capture-banner.visible" in DECK_CSS
+    assert "display: none !important" in DECK_CSS
+    assert "position: fixed !important" in DECK_CSS
+    assert "pointer-events: none !important" in DECK_CSS
+    assert 'banner.classList.add("visible")' in SCRIPT
+    assert 'banner.classList.remove("visible")' in SCRIPT
 
 
 def test_card_view_pairs_identity_with_rare_intelligence() -> None:
@@ -265,6 +305,84 @@ def test_candidate_decision_uses_the_existing_control_surface_without_nested_car
     assert ".single-card-control > .result-decision-strip" in DECK_CSS
     assert "border-bottom: 1px solid var(--sx-divider) !important" in DECK_CSS
     assert "background: transparent !important" in DECK_CSS
+
+
+def test_right_rail_finish_layer_prevents_control_and_evidence_clipping() -> None:
+    assert "/* Right-rail finish ownership." in DECK_CSS
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr)) !important" in DECK_CSS
+    assert "white-space: nowrap !important" in DECK_CSS
+    assert "height: 50px !important" in DECK_CSS
+    assert "grid-auto-rows: max-content !important" in DECK_CSS
+    assert "grid-template-columns: minmax(0, 1.06fr) minmax(0, .94fr) !important" in DECK_CSS
+    assert "place-items: center !important" in DECK_CSS
+    assert '#recognitionWorkspace > [data-studiox-widget="identify"] {' in DECK_CSS
+    assert "max-height: none !important" in DECK_CSS
+    assert "overflow: visible !important" in DECK_CSS
+
+
+def test_reference_missing_collapses_the_empty_identity_column() -> None:
+    assert 'id="recognitionWorkspace" data-identity-context="missing"' in HTML
+    assert 'workspace.dataset.identityContext=showCardContext?"available":"missing"' in SCRIPT
+    selector = '#recognitionWorkspace[data-identity-context="missing"]'
+    assert selector in DECK_CSS
+    rule = DECK_CSS.split(selector, 1)[1].split("}", 1)[0]
+    assert "grid-template-columns: minmax(0, 1fr) !important" in rule
+    assert '"signals"' in rule
+    assert '"evidence"' in rule
+
+
+def test_reference_available_restores_the_wide_identity_and_signal_pair() -> None:
+    selector = '#recognitionWorkspace[data-identity-context="available"]'
+    assert selector in DECK_CSS
+    rule = DECK_CSS.rsplit(selector, 1)[1].split("}", 1)[0]
+    assert "grid-template-columns: minmax(0, 1.06fr) minmax(0, .94fr) !important" in rule
+    assert '"identity signals"' in rule
+    assert '"evidence evidence"' in rule
+
+
+def test_recognition_and_tools_share_one_flush_segmented_tab_bar() -> None:
+    assert "/* Recognition / Tools is one segmented control" in DECK_CSS
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr)) !important" in DECK_CSS
+    assert "gap: 0 !important" in DECK_CSS
+    assert "padding: 0 !important" in DECK_CSS
+    assert ".inspector-section-nav button + button" in DECK_CSS
+    assert "border-left: 1px solid var(--sx-divider) !important" in DECK_CSS
+    assert "box-shadow: inset 0 -2px var(--sx-accent) !important" in DECK_CSS
+
+
+def test_scaled_4k_card_rail_fits_and_brand_lockup_has_room() -> None:
+    assert "Scaled-4K fit" in DECK_CSS
+    assert "@media (min-width: 2400px) and (max-height: 1500px)" in DECK_CSS
+    assert "grid-template-columns: 240px minmax(240px, 1fr) auto !important" in DECK_CSS
+    assert ".ui4-top-app-bar .brand {\n    width: max-content !important" in DECK_CSS
+    assert "@container studio-content (max-width: 760px)" in DECK_CSS
+    assert "padding: 6px 12px 8px !important" in DECK_CSS
+    assert "padding-bottom: 8px !important" in DECK_CSS
+
+
+def test_operator_toast_does_not_create_native_4k_page_overflow() -> None:
+    assert "phantom page-height row" in DECK_CSS
+    assert ".operator-toast {" in DECK_CSS
+    assert "position: fixed !important" in DECK_CSS
+    assert ".operator-toast.visible {" in DECK_CSS
+
+
+def test_native_4k_tools_workspace_uses_compact_no_scroll_rhythm() -> None:
+    assert "/* Native-4K Tools fit." in DECK_CSS
+    assert "@media (min-width: 2560px) and (min-height: 1500px)" in DECK_CSS
+    assert "#inspectorMain #widgetWorkspace" in DECK_CSS
+    assert "#widgetWorkspace > .studiox-widget > .studiox-widget-header" in DECK_CSS
+    assert "#widgetWorkspace > .studiox-live-sarge > .studiox-widget-content" in DECK_CSS
+    assert "Pokémon / Character" in HTML
+    assert "PokÃ©mon / Character" not in HTML
+
+
+def test_collection_workspace_uses_the_wide_desktop_stage() -> None:
+    assert "Collection is an operator workspace" in DECK_CSS
+    assert '@media (min-width: 1800px)' in DECK_CSS
+    assert 'data-ui4-workspace="collection"' in DECK_CSS
+    assert '.workspace[data-workspace="collection"] .full-shell' in DECK_CSS
+    assert "max-width: none !important" in DECK_CSS
 
 
 def test_decision_console_tabs_and_live_analysis_form_one_production_flow() -> None:
@@ -401,3 +519,12 @@ def test_left_rail_app_shell_has_no_duplicate_dom_ids() -> None:
     ids = re.findall(r'\bid="([^"]+)"', HTML)
     duplicates = {element_id: count for element_id, count in Counter(ids).items() if count > 1}
     assert duplicates == {}
+
+
+def test_authoritative_layer_retains_keyboard_shortcut_overlay_behavior() -> None:
+    assert ".shortcut-overlay {" in DECK_CSS
+    assert "display: none !important" in DECK_CSS
+    assert ".shortcut-overlay.visible {" in DECK_CSS
+    assert "display: grid !important" in DECK_CSS
+    assert ".shortcut-panel {" in DECK_CSS
+    assert "background: var(--sx-surface-raised) !important" in DECK_CSS

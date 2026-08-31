@@ -8,6 +8,7 @@ CSS = (ROOT / "rareiq/web/static/studiox_update15.css").read_text(encoding="utf-
 SERVER = (ROOT / "rareiq/web/server.py").read_text(encoding="utf-8")
 SERVICE = (ROOT / "rareiq/services/overlay_state_service.py").read_text(encoding="utf-8")
 OVERLAY = (ROOT / "rareiq/web/static/overlay_production_screen.html").read_text(encoding="utf-8")
+OVERLAY_JS = (ROOT / "rareiq/web/static/overlay_production_screen.js").read_text(encoding="utf-8")
 
 
 def test_production_screen_api_and_overlay_routes_exist():
@@ -52,10 +53,13 @@ def test_scenes_can_automate_takeover_screens_and_have_hotkeys():
 
 
 def test_overlay_countdown_uses_server_start_time():
-    assert 'started_at' in OVERLAY
-    assert 'countdown_seconds' in OVERLAY
-    assert '/api/production/screen' in OVERLAY
-    assert 'setInterval' in OVERLAY
+    assert '/static/overlay_runtime.js' in OVERLAY
+    assert '/static/overlay_production_screen.js' in OVERLAY
+    assert 'started_at' in OVERLAY_JS
+    assert 'countdown_seconds' in OVERLAY_JS
+    assert '/api/production/screen' in OVERLAY_JS
+    assert 'RareIQOverlay.start' in OVERLAY_JS
+    assert 'interval: 250' in OVERLAY_JS
 
 
 def test_production_screen_theme_is_present():

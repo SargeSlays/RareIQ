@@ -1,0 +1,15 @@
+/* Shared Command Deck slate / mint colors. Broadcast canvases stay transparent. */
+:root {
+  --overlay-chrome: #0b1016;
+  --overlay-panel: #18222e;
+  --overlay-panel-glass: rgba(24, 34, 46, .96);
+  --overlay-border: #3a4b60;
+  --overlay-text: #f4f7fa;
+  --overlay-muted: #b5c0cc;
+  --overlay-accent: #8be8ca;
+  --overlay-success: #48b995;
+  --overlay-warning: #f2b84b;
+  --overlay-danger: #ed6a70;
+  --overlay-radius: 4px;
+  --overlay-shadow: 0 12px 30px rgba(0, 0, 0, .28);
+}

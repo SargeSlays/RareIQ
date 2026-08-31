@@ -6,6 +6,7 @@ CONTROL = Path("rareiq/web/static/control.html").read_text(encoding="utf-8")
 STUDIO = Path("rareiq/web/static/studiox.js").read_text(encoding="utf-8")
 CSS = Path("rareiq/web/static/studiox_update15.css").read_text(encoding="utf-8")
 OVERLAY = Path("rareiq/web/static/overlay_graphics.html").read_text(encoding="utf-8")
+OVERLAY_JS = Path("rareiq/web/static/overlay_graphics.js").read_text(encoding="utf-8")
 
 
 def test_graphics_state_persists_and_has_preview_take_hide_api():
@@ -44,9 +45,13 @@ def test_broadcast_workspace_controls_lower_thirds_and_card_graphics():
 
 def test_transparent_browser_source_animates_and_auto_hides():
     assert 'background:transparent' in OVERLAY
-    assert '/api/production/graphics' in OVERLAY
-    assert 'classList.toggle("visible"' in OVERLAY
-    assert 'duration_ms' in OVERLAY
+    assert '/static/overlay_runtime.js' in OVERLAY
+    assert '/static/overlay_graphics.js' in OVERLAY
+    assert '/api/production/graphics' in OVERLAY_JS
+    assert 'classList.toggle("visible"' in OVERLAY_JS
+    assert 'duration_ms' in OVERLAY_JS
+    assert 'shown_at' in OVERLAY_JS
+    assert 'RareIQOverlay.start' in OVERLAY_JS
     assert 'data-style' in OVERLAY
     assert 'data-kind' in OVERLAY
 

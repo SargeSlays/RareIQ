@@ -4,24 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>RareIQ Selected Cards</title>
-  <style>
-    *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden;background:transparent;font-family:Inter,Segoe UI,Arial,sans-serif;color:#f4fbff}body{aspect-ratio:16/9}
-    main{position:absolute;inset:0;display:grid;place-items:center;padding:4vw;opacity:0;transition:opacity .25s ease}main.live{opacity:1}
-    .grid{width:100%;height:100%;display:grid;grid-template-columns:repeat(var(--columns,3),minmax(0,1fr));gap:1.4vw;align-content:center;justify-content:center}
-    article{min-width:0;display:grid;grid-template-columns:minmax(70px,34%) minmax(0,1fr);gap:1vw;align-items:center;padding:1.2vw;border:1px solid rgba(86,215,242,.42);border-radius:1.4vw;background:linear-gradient(145deg,rgba(7,23,35,.95),rgba(5,14,23,.96));box-shadow:0 1.2vw 3vw rgba(0,0,0,.35),inset .25vw 0 0 #55d8f3;backdrop-filter:blur(14px)}
-    img{width:100%;max-height:26vh;object-fit:contain;border-radius:.7vw;background:rgba(3,10,16,.72)}
-    .slot{color:#63dcf5;font-size:clamp(11px,.8vw,17px);font-weight:900;letter-spacing:.14em;text-transform:uppercase}h2{margin:.4vw 0;font-size:clamp(18px,1.8vw,38px);line-height:1.05;overflow-wrap:anywhere}p{margin:0;color:#93abba;font-size:clamp(10px,.85vw,17px);line-height:1.45}
-    .brand{position:absolute;right:3vw;bottom:2.2vw;color:rgba(196,236,246,.72);font-size:.72vw;font-weight:900;letter-spacing:.24em}.brand b{color:#5edcf5}
-  </style>
+  <link rel="stylesheet" href="/static/overlay_multicard.css?v=20260830-1">
 </head>
 <body>
   <main id="stage"><section class="grid" id="grid"></section><div class="brand">RAREI<b>Q</b> · SELECTED CARDS</div></main>
-  <script>
-    const stage=document.getElementById("stage"),grid=document.getElementById("grid");
-    function imageFor(card={}){const direct=card.reference_image_url||card.image_url||"";if(direct)return String(direct).replaceAll("\\","/");const local=card.image_path||card.reference_image||card.local_image||"";return local?`/api/reference-image?path=${encodeURIComponent(String(local))}`:""}
-    function render(payload={}){const selected=new Set((payload.selected_slots||[]).map(Number));const cards=(payload.slots||[]).filter(slot=>selected.has(Number(slot.slot))&&slot.card);grid.style.setProperty("--columns",String(cards.length<=2?cards.length||1:cards.length<=6?3:4));grid.replaceChildren(...cards.map(slot=>{const article=document.createElement("article"),image=document.createElement("img"),copy=document.createElement("div"),number=document.createElement("div"),title=document.createElement("h2"),meta=document.createElement("p");const card=slot.card||{};image.src=imageFor(card);image.hidden=!image.src;number.className="slot";number.textContent=`Card ${slot.slot}`;title.textContent=card.english_name||card.printed_name||card.name||"Selected card";meta.textContent=[slot.printed_code||card.printed_code||card.collector_number,card.set_name,`${Math.round(Number(slot.confidence||0)*100)}%`].filter(Boolean).join(" · ");copy.append(number,title,meta);article.append(image,copy);return article}));stage.classList.toggle("live",cards.length>0)}
-    async function refresh(){try{render(await (await fetch("/api/multi-card/status",{cache:"no-store"})).json())}catch(_error){stage.classList.remove("live")}}
-    refresh();setInterval(refresh,750);
-  </script>
+  <script src="/static/overlay_runtime.js?v=20260830-1"></script>
+  <script src="/static/multi_card_state.js?v=20260830-1"></script>
+  <script src="/static/overlay_multicard.js?v=20260830-2"></script>
 </body>
 </html>

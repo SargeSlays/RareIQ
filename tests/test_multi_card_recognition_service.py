@@ -15,6 +15,21 @@ from rareiq.services.artwork_index_service import ArtworkIndexService
 from rareiq.services.vision_service import DetectionResult, VisionService
 
 
+@pytest.fixture(autouse=True)
+def isolated_multi_card_storage(monkeypatch, tmp_path):
+    """Regression tests must never load or overwrite the operator's scan history."""
+    initialize = MultiCardRecognitionService.__init__
+
+    def isolated_init(self, prototype, history_path=None, presentation_path=None):
+        initialize(
+            self, prototype,
+            history_path=history_path or tmp_path / "temporal.json",
+            presentation_path=presentation_path or tmp_path / "presentation.json",
+        )
+
+    monkeypatch.setattr(MultiCardRecognitionService, "__init__", isolated_init)
+
+
 def test_six_card_detector_maps_each_cell_polygon_to_full_frame(monkeypatch):
     calls = []
 
@@ -38,6 +53,87 @@ def test_six_card_detector_maps_each_cell_polygon_to_full_frame(monkeypatch):
     assert results[0]["slot"] == 1
     assert results[5]["slot"] == 6
     assert all(0 <= coordinate <= 1 for item in results for point in item["polygon"] for coordinate in point)
+
+
+def test_default_test_storage_is_not_the_operator_data_directory(tmp_path):
+    service = MultiCardRecognitionService(_FakePrototype())
+    assert service._presentation_path.is_relative_to(tmp_path)
+    assert service._temporal_history_path.is_relative_to(tmp_path)
+
+
+def test_processed_results_are_counted_separately_from_verified_results():
+    service = MultiCardRecognitionService(_FakePrototype())
+    service._state.update(status="complete", detected_count=2, completed_count=2, slots=[
+        {"slot": 1, "status": "review-needed", "card": {"canonical_name": "Armarouge"}},
+        {"slot": 2, "status": "verified", "verified": True, "card": {"name": "Nickit"}},
+        {"slot": 3, "status": "not-detected", "card": None},
+    ])
+    result = service.status()
+    assert result["completed_count"] == 2
+    assert result["verified_count"] == result["review_count"] == 1
+    assert result["pending_count"] == 0
+    assert result["slots"][0]["output_ready"] is False
+    assert result["slots"][1]["output_ready"] is True
+    result["slots"][1]["card"]["name"] = "Mutated"
+    assert service.status()["slots"][1]["card"]["name"] == "Nickit"
+
+
+def test_unverified_output_selection_is_rejected_without_changing_existing_output():
+    service = MultiCardRecognitionService(_FakePrototype())
+    service._state["slots"] = [
+        {"slot": 1, "status": "verified", "verified": True, "card": {"name": "Nickit"}},
+        {"slot": 2, "status": "review-needed", "card": {"canonical_name": "Armarouge"}},
+    ]
+    assert service.select_slots([1])["ok"] is True
+    result = service.select_slots([1, 2])
+    assert result["ok"] is False and result["blocked_slots"] == [2]
+    assert result["selected_slots"] == [1]
+    service._state["slots"][0]["verified"] = False
+    assert service.select_slots([])["selected_slots"] == []
+
+
+@pytest.mark.parametrize("value", [[True], ["1"], [1.5], [0], [13], [None], "1"])
+def test_invalid_output_slots_fail_without_a_server_error(value):
+    result = MultiCardRecognitionService(_FakePrototype()).select_slots(value)
+    assert result["ok"] is False
+    assert result["reason"] == "invalid_slots"
+
+
+@pytest.mark.parametrize("update", [
+    {"verified": False}, {"status": "recognizing"}, {"exact_version_unresolved": True},
+    {"card": {"name": "Nickit", "exact_version_unresolved": True}},
+    {"card": {"name": "Nickit", "provisional": True}}, {"card": {}},
+])
+def test_output_gate_rejects_unresolved_or_empty_card(update):
+    item = {"status": "verified", "verified": True, "card": {"name": "Nickit"}, **update}
+    assert MultiCardRecognitionService.output_ready(item) is False
+
+
+def test_delegated_worker_with_no_candidate_completes_instead_of_crashing():
+    service = MultiCardRecognitionService(_FakePrototype())
+    service._state.update(status="recognizing", detected_count=1, completed_count=0,
+                          slots=[{"slot": 1, "status": "recognizing", "card": None}])
+    service._apply_worker_payload(1, {"candidates": [], "recognition_locked": False}, delegated_from=2)
+    result = service.status()
+    assert result["status"] == "complete"
+    assert result["verified_count"] == 0
+    assert result["review_count"] == 1
+
+
+def test_busy_representative_finishes_delegated_slots_too(monkeypatch):
+    service = MultiCardRecognitionService(_FakePrototype())
+    monkeypatch.setattr(service, "_family_first_delegates", lambda _items: {1: [2]})
+    monkeypatch.setattr(service._workers[1], "submit_frame", lambda *_args, **_kwargs: "busy")
+    crop = np.zeros((40, 30, 3), dtype=np.uint8)
+    result = service.capture(crop, max_cards=2, detections=[
+        {"slot": slot, "confidence": .9, "polygon": [], "crop": crop}
+        for slot in (1, 2)
+    ])
+    assert result["status"] == "complete"
+    assert result["completed_count"] == 2
+    assert result["pending_count"] == result["verified_count"] == 0
+    assert result["review_count"] == 2
+    assert all(slot["status"] == "busy" for slot in result["slots"])
 
 
 def test_window_fallback_rejects_arm_like_rectangle_before_recognition(monkeypatch):
@@ -81,6 +177,94 @@ def test_full_frame_contours_isolate_each_visible_card():
 
     assert len(results) == 8
     assert all(item["crop"].shape == (1400, 1000, 3) for item in results)
+
+
+def test_three_large_perspective_cards_keep_full_borders_and_physical_order():
+    """Three cards >8.5% each must not turn into artwork-only detections."""
+    frame = np.full((900, 1600, 3), 25, dtype=np.uint8)
+    card = np.full((500, 350, 3), 220, dtype=np.uint8)
+    cv2.rectangle(card, (12, 12), (337, 487), (70, 90, 120), -1)
+    cv2.rectangle(card, (30, 65), (319, 240), (220, 220, 220), 4)
+    for y in (38, 270, 310, 350, 390, 430, 465):
+        cv2.line(card, (30, y), (319, y), (235, 235, 235), 4)
+    source = np.array([[0, 0], [349, 0], [349, 499], [0, 499]], dtype=np.float32)
+    borders = [
+        [[160, 240], [450, 230], [435, 650], [120, 660]],
+        [[610, 235], [900, 250], [925, 660], [600, 650]],
+        [[1060, 245], [1370, 265], [1415, 655], [1090, 650]],
+    ]
+    for border in borders:
+        points = np.array(border, dtype=np.float32)
+        # Reproduce the size that was rejected, not a small-card fixture.
+        _, (width, height), _ = cv2.minAreaRect(points)
+        assert width * height / (1600 * 900) > .085
+        transform = cv2.getPerspectiveTransform(source, points)
+        warped = cv2.warpPerspective(card, transform, (1600, 900))
+        mask = cv2.warpPerspective(np.full((500, 350), 255, dtype=np.uint8), transform, (1600, 900))
+        frame[mask > 0] = warped[mask > 0]
+
+    results = SixCardGridDetector.detect(frame, max_cards=12)
+
+    assert len(results) == 3
+    for slot, (result, border) in enumerate(zip(results, borders), start=1):
+        detected = np.asarray(result["polygon"], dtype=np.float32) * [1600, 900]
+        assert result["slot"] == slot
+        assert SixCardGridDetector._polygon_iou(detected, border) > .95
+        assert result["crop"].shape == (1400, 1000, 3)
+
+
+def test_large_blank_rectangle_does_not_pass_relaxed_area_gate():
+    frame = np.full((900, 1600, 3), 25, dtype=np.uint8)
+    cv2.rectangle(frame, (620, 235), (950, 690), (150, 180, 210), -1)
+    assert SixCardGridDetector._contour_candidates(frame) == []
+
+
+@pytest.mark.parametrize("scale", [.5, 1.0, 2.0])
+def test_foreshortened_cards_on_textured_table_keep_complete_silhouettes(scale):
+    rng = np.random.default_rng(481)
+    frame = np.clip(rng.normal(85, 12, (900, 1600, 3)), 0, 255).astype(np.uint8)
+    card = np.full((500, 350, 3), 200, dtype=np.uint8)
+    cv2.rectangle(card, (16, 16), (333, 483), (120, 155, 185), -1)
+    cv2.rectangle(card, (30, 65), (319, 240), (50, 65, 90), -1)
+    for y in (42, 265, 310, 350, 400, 450, 478):
+        cv2.line(card, (30, y), (320, y), (240, 240, 240), 5)
+    source = np.array([[0, 0], [349, 0], [349, 499], [0, 499]], dtype=np.float32)
+    borders = [
+        [[200, 250], [490, 255], [455, 595], [130, 590]],
+        [[600, 265], [890, 280], [885, 650], [560, 635]],
+        [[1020, 280], [1300, 290], [1340, 625], [1030, 610]],
+    ]
+    # The observed foreshortened center card is about 1.14:1, below the
+    # edge-only detector's old 1.18 cutoff but still a structured card.
+    (_, _), dimensions, _ = cv2.minAreaRect(np.array(borders[1], dtype=np.float32))
+    assert 1.08 < max(dimensions) / min(dimensions) < 1.18
+    for border in borders:
+        transform = cv2.getPerspectiveTransform(source, np.array(border, dtype=np.float32))
+        warped = cv2.warpPerspective(card, transform, (1600, 900))
+        mask = cv2.warpPerspective(np.full((500, 350), 255, dtype=np.uint8), transform, (1600, 900))
+        frame[mask > 0] = warped[mask > 0]
+    # Thin highlights/annotations must not merge two complete card silhouettes.
+    cv2.line(frame, (450, 263), (650, 272), (255, 255, 255), 2)
+    frame = cv2.resize(frame, None, fx=scale, fy=scale)
+    results = SixCardGridDetector.detect(frame, max_cards=12)
+    assert len(results) == 3
+    for result, border in zip(results, borders):
+        polygon = np.asarray(result["polygon"], dtype=np.float32) * [1600, 900]
+        assert SixCardGridDetector._polygon_iou(polygon, border) > .94
+        assert result["boundary_source"] == "silhouette"
+
+
+def test_foreshortened_blank_silhouette_still_requires_card_structure():
+    frame = np.full((900, 1600, 3), 70, dtype=np.uint8)
+    cv2.rectangle(frame, (550, 260), (900, 660), (180, 180, 180), -1)
+    assert SixCardGridDetector._contour_candidates(frame) == []
+
+
+def test_nested_artwork_region_is_suppressed_even_with_low_full_card_iou():
+    full = np.array([[.2, .2], [.4, .2], [.4, .6], [.2, .6]], dtype=np.float32)
+    artwork = np.array([[.23, .25], [.37, .25], [.37, .37], [.23, .37]], dtype=np.float32)
+    assert SixCardGridDetector._polygon_iou(full, artwork) < .30
+    assert SixCardGridDetector._polygon_containment(full, artwork) > .99
 
 
 class _FakeWorker:
@@ -1402,7 +1586,11 @@ def test_selected_output_slots_persist_across_service_restart(tmp_path):
     service = MultiCardRecognitionService(
         _FakePrototype(), presentation_path=presentation_path
     )
-    service.select_slots([2, 5, 12])
+    service._state["slots"] = [
+        {"slot": slot, "status": "verified", "verified": True, "card": {"name": f"Card {slot}"}}
+        for slot in (2, 5, 12)
+    ]
+    assert service.select_slots([2, 5, 12])["ok"] is True
 
     restored = MultiCardRecognitionService(
         _FakePrototype(), presentation_path=presentation_path

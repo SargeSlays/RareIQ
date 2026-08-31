@@ -13,22 +13,23 @@ BRAND_README = (STATIC / "brand" / "v1" / "README.md").read_text(encoding="utf-8
 
 
 OFFICIAL_ASSETS = {
-    "rare-iq-primary-dark.svg": "080B0D",
-    "rare-iq-primary-light.svg": "F5F0E6",
-    "rare-iq-icon-dark.svg": "080B0D",
-    "rare-iq-icon-light.svg": "F5F0E6",
+    "rare-iq-primary-dark.svg": "F5F0E6",
+    "rare-iq-primary-light.svg": "080B0D",
+    "rare-iq-icon-dark.svg": "F5F0E6",
+    "rare-iq-icon-light.svg": "080B0D",
 }
 
 
-def test_official_signal_cut_assets_are_local_and_immutable_in_usage():
+def test_official_signal_cut_assets_are_local_and_transparent():
     logo_root = STATIC / "brand" / "v1" / "logos"
-    for filename, canvas in OFFICIAL_ASSETS.items():
+    for filename, foreground in OFFICIAL_ASSETS.items():
         asset = logo_root / filename
         text = asset.read_text(encoding="utf-8")
         assert asset.is_file()
         assert 'aria-label="Rare IQ"' in text
-        assert f'fill="#{canvas}"' in text
+        assert f'fill="#{foreground}"' in text
         assert 'fill="#E6A62B"' in text
+        assert '<rect width="100%" height="100%"' not in text
         assert 'filter=' not in text
         assert '<linearGradient' not in text
         assert len(hashlib.sha256(text.strip().encode()).hexdigest()) == 64
@@ -53,14 +54,36 @@ def test_official_developer_tokens_are_the_product_source_of_truth():
 
 
 def test_brand_and_command_deck_stylesheets_are_cache_busted_and_ordered():
-    brand_link = '/static/rareiq_brand_v1.css?v=6.9.0-commanddeck67'
-    deck_link = '/static/studiox_command_deck.css?v=6.9.0-commanddeck67'
+    brand_link = '/static/rareiq_brand_v1.css?v=6.9.0-commanddeck96'
+    deck_link = '/static/studiox_command_deck.css?v=6.9.0-commanddeck96'
     assert brand_link in CONTROL
     assert CONTROL.index(brand_link) > CONTROL.index("/static/pack_run_coach.css")
     assert CONTROL.index("brand/v1/rare-iq-tokens.css?v=1.0") < CONTROL.index(brand_link)
     assert CONTROL.index(brand_link) < CONTROL.index(deck_link)
-    assert 'data-studiox-build="6.9.0-commanddeck67"' in CONTROL
+    assert 'data-studiox-build="6.9.0-commanddeck96"' in CONTROL
     assert 'data-studiox-visual-system="unified"' in CONTROL
+
+
+def test_current_control_does_not_load_superseded_presentation_layers():
+    for filename in (
+        "studiox_brand.css",
+        "studiox_polish.css",
+        "studiox_clarity.css",
+        "studiox_motion.css",
+        "studiox_adaptive.css",
+        "studiox_30.css",
+        "studiox_40.css",
+        "studiox_401.css",
+        "studiox_402.css",
+        "studiox_50.css",
+        "studiox_602.css",
+        "studiox_603.css",
+        "studiox_61.css",
+        "studiox_62.css",
+    ):
+        assert f'/static/{filename}' not in CONTROL
+
+    assert "commandDeckSplashOut" in (STATIC / "studiox_command_deck.css").read_text(encoding="utf-8")
 
 
 def test_horizontal_lockup_is_default_and_old_neon_assets_are_not_rendered():

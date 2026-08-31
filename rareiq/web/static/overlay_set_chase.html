@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RareIQ · Set Chase</title>
+  <link rel="stylesheet" href="/static/overlay_set_chase.css?v=20260831-1">
+  <script src="/static/overlay_runtime.js?v=20260830-1" defer></script>
+  <script src="/static/set_chase_state.js?v=20260830-1" defer></script>
+  <script src="/static/overlay_set_chase.js?v=20260831-2" defer></script>
+</head>
+<body>
+  <main id="chaseStrip" hidden>
+    <header class="chase-heading">
+      <div class="chase-brand">RAREI<span>Q</span><i></i> THE CHASE</div>
+      <div class="chase-set"><p id="chaseLanguage"></p><h1 id="chaseSet"></h1></div>
+      <div class="chase-section"><span class="chase-dot"></span><strong id="chaseGroup"></strong></div>
+      <div class="chase-count"><span id="chaseRange"></span><span id="chasePage"></span></div>
+    </header>
+    <section id="chaseCards" aria-label="Set chase cards"></section>
+    <div class="chase-progress"><i id="chaseProgress"></i></div>
+  </main>
+  <p id="chaseEmpty" hidden>Save a set and add cards to preview your chase bar.</p>
+</body>
+</html>

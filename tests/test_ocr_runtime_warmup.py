@@ -6,7 +6,7 @@ from rareiq.services.recognition_service import RecognitionService
 def test_ocr_warmup_runs_once_and_is_visible_in_status(tmp_path: Path):
     service = RecognitionService(lambda event: None, database_path=tmp_path / "missing.json")
     calls = []
-    service._engine = lambda image: calls.append(image.shape) or []
+    service._engine = lambda image, **_kwargs: calls.append(image.shape) or []
 
     first = service.warm_ocr()
     second = service.warm_ocr()

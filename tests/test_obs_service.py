@@ -1,4 +1,7 @@
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 from rareiq.services.obs_service import ObsService, ObsStreamRouteProbe
 
@@ -6,6 +9,14 @@ from rareiq.services.obs_service import ObsService, ObsStreamRouteProbe
 class _SceneObject:
     def __init__(self, name: str):
         self.scene_name = name
+
+
+class _BootstrapCanvas:
+    def get_video_settings(self):
+        return SimpleNamespace(base_width=1920, base_height=1080)
+
+    def set_scene_item_transform(self, *_args):
+        return None
 
 
 def test_obs_settings_hide_password_and_persist_mapping(tmp_path: Path):
@@ -261,10 +272,13 @@ def test_bootstrap_dry_run_is_non_mutating_and_complete(tmp_path: Path):
     service = ObsService(tmp_path / "obs.json")
     result = service.bootstrap("http://127.0.0.1:8765", dry_run=True)
     assert result["dry_run"] is True
-    assert len(result["plan"]) == 6
+    assert len(result["plan"]) == 14
     assert result["created"] == []
+    assert not ({item["scene"] for item in result["plan"]} & {item["source"] for item in result["plan"]})
     assert all(item["url"].startswith("http://127.0.0.1:8765/") for item in result["plan"])
-    assert all(item["width"] == 1920 and item["height"] == 1080 for item in result["plan"])
+    assert all(item["width"] == 1920 and item["height"] == 1080 for item in result["plan"] if item["key"] != "set_chase")
+    chase = next(item for item in result["plan"] if item["key"] == "set_chase")
+    assert (chase["width"], chase["height"], chase["placement"]) == (1280, 320, "bottom-center")
     assert next(item for item in result["plan"] if item["scene"] == "RareIQ Multi Card")["url"].endswith("/overlay/multi-card")
 
 
@@ -292,8 +306,14 @@ def test_bootstrap_skips_existing_scene_returned_as_obs_object(monkeypatch, tmp_
     service = ObsService(tmp_path / "obs.json")
     service.configure({"enabled": True})
 
-    class Client:
+    class Client(_BootstrapCanvas):
         created = []
+
+        def get_scene_item_list(self, _name):
+            return SimpleNamespace(scene_items=[{"sourceName": "Existing operator source"}])
+
+        def get_input_list(self):
+            return SimpleNamespace(inputs=[])
 
         def get_scene_list(self):
             return type("Scenes", (), {"scenes": [_SceneObject("RareIQ Program")]})()
@@ -302,7 +322,7 @@ def test_bootstrap_skips_existing_scene_returned_as_obs_object(monkeypatch, tmp_
             self.created.append(name)
 
         def create_input(self, *_args):
-            return None
+            return SimpleNamespace(scene_item_id=1)
 
     client = Client()
     monkeypatch.setattr(service, "_client", lambda: client)
@@ -320,7 +340,13 @@ def test_bootstrap_preserves_custom_scene_mapping(monkeypatch, tmp_path: Path):
     service = ObsService(tmp_path / "obs.json")
     service.configure({"enabled": True, "scene_map": {"main-card": "My Custom Main"}})
 
-    class Client:
+    class Client(_BootstrapCanvas):
+        def get_scene_item_list(self, _name):
+            return SimpleNamespace(scene_items=[{"sourceName": "Existing operator source"}])
+
+        def get_input_list(self):
+            return SimpleNamespace(inputs=[])
+
         def get_scene_list(self):
             return type("Scenes", (), {"scenes": [_SceneObject("RareIQ Program")]})()
 
@@ -328,7 +354,7 @@ def test_bootstrap_preserves_custom_scene_mapping(monkeypatch, tmp_path: Path):
             return None
 
         def create_input(self, *_args):
-            return None
+            return SimpleNamespace(scene_item_id=1)
 
     monkeypatch.setattr(service, "_client", lambda: Client())
 
@@ -342,6 +368,9 @@ def test_preflight_authenticates_and_marks_existing_scenes_for_preservation(monk
     service.configure({"enabled": True})
 
     class Client:
+        def get_scene_item_list(self, _name):
+            return SimpleNamespace(scene_items=[{"sourceName": "Existing operator source"}])
+
         def get_version(self):
             return type("Version", (), {"obs_version": "31.0.0"})()
 
@@ -356,7 +385,7 @@ def test_preflight_authenticates_and_marks_existing_scenes_for_preservation(monk
     assert result["ready"] is True
     assert result["obs_version"] == "31.0.0"
     assert result["preserve_count"] == 1
-    assert result["create_count"] == 5
+    assert result["create_count"] == 13
     assert next(item for item in result["plan"] if item["scene"] == "RareIQ Program")["action"] == "preserve"
     assert "Host Camera" in result["existing_scenes"]
 
@@ -412,3 +441,124 @@ def test_obs_commands_are_idempotent_and_validate_scene(monkeypatch, tmp_path: P
         assert "does not exist" in str(exc)
     else:
         raise AssertionError("missing OBS scene should fail closed")
+
+
+class _LifecycleClient(_BootstrapCanvas):
+    def __init__(self, fail=None):
+        self.fail = fail
+        self.disconnected = 0
+        self.actions = []
+
+    def disconnect(self):
+        self.disconnected += 1
+
+    def get_version(self):
+        if self.fail == "version":
+            raise OSError("connection lost")
+        return SimpleNamespace(obs_version="test")
+
+    def get_scene_list(self):
+        return SimpleNamespace(scenes=[_SceneObject("RareIQ Program")], current_program_scene_name="RareIQ Program")
+
+    def get_scene_item_list(self, _name):
+        return SimpleNamespace(scene_items=[{"sourceName": "Existing operator source"}])
+
+    def get_input_list(self):
+        return SimpleNamespace(inputs=[])
+
+    def get_stream_status(self):
+        return SimpleNamespace(output_active=False)
+
+    def get_record_status(self):
+        return SimpleNamespace(output_active=False)
+
+    def get_stream_service_settings(self):
+        if self.fail == "route":
+            raise OSError("route inspection failed")
+        return SimpleNamespace(stream_service_type="rtmp_common", stream_service_settings={"service": "Twitch", "key": "test-private-key"})
+
+    def start_record(self):
+        if self.fail == "command":
+            raise OSError("connection lost")
+        self.actions.append("start-record")
+
+    def create_scene(self, scene):
+        if self.fail == "create":
+            raise OSError("scene request failed")
+        self.actions.append(scene)
+
+    def create_input(self, *_args):
+        return SimpleNamespace(scene_item_id=1)
+
+
+@pytest.mark.parametrize("operation", ["status", "preflight", "command", "bootstrap"])
+@pytest.mark.parametrize("failure", [False, True])
+def test_every_obs_connection_closes_on_success_and_failure(monkeypatch, tmp_path, operation, failure):
+    service = ObsService(tmp_path / "obs.json")
+    service.configure({"enabled": True})
+    clients = []
+    failures = {"status": "version", "preflight": "version", "command": "command", "bootstrap": "create"}
+
+    def connect():
+        client = _LifecycleClient(failures[operation] if failure else None)
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(service, "diagnostic", lambda: {"code": "ready"})
+    monkeypatch.setattr(service, "_client", connect)
+    try:
+        if operation == "status":
+            service.status()
+        elif operation == "preflight":
+            service.preflight("http://127.0.0.1:9040")
+        elif operation == "command":
+            service.command("start-record")
+        else:
+            service.bootstrap("http://127.0.0.1:9040", dry_run=False)
+    except OSError:
+        assert failure
+    assert clients
+    assert all(client.disconnected == 1 for client in clients)
+
+
+def test_reconnect_replaces_old_stream_route_and_failed_route_cannot_stay_verified(monkeypatch, tmp_path):
+    service = ObsService(tmp_path / "obs.json")
+    service.configure({"enabled": True})
+    clients = iter([_LifecycleClient(), _LifecycleClient("version"), _LifecycleClient("route"), _LifecycleClient()])
+    monkeypatch.setattr(service, "diagnostic", lambda: {"code": "ready"})
+    monkeypatch.setattr(service, "_client", lambda: next(clients))
+    assert service.status()["stream_service"]["inspected"] is True
+    assert service.status()["connected"] is False
+    assert service.cached_stream_route_probe().inspected is False
+    status = service.status()
+    assert status["connected"] is True
+    assert status["stream_service"]["inspected"] is False
+    assert service.status()["stream_service"]["inspected"] is True
+
+
+def test_obs_configuration_change_invalidates_cached_route(monkeypatch, tmp_path):
+    service = ObsService(tmp_path / "obs.json")
+    service.configure({"enabled": True})
+    monkeypatch.setattr(service, "diagnostic", lambda: {"code": "ready"})
+    monkeypatch.setattr(service, "_client", _LifecycleClient)
+    service.status()
+    assert service.cached_stream_route_probe().inspected is True
+    service.configure({"enabled": False, "host": "other-host"})
+    assert service.cached_stream_route_probe().inspected is False
+
+
+def test_obs_settings_are_detached_and_failed_save_does_not_reconfigure_runtime(monkeypatch, tmp_path):
+    service = ObsService(tmp_path / "obs.json")
+    before = service.configure({"enabled": True, "scene_map": {"main-card": "My Scene"}})
+    settings = service.settings()
+    settings["scene_map"]["main-card"] = "Mutated"
+    assert service.settings()["scene_map"]["main-card"] == "My Scene"
+    assert service.settings() == before
+
+    def unavailable():
+        raise OSError("disk unavailable")
+
+    monkeypatch.setattr(service, "_persist", unavailable)
+    with pytest.raises(OSError):
+        service.configure({"enabled": False, "host": "other-host"})
+    assert service.settings() == before

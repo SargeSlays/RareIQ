@@ -175,8 +175,9 @@ def test_live_build_marker_matches_cache_version() -> None:
 
 
 def test_empty_states_and_exact_match_are_attached_to_camera_tiles() -> None:
-    assert "Choose a source from Manage Cameras" in HTML
-    assert "Choose a source from Manage Cameras" in JS
+    assert "Choose a source above" in HTML
+    assert "Choose a source above" in JS
+    assert HTML.count('data-choose-camera-slot=') == 3
     assert '.camera-workspace[data-camera-layout] .premium-scan-status' in CSS
     assert "max-width:320px" in CSS
     assert "max-width:340px" in CSS

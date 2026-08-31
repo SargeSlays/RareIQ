@@ -105,15 +105,6 @@ body.studiox-ui4 .brand-product-name {
   white-space: nowrap;
 }
 
-body.studiox-ui4 .instant-splash {
-  background: var(--riq-obsidian) !important;
-}
-
-body.studiox-ui4 .instant-splash img {
-  width: min(520px, 66vw) !important;
-  height: auto !important;
-}
-
 body.studiox-ui4 :is(.ui4-desktop-shell, .ui4-center-column, .workspace-stage) {
   background: var(--riq-obsidian) !important;
 }
@@ -176,13 +167,14 @@ body.studiox-ui4 :is(input, select, textarea, [tabindex]):focus-visible {
 
 body.studiox-ui4 :is(.riq-button.primary, button.primary, .production-auto, #captureButton, #approveButton) {
   border-color: var(--riq-deep-mint) !important;
-  color: var(--riq-obsidian) !important;
+  color: var(--sx-on-accent, var(--riq-obsidian)) !important;
   background: var(--riq-signal-mint) !important;
   box-shadow: none !important;
 }
 
 body.studiox-ui4 :is(.riq-button.primary, button.primary, .production-auto, #captureButton, #approveButton):hover:not(:disabled) {
   background: var(--riq-warm-ivory) !important;
+  color: var(--riq-obsidian) !important;
 }
 
 body.studiox-ui4 :is(button, .riq-button):disabled {

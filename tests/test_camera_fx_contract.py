@@ -58,7 +58,19 @@ def test_camera_fx_shell_is_content_sized_instead_of_inheriting_legacy_stretch()
     camera_fx = CSS[CSS.index("/* Camera FX */") : CSS.index("/* Spotify */")]
     assert "grid-template-rows: auto auto !important" in camera_fx
     assert "align-content: start !important" in camera_fx
+    assert "width: 100% !important" in camera_fx
+    assert "max-width: none !important" in camera_fx
+    assert "margin: 0 !important" in camera_fx
     assert "min-height: 0 !important" in camera_fx
+
+
+def test_camera_fx_uses_the_full_wide_desktop_stage_without_changing_preview_geometry():
+    camera_fx = CSS[CSS.index("/* Camera FX */") : CSS.index("/* Spotify */")]
+    assert "@media (min-width: 1800px)" in camera_fx
+    assert "grid-template-columns: minmax(0, 1.3fr) minmax(620px, .7fr) !important" in camera_fx
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr)) !important" in camera_fx
+    assert "aspect-ratio: 16 / 9 !important" in camera_fx
+    assert "object-fit: contain !important" in camera_fx
 
 
 def test_camera_fx_presets_use_a_compact_desktop_rail_with_safe_breakpoints():
@@ -67,7 +79,7 @@ def test_camera_fx_presets_use_a_compact_desktop_rail_with_safe_breakpoints():
     assert "white-space: nowrap !important" in camera_fx
     assert "@media (max-width: 1400px)" in camera_fx
     assert "grid-template-columns: repeat(4, minmax(0, 1fr)) !important" in camera_fx
-    assert "@media (max-width: 900px)" in camera_fx
+    assert "@media (max-width: 1100px)" in camera_fx
     assert "@media (max-width: 620px)" in camera_fx
 
 

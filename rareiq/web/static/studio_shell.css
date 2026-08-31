@@ -1,0 +1,38 @@
+/* Studio-first entry points. Shared semantic tokens preserve both themes. */
+html[data-theme] body.studiox-command-deck .studio-core-action { display: none !important; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .operator-health-grid > article[hidden] { display: none !important; }
+html[data-theme] body.studiox-command-deck[data-ui4-workspace]:not([data-ui4-workspace="live"]) .studio-core-action { display: inline-flex !important; }
+html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-ui4-workspace]:not([data-ui4-workspace="live"]) :is(#commandDeckRecognitionSummary, #commandDeckSourceSummary, #commandDeckSetupButton, #commandDeckProductionButton, .command-deck-actions .premium-capture-action) { display: none !important; }
+html[data-theme] body.studiox-command-deck[data-ui4-workspace]:not([data-ui4-workspace="live"]) #commandDeckWorkspaceTitle { display: block !important; font-size: 14px; }
+html[data-theme] body.studiox-command-deck .studio-product-bar {
+  grid-column: 1 / -1 !important;
+  order: -95 !important;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  padding: 14px 18px;
+  border: 1px solid var(--sx-divider);
+  border-left: 3px solid var(--sx-accent);
+  background: var(--sx-chrome);
+  color: var(--sx-text);
+}
+html[data-theme] body.studiox-command-deck .studio-product-bar > div { flex: 1 1 340px; min-width: 0; }
+html[data-theme] body.studiox-command-deck .studio-product-bar p { margin: 5px 0 0; color: var(--sx-text-muted); font-size: 12px; line-height: 1.5; }
+html[data-theme] body.studiox-command-deck .studio-product-bar label { display: grid; gap: 5px; font-size: 11px; color: var(--sx-text-muted); }
+html[data-theme] body.studiox-command-deck .studio-product-bar select { min-height: 36px; padding: 6px 10px; }
+html[data-theme] body.studiox-command-deck .studio-product-bar button { min-height: 36px; padding: 8px 14px; background: var(--sx-surface); color: var(--sx-text); border: 1px solid var(--sx-divider); border-radius: 4px; }
+html[data-theme] body.studiox-command-deck #studioStartWorkspaceStatus:empty { display: none; }
+html[data-theme] body.studiox-command-deck .show-workflow {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px;
+  margin: 12px 0; padding: 12px; border: 1px solid var(--sx-divider);
+  background: var(--sx-surface); color: var(--sx-text);
+}
+html[data-theme] body.studiox-command-deck .show-workflow label { display: grid; gap: 5px; min-width: 180px; font-size: 12px; }
+html[data-theme] body.studiox-command-deck .show-workflow select { min-height: 36px; padding: 6px 10px; }
+html[data-theme] body.studiox-command-deck .show-workflow p { flex: 1 1 220px; font-size: 12px; line-height: 1.5; margin: 0; color: var(--sx-text-muted); }
+html[data-theme] body.studiox-command-deck .show-preflight-checks article[data-state="skip"] { opacity: .8; }
+@media(max-width:680px){
+  html[data-theme] body.studiox-command-deck .studio-product-bar { align-items: stretch; gap: 12px; padding: 12px; }
+  html[data-theme] body.studiox-command-deck .studio-product-bar > label { flex: 1 1 100%; }
+}

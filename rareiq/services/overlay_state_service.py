@@ -5,7 +5,23 @@ import os
 from pathlib import Path
 import threading
 import time
+from copy import deepcopy
 from typing import Any
+
+
+def current_intelligence_theme(theme: dict[str, Any]) -> dict[str, Any]:
+    """Migrate the untouched stock theme, preserving deliberate custom styling."""
+    previous = {"accent_color": "#a6e8ce", "secondary_color": "#4f9f83",
+                "background_color": "#080d0a", "text_color": "#f5f2e9"}
+    result = deepcopy(theme)
+    if theme.get("preset", "rareiq") == "rareiq" and all(
+        str(theme.get(key, "")).lower() == value for key, value in previous.items()
+    ):
+        result.update({"accent_color": "#8be8ca", "secondary_color": "#48b995",
+                       "background_color": "#18222e", "text_color": "#f4f7fa"})
+        if result.get("corner_radius") == 12:
+            result["corner_radius"] = 4
+    return result
 
 
 class OverlayStateService:
@@ -33,17 +49,24 @@ class OverlayStateService:
 
     def get(self) -> dict[str, Any]:
         with self._lock:
-            return dict(self._state)
+            return deepcopy(self._state)
 
     def update(self, payload: dict[str, Any]) -> dict[str, Any]:
         with self._lock:
-            self._state.update(payload)
+            self._state.update(deepcopy(payload))
             self._state["updated_at"] = time.time()
             self._persist_presentation()
-            return dict(self._state)
+            return deepcopy(self._state)
 
     def reset(self) -> dict[str, Any]:
         with self._lock:
+            for key in ("broadcast_graphic", "production_screen"):
+                surface = self._state[key]
+                surface.update({
+                    "visible": False,
+                    "generation": int(surface.get("generation") or 0) + 1,
+                })
+            self._state["broadcast_graphic"]["preview"] = False
             self._state.update({
                 "status": "ready",
                 "current_card": None,
@@ -58,12 +81,12 @@ class OverlayStateService:
                 "updated_at": time.time(),
             })
             self._persist_presentation()
-            return dict(self._state)
+            return deepcopy(self._state)
 
     def _restore_presentation(self) -> None:
         try:
             payload = json.loads(self._state_path.read_text(encoding="utf-8"))
-            self._state["pokedex_on_air"] = bool(payload.get("pokedex_on_air", False))
+            self._state["pokedex_on_air"] = payload.get("pokedex_on_air") is True
             current = payload.get("pokedex_current")
             self._state["pokedex_current"] = current if isinstance(current, dict) else None
             graphic = payload.get("broadcast_graphic")
@@ -72,6 +95,9 @@ class OverlayStateService:
             screen = payload.get("production_screen")
             if isinstance(screen, dict):
                 self._state["production_screen"].update(screen)
+            theme = payload.get("rare_intelligence_theme")
+            if isinstance(theme, dict):
+                self._state["rare_intelligence_theme"] = current_intelligence_theme(theme)
         except Exception:
             return
 
@@ -85,6 +111,7 @@ class OverlayStateService:
                 "pokedex_current": self._state.get("pokedex_current"),
                 "broadcast_graphic": self._state.get("broadcast_graphic"),
                 "production_screen": self._state.get("production_screen"),
+                "rare_intelligence_theme": self._state.get("rare_intelligence_theme"),
                 "updated_at": time.time(),
             }, indent=2), encoding="utf-8")
             os.replace(temporary, self._state_path)

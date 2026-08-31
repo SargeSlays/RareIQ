@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import threading
 import time
+from copy import deepcopy
 from collections import Counter
 from difflib import SequenceMatcher
 import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -16,6 +18,8 @@ import numpy as np
 from rareiq.services.recognition_service import RecognitionService
 from rareiq.services.artwork_index_service import ArtworkIndexService
 from rareiq.services.vision_service import VisionService
+
+LOGGER = logging.getLogger(__name__)
 
 
 class SixCardGridDetector:
@@ -82,8 +86,21 @@ class SixCardGridDetector:
             cv2.RETR_LIST,
             cv2.CHAIN_APPROX_SIMPLE,
         )
+        # Texture, glare and thin edges can break a card's perimeter while its
+        # bright border still forms a complete silhouette. Opening removes thin
+        # bridges before closing small gaps; external contours cannot select an
+        # artwork/text rectangle inside the card. Keep edges as a dark-card fallback.
+        _, silhouette = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        kernel_size = max(3, int(round(min(width, height) / 120)) | 1)
+        silhouette = cv2.morphologyEx(
+            silhouette, cv2.MORPH_OPEN, np.ones((kernel_size, kernel_size), dtype=np.uint8)
+        )
+        silhouette = cv2.morphologyEx(
+            silhouette, cv2.MORPH_CLOSE, np.ones((3, 3), dtype=np.uint8)
+        )
+        outer_contours, _ = cv2.findContours(silhouette, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         proposals: list[dict[str, Any]] = []
-        for contour in contours:
+        for contour, external in [(item, True) for item in outer_contours] + [(item, False) for item in contours]:
             contour_area = abs(float(cv2.contourArea(contour)))
             rotated = cv2.minAreaRect(contour)
             rect_width, rect_height = rotated[1]
@@ -95,29 +112,39 @@ class SixCardGridDetector:
             short_side = min(rect_width, rect_height)
             aspect = long_side / max(short_side, 1.0)
             fill = contour_area / rect_area
-            if not (0.012 <= area_fraction <= 0.085):
+            # Three normal cards can each occupy ~10% of a tabletop frame.
+            # The old 8.5% ceiling rejected their outer borders but retained
+            # smaller artwork/text rectangles inside them.
+            if not (0.012 <= area_fraction <= 0.35):
                 continue
-            if not (1.18 <= aspect <= 1.82) or fill < 0.52:
+            if not ((1.08 if external else 1.18) <= aspect <= 1.82) or fill < 0.52:
                 continue
-            points = VisionService._order(cv2.boxPoints(rotated))
+            outline = cv2.approxPolyDP(contour, 0.02 * cv2.arcLength(contour, True), True)
+            is_quad = len(outline) == 4 and cv2.isContourConvex(outline)
+            if area_fraction > 0.085 and (not is_quad or fill < 0.70):
+                continue
+            points = VisionService._order(outline.reshape(4, 2) if is_quad else cv2.boxPoints(rotated))
             centroid = np.mean(points, axis=0) / np.array([width, height], dtype=np.float32)
             proposals.append({
                 "points": points,
                 "centroid": centroid,
                 "area_fraction": area_fraction,
+                "external": external,
+                "foreshortened": aspect < 1.18,
                 "confidence": float(np.clip(fill * 0.55 + (1.0 - abs(aspect - 1.40) / 0.40) * 0.45, 0.0, 1.0)),
             })
 
         isolated: list[dict[str, Any]] = []
         for proposal in sorted(
             proposals,
-            key=lambda item: (item["confidence"], item["area_fraction"]),
+            key=lambda item: (item["external"], item["area_fraction"], item["confidence"]),
             reverse=True,
         ):
             proposal_polygon = proposal["points"].astype(np.float32)
             if any(
                 float(np.linalg.norm(proposal["centroid"] - item["centroid"])) < 0.075
                 or cls._polygon_iou(proposal_polygon, item["points"]) > 0.30
+                or cls._polygon_containment(proposal_polygon, item["points"]) > 0.85
                 for item in isolated
             ):
                 continue
@@ -136,6 +163,8 @@ class SixCardGridDetector:
                 flags=cv2.INTER_CUBIC,
                 borderMode=cv2.BORDER_REPLICATE,
             )
+            if (proposal["area_fraction"] > 0.085 or proposal["foreshortened"]) and cls._card_structure_score(crop)[0] < 0.44:
+                continue
             isolated.append({
                 "row": -1,
                 "column": -1,
@@ -144,6 +173,7 @@ class SixCardGridDetector:
                 "centroid": proposal["centroid"].tolist(),
                 "crop": crop,
                 "ocr_crop": crop,
+                "boundary_source": "silhouette" if proposal["external"] else "edges",
                 "points": points,
             })
         for item in isolated:
@@ -159,6 +189,15 @@ class SixCardGridDetector:
         intersection, _ = cv2.intersectConvexConvex(left_hull, right_hull)
         union = left_area + right_area - float(intersection)
         return float(intersection / union) if union > 0.0 else 0.0
+
+    @staticmethod
+    def _polygon_containment(left: np.ndarray, right: np.ndarray) -> float:
+        """Suppress inner artwork/text regions even when their full-card IoU is small."""
+        left_hull = cv2.convexHull(np.asarray(left, dtype=np.float32))
+        right_hull = cv2.convexHull(np.asarray(right, dtype=np.float32))
+        smaller = min(abs(float(cv2.contourArea(left_hull))), abs(float(cv2.contourArea(right_hull))))
+        intersection, _ = cv2.intersectConvexConvex(left_hull, right_hull)
+        return float(intersection / smaller) if smaller > 0.0 else 0.0
 
     @classmethod
     def detect(cls, frame: np.ndarray, max_cards: int = DEFAULT_CARDS) -> list[dict[str, Any]]:
@@ -203,7 +242,9 @@ class SixCardGridDetector:
                 })
 
         unique: list[dict[str, Any]] = []
-        for candidate in sorted(candidates, key=lambda item: item["confidence"], reverse=True):
+        for candidate in sorted(candidates, key=lambda item: (
+            abs(float(cv2.contourArea(np.asarray(item["polygon"], dtype=np.float32)))), item["confidence"]
+        ), reverse=True):
             center = np.asarray(candidate["centroid"], dtype=np.float32)
             if any(
                 # Twelve-card layouts commonly place adjacent centers only
@@ -214,6 +255,10 @@ class SixCardGridDetector:
                     np.asarray(candidate["polygon"], dtype=np.float32),
                     np.asarray(item["polygon"], dtype=np.float32),
                 ) > 0.30
+                or cls._polygon_containment(
+                    np.asarray(candidate["polygon"], dtype=np.float32),
+                    np.asarray(item["polygon"], dtype=np.float32),
+                ) > 0.85
                 for item in unique
             ):
                 continue
@@ -261,6 +306,7 @@ class MultiCardRecognitionService:
 
     TEMPORAL_HISTORY_VERSION = 1
     TEMPORAL_HISTORY_MAX_AGE_SECONDS = 6 * 60 * 60
+    RECOGNITION_TIMEOUT_SECONDS = 120.0
 
     def __init__(
         self,
@@ -272,6 +318,7 @@ class MultiCardRecognitionService:
         self._capture_lock = threading.Lock()
         self._artwork_index = getattr(prototype, "artwork_index", None)
         self._job_id = 0
+        self._recognition_deadline: float | None = None
         self._workers: dict[int, RecognitionService] = {}
         self._candidate_cache: dict[int, list[dict[str, Any]]] = {}
         self._batch_hint_cache: dict[int, list[dict[str, Any]]] = {}
@@ -316,11 +363,36 @@ class MultiCardRecognitionService:
             return {"ok": False, "reason": "capture_in_progress", **self.status()}
         try:
             with self._lock:
+                self._expire_stalled_capture()
                 if self._state.get("status") == "recognizing":
                     return {"ok": False, "reason": "recognition_in_progress", **self.status()}
             return self._capture(frame, unique_variants=unique_variants, max_cards=max_cards, detections=detections)
+        except Exception:
+            LOGGER.exception("multi_card_capture_failed job_id=%s", self._job_id)
+            self._fail_capture("recognition_failed", "The scan failed. Choose Scan Cards to try again.")
+            return self.status()
         finally:
             self._capture_lock.release()
+
+    def _fail_capture(self, reason: str, message: str) -> None:
+        """Fail closed and release a wedged grid without publishing partial identities."""
+        with self._lock:
+            self._recognition_deadline = None
+            self._selected_slots.clear()
+            for item in self._state["slots"]:
+                if item.get("status") not in {"empty", "waiting", "not-detected"}:
+                    item.update(status="error", verified=False, error=reason)
+            self._state.update(status="error", ok=False, reason=reason, message=message,
+                               completed_count=self._state.get("detected_count", 0),
+                               selected_slots=[], updated_at=time.time())
+            self._persist_presentation()
+
+    def _expire_stalled_capture(self) -> None:
+        # Called while holding _lock by status/capture; no background thread or
+        # second camera owner is needed for the recovery deadline.
+        if (self._state.get("status") == "recognizing" and self._recognition_deadline is not None
+                and time.monotonic() >= self._recognition_deadline):
+            self._fail_capture("recognition_timeout", "Recognition timed out. Keep the cards still and choose Scan Cards to retry.")
 
     def _capture(self, frame: np.ndarray | None, *, unique_variants: bool = False, max_cards: int = SixCardGridDetector.DEFAULT_CARDS, detections: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         if frame is None or not getattr(frame, "size", 0):
@@ -349,7 +421,8 @@ class MultiCardRecognitionService:
                     "slot": item["slot"],
                     "status": "recognizing",
                     "card": None,
-                    "confidence": item["confidence"],
+                    "confidence": None,
+                    "detection_confidence": item["confidence"],
                     "polygon": item["polygon"],
                 }
             self._state = {
@@ -370,6 +443,10 @@ class MultiCardRecognitionService:
                     "families": {str(key): list(value) for key, value in delegates.items()},
                 },
             }
+            self._recognition_deadline = time.monotonic() + self.RECOGNITION_TIMEOUT_SECONDS if detections else None
+            # A new/empty scan invalidates the previous completed presentation.
+            # Restarting during analysis must not bring an old card back on air.
+            self._persist_presentation()
         batch_started = time.perf_counter()
         batch = None
         if detections and self._artwork_index is not None and hasattr(
@@ -380,6 +457,10 @@ class MultiCardRecognitionService:
             batch = self._artwork_index.batch_shortlists({
                 int(item["slot"]): item["crop"] for item in detections
             })
+            with self._lock:
+                self._expire_stalled_capture()
+                if self._state.get("status") == "error":
+                    return self.status()
             for slot, shortlist in (batch.get("slots") or {}).items():
                 hints = list(shortlist.get("artwork_candidates") or [])
                 hints.extend(shortlist.get("hash_candidates") or [])
@@ -418,6 +499,9 @@ class MultiCardRecognitionService:
                     "live_card_count": int(batch.get("live_card_count") or 0),
                 }
         for item in detections:
+            with self._lock:
+                if self._state.get("status") == "error":
+                    break
             if any(item["slot"] in siblings for siblings in delegates.values()):
                 continue
             worker = self._workers[item["slot"]]
@@ -431,6 +515,8 @@ class MultiCardRecognitionService:
             )
             if result != "accepted":
                 self._update_slot(item["slot"], {"status": result})
+                for sibling in delegates.get(item["slot"], []):
+                    self._update_slot(sibling, {"status": result, "verified": False})
         return {"ok": bool(detections), **self.status()}
 
     def _family_first_delegates(self, detections: list[dict[str, Any]]) -> dict[int, list[int]]:
@@ -468,15 +554,23 @@ class MultiCardRecognitionService:
             return
         payload = dict(event.get("payload") or {})
         with self._lock:
-            if int(payload.get("generation") or 0) != self._job_id:
+            self._expire_stalled_capture()
+            if int(payload.get("generation") or 0) != self._job_id or self._state.get("status") == "error":
                 return
-        self._apply_worker_payload(slot, payload)
-        with self._lock:
-            siblings = list(self._family_delegates.get(slot, []))
-        for sibling in siblings:
-            delegated = dict(payload)
-            delegated["frame_id"] = sibling
-            self._apply_worker_payload(sibling, delegated, delegated_from=slot)
+            # Generation validation and writes share one lock. A new capture
+            # cannot begin between the check and an old worker's slot update.
+            try:
+                if payload.get("recognition_path") == "worker-error":
+                    self._fail_capture("recognition_failed", "Card analysis failed. Choose Scan Cards to try again.")
+                    return
+                self._apply_worker_payload(slot, payload)
+                for sibling in self._family_delegates.get(slot, []):
+                    delegated = dict(payload)
+                    delegated["frame_id"] = sibling
+                    self._apply_worker_payload(sibling, delegated, delegated_from=slot)
+            except Exception:
+                LOGGER.exception("multi_card_result_failed job_id=%s slot=%s", self._job_id, slot)
+                self._fail_capture("result_processing_failed", "Card analysis failed. Choose Scan Cards to try again.")
 
     def _apply_worker_payload(
         self,
@@ -494,7 +588,16 @@ class MultiCardRecognitionService:
         candidates = list(payload.get("candidates") or [])
         with self._lock:
             self._candidate_cache[slot] = [dict(candidate) for candidate in candidates]
-        card = payload.get("database_match") or (candidates[0] if candidates else None)
+        card = payload.get("interim_candidate") if is_visual_interim else payload.get("database_match")
+        if card and card.get("retrieval_only"):
+            card = None
+        if not is_visual_interim and not card:
+            card = next((candidate for candidate in candidates
+                         if not candidate.get("retrieval_only")
+                         and not candidate.get("provisional")
+                         and (candidate.get("verification_strong")
+                              or candidate.get("printed_code_match")
+                              or candidate.get("source") == "pokipair")), None)
         delegated_family_card = None
         if delegated_from is not None and card:
             canonical = str(
@@ -522,6 +625,7 @@ class MultiCardRecognitionService:
         delegated_family_set_id = ""
         delegated_family_set_name = ""
         if delegated_from is not None:
+            card = card or {}
             delegated_family_name = str(
                 card.get("canonical_name")
                 or card.get("english_name")
@@ -534,11 +638,13 @@ class MultiCardRecognitionService:
             "status": (
                 "recognizing" if is_visual_interim
                 else "review-needed" if delegated_from is not None
-                else "verified" if payload.get("recognition_locked")
+                else "verified" if card and payload.get("recognition_locked")
                 else "review-needed"
             ),
-            "verified": False if delegated_from is not None else bool(payload.get("recognition_locked")),
-            "confidence": float(payload.get("overall_confidence") or payload.get("confidence") or 0.0),
+            "verified": False if delegated_from is not None else bool(card and payload.get("recognition_locked")),
+            "confidence": (None if not card else
+                           float(payload.get("overall_confidence") if payload.get("overall_confidence") is not None
+                                 else payload.get("confidence") or 0.0)),
             "card": card,
             "collector_number": None if delegated_from is not None else payload.get("ocr_collector_number") or payload.get("collector_number"),
             "printed_code": None if delegated_from is not None else payload.get("ocr_printed_code"),
@@ -638,6 +744,7 @@ class MultiCardRecognitionService:
                         "mean_ms": round(sum(worker_totals) / len(worker_totals), 1),
                     }
                 self._state["status"] = "complete"
+                self._recognition_deadline = None
                 self._persist_presentation()
             self._state["updated_at"] = time.time()
 
@@ -712,6 +819,13 @@ class MultiCardRecognitionService:
         """Never publish an unresolved print as a verified exact identity."""
         for item in self._state["slots"]:
             card = item.get("card") or {}
+            if card.get("retrieval_only"):
+                # Reconciliation can inspect raw search hits, but they remain
+                # in the review shortlist until independent evidence supports one.
+                item.update(card=None, status="review-needed", verified=False,
+                            confidence=None, exact_version_unresolved=True,
+                            version_safety_reason="unsupported_retrieval_candidate")
+                continue
             canonical_code = self._normalized_printed_code(card.get("printed_code"))
             observed_code = self._normalized_printed_code(item.get("printed_code"))
             if item.get("verified") and canonical_code:
@@ -798,7 +912,7 @@ class MultiCardRecognitionService:
         for item in self._state["slots"]:
             card = item.get("card") or {}
             canonical = str(
-                card.get("canonical_name") or card.get("english_name") or ""
+                card.get("canonical_name") or card.get("english_name") or card.get("name") or ""
             ).strip()
             needs_family_guard = bool(
                 not item.get("verified")
@@ -807,7 +921,7 @@ class MultiCardRecognitionService:
                 or card.get("retrieval_only")
                 or card.get("source") == "global_visual_index"
             )
-            if canonical and not needs_family_guard:
+            if canonical and (not needs_family_guard or self._has_crop_verified_fraction(item)):
                 continue
             slot = int(item.get("slot") or 0)
             worker_family = self._worker_local_candidate_family(slot)
@@ -857,6 +971,36 @@ class MultiCardRecognitionService:
                 "artwork_family_recovered": True,
                 "artwork_family_fast_path": fast_family,
             })
+
+    @staticmethod
+    def _has_crop_verified_fraction(item: dict[str, Any]) -> bool:
+        """Skip family retrieval already settled by this crop's direct verifier.
+
+        This only avoids an exhaustive family search. It never promotes a
+        candidate, waives temporal confirmation, or changes the output gate.
+        """
+        card = item.get("card") or {}
+        if (
+            item.get("status") == "recognizing"
+            or item.get("family_first_delegated") or item.get("exact_version_unresolved")
+            or card.get("exact_version_unresolved") or card.get("provisional")
+            or card.get("provisional_reference") or card.get("retrieval_only")
+            or not card.get("verification_strong") or not card.get("artwork_verification_strong")
+            or not (card.get("image_path") or card.get("reference_image") or card.get("local_image"))
+            or not RecognitionService._exact_collector_fraction_match(
+                item.get("collector_number"), card.get("collector_number"),
+            )
+        ):
+            return False
+        observed_name = str(item.get("name_candidate") or "").strip().casefold()
+        names = {str(card.get(key) or "").strip().casefold()
+                 for key in ("name", "canonical_name", "english_name", "printed_name")}
+        observed_language = RecognitionService._canonical_identity_language(item.get("language"))
+        reference_language = RecognitionService._canonical_identity_language(card.get("language_code") or card.get("language"))
+        return not (
+            (observed_name and observed_name not in names)
+            or (observed_language and reference_language and observed_language != reference_language)
+        )
 
     def _worker_local_candidate_family(self, slot: int) -> str:
         """Return a strong worker-local family without rescanning references."""
@@ -2187,12 +2331,37 @@ class MultiCardRecognitionService:
             item["confidence"] = self._candidate_score(card)
             item["unique_variant_assigned"] = True
 
+    @staticmethod
+    def output_ready(item: dict[str, Any]) -> bool:
+        """A processed region or species-only guess is not a publishable identity."""
+        card = item.get("card") or {}
+        return bool(
+            item.get("verified") is True
+            and item.get("status") == "verified"
+            and isinstance(card, dict)
+            and any(card.get(key) for key in ("english_name", "printed_name", "canonical_name", "name", "display_name"))
+            and not item.get("exact_version_unresolved")
+            and not card.get("exact_version_unresolved")
+            and not card.get("provisional")
+        )
+
     def status(self) -> dict[str, Any]:
         with self._lock:
+            self._expire_stalled_capture()
+            slots = deepcopy(self._state["slots"])
+            for item in slots:
+                item["output_ready"] = self.output_ready(item)
+            detected = [item for item in slots if item.get("status") not in {"empty", "waiting", "not-detected"}]
+            pending = sum(item.get("status") == "recognizing" for item in detected)
+            verified = sum(item["output_ready"] for item in detected)
             return {
                 **self._state,
+                # completed_count is worker completion, not identity verification.
+                "verified_count": verified,
+                "review_count": len(detected) - pending - verified,
+                "pending_count": pending,
                 "selected_slots": sorted(self._selected_slots),
-                "slots": [dict(item) for item in self._state["slots"]],
+                "slots": slots,
             }
 
     @staticmethod
@@ -2260,16 +2429,23 @@ class MultiCardRecognitionService:
         }
 
     def select_slots(self, slots: list[int] | tuple[int, ...]) -> dict[str, Any]:
-        selected = {
-            int(slot) for slot in slots
-            if 1 <= int(slot) <= SixCardGridDetector.MAX_CARDS
-        }
+        if not isinstance(slots, (list, tuple)) or any(
+            isinstance(slot, bool) or not isinstance(slot, int)
+            or not 1 <= slot <= SixCardGridDetector.MAX_CARDS for slot in slots
+        ):
+            return {**self.status(), "ok": False, "reason": "invalid_slots"}
+        selected = set(slots)
         with self._lock:
+            ready = {item["slot"] for item in self._state["slots"] if self.output_ready(item)}
+            # Existing selections may always be removed, including after a rescan.
+            blocked = selected - self._selected_slots - ready
+            if blocked:
+                return {**self.status(), "ok": False, "reason": "cards_need_verification", "blocked_slots": sorted(blocked)}
             self._selected_slots = selected
             self._state["selected_slots"] = sorted(selected)
             self._state["updated_at"] = time.time()
             self._persist_presentation()
-        return self.status()
+        return {**self.status(), "ok": True}
 
     def _load_selected_slots(self) -> set[int]:
         try:
@@ -2313,6 +2489,7 @@ class MultiCardRecognitionService:
             "temporal_confirmation_count", "temporal_confirmation_progress",
             "temporal_confirmation_required", "batch_variant_resolved",
             "batch_variant_score", "family_artwork_conflict",
+            "name_candidate", "language", "exact_version_unresolved", "version_safety_reason",
         )
         return {field: item.get(field) for field in fields if field in item}
 

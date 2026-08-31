@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import os
 import re
 import threading
@@ -18,6 +19,9 @@ from rapidocr import RapidOCR
 from rareiq.services.artwork_index_service import ArtworkIndexService
 from rareiq.services.set_catalog_service import SetCatalogService
 from rareiq.services.live_catalog_service import LiveCatalogService
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 PRINTED_IDENTIFIER_RE = re.compile(
@@ -85,6 +89,7 @@ class RecognitionService:
         self._footer_observations: dict[tuple[int, str], dict[str, int]] = {}
         self._footer_observations_lock = threading.Lock()
         self._busy = False
+        self._active_job: object | None = None
         self._last_started_at = 0.0
         self._last_full_pass_at = 0.0
         self._fast_interval = 0.18
@@ -497,6 +502,9 @@ class RecognitionService:
             "overall_confidence": float(presentable.get("score", 0.0)) if presentable else 0.0,
             "recognition_locked": False,
             "has_reference_evidence": bool(presentable),
+            # Retrieval shortlists also contain weak/global matches. Consumers
+            # must not substitute their first entry for this eligible candidate.
+            "interim_candidate": dict(presentable) if presentable else None,
             "verification_state": "SEARCHING",
             "candidates": [dict(item) for item in candidates[:10]],
             "candidate_count": min(10, len(candidates)),
@@ -635,6 +643,33 @@ class RecognitionService:
             limit=10,
         ), result
 
+    def _lookup_identifier_visual_candidates(
+        self, card: np.ndarray, identifier: str,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+        """Retrieve an exact footer shortlist and independently verify its crop."""
+        started = time.perf_counter()
+        try:
+            retrieved = list(self.global_visual_index.search_image(
+                card, limit=15, collector_number=identifier,
+            ).get("matches") or [])
+        except Exception:
+            retrieved = []
+        timings = {
+            "identifier_visual_ms": round((time.perf_counter() - started) * 1000, 1),
+            "identifier_visual_hits": len(retrieved),
+        }
+        started = time.perf_counter()
+        verified, result = self._verify_identifier_visual_candidates(card, retrieved, [], limit=4)
+        timings.update({
+            "identifier_verification_ms": round((time.perf_counter() - started) * 1000, 1),
+            "identifier_verification_hits": len(result.get("matches") or []),
+            "identifier_verification_strong": sum(
+                1 for candidate in verified
+                if candidate.get("verification_strong") and not candidate.get("retrieval_only")
+            ),
+        })
+        return retrieved, verified, timings
+
     @classmethod
     def _variant_family_ambiguous(
         cls,
@@ -711,6 +746,92 @@ class RecognitionService:
             )
 
         return normalized(left) == normalized(right)
+
+    @classmethod
+    def _footer_has_visual_support(
+        cls,
+        identifier: str | None,
+        candidates: list[dict[str, Any]],
+    ) -> bool:
+        """A parseable footer is not enough to skip grid OCR recovery.
+
+        Only an independently verified reference with the same complete
+        identifier supports the fast read. Similar-color retrieval hits and
+        references for another printing cannot suppress the bounded retry.
+        This is an OCR routing decision, not permission to verify a card.
+        """
+        if not identifier:
+            return False
+        return any(
+            candidate.get("verification_strong")
+            and not candidate.get("retrieval_only")
+            and not candidate.get("provisional_reference")
+            and cls._exact_collector_fraction_match(
+                identifier,
+                candidate.get("printed_code") or candidate.get("collector_number"),
+            )
+            for candidate in candidates
+        )
+
+    def _recover_grid_footer(
+        self,
+        card: np.ndarray,
+        name: str | None,
+        footer_items: list[dict[str, Any]],
+        number: str | None,
+        artwork_candidates: list[dict[str, Any]],
+    ) -> tuple[str | None, list[dict[str, Any]], dict[str, Any]]:
+        """Resolve OCR alternatives using a bounded, name-filtered verifier.
+
+        A title narrows retrieval; it never verifies a card by itself. Only a
+        fraction actually read from this crop (or a standalone 3+3 digit footer
+        with a slash misread as 1/7) can be recovered. Numerator/denominator
+        digits are never filled in or changed to fit the catalog.
+        """
+        if not name or self.global_visual_index is None:
+            return number, artwork_candidates, {}
+        started = time.perf_counter()
+        try:
+            retrieved = self.global_visual_index.search_image(card, limit=8, card_name=name)
+            merged, result = self._verify_identifier_visual_candidates(
+                card, list(retrieved.get("matches") or []), artwork_candidates, limit=4,
+            )
+        except Exception:
+            return number, artwork_candidates, {"name_footer_recovery_ms": round((time.perf_counter() - started) * 1000, 1)}
+        # Consider only the name-filtered results, not unrelated earlier hits.
+        verified = list(result.get("matches") or [])
+        options: dict[str, tuple[str, str]] = {}
+        observations = [(number, "observed_alternative")] if number else []
+        for item in footer_items:
+            if not str(item.get("source") or "").startswith(("collector", "bottom")):
+                continue
+            if float(item.get("score") or 0.0) < .78:
+                continue
+            observed = self._best_collector_number([item])
+            if observed:
+                observations.append((observed, "observed_alternative"))
+            compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", str(item.get("text") or "")))
+            separator = re.fullmatch(r"(\d{3})[17](\d{3})", compact)
+            if separator:
+                observations.append((f"{separator[1]}/{separator[2]}", "separator"))
+        for observed, kind in observations:
+            if self._footer_has_visual_support(observed, verified):
+                key = self._identity_collector_key(observed)
+                options.setdefault(key, (observed, kind))
+        diagnostics = {
+            "name_footer_recovery_ms": round((time.perf_counter() - started) * 1000, 1),
+            "name_footer_recovery_hits": len(verified),
+            "name_footer_recovery_strong": sum(
+                bool(item.get("verification_strong") and not item.get("retrieval_only"))
+                for item in verified
+            ),
+        }
+        if len(options) == 1:
+            recovered, kind = next(iter(options.values()))
+            if not self._exact_collector_fraction_match(number, recovered):
+                diagnostics.update(footer_recovered_from=number, footer_recovery_kind=kind)
+                return recovered, merged, diagnostics
+        return number, merged, diagnostics
 
     @staticmethod
     def _decision_confidence(
@@ -1020,6 +1141,8 @@ class RecognitionService:
                 return "rejected_rate_limit"
 
             self._busy = True
+            job_token = object()
+            self._active_job = job_token
             self._current_generation = max(
                 self._current_generation,
                 int(generation),
@@ -1034,24 +1157,70 @@ class RecognitionService:
         # primary, OCR, and first collector frame. Snapshot each unique array
         # once so the asynchronous worker is isolated from camera-buffer
         # mutation without paying for duplicate 4K memory copies.
-        frame_snapshot, ocr_snapshot, collector_snapshots = (
-            self._snapshot_frame_inputs(frame, ocr_frame, collector_frames)
-        )
-
-        threading.Thread(
-            target=self._recognize_worker,
-            args=(
-                frame_snapshot,
-                int(generation),
-                frame_id,
-                source,
-                float(captured_at or now),
-                ocr_snapshot,
-                collector_snapshots,
-            ),
-            daemon=True,
-        ).start()
+        try:
+            frame_snapshot, ocr_snapshot, collector_snapshots = (
+                self._snapshot_frame_inputs(frame, ocr_frame, collector_frames)
+            )
+            threading.Thread(
+                target=self._run_worker,
+                args=(
+                    job_token, frame_snapshot, int(generation), frame_id, source,
+                    float(captured_at or now), ocr_snapshot, collector_snapshots,
+                ),
+                daemon=True,
+            ).start()
+        except Exception:
+            self._release_failed_job(job_token, int(generation), frame_id, source)
+            raise
         return "accepted"
+
+    def _release_failed_job(
+        self, job_token: object, generation: int, frame_id: int | None, source: str,
+    ) -> dict[str, Any] | None:
+        """Release only this job; a late failure cannot clear a newer worker."""
+        with self._lock:
+            if self._active_job is not job_token:
+                return None
+            self._active_job = None
+            self._busy = False
+            self._last_started_at = 0.0
+            self._status["busy"] = False
+            if generation != self._current_generation:
+                return None
+            payload = {
+                "busy": False, "generation": generation, "frame_id": frame_id,
+                "capture_source": source, "recognition_path": "worker-error",
+                "verification_state": "ERROR", "error": "recognition_failed",
+                "recognition_locked": False, "has_reference_evidence": False,
+                "background_enrichment": False, "interim_candidate": None,
+                "database_match": None, "candidates": [], "candidate_count": 0,
+                "name_candidate": None, "collector_number": None, "language": None,
+                "ocr_collector_number": None, "ocr_printed_code": None,
+                "raw_text": [], "text_detected": False, "database_confidence": 0.0,
+                "lock_reason": None, "stage_timings": {},
+                "overall_confidence": 0.0, "confidence": 0.0, "updated_at": time.time(),
+            }
+            self._status.update(payload)
+            return payload
+
+    def _run_worker(
+        self, job_token: object, frame: np.ndarray, generation: int,
+        frame_id: int | None, source: str, captured_at: float,
+        ocr_frame: np.ndarray | None, collector_frames: tuple[np.ndarray, ...],
+    ) -> None:
+        try:
+            self._recognize_worker(frame, generation, frame_id, source, captured_at,
+                                   ocr_frame, collector_frames)
+        except Exception:
+            # This also covers failures in final validation and event delivery,
+            # which happen after the recognition pipeline's own exception handler.
+            LOGGER.exception("recognition_worker_failed generation=%s frame_id=%s", generation, frame_id)
+            payload = self._release_failed_job(job_token, generation, frame_id, source)
+            if payload is not None:
+                try:
+                    self.emit({"type": "recognition_update", "payload": payload})
+                except Exception:
+                    LOGGER.exception("recognition_failure_notification_failed generation=%s", generation)
 
     def _engine_instance(self) -> RapidOCR:
         if self._engine is None:
@@ -1062,7 +1231,15 @@ class RecognitionService:
 
     def _infer_ocr(self, image: np.ndarray) -> Any:
         with self._ocr_inference_lock:
-            return self._engine_instance()(image)
+            # RapidOCR persists per-call flags on its engine. A preceding fast
+            # identifier-line call disables detection/classification, so every
+            # general pass must explicitly restore them while holding the lock.
+            return self._engine_instance()(
+                image,
+                use_det=True,
+                use_cls=True,
+                use_rec=True,
+            )
 
     def _infer_ocr_recognition_only(self, image: np.ndarray) -> Any:
         """Recognize one known text line without running text detection."""
@@ -3587,6 +3764,9 @@ class RecognitionService:
             skipped_stages: list[str] = []
             reference_identifier_ms = 0.0
             grid_fast_ocr = source == "six-card-grid"
+            # This cache belongs to one crop in one worker invocation. Never
+            # reuse another card's visual authority or a previous scan's OCR.
+            identifier_lookups: dict[str, tuple] = {}
             if fast_path_evidence:
                 skipped_stages.extend(["reference_identifier", "ocr"])
             elif grid_fast_ocr:
@@ -3693,11 +3873,35 @@ class RecognitionService:
 
             collector_retry_used = False
             collector_retry_items: list[dict[str, Any]] = []
-            if not fast_path_evidence and not grid_fast_ocr and not (
+            initial_footer_identifier = (
                 self._best_collector_number(bottom_items)
                 or self._best_printed_code(bottom_items)
+            )
+            if (
+                grid_fast_ocr and not fast_path_evidence and not locked_to_set
+                and initial_footer_identifier and "/" in initial_footer_identifier
+                and self.global_visual_index is not None
+                and not self._footer_has_visual_support(initial_footer_identifier, artwork_candidates)
+            ):
+                lookup = self._lookup_identifier_visual_candidates(prepared_card, initial_footer_identifier)
+                identifier_lookups[initial_footer_identifier] = lookup
+                artwork_candidates = self._merge_reference_matches(lookup[1], artwork_candidates, limit=10)
+                artwork_result["matches"] = artwork_candidates
+                artwork_top_score = float(artwork_candidates[0].get("score") or 0.0) if artwork_candidates else 0.0
+                stage_timings.update({f"footer_preflight_{key}": value for key, value in lookup[2].items()})
+            unsupported_grid_footer = grid_fast_ocr and not self._footer_has_visual_support(
+                initial_footer_identifier, artwork_candidates,
+            )
+            # One offset-footer retry also covers valid-looking misreads such
+            # as 029/064. Syntax/OCR confidence alone cannot suppress recovery
+            # when the live artwork has not verified that complete identifier.
+            if not fast_path_evidence and (
+                not initial_footer_identifier or unsupported_grid_footer
             ):
                 collector_retry_used = True
+                stage_timings["collector_retry_reason"] = (
+                    "unsupported_footer" if initial_footer_identifier else "missing_footer"
+                )
                 collector_retry_items = self._run_ocr(
                     self._collector_retry_canvas(detail_card),
                     "collector_retry",
@@ -3719,7 +3923,12 @@ class RecognitionService:
                 self._best_collector_number(bottom_items)
                 or self._best_printed_code(bottom_items)
             )
-            if not fast_path_evidence and not grid_fast_ocr and not footer_identifier:
+            if not fast_path_evidence and (
+                not footer_identifier
+                or (grid_fast_ocr and not self._footer_has_visual_support(
+                    footer_identifier, artwork_candidates,
+                ))
+            ):
                 top_items = self._run_ocr(
                     ocr_regions["top"],
                     "top",
@@ -3760,6 +3969,7 @@ class RecognitionService:
             stage_timings["ocr_ms"] = ocr_ms
             stage_timings["ocr_mode"] = (
                 "skipped" if fast_path_evidence
+                else "bounded-grid-retry" if grid_fast_ocr and collector_retry_used
                 else "single-shot-footer" if grid_fast_ocr
                 else "footer-first" if footer_identifier
                 else "full"
@@ -3770,6 +3980,15 @@ class RecognitionService:
             hp = self._best_hp(items)
             ocr_number = self._best_collector_number(items)
             printed_code = self._best_printed_code(items)
+            if grid_fast_ocr and name and not self._footer_has_visual_support(
+                ocr_number or printed_code, artwork_candidates,
+            ):
+                ocr_number, artwork_candidates, recovery_diagnostics = self._recover_grid_footer(
+                    prepared_card, name, bottom_items, ocr_number, artwork_candidates,
+                )
+                stage_timings.update(recovery_diagnostics)
+                artwork_result["matches"] = artwork_candidates
+                artwork_top_score = float(artwork_candidates[0].get("score") or 0.0) if artwork_candidates else 0.0
             frame_vote_code, frame_vote_count = self._frame_vote_winner(
                 frame_identifier_votes
             )
@@ -3921,25 +4140,17 @@ class RecognitionService:
                 and not locked_to_set
                 and self.global_visual_index is not None
             ):
-                identifier_visual_started = time.perf_counter()
-                try:
-                    identifier_visual_result = self.global_visual_index.search_image(
-                        prepared_card,
-                        limit=15,
-                        collector_number=validated_number,
-                    )
-                    identifier_visual_candidates = list(
-                        identifier_visual_result.get("matches") or []
-                    )
-                except Exception:
-                    identifier_visual_candidates = []
-                stage_timings["identifier_visual_ms"] = round(
-                    (time.perf_counter() - identifier_visual_started) * 1000,
-                    1,
-                )
-                stage_timings["identifier_visual_hits"] = len(
-                    identifier_visual_candidates
-                )
+                reused_lookup = validated_number in identifier_lookups
+                lookup = identifier_lookups.get(validated_number)
+                if lookup is None:
+                    lookup = self._lookup_identifier_visual_candidates(prepared_card, validated_number)
+                identifier_visual_candidates, identifier_verified, identifier_timings = lookup
+                stage_timings.update(identifier_timings)
+                stage_timings["identifier_lookup_reused"] = reused_lookup
+                if reused_lookup:
+                    # The measured work is already included in footer preflight.
+                    stage_timings["identifier_visual_ms"] = 0.0
+                    stage_timings["identifier_verification_ms"] = 0.0
                 if identifier_visual_candidates:
                     known_ids = {
                         str(item.get("id") or "")
@@ -3952,41 +4163,14 @@ class RecognitionService:
                             if str(item.get("id") or "") not in known_ids
                         ],
                     ]
-                    identifier_verification_started = time.perf_counter()
-                    (
-                        artwork_candidates,
-                        identifier_verification_result,
-                    ) = self._verify_identifier_visual_candidates(
-                        prepared_card,
-                        identifier_visual_candidates,
-                        list(artwork_candidates),
-                        limit=4,
+                    artwork_candidates = self._merge_reference_matches(
+                        identifier_verified, artwork_candidates, limit=10,
                     )
                     artwork_result["matches"] = artwork_candidates
                     artwork_top_score = (
                         float(artwork_candidates[0].get("score", 0.0))
                         if artwork_candidates
                         else 0.0
-                    )
-                    identifier_verified = list(
-                        identifier_verification_result.get("matches") or []
-                    )
-                    stage_timings["identifier_verification_ms"] = round(
-                        (
-                            time.perf_counter()
-                            - identifier_verification_started
-                        )
-                        * 1000,
-                        1,
-                    )
-                    stage_timings["identifier_verification_hits"] = len(
-                        identifier_verified
-                    )
-                    stage_timings["identifier_verification_strong"] = sum(
-                        1
-                        for candidate in identifier_verified
-                        if candidate.get("verification_strong")
-                        and not candidate.get("retrieval_only")
                     )
 
             if (

@@ -76,19 +76,39 @@ def test_search_image_normalizes_and_filters_complete_collector_fraction():
     assert [match["id"] for match in result["matches"]] == ["nickit"]
 
 
-def test_auto_set_recognition_runs_number_first_global_visual_shortlist():
-    source = (
-        __import__("pathlib").Path(__file__).resolve().parents[1]
-        / "rareiq"
-        / "services"
-        / "recognition_service.py"
-    ).read_text(encoding="utf-8")
+def test_name_recovery_ranks_exact_names_and_excludes_color_similar_cards():
+    service = _service([
+        {"id": "wrong", "name": "Tropius"},
+        {"id": "other-form", "name": "Galarian Slowpoke"},
+        {"id": "old", "canonical_name": "Slowpoke"},
+        {"id": "current", "printed_name": "Slowpoke"},
+    ], [[1., 0.], [.99, .01], [.7, .3], [.9, .1]])
+    result = service.search_image(np.zeros((4, 4, 3), dtype=np.uint8), card_name="  SLOWPOKE  ")
+    assert result["filtered_records"] == 2
+    assert [item["id"] for item in result["matches"]] == ["current", "old"]
+    missing = service.search_image(np.zeros((4, 4, 3), dtype=np.uint8), card_name="Not in catalog")
+    assert missing["matches"] == []
 
-    assert "identifier_visual_candidates" in source
-    assert "collector_number=validated_number" in source
-    identifier_call = source[source.index("identifier_visual_result ="):source.index("identifier_visual_candidates = list(")]
-    assert "language=language" not in identifier_call
-    assert 'stage_timings["identifier_visual_hits"]' in source
+
+def test_auto_set_recognition_runs_number_first_global_visual_shortlist():
+    from types import SimpleNamespace
+    from rareiq.services.recognition_service import RecognitionService
+
+    service = RecognitionService(lambda event: None)
+    calls = []
+    def retrieve(image, **filters):
+        calls.append(filters)
+        return {"matches": [{"id": "nickit", "collector_number": "53/84", "retrieval_only": True}]}
+    service.global_visual_index = SimpleNamespace(search_image=retrieve)
+    service.artwork_index = SimpleNamespace(search_hinted=lambda *args, **kwargs: {"matches": []})
+    retrieved, verified, timings = service._lookup_identifier_visual_candidates(
+        np.zeros((4, 4, 3), dtype=np.uint8), "053/084",
+    )
+    # No noisy OCR language filter may exclude the exact printed fraction.
+    assert calls == [{"limit": 15, "collector_number": "053/084"}]
+    assert retrieved[0]["id"] == "nickit"
+    assert verified == []  # retrieval alone still cannot earn visual authority
+    assert timings["identifier_visual_hits"] == 1
 
 
 def test_recognition_uses_locked_set_language_after_filtered_retrieval():

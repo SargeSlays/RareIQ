@@ -52,7 +52,7 @@ def test_staging_is_independent_and_source_pair_is_safe():
 
 
 def test_camera_two_uses_its_own_truthful_stream_and_safe_empty_states():
-    assert 'No camera selected\\nChoose a source from Manage Cameras' in JS
+    assert 'No camera selected\\nChoose a source above' in JS
     camera_two = JS[JS.index('if(mode==="camera-2")'):JS.index('}else if(mode==="card-focus")')]
     assert 'const source="/api/camera-slots/2/stream"' in camera_two
     assert 'image.onerror=' in camera_two
