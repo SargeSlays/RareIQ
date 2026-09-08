@@ -1,0 +1,130 @@
+path,format,pixels,bytes
+Asset-Gallery.html,document/source,,14840
+fonts/OFL.txt,document/source,,4384
+fonts/Poppins-Bold.ttf,document/source,,155996
+fonts/Poppins-Medium.ttf,document/source,,158576
+fonts/Poppins-Regular.ttf,document/source,,160316
+fonts/Poppins-SemiBold.ttf,document/source,,157312
+icons/rareiq-app-icon-1024.png,raster RGBA,1024x1024,604300
+icons/rareiq-app-icon-128.png,raster RGBA,128x128,16860
+icons/rareiq-app-icon-180.png,raster RGBA,180x180,30860
+icons/rareiq-app-icon-192.png,raster RGBA,192x192,34579
+icons/rareiq-app-icon-256.png,raster RGBA,256x256,58051
+icons/rareiq-app-icon-512.png,raster RGBA,512x512,197867
+icons/rareiq-app-icon.png,raster RGBA,1024x1024,604300
+icons/rareiq-app-icon.svg,hybrid: raster mascot + vector lettering,,1199072
+icons/rareiq-favicon-16.png,raster RGBA,16x16,665
+icons/rareiq-favicon-24.png,raster RGBA,24x24,1136
+icons/rareiq-favicon-32.png,raster RGBA,32x32,1627
+icons/rareiq-favicon-48.png,raster RGBA,48x48,2616
+icons/rareiq-favicon-64.png,raster RGBA,64x64,3640
+icons/rareiq-favicon.ico,document/source,,9770
+icons/rareiq-favicon.png,raster RGBA,512x512,40976
+icons/rareiq-favicon.svg,vector,,2320
+icons/rareiq-ocr-app-icon-1024.png,raster RGBA,1024x1024,610874
+icons/rareiq-ocr-app-icon-128.png,raster RGBA,128x128,17575
+icons/rareiq-ocr-app-icon-180.png,raster RGBA,180x180,31880
+icons/rareiq-ocr-app-icon-192.png,raster RGBA,192x192,35694
+icons/rareiq-ocr-app-icon-256.png,raster RGBA,256x256,59499
+icons/rareiq-ocr-app-icon-512.png,raster RGBA,512x512,200950
+icons/rareiq-ocr-app-icon.png,raster RGBA,1024x1024,610874
+icons/rareiq-ocr-app-icon.svg,hybrid: raster mascot + vector lettering,,1200270
+icons/rareiq-ocr-favicon-16.png,raster RGBA,16x16,665
+icons/rareiq-ocr-favicon-24.png,raster RGBA,24x24,1136
+icons/rareiq-ocr-favicon-32.png,raster RGBA,32x32,1627
+icons/rareiq-ocr-favicon-48.png,raster RGBA,48x48,2616
+icons/rareiq-ocr-favicon-64.png,raster RGBA,64x64,3640
+icons/rareiq-ocr-favicon.ico,document/source,,9770
+icons/rareiq-ocr-favicon.png,raster RGBA,512x512,40976
+icons/rareiq-ocr-favicon.svg,vector,,2328
+logos/rareiq-horizontal-mono-black.png,raster RGBA,690x208,10938
+logos/rareiq-horizontal-mono-black.svg,vector,,4045
+logos/rareiq-horizontal-mono-white.png,raster RGBA,690x208,11057
+logos/rareiq-horizontal-mono-white.svg,vector,,4045
+logos/rareiq-horizontal-on-dark.png,raster RGBA,710x208,74440
+logos/rareiq-horizontal-on-dark.svg,hybrid: raster mascot + vector lettering,,1200769
+logos/rareiq-horizontal-on-light.png,raster RGBA,710x208,75753
+logos/rareiq-horizontal-on-light.svg,hybrid: raster mascot + vector lettering,,1200771
+logos/rareiq-ocr-horizontal-mono-black.png,raster RGBA,690x208,11856
+logos/rareiq-ocr-horizontal-mono-black.svg,vector,,5243
+logos/rareiq-ocr-horizontal-mono-white.png,raster RGBA,690x208,12002
+logos/rareiq-ocr-horizontal-mono-white.svg,vector,,5243
+logos/rareiq-ocr-horizontal-on-dark.png,raster RGBA,710x208,75473
+logos/rareiq-ocr-horizontal-on-dark.svg,hybrid: raster mascot + vector lettering,,1201967
+logos/rareiq-ocr-horizontal-on-light.png,raster RGBA,710x208,77142
+logos/rareiq-ocr-horizontal-on-light.svg,hybrid: raster mascot + vector lettering,,1201969
+logos/rareiq-ocr-primary-on-dark.png,raster RGBA,800x640,255032
+logos/rareiq-ocr-primary-on-dark.svg,hybrid: raster mascot + vector lettering,,1201947
+logos/rareiq-ocr-primary-on-light.png,raster RGBA,800x640,256968
+logos/rareiq-ocr-primary-on-light.svg,hybrid: raster mascot + vector lettering,,1201949
+logos/rareiq-ocr-wordmark-on-dark.png,raster RGBA,550x240,12417
+logos/rareiq-ocr-wordmark-on-dark.svg,vector,,3978
+logos/rareiq-ocr-wordmark-on-light.png,raster RGBA,550x240,14111
+logos/rareiq-ocr-wordmark-on-light.svg,vector,,3980
+logos/rareiq-primary-on-dark-tagline.png,raster RGBA,800x640,256622
+logos/rareiq-primary-on-dark-tagline.svg,hybrid: raster mascot + vector lettering,,1206493
+logos/rareiq-primary-on-dark.png,raster RGBA,800x565,253540
+logos/rareiq-primary-on-dark.svg,hybrid: raster mascot + vector lettering,,1200749
+logos/rareiq-primary-on-light-tagline.png,raster RGBA,800x640,258900
+logos/rareiq-primary-on-light-tagline.svg,hybrid: raster mascot + vector lettering,,1206495
+logos/rareiq-primary-on-light.png,raster RGBA,800x565,255150
+logos/rareiq-primary-on-light.svg,hybrid: raster mascot + vector lettering,,1200751
+logos/rareiq-wordmark-on-dark.png,raster RGBA,550x165,10907
+logos/rareiq-wordmark-on-dark.svg,vector,,2782
+logos/rareiq-wordmark-on-light.png,raster RGBA,550x165,12237
+logos/rareiq-wordmark-on-light.svg,vector,,2784
+mascot/rareiq-mascot-flat-color.png,raster RGBA,512x512,39683
+mascot/rareiq-mascot-flat-color.svg,vector,,2517
+mascot/rareiq-mascot-master.png,raster RGBA,1171x867,898401
+mascot/rareiq-mascot-micro.png,raster RGBA,512x512,34396
+mascot/rareiq-mascot-micro.svg,vector,,2226
+mascot/rareiq-mascot-mono-black.png,raster RGBA,512x512,13987
+mascot/rareiq-mascot-mono-black.svg,vector,,2259
+mascot/rareiq-mascot-mono-white.png,raster RGBA,512x512,13442
+mascot/rareiq-mascot-mono-white.svg,vector,,2259
+RareIQ-Brand-Book-v2.0.pdf,document/source,,5671941
+README.md,document/source,,3582
+source/book-content.json,document/source,,17635
+source/build_assets.py,document/source,,11321
+source/build_book.py,document/source,,8274
+source/clean_mascot.py,document/source,,1536
+source/package_brand.py,document/source,,13845
+source/render_assets.cjs,document/source,,802
+standards/book-content.json,document/source,,17635
+standards/Brand-Standards.md,document/source,,12909
+standards/contrast-pairs.csv,document/source,,491
+standards/Original-Approved-Reference.png,raster RGB,1536x1024,1540444
+standards/Production-Specifications.md,document/source,,3076
+standards/PROVENANCE.md,document/source,,2721
+templates/rareiq-document-cover.png,raster RGBA,1240x1754,610325
+templates/rareiq-document-cover.svg,hybrid: raster mascot + vector lettering,,1206831
+templates/rareiq-letterhead-a4.png,raster RGBA,1240x1754,60306
+templates/rareiq-letterhead-a4.svg,vector,,17128
+templates/rareiq-ocr-social-card.png,raster RGBA,1200x630,196319
+templates/rareiq-ocr-social-card.svg,hybrid: raster mascot + vector lettering,,1206329
+templates/rareiq-overlay-1080x1920.png,raster RGBA,1080x1920,13016
+templates/rareiq-overlay-1080x1920.svg,vector,,2873
+templates/rareiq-overlay-1920x1080.png,raster RGBA,1920x1080,13011
+templates/rareiq-overlay-1920x1080.svg,vector,,2878
+templates/rareiq-overlay-2160x3840.png,raster RGBA,2160x3840,37290
+templates/rareiq-overlay-2160x3840.svg,vector,,2882
+templates/rareiq-overlay-3840x2160.png,raster RGBA,3840x2160,37265
+templates/rareiq-overlay-3840x2160.svg,vector,,2925
+templates/rareiq-presentation-cover.png,raster RGBA,1920x1080,445261
+templates/rareiq-presentation-cover.svg,hybrid: raster mascot + vector lettering,,1212910
+templates/rareiq-social-avatar.png,raster RGBA,1024x1024,604300
+templates/rareiq-social-avatar.svg,hybrid: raster mascot + vector lettering,,1199072
+templates/rareiq-social-banner.png,raster RGBA,1500x500,276387
+templates/rareiq-social-banner.svg,hybrid: raster mascot + vector lettering,,1212836
+templates/rareiq-social-card.png,raster RGBA,1200x630,200065
+templates/rareiq-social-card.svg,hybrid: raster mascot + vector lettering,,1212887
+templates/rareiq-starting-soon-1080x1920.png,raster RGBA,1080x1920,505035
+templates/rareiq-starting-soon-1080x1920.svg,hybrid: raster mascot + vector lettering,,1211589
+templates/rareiq-starting-soon-1920x1080.png,raster RGBA,1920x1080,445303
+templates/rareiq-starting-soon-1920x1080.svg,hybrid: raster mascot + vector lettering,,1213448
+templates/rareiq-starting-soon-2160x3840.png,raster RGBA,2160x3840,1380588
+templates/rareiq-starting-soon-2160x3840.svg,hybrid: raster mascot + vector lettering,,1211607
+templates/rareiq-starting-soon-3840x2160.png,raster RGBA,3840x2160,1268185
+templates/rareiq-starting-soon-3840x2160.svg,hybrid: raster mascot + vector lettering,,1213478
+tokens/rareiq-tokens.css,document/source,,1132
+tokens/rareiq-tokens.json,document/source,,846

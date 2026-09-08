@@ -1,0 +1,49 @@
+{
+  "brand": {
+    "purple": "#A855F7",
+    "pink": "#FF4EDB",
+    "orange": "#FF9F43",
+    "cyan": "#00E5FF",
+    "mint": "#7CFFCB",
+    "space": "#080F1A",
+    "paper": "#F7F8FC"
+  },
+  "dark": {
+    "background": "#080F1A",
+    "surface": "#111C2E",
+    "text": "#F7F8FC",
+    "muted": "#AFBDD1",
+    "action": "#00E5FF",
+    "actionText": "#080F1A",
+    "focus": "#7CFFCB"
+  },
+  "light": {
+    "background": "#F7F8FC",
+    "surface": "#FFFFFF",
+    "text": "#080F1A",
+    "muted": "#495569",
+    "action": "#6425B5",
+    "actionText": "#FFFFFF",
+    "focus": "#6425B5"
+  },
+  "status": {
+    "success": "#137A53",
+    "warning": "#805600",
+    "error": "#B42343"
+  },
+  "space": [
+    4,
+    8,
+    12,
+    16,
+    24,
+    32,
+    48,
+    64
+  ],
+  "radius": {
+    "control": 8,
+    "panel": 16
+  },
+  "font": "Poppins, Arial, sans-serif"
+}

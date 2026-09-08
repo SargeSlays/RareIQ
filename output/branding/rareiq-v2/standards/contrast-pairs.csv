@@ -1,0 +1,12 @@
+role,foreground,background,ratio,minimum,result
+dark/body,#F7F8FC,#080F1A,18.09,4.5,pass
+dark/muted,#AFBDD1,#080F1A,10.08,4.5,pass
+dark/action,#080F1A,#00E5FF,12.48,4.5,pass
+dark/focus,#7CFFCB,#080F1A,15.57,3,pass
+light/body,#080F1A,#F7F8FC,18.09,4.5,pass
+light/muted,#495569,#F7F8FC,7.1,4.5,pass
+light/action,#FFFFFF,#6425B5,8.49,4.5,pass
+light/focus,#6425B5,#F7F8FC,8.0,3,pass
+success,#FFFFFF,#137A53,5.33,4.5,pass
+warning,#FFFFFF,#805600,6.46,4.5,pass
+error,#FFFFFF,#B42343,6.44,4.5,pass

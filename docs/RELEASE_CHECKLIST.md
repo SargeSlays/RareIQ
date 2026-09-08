@@ -1,5 +1,21 @@
 # RareIQ Release Checklist
 
+## RareIQ brand package v2 - September 7, 2026
+
+- [x] Original approved reference recovered and preserved unchanged.
+- [x] Transparent mascot and RareIQ/OCR logo families exported; vector and hybrid
+  formats identified; fonts, licenses, tokens and editable sources included.
+- [x] All 16 book pages visually inspected; final clear-space diagram and custom
+  IQ treatment rechecked after refinement.
+- [x] Local asset gallery renders at 1920x1080, 3840x2160 and narrow 720px width;
+  all 84 download/navigation links resolve and preview images decode.
+- [x] Favicon exports inspected at actual 16/24/32/48/64px sizes; matte reviewed
+  against dark and light backgrounds; 11 selected contrast pairs pass.
+- [x] Package validation checks PNG integrity, asset pairs, PDF page count and ZIP.
+- [x] Canonical repository gate passed 2,452 Python and 196 JavaScript tests.
+- [ ] Separate parent-platform UI migration and runtime visual acceptance.
+- [ ] Physical print proof and destination/platform crop acceptance where required.
+
 Latest audit: [2026-08-30 readiness findings and next test order](READINESS_AUDIT_2026-08-30.md).
 Local automated checks are green; hardware/account/streaming acceptance is not yet signed off.
 

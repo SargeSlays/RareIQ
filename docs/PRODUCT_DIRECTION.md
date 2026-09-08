@@ -1,5 +1,20 @@
 # RareIQ: streaming-first product direction
 
+## Brand architecture correction - September 7, 2026
+
+The owner's branding request and recovered approved handoff establish **Producer,
+Please** (including the comma) as the parent live-production environment. **RareIQ**
+and **RareIQ OCR** identify its premium collectible/card recognition and intelligence
+product, using the selected colorful mascot. The v2 brand book and asset library are
+under `output/branding/rareiq-v2/`; see `docs/branding-v2/WORK_PLAN.md` for evidence.
+
+This supersedes the older customer-facing master-brand assumption in the title and
+historical sections below. It does not rename the Python package, repository, routes,
+stored data or the currently running application. The existing Studio-first workflow
+and separation of general production from card recognition remain engineering
+requirements. Product integration of the parent identity is a separate phase; the
+brand package activates no prices, billing restrictions or new OCR capabilities.
+
 Confirmed by the owner on 2026-08-31. This supersedes the card-first release
 ordering in older plans. It records requirements and proposed delivery boundaries;
 it does not claim the modular product, licensing or standalone broadcaster exists.

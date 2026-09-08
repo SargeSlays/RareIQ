@@ -1,5 +1,18 @@
 # RareIQ Roadmap
 
+## Brand package checkpoint - September 7, 2026
+
+The v2 RareIQ/RareIQ OCR brand book and reusable asset library are delivered under
+`output/branding/rareiq-v2/`. The owner-selected mascot represents the premium
+recognition/intelligence product inside Producer, Please. Original artwork,
+transparent production adaptations, vector companions and their distinctions are
+documented. See `docs/branding-v2/WORK_PLAN.md` for scope and validation.
+
+The next separate implementation phase is the Producer, Please customer-facing
+rebrand of the existing application, retaining RareIQ recognition labels and all
+compatibility-sensitive internals. This branding task did not perform that migration.
+The historical Studio-first functional requirements below still apply.
+
 ## Streaming-first product direction — 2026-08-31
 
 The owner's current direction supersedes the card-first ordering below: RareIQ

@@ -1,5 +1,26 @@
 # RareIQ engineering memory
 
+## Branding provenance and false transparency - September 7, 2026
+
+Symptom: two image-generation extractions displayed checkerboards but were RGB
+files, and an early brand-book draft treated RareIQ as the parent studio.
+
+Root causes: a transparency-looking image is not evidence of an alpha channel;
+repository historical positioning did not include the user's Producer, Please
+brand decision. The original approved character was found in the downloaded
+implementation handoff referenced by the earlier branding task.
+
+Guards: retain the unmodified original reference; label restored/flat adaptations
+and hybrid SVGs accurately. `docs/branding-v2/package_brand.py` requires a real RGBA
+master with transparent corners, validates PNGs, book page count, asset pairs,
+contrast ratios and ZIP integrity. Local matte cleanup was explicitly authorized.
+Pale highlights must survive matte extraction, and dark/light compositing must be
+visually inspected. A writable image copy is required before Pillow flood-fill.
+
+Record brand architecture independently from runtime implementation. RareIQ/OCR
+is the premium recognition/intelligence product within Producer, Please; this
+package does not prove that the application has been rebranded or newly integrated.
+
 This file turns regressions into permanent operating knowledge. It is not a bug
 backlog. Add an entry when a defect repeats, escapes visual review, or exposes a
 class of failure that can be prevented automatically.

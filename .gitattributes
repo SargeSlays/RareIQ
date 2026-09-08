@@ -1,0 +1,7 @@
+# Preserve distributed artifact bytes and checksums on every checkout.
+output/branding/rareiq-v2/** text eol=lf
+output/branding/rareiq-v2/**/*.pdf binary
+output/branding/rareiq-v2/*.pdf binary
+output/branding/rareiq-v2/**/*.png binary
+output/branding/rareiq-v2/**/*.ico binary
+output/branding/rareiq-v2/**/*.ttf binary

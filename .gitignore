@@ -29,6 +29,10 @@ __pycache__/
 *.pyc
 *.zip
 
+# Brand working evidence; approved masters and the deliverable library are tracked.
+output/branding/rareiq-v2/source/*.png
+output/branding/rareiq-v2/qa/
+
 # Local environments and generated test/runtime output
 .venv/
 .tmp/

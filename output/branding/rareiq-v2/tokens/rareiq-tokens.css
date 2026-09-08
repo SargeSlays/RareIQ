@@ -1,0 +1,35 @@
+/* RareIQ v2. Opt-in tokens: integrate through the existing semantic layer. */
+:root {
+  --riq-brand-purple: #A855F7;
+  --riq-brand-pink: #FF4EDB;
+  --riq-brand-orange: #FF9F43;
+  --riq-brand-cyan: #00E5FF;
+  --riq-brand-mint: #7CFFCB;
+  --riq-brand-space: #080F1A;
+  --riq-brand-paper: #F7F8FC;
+}
+[data-rareiq-theme="dark"] {
+  --riq-dark-background: #080F1A;
+  --riq-dark-surface: #111C2E;
+  --riq-dark-text: #F7F8FC;
+  --riq-dark-muted: #AFBDD1;
+  --riq-dark-action: #00E5FF;
+  --riq-dark-actionText: #080F1A;
+  --riq-dark-focus: #7CFFCB;
+}
+[data-rareiq-theme="light"] {
+  --riq-light-background: #F7F8FC;
+  --riq-light-surface: #FFFFFF;
+  --riq-light-text: #080F1A;
+  --riq-light-muted: #495569;
+  --riq-light-action: #6425B5;
+  --riq-light-actionText: #FFFFFF;
+  --riq-light-focus: #6425B5;
+}
+:root {
+  --riq-status-success: #137A53;
+  --riq-status-warning: #805600;
+  --riq-status-error: #B42343;
+}
+:root { --riq-font: Poppins, Arial, sans-serif; --riq-radius-control: 8px; --riq-radius-panel: 16px; --riq-space-unit: 8px; }
+@media (prefers-reduced-motion: reduce) { .riq-brand-motion { animation: none; transition: none; } }
