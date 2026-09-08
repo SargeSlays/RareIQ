@@ -1,5 +1,15 @@
 # RareIQ Release Checklist
 
+## Local wake-command checkpoint - September 8, 2026
+
+Final gate: 2,506 Python and 235 JavaScript tests passed. Real synthetic speech
+passed the browser worklet, Windows recognizer, isolated HTTP action/clip export,
+download and full decoding. Duplicate input saved once. The restarted managed app
+also recognized that audio in Practice without production changes and was stopped.
+Post-restart Edge checks passed with actual voice writes and media starts blocked.
+Real microphone/game-focus/PTT/private-audio acceptance remains outstanding;
+see [voice control evidence and limits](VOICE_CONTROL_CHECKPOINT.md).
+
 ## Scene and rundown action safety - September 8, 2026
 
 Final gate: 2,476 Python and 227 JavaScript tests passed. Four served Edge scenarios

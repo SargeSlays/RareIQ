@@ -12,10 +12,10 @@ passed by this checkpoint.
 | --- | --- |
 | Operator motion | Integrated supplied Motion Pack v1 runtime, independent four-mode preference, OS reduction and confirmed OBS streaming limiter. Browser regressions use controlled service-state inputs; no game-load measurement. |
 | Sarge advice | Existing read-only local/optional HTTP advisor. Configuration is labeled configured, not connected. Replies never execute actions. |
-| Speech / wake phrase / background PTT | Unavailable. Voice Mod processes audio but does not recognize commands. No new capture graph was installed. |
+| Speech / wake phrase / background PTT | Experimental local wake commands borrow Voice Mod's raw input. Practice and camera/clip execution passed synthetic worklet/Windows/HTTP tests. Native PTT, actual microphone and game-focus acceptance remain pending. See [voice checkpoint](VOICE_CONTROL_CHECKPOINT.md). |
 | Shared actions | Initial host dispatcher implements `clip.save` and `program.take`, behind existing operator endpoints. Other scene, sound and preset actions still need adapters. |
 | Manual clips | HTTP save/download and full decoding verified with synthetic frames. Uses existing silent, 5fps, up-to-1280px Program-camera buffer, normally 20 seconds. Not full game/graphics/mixed-audio capture. |
-| Sound | Existing local playback and browser-output lease/deduplication. Private voice confirmations and end-to-end output receipt remain unverified. |
+| Sound | Existing local playback and browser-output lease/deduplication. Voice confirmations are operator text only; private spoken output and end-to-end route receipt remain unimplemented/unverified. |
 | Multichat | No ingestion adapters, normalized history or chat dock. Existing platform monitors do not supply chat. |
 | Destinations | Twitch, YouTube, Kick and Rumble have read-only, route-correlated monitors. Facebook/X have partial evidence. TikTok/Instagram remain capability guidance. No new account authorization or live receipt checks performed. |
 | Multistream | Existing OBS controls one configured stream service. Independent multi-output publishing/custom destination management are not implemented. |
@@ -46,6 +46,8 @@ request identity on uncertain transport/pending outcomes and only announces a pl
 save after `video_available` is true.
 
 No credentials or new persisted configuration are introduced by this foundation.
+The following voice checkpoint adds bounded, local-only audio/arming endpoints;
+they accept audio from the existing input owner, never text-to-execute requests.
 Motion uses one isolated `producerplease.operator.motion.v1` preference; its storage
 failure is shown truthfully. It is loaded only in the operator document and excludes
 media, artwork, protected branches and their ancestors. Preview/lab actions are absent.
@@ -107,8 +109,7 @@ old replay API remains compatible with requests that omit new fields.
 ## Usage authorization
 
 Original shared baseline remains 0%, reset timestamp 1789435596. The owner authorized
-a total ceiling of 30% after the 20% pause. Do not establish a new baseline. Shared
+a total ceiling of 35% after the 30% checkpoint. Do not establish a new baseline. Shared
 metering was 21% at resumption, 25% before activation and 27% after the action-safety
-restart. Background speech/full Program capture cannot be reliably bounded within
-the remaining allowance; preserve headroom and obtain a higher total ceiling before
-that substantial stage.
+restart; voice work resumed at 27% under the 35% ceiling and reported 30% during
+verification. Preserve headroom before another substantial stage.

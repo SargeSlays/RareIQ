@@ -1,5 +1,20 @@
 # RareIQ engineering memory
 
+## Voice ownership, delayed completion and safe synthesis - September 8, 2026
+
+Speech borrows the raw Voice Mod node; it must never own a second microphone or
+close the source context/tracks. Invalidate asynchronous attachment and recognition
+on Stop/device changes. Emergency and lease checks must cover errored sessions,
+not just healthy listening. A pending action needs observation of its existing
+Future; acknowledging dispatch or retrying the adapter cannot establish completion.
+Regression tests cover all three classes, plus actual synthetic speech/clip output.
+
+A synthesis diagnostic used a nonexistent output-binding overload without stopping
+on errors; the following Speak call may have used the default speaker. This was
+disclosed to the owner. All synthesis tests now set ErrorActionPreference=Stop and
+select null output before binding explicit memory output; a failed binding aborts
+before Speak. Never assume a failed output-selection call preserved privacy.
+
 ## Saved scenes must share camera availability checks - September 8, 2026
 
 The switcher rejected unavailable cameras, but saved scenes bypassed that guard.

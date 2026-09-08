@@ -27,7 +27,8 @@
 <script defer src="/static/studio_docks.js?v=20260908-4"></script>
 <script defer src="/static/producer-please.motion.js?v=20260908-1"></script>
 <script defer src="/static/studio_motion.js?v=20260908-1"></script>
-<script defer src="/static/studiox.js?v=6.9.0-commanddeck96&amp;shell=6.8.93-camera-workspace1&amp;media=20260830-2&amp;grid=20260830-1&amp;speed=20260830-1&amp;audit=20260830-2&amp;cameras=20260830-1&amp;outputs=20260831-3&amp;chase=20260831-6&amp;studio=20260831-1&amp;appearance=20260907-1&amp;refinish=20260907-2&amp;docks=20260908-2&amp;motion=20260908-1&amp;actions=20260908-1"></script>
+<script defer src="/static/studio_voice_control.js?v=20260908-1"></script>
+<script defer src="/static/studiox.js?v=6.9.0-commanddeck96&amp;shell=6.8.93-camera-workspace1&amp;media=20260830-2&amp;grid=20260830-1&amp;speed=20260830-1&amp;audit=20260830-2&amp;cameras=20260830-1&amp;outputs=20260831-3&amp;chase=20260831-6&amp;studio=20260831-1&amp;appearance=20260907-1&amp;refinish=20260907-2&amp;docks=20260908-2&amp;motion=20260908-1&amp;actions=20260908-1&amp;voice=20260908-1"></script>
     <link rel="icon" type="image/svg+xml" href="/static/brand/producer-please-v2/favicon.svg?v=2.0">
     <link rel="apple-touch-icon" href="/static/brand/producer-please-v2/apple-touch-icon.png?v=2.0">
 <link rel="stylesheet" href="/static/brand/v1/rare-iq-tokens.css?v=1.0">
@@ -1641,6 +1642,16 @@ Choose a source above</span>
           <div class="voice-mod-sliders"><label><span>Input Gain <b id="voiceModGainValue">100%</b></span><input id="voiceModGain" type="range" min="0" max="200" value="100"></label><label><span>Effect Mix <b id="voiceModMixValue">75%</b></span><input id="voiceModMix" type="range" min="0" max="100" value="75"></label><label><span>Output <b id="voiceModOutputValue">100%</b></span><input id="voiceModOutput" type="range" min="0" max="150" value="100"></label></div>
           <label class="voice-mod-monitor"><input id="voiceModMonitor" type="checkbox"><span>Monitor processed voice through this computer</span><small>Use headphones. Speaker monitoring can create feedback.</small></label>
           <div class="voice-mod-actions"><button class="riq-button" id="voiceModRefresh" type="button">Refresh Inputs</button><button class="riq-button danger" id="voiceModStop" type="button" disabled>Stop</button></div>
+          <section class="voice-mod-route-note" id="studioVoiceControls" aria-labelledby="studioVoiceTitle" data-state="stopped">
+            <h3 id="studioVoiceTitle">Voice commands</h3>
+            <label class="voice-mod-monitor"><input id="studioVoicePractice" type="checkbox" checked><span>Practice · recognize commands without taking action</span></label>
+            <p>Start Voice Mod first. Say “Producer please” or “Sarge”, then “camera one” through “camera four”, “clip that”, or “save the last 15, 30, 60 or 120 seconds”. Pause after each command.</p>
+            <div class="voice-mod-actions"><button class="riq-button primary" id="studioVoiceStart" type="button" disabled>Start listening</button><button class="riq-button danger" id="studioVoiceStop" type="button" disabled>Stop listening</button></div>
+            <p id="studioVoiceStatus" role="status">Start Voice Mod before listening.</p>
+            <p id="studioVoiceOutcome" role="status"></p>
+            <p>Commands use your selected Voice Mod microphone. They may be audible on Program if that microphone is routed there.</p>
+            <small>Local studio only. Ctrl+Alt+Backspace stops voice commands on the host. Hold-to-talk and spoken confirmations are not available yet.</small>
+          </section>
         </section>
         <section class="voice-mod-meter-card" data-state="idle"><header><div><span>Processed Output</span><h3>Live Signal</h3></div><b id="voiceModPresetName">Clean Studio</b></header><div class="voice-mod-meter"><i id="voiceModMeterFill"></i></div><div class="voice-mod-readout"><strong id="voiceModLevel">−∞ dB</strong><span id="voiceModRoute" role="status">RareIQ stream unavailable until started</span></div><div class="voice-mod-route-note"><b>Production Audio Handoff</b><p>RareIQ exposes the processed stream internally as <code>window.rareiqVoiceModStream</code>. A virtual audio cable is still required to use it as a system microphone in unrelated desktop apps.</p></div></section>
       </div>

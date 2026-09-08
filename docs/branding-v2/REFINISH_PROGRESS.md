@@ -1,5 +1,14 @@
 # Refinish implementation progress
 
+## Local wake-command checkpoint - September 8, 2026
+
+Voice studio now offers explicit Practice/listening controls using its existing
+raw microphone owner. Only registered camera/clip actions can run. Real synthetic
+speech-to-MP4 and managed-app Practice passed; no actual microphone/game session or
+private spoken output is claimed. Gate: 2,506 Python and 235 JavaScript tests.
+See [voice checkpoint](../VOICE_CONTROL_CHECKPOINT.md). Total ceiling35%, original
+baseline0% unchanged; shared use reported30% during activation.
+
 ## Action safety follow-up - September 8, 2026
 
 Scene takes now share camera availability checks. Rundown Stop invalidates awaited

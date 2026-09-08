@@ -54,7 +54,8 @@ def test_voice_mod_persists_preferences_and_stops_capture_cleanly():
     assert "previous.context.close()" in STUDIO
     stop = STUDIO[STUDIO.index("async function stopVoiceMod") : STUDIO.index("async function handleVoiceModInputEnded")]
     assert stop.index("window.rareiqVoiceModStream=null") < stop.index("await previous.context.close()")
-    assert 'navigator.mediaDevices?.addEventListener?.("devicechange",()=>refreshVoiceModInputs()' in STUDIO
+    device_change = next(line for line in STUDIO.splitlines() if 'addEventListener?.("devicechange"' in line)
+    assert device_change.index('StudioVoiceControl?.stop') < device_change.index('refreshVoiceModInputs()')
 
 
 def test_voice_mod_has_one_semantic_responsive_style_owner():

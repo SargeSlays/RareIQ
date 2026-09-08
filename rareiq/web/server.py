@@ -34,6 +34,8 @@ from rareiq.services.spotify_service import spotify
 from rareiq.services.instant_replay_service import InstantReplayService
 from rareiq.services.auto_clip_service import AutoClipService
 from rareiq.services.production_action_service import ActionSpec, ProductionActions
+from rareiq.services.voice_command_service import VoiceCommandService, MAX_VOICE_BYTES
+from rareiq.services.windows_speech_recognizer import WindowsSpeechRecognizer
 from rareiq.services.inventory_service import MAX_RECEIPT_DATA_URL_CHARS
 from rareiq.services.recording_service import RecordingService
 from rareiq.services.obs_service import ObsService
@@ -148,6 +150,7 @@ async def lifespan(_app: FastAPI):
     try:
         yield
     finally:
+        await asyncio.to_thread(voice_commands.close)
         if not boot_task.done():
             boot_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -325,6 +328,8 @@ sarge_advisor = SargeAdvisorService.from_environment()
 
 def _request_body_limit(request: Request) -> int | None:
     path = request.url.path
+    if request.method == "POST" and path.startswith("/api/production/voice/"):
+        return MAX_VOICE_BYTES if path.endswith("/audio") else 4096
     if request.method == "POST" and path == "/api/creator/assets":
         mime = (request.headers.get("content-type") or "").split(";", 1)[0].strip().lower()
         rule = orchestrator.reaction_assets.ALLOWED.get(mime)
@@ -1815,6 +1820,53 @@ async def download_replay_clip(highlight_id: str):
     return FileResponse(path, media_type="video/mp4", filename=f"RareIQ-{highlight_id}.mp4", headers={"Cache-Control": "no-store"})
 
 production_actions = ProductionActions()
+voice_commands = VoiceCommandService(WindowsSpeechRecognizer(), production_actions)
+
+
+class VoiceStartRequest(BaseModel):
+    practice: bool = True
+
+
+class VoiceStopRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=64)
+
+
+def _require_voice_loopback(request: Request):
+    if not is_loopback_client(request.client.host if request.client else None):
+        raise HTTPException(status_code=403, detail="voice_requires_local_operator")
+
+
+@app.get("/api/production/voice/status")
+async def voice_control_status(request: Request, session_id: str | None = None):
+    _require_voice_loopback(request)
+    return voice_commands.status(session_id)
+
+
+@app.post("/api/production/voice/start")
+async def start_voice_control(request: Request, config: VoiceStartRequest):
+    _require_voice_loopback(request)
+    result = await asyncio.to_thread(voice_commands.start, practice=config.practice)
+    return result if result.get("ok") else JSONResponse(status_code=409, content=result)
+
+
+@app.post("/api/production/voice/stop")
+async def stop_voice_control(request: Request, config: VoiceStopRequest):
+    _require_voice_loopback(request)
+    result = voice_commands.stop(config.session_id)
+    return result if result.get("ok") else JSONResponse(status_code=409, content=result)
+
+
+@app.post("/api/production/voice/audio")
+async def voice_control_audio(request: Request, session_id: str, sequence: int, ended_at: float):
+    _require_voice_loopback(request)
+    if request.headers.get("content-type", "").split(";", 1)[0] != "audio/wav":
+        raise HTTPException(status_code=415, detail="voice_requires_wav")
+    try:
+        data = await _read_bounded_body(request, MAX_VOICE_BYTES)
+    except RequestBodyTooLarge:
+        raise HTTPException(status_code=413, detail="voice_audio_too_large")
+    result = await asyncio.to_thread(voice_commands.audio, session_id, sequence, ended_at, data)
+    return result if result.get("ok") else JSONResponse(status_code=409, content=result)
 
 
 def _validate_production_action(model, payload: dict[str, Any]) -> dict[str, Any]:
@@ -1844,7 +1896,7 @@ async def _dispatch_manual_action(action_id: str, request: BaseModel, failure_st
 
 @app.get("/api/production/actions")
 async def production_action_capabilities():
-    return {"ok": True, "actions": production_actions.manifest(), "voice_control": "unavailable",
+    return {"ok": True, "actions": production_actions.manifest(), "voice_control": "experimental_local_wake_commands",
             "execution": "existing operator endpoints", "idempotency": "request_id plus expires_at; current process only"}
 
 

@@ -50,7 +50,7 @@ class ProductionActions:
 
     def dispatch(self, action_id: str, params: dict[str, Any], *, origin: str,
                  request_id: str | None = None, expires_at: float | None = None,
-                 practice: bool = False) -> dict[str, Any]:
+                 practice: bool = False, cancelled: Callable[[], bool] = lambda: False) -> dict[str, Any]:
         # Origin is supplied by a trusted host adapter, never inferred from text.
         if origin not in {"operator", "host_voice"}:
             return self._result("rejected", "untrusted_action_origin")
@@ -85,7 +85,7 @@ class ProductionActions:
                         self._requests.pop(old)
                 if len(self._requests) >= self._retained:
                     return self._result("rejected", "action_capacity_reached")
-                future = self._pool.submit(spec.execute, normalized)
+                future = self._pool.submit(lambda: {"ok": False, "reason": "action_cancelled"} if cancelled() else spec.execute(normalized))
                 self._requests[key] = (fingerprint, future, time.time() + 120)
         try:
             payload = deepcopy(future.result(timeout=spec.timeout_seconds))
@@ -102,3 +102,21 @@ class ProductionActions:
 
     def close(self) -> None:
         self._pool.shutdown(wait=True, cancel_futures=True)
+
+    def observe(self, request_id: str) -> dict[str, Any]:
+        """Read accepted work without dispatching, extending expiry or waiting."""
+        with self._lock:
+            record = self._requests.get(request_id)
+        if record is None:
+            return self._result("failed", "action_result_unavailable", request_id=request_id)
+        action_id = json.loads(record[0])[0]
+        future = record[1]
+        if not future.done():
+            return self._result("executing", "action_still_running", request_id=request_id, action_id=action_id)
+        try:
+            payload = deepcopy(future.result(timeout=0))
+            ok = payload.get("ok") is True
+            return {"ok": ok, "state": "succeeded" if ok else "failed", "request_id": request_id,
+                    "action_id": action_id, "result": payload}
+        except Exception:
+            return self._result("failed", "action_adapter_failed", request_id=request_id, action_id=action_id)

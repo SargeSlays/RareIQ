@@ -1469,7 +1469,7 @@ function switchWorkspace(name){
 
 function voiceModPreferences(){try{return JSON.parse(localStorage.getItem(VOICE_MOD_PREFERENCES_KEY)||"{}")||{}}catch(_error){return {}}}
 function saveVoiceModPreferences(){try{localStorage.setItem(VOICE_MOD_PREFERENCES_KEY,JSON.stringify({deviceId:$("voiceModInput")?.dataset.devicesReady==="true"?$("voiceModInput").value:voiceModPreferences().deviceId||"",preset:$("voiceModPreset")?.value||"clean",gain:Number($("voiceModGain")?.value||100),mix:Number($("voiceModMix")?.value||75),output:Number($("voiceModOutput")?.value||100),monitor:Boolean($("voiceModMonitor")?.checked)}))}catch(_error){}}
-function setVoiceModStatus(state,label){const host=$("voiceModState"),meter=document.querySelector(".voice-mod-meter-card"),start=$("voiceModStart"),stop=$("voiceModStop");if(host){host.dataset.state=state;host.querySelector("span").textContent=label}if(meter)meter.dataset.state=state;if(start)start.disabled=state==="live"||state==="starting";if(stop){stop.disabled=!["live","starting"].includes(state);stop.textContent=state==="starting"?"Cancel":"Stop"}}
+function setVoiceModStatus(state,label){const host=$("voiceModState"),meter=document.querySelector(".voice-mod-meter-card"),start=$("voiceModStart"),stop=$("voiceModStop");if(host){host.dataset.state=state;host.querySelector("span").textContent=label}if(meter)meter.dataset.state=state;if(start)start.disabled=state==="live"||state==="starting";if(stop){stop.disabled=!["live","starting"].includes(state);stop.textContent=state==="starting"?"Cancel":"Stop"};window.StudioVoiceControl?.refresh();}
 function setVoiceModInputStatus(message,state="ready"){const status=$("voiceModInputStatus");if(status){status.textContent=message;status.dataset.state=state}}
 async function refreshVoiceModInputs(){
   if(!navigator.mediaDevices?.enumerateDevices)throw new Error("Microphone selection is not supported in this browser.");
@@ -1491,6 +1491,7 @@ function connectVoiceModPreset(context,input,wet,preset){const nodes=[],oscillat
 function updateVoiceModLevels(persist=true){const gain=Number($("voiceModGain")?.value||100),mix=Number($("voiceModMix")?.value||75),output=Number($("voiceModOutput")?.value||100),monitor=$("voiceModMonitor")?.checked?1:0;if($("voiceModGainValue"))$("voiceModGainValue").textContent=`${gain}%`;if($("voiceModMixValue"))$("voiceModMixValue").textContent=`${mix}%`;if($("voiceModOutputValue"))$("voiceModOutputValue").textContent=`${output}%`;if(voiceModState.inputGain)voiceModState.inputGain.gain.value=gain/100;if(voiceModState.dryGain)voiceModState.dryGain.gain.value=1-mix/100;if(voiceModState.wetGain)voiceModState.wetGain.gain.value=mix/100;if(voiceModState.outputGain)voiceModState.outputGain.gain.value=output/100;if(voiceModState.monitorGain)voiceModState.monitorGain.gain.value=monitor;if(persist)saveVoiceModPreferences()}
 function meterVoiceMod(){cancelAnimationFrame(voiceModState.meterFrame);if(!voiceModState.active||!voiceModState.analyser)return;const samples=new Uint8Array(voiceModState.analyser.fftSize);voiceModState.analyser.getByteTimeDomainData(samples);let sum=0;for(const value of samples){const centered=(value-128)/128;sum+=centered*centered}const rms=Math.sqrt(sum/samples.length),db=rms?20*Math.log10(rms):-Infinity,level=Math.max(0,Math.min(100,(db+60)/60*100));if($("voiceModMeterFill"))$("voiceModMeterFill").style.width=`${level}%`;if($("voiceModLevel"))$("voiceModLevel").textContent=Number.isFinite(db)?`${db.toFixed(1)} dB`:"−∞ dB";voiceModState.meterFrame=requestAnimationFrame(meterVoiceMod)}
 async function stopVoiceMod(){
+  window.StudioVoiceControl?.stop("Voice Mod stopped. Start listening again when ready.");
   voiceModRequestGeneration+=1;
   const previous=voiceModState;
   // Detach synchronously: an old close promise must never own a newer session.
@@ -10944,13 +10945,14 @@ document.addEventListener("DOMContentLoaded",()=>{
     button.addEventListener("click",()=>switchWorkspace(button.dataset.target));
   });
   restoreVoiceModPreferences();
+  window.StudioVoiceControl=window.StudioVoiceControlFactory?.create({borrow:()=>voiceModState,request:api});
   $("voiceModStart")?.addEventListener("click",()=>startVoiceMod().catch(error=>{setVoiceModStatus("error","Microphone unavailable");notify("Voice Mod Not Started",error.message||String(error),"error")}));
   $("voiceModStop")?.addEventListener("click",()=>stopVoiceMod().catch(error=>notify("Voice Mod Not Stopped",error.message||String(error),"error")));
   $("voiceModRefresh")?.addEventListener("click",()=>refreshVoiceModInputs().then(devices=>notify("Microphones Refreshed",`${devices.length} input${devices.length===1?"":"s"} available.`,"success")).catch(error=>notify("Microphones Unavailable",error.message||String(error),"error")));
   ["voiceModGain","voiceModMix","voiceModOutput","voiceModMonitor"].forEach(id=>$(id)?.addEventListener("input",updateVoiceModLevels));
-  $("voiceModInput")?.addEventListener("change",saveVoiceModPreferences);
+  $("voiceModInput")?.addEventListener("change",()=>{window.StudioVoiceControl?.stop("Microphone selection changed. Start listening again after checking Voice Mod.");saveVoiceModPreferences();});
   $("voiceModPreset")?.addEventListener("change",event=>{saveVoiceModPreferences();if($("voiceModPresetName"))$("voiceModPresetName").textContent=VOICE_MOD_PRESETS[event.target.value]||event.target.value;if(voiceModState.active)startVoiceMod().catch(error=>notify("Preset Not Applied",error.message||String(error),"error"))});
-  navigator.mediaDevices?.addEventListener?.("devicechange",()=>refreshVoiceModInputs().catch(()=>{}));
+  navigator.mediaDevices?.addEventListener?.("devicechange",()=>{window.StudioVoiceControl?.stop("Audio devices changed. Check Voice Mod before listening again.");refreshVoiceModInputs().catch(()=>{});});
   restoreCameraFxPreferences();
   $("cameraFxApply")?.addEventListener("click",toggleCameraFx);
   [["pointerdown",true],["pointerup",false],["pointercancel",false],["pointerleave",false]].forEach(([eventName,active])=>$("cameraFxCompare")?.addEventListener(eventName,()=>setCameraFxCompare(active)));
