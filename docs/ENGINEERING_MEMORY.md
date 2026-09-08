@@ -1,5 +1,14 @@
 # RareIQ engineering memory
 
+## Motion and functional production foundation - September 8, 2026
+
+Manual replay previously indexed JPEG highlights while only card-triggered auto
+clips encoded MP4. The manual save endpoint now requests the same verified export,
+and UI success requires playable-video evidence. Request IDs must bind expiry as
+well as action/parameters; retain records for the full allowed retry window so a
+changed deadline cannot escape deduplication. Tests cover concurrent retries,
+expiry extension, capacity, untrusted inputs, low disk and failed encoding.
+
 ## Portable controls need their original state and styling context - September 8, 2026
 
 Moving an audio shell outside its standalone workspace preserved listeners but

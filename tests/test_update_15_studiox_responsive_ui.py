@@ -44,7 +44,7 @@ def test_one_camera_feed_and_no_video_clone() -> None:
 
 def test_ui4_scope_and_semantic_regions_exist_without_new_functional_ids() -> None:
     html = read("control.html")
-    assert '<body class="studiox-ui4 studiox-premium studiox-command-deck pp-shell" data-ui4-region="application-shell"' in html
+    assert '<body class="studiox-ui4 studiox-premium studiox-command-deck pp-shell" data-pp-motion-root data-ui4-region="application-shell"' in html
     for region in (
         "top-app-bar", "controls", "camera", "current-card", "pipeline",
         "diagnostics", "product-navigation", "mobile-actions",
@@ -151,7 +151,7 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
     html = read("control.html")
     styles = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
     version = re.search(r'data-studiox-build="([^"]+)"', html).group(1)
-    assert styles[-12:] == [
+    assert styles[-13:] == [
         f"/static/studiox_ui4_tokens.css?v={version}",
         f"/static/studiox_update15.css?v={version}&amp;shell=6.8.93-camera-workspace1&amp;media=20260830-2&amp;grid=20260830-1&amp;audit=20260830-2",
         f"/static/pack_run_coach.css?v={version}",
@@ -164,8 +164,9 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
         "/static/studiox_inspector.css?v=20260830-2",
         "/static/broadcast_output.css?v=20260831-4",
         "/static/studio_shell.css?v=20260831-2&amp;refinish=20260907-2&amp;session-tools=20260908-2",
+        "/static/producer-please.motion.css?v=20260908-1",
     ]
-    assert len(styles) == 13
+    assert len(styles) == 14
     assert not any("studiox_60.css" in style for style in styles)
     assert not any("studiox_604.css" in style for style in styles)
 

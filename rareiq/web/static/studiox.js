@@ -199,6 +199,7 @@ function notify(title,detail="",type="info"){
   node.addEventListener("focusout",()=>setTimeout(()=>{if(!node.contains(document.activeElement))armNotificationDismissal(node)},0));
   node.append(icon,copy,dismiss);
   stack.appendChild(node);
+  window.StudioMotion?.notification(node);
   armNotificationDismissal(node);
   return node;
 }
@@ -1081,6 +1082,7 @@ function renderCameraRecognitionPresentation(){
   setStateChip("aiStateChip",aiChipState,title);
   updateAiPulse(legacyState);
   setCoreState(key);
+  window.StudioMotion?.recognition(key);
 }
 
 function setRecognitionState(state,detail=""){
@@ -1603,7 +1605,7 @@ let obsState={connected:false,scenes:[],streaming:false,recording:false,scene_ma
 let broadcastDestinationState={destinations:[],summary:{},routing:{}};
 function obsSceneName(value){return typeof value==="string"?value:value?.sceneName||value?.scene_name||value?.name||"";}
 function renderObsDiagnostic(){const box=$("obsDiagnostic"),diagnostic=obsState.diagnostic||{};if(!box)return;box.dataset.code=obsState.connected?"connected":diagnostic.code||"unknown";box.querySelector("strong").textContent=obsState.connected?"OBS CONNECTED":diagnostic.message||"OBS is offline";box.querySelector("span").textContent=obsState.connected?`${obsState.current_scene||"No active scene"} · WebSocket control ready`:diagnostic.action||"Open OBS connection settings";}
-function renderObsStatus(payload={}){obsState=payload.obs||payload;const connected=Boolean(obsState.connected),controlsEnabled=Boolean(obsState.enabled&&connected),names=(obsState.scenes||[]).map(obsSceneName).filter(Boolean),sceneSelect=$("obsSceneSelect"),takeScene=$("obsTakeScene"),streamToggle=$("obsStreamToggle"),recordToggle=$("obsRecordToggle");if($("obsConnectionStatus"))$("obsConnectionStatus").textContent=connected?`Connected · ${obsState.obs_version||"OBS"}`:(obsState.error||"Offline");if($("obsCapabilityStatus"))$("obsCapabilityStatus").textContent=obsState.client_installed?"OBS WebSocket client ready": "Install obsws-python to enable OBS control";if($("obsHost"))$("obsHost").value=obsState.host||"127.0.0.1";if($("obsPort"))$("obsPort").value=String(obsState.port||4455);if($("obsEnabled"))$("obsEnabled").checked=Boolean(obsState.enabled);if(sceneSelect){sceneSelect.replaceChildren(...(names.length?names.map(name=>new Option(name,name)):[new Option("No scenes loaded","")]));if(obsState.current_scene)sceneSelect.value=obsState.current_scene;sceneSelect.disabled=!controlsEnabled||!names.length;}if(takeScene)takeScene.disabled=!controlsEnabled||!names.length;if(streamToggle){streamToggle.textContent=obsState.streaming?"STOP STREAM":"START STREAM";streamToggle.disabled=!controlsEnabled;}if(recordToggle){recordToggle.textContent=obsState.recording?"STOP OBS RECORDING":"START OBS RECORDING";recordToggle.disabled=!controlsEnabled;}if($("obsLiveSummary"))$("obsLiveSummary").textContent=[obsState.streaming?"STREAMING":null,obsState.recording?"RECORDING":null].filter(Boolean).join(" · ")||"Offline";renderObsSceneMap();}
+function renderObsStatus(payload={}){obsState=payload.obs||payload;window.StudioMotion?.onAir(obsState.streaming===true);const connected=Boolean(obsState.connected),controlsEnabled=Boolean(obsState.enabled&&connected),names=(obsState.scenes||[]).map(obsSceneName).filter(Boolean),sceneSelect=$("obsSceneSelect"),takeScene=$("obsTakeScene"),streamToggle=$("obsStreamToggle"),recordToggle=$("obsRecordToggle");if($("obsConnectionStatus"))$("obsConnectionStatus").textContent=connected?`Connected · ${obsState.obs_version||"OBS"}`:(obsState.error||"Offline");if($("obsCapabilityStatus"))$("obsCapabilityStatus").textContent=obsState.client_installed?"OBS WebSocket client ready": "Install obsws-python to enable OBS control";if($("obsHost"))$("obsHost").value=obsState.host||"127.0.0.1";if($("obsPort"))$("obsPort").value=String(obsState.port||4455);if($("obsEnabled"))$("obsEnabled").checked=Boolean(obsState.enabled);if(sceneSelect){sceneSelect.replaceChildren(...(names.length?names.map(name=>new Option(name,name)):[new Option("No scenes loaded","")]));if(obsState.current_scene)sceneSelect.value=obsState.current_scene;sceneSelect.disabled=!controlsEnabled||!names.length;}if(takeScene)takeScene.disabled=!controlsEnabled||!names.length;if(streamToggle){streamToggle.textContent=obsState.streaming?"STOP STREAM":"START STREAM";streamToggle.disabled=!controlsEnabled;}if(recordToggle){recordToggle.textContent=obsState.recording?"STOP OBS RECORDING":"START OBS RECORDING";recordToggle.disabled=!controlsEnabled;}if($("obsLiveSummary"))$("obsLiveSummary").textContent=[obsState.streaming?"STREAMING":null,obsState.recording?"RECORDING":null].filter(Boolean).join(" · ")||"Offline";renderObsSceneMap();}
 function renderObsSceneMap(){const map=$("obsSceneMap");if(!map)return;const names=(obsState.scenes||[]).map(obsSceneName).filter(Boolean);map.replaceChildren(...productionScenes.map(scene=>{const label=document.createElement("label");label.innerHTML="<span></span><select></select>";label.querySelector("span").textContent=scene.name;label.querySelector("select").dataset.rareiqScene=scene.id;label.querySelector("select").replaceChildren(new Option("Do not sync",""),...names.map(name=>new Option(name,name)));label.querySelector("select").value=obsState.scene_map?.[scene.id]||"";return label;}));}
 async function loadObsStatus(){const payload=await api("/api/production/obs");renderObsStatus(payload);renderObsDiagnostic();return payload;}
 function broadcastDestinationCard(destination){
@@ -1895,19 +1897,39 @@ async function updateProductionAutoClip(action){
   }
 }
 let productionReplayMarkPending=false;
+let productionReplayMarkRequest=null;
 async function markProductionReplay(){
   if(productionReplayMarkPending)return null;
   productionReplayMarkPending=true;
   const button=$("productionReplayMark");
-  if(button)button.disabled=true;
+  if(button){button.disabled=true;button.textContent="SAVING CLIP…";}
   try{
-    const payload=await api("/api/production/replay/mark",{method:"POST",body:JSON.stringify({seconds:Number($("productionReplayLength")?.value)||8,name:$("productionReplayName")?.value||"Highlight"})});
-    notify("Highlight Saved",payload.highlight?.name||"Replay is ready.","success");
+    if(!productionReplayMarkRequest){
+      const endingAt=Date.now()/1000;
+      productionReplayMarkRequest={request_id:crypto.randomUUID(),ending_at:endingAt,expires_at:endingAt+90,seconds:Number($("productionReplayLength")?.value)||8,name:$("productionReplayName")?.value||"Highlight"};
+    }
+    const payload=await api("/api/production/replay/mark",{method:"POST",retries:0,timeoutMs:90000,body:JSON.stringify(productionReplayMarkRequest)});
+    if(payload.reason==="action_still_running"){
+      notify("Clip Still Saving","Check the clip tray, or use Check save to check this same request.","info");
+      await loadProductionReplay().catch(()=>{});
+      return payload;
+    }
+    if(payload.ok===false||payload.highlight?.video_available!==true){
+      productionReplayMarkRequest=null;
+      throw new Error(payload.message||"No playable clip was confirmed. Check the clip tray before trying again.");
+    }
+    const actual=Number(payload.actual_seconds??payload.highlight.duration_seconds)||0;
+    const coverage=payload.shorter_than_requested?` Only ${actual.toFixed(1)}s of the requested ${productionReplayMarkRequest.seconds}s was available.`:` ${actual.toFixed(1)}s saved.`;
+    productionReplayMarkRequest=null;
+    notify("Highlight Saved",`Saved silent Program-camera clip.${coverage} Full Program graphics and audio are not included.`,"success");
     await loadProductionReplay().catch(()=>{});
     return payload;
+  }catch(error){
+    if(error.status>=400&&error.status<500)productionReplayMarkRequest=null;
+    throw error;
   }finally{
     productionReplayMarkPending=false;
-    if(button)button.disabled=false;
+    if(button){button.disabled=false;button.textContent=productionReplayMarkRequest?"CHECK SAVE":"SAVE CLIP";}
   }
 }
 async function takeProductionReplay(id){await api("/api/production/replay/take",{method:"POST",body:JSON.stringify({highlight_id:id,speed:Number($("productionReplaySpeed")?.value)||1})});logProductionEvent("replay","Replay on air",id);notify("Replay On Air","The selected highlight is playing.","success");}
@@ -3252,7 +3274,7 @@ function renderSargeAdvisorStatus(payload={}){
   setCardText("sargeAdvisorConnection",advisor.configured?"Configured":"Local ready");
   setCardText("sargeAdvisorContext","Live evidence");
   setCardText("sargeAdvisorSafety",advisor.mutations_allowed===true?"Actions enabled":"Read only");
-  setCardText("sargeAdvisorBadge",advisor.configured?"SARGE CONNECTED":"LOCAL ADVISOR");
+  setCardText("sargeAdvisorBadge",advisor.configured?"ADVISOR CONFIGURED":"LOCAL ADVISOR");
   const status=$("sargeAdvisorStatus");
   if(status&&!sargeAdvisorInFlight)status.textContent=advisor.configured?`Sarge AI configured at ${advisor.endpoint_host||"the operator endpoint"}.`:"Sarge AI is not configured yet. RareIQ's local evidence advisor is ready now.";
   renderLiveSargeAdvisorStatus(advisor);
@@ -3270,6 +3292,7 @@ function renderSargeAdvisorAnswer(payload={}){
   sargeAdvisorList("sargeAdvisorEvidence",payload.evidence||[]);
   sargeAdvisorList("sargeAdvisorSuggestions",payload.suggestions||[]);
   setCardText("sargeAdvisorStatus",payload.source==="sarge_ai"?"Sarge AI answered using the current sanitized RareIQ context.":payload.fallback_reason?"Sarge AI was unavailable, so RareIQ returned local evidence-based guidance.":"RareIQ returned local evidence-based guidance.");
+  window.StudioMotion?.advisor("sargeAdvisorStatus",payload.answer?(payload.fallback_reason?"attention":"complete"):"attention");
 }
 function requestSargeAdvisor(question,scope="general"){
   return api("/api/ai/advisor/ask",{method:"POST",body:JSON.stringify({question,scope}),timeoutMs:30000});
@@ -3283,12 +3306,14 @@ async function askSargeAdvisor(event=null){
   sargeAdvisorInFlight=true;
   if(button){button.disabled=true;button.textContent="Thinking…";}
   setCardText("sargeAdvisorStatus","Reviewing the latest sanitized RareIQ evidence…");
+  window.StudioMotion?.advisor("sargeAdvisorStatus","busy");
   try{
     const payload=await requestSargeAdvisor(question,$("sargeAdvisorScope")?.value||"general");
     renderSargeAdvisorAnswer(payload);
     return payload;
   }catch(error){
     setCardText("sargeAdvisorStatus",error.message||"The advisor could not answer.");
+    window.StudioMotion?.advisor("sargeAdvisorStatus","error");
     notify("Advisor Unavailable",error.message||String(error),"error");
     return null;
   }finally{
@@ -3299,9 +3324,9 @@ async function askSargeAdvisor(event=null){
 
 let liveSargeAdvisorInFlight=false;
 function renderLiveSargeAdvisorStatus(advisor={}){
-  setCardText("liveSargeAdvisorBadge",advisor.configured?"SARGE CONNECTED":"LOCAL READY");
+  setCardText("liveSargeAdvisorBadge",advisor.configured?"ADVISOR CONFIGURED":"LOCAL READY");
   const status=$("liveSargeAdvisorStatus");
-  if(status&&!liveSargeAdvisorInFlight)status.textContent=advisor.configured?"Sarge AI is connected and ready.":"RareIQ Local Advisor is ready. External Sarge AI is not configured.";
+  if(status&&!liveSargeAdvisorInFlight)status.textContent=advisor.configured?"Sarge AI is configured. Connection is checked when you ask.":"RareIQ Local Advisor is ready. External Sarge AI is not configured.";
 }
 function renderLiveSargeAdvisorAnswer(payload={}){
   const response=$("liveSargeAdvisorResponse");
@@ -3312,6 +3337,7 @@ function renderLiveSargeAdvisorAnswer(payload={}){
   sargeAdvisorList("liveSargeAdvisorSuggestions",payload.suggestions||[]);
   setCardText("liveSargeAdvisorStatus",payload.source==="sarge_ai"?"Sarge AI answered using sanitized live evidence.":payload.fallback_reason?"Sarge AI was unavailable; RareIQ supplied local guidance.":"RareIQ supplied local evidence-based guidance.");
   setStudioXWidgetState("sarge-advisor","ready");
+  window.StudioMotion?.advisor("liveSargeAdvisorStatus",payload.answer?(payload.fallback_reason?"attention":"complete"):"attention");
 }
 async function askLiveSargeAdvisor(event=null){
   event?.preventDefault?.();
@@ -3323,6 +3349,7 @@ async function askLiveSargeAdvisor(event=null){
   setStudioXWidgetState("sarge-advisor","working");
   if(button){button.disabled=true;button.textContent="Thinking…";}
   setCardText("liveSargeAdvisorStatus","Reviewing the latest sanitized RareIQ evidence…");
+  window.StudioMotion?.advisor("liveSargeAdvisorStatus","busy");
   try{
     const payload=await requestSargeAdvisor(question,$("liveSargeAdvisorScope")?.value||"current-card");
     renderLiveSargeAdvisorAnswer(payload);
@@ -3330,6 +3357,7 @@ async function askLiveSargeAdvisor(event=null){
   }catch(error){
     setStudioXWidgetState("sarge-advisor","error");
     setCardText("liveSargeAdvisorStatus",error.message||"The advisor could not answer.");
+    window.StudioMotion?.advisor("liveSargeAdvisorStatus","error");
     notify("Advisor Unavailable",error.message||String(error),"error");
     return null;
   }finally{
@@ -10691,6 +10719,7 @@ function initializeStudioXUI4(){
 
 
 document.addEventListener("DOMContentLoaded",()=>{
+  window.StudioMotion?.init();
   initializeServerConnectionStatus();
   initializeVisibilityAwareRefresh();
   initializeMobileWakeLock();

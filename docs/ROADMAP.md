@@ -1,5 +1,14 @@
 # RareIQ Roadmap
 
+## Motion and functional production foundation - September 8, 2026
+
+Continue the existing branding with the supplied operator-only motion layer.
+Stage A starts with shared clip/camera dispatch and real manual clip export. Next
+complete safe scene/sound/preset adapters and cancellation; host speech and full
+Program/audio capture follow. Authorized chat connectors and two independent
+nonpublic publishing outputs remain later acceptance stages. Full game-focus
+acceptance is pending; see [the phase handoff](FUNCTIONAL_PRODUCTION_PHASE.md).
+
 ## Audio docking checkpoint - September 8, 2026
 
 Implemented portable Soundboard and Voice studio panels, saved-selection migration,

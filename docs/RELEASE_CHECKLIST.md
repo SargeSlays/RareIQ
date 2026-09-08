@@ -1,5 +1,15 @@
 # RareIQ Release Checklist
 
+## Motion and functional production foundation - September 8, 2026
+
+Final gate: 2,472 Python and 218 JavaScript tests passed. Managed restart and
+post-restart capability/Edge checks passed; no actual stream or recording started.
+
+Motion is checked in actual Edge with writes/media starts blocked. Clips are
+checked through actual HTTP routes with synthetic frames, then downloaded and
+decoded. Neither establishes live hardware/game/audio/platform acceptance.
+See [the capability matrix and repeatable checks](FUNCTIONAL_PRODUCTION_PHASE.md).
+
 ## Portable audio panel acceptance - September 8, 2026
 
 Final gate: 2,461 Python and 208 JavaScript tests passed.

@@ -1,5 +1,13 @@
 # RareIQ: streaming-first product direction
 
+## Motion and functional production foundation - September 8, 2026
+
+Voice-controlled production, playable local clips, routed effects/private confirmations,
+unified multichat and independent multistream delivery are now core requirements.
+The current checkpoint supplies a narrow action foundation and manual silent
+Program-camera clip export; background voice/chat/multistream remain unimplemented.
+See [the capability matrix](FUNCTIONAL_PRODUCTION_PHASE.md) for verified layers.
+
 ## Audio tools in the production studio - September 8, 2026
 
 Soundboard and Voice studio now use the same original controls in either a

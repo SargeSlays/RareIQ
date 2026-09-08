@@ -1,5 +1,19 @@
 # Refinish implementation progress
 
+## Motion and functional production foundation - September 8, 2026
+
+Final gate: 2,472 Python and 218 JavaScript tests passed. Post-restart Edge checks
+passed; synthetic HTTP clip save/download decoded all 40 frames with one save for
+a duplicate request. No actual capture, playback or platform publication tested.
+
+The supplied motion runtime is additive, scoped to the operator document, and
+uses existing production/advisor/recognition events. No preview actions, synthetic
+waveform, replacement logo, device pipeline or audience motion styles are imported.
+The separately checkpointed functional foundation adds manual playable clip export
+and shared clip/camera dispatch. Full hands-free/chat/multistream acceptance remains
+pending. See [the phase handoff](../FUNCTIONAL_PRODUCTION_PHASE.md) for boundaries
+and usage authorization (30% total ceiling, original 0% baseline unchanged).
+
 ## Portable Soundboard and Voice studio - September 8, 2026
 
 Final gate: 2,461 Python and 208 JavaScript tests passed.

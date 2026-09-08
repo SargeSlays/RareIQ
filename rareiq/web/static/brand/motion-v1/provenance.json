@@ -1,0 +1,25 @@
+{
+  "package": "Producer_Please_RareIQ_Motion_Pack_v1.zip",
+  "archive_sha256": "e83561ba89735f21e96a72b8068f220143fd30e3bacbdd00829f01cc4da3eb66",
+  "runtime": [
+    {
+      "source": "Producer_Please_RareIQ_Motion_Pack_v1/src/producer-please.motion.css",
+      "sha256": "0d09ac7653b6ed31b51af6f191ba0d926cc7bb4624f9ffc2d38463c16281a347",
+      "installed": "/static/producer-please.motion.css"
+    },
+    {
+      "source": "Producer_Please_RareIQ_Motion_Pack_v1/src/producer-please.motion.js",
+      "sha256": "186554dfaf2cea95723d0a706e5847dbae140cfd666e8c2d5b82db599c448adc",
+      "installed": "/static/producer-please.motion.js"
+    }
+  ],
+  "adaptations": [
+    "Persistence outcome exposed in controller status.",
+    "Mode changes emit presentation-only refresh event.",
+    "Buttons without explicit inner face do not animate their hit target.",
+    "Artwork and ancestors of excluded branches are protected.",
+    "Host integration styles appended to the scoped motion stylesheet.",
+    "The one delegated click listener observes activation in capture phase before original handlers disable busy controls."
+  ],
+  "excluded": "Preview code, synthetic events, audio levels and artwork were not imported."
+}
