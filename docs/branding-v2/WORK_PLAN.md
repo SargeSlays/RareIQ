@@ -49,6 +49,11 @@ reference/extraction PNGs and QA evidence remain local and ignored, not deleted.
 
 ## Remaining external acceptance
 
+The [implementation handoff](REFINISH_IMPLEMENTATION_HANDOFF.md) now specifies
+the parent identity, RareIQ ownership, five skins, preference migration, existing
+Sarge integration, preservation rules and runtime acceptance. It is instructions
+for the next implementation phase; the application has not been refinished.
+
 The package does not implement the Producer, Please application rebrand, new OCR
 features, pricing, billing, physical print proofs or external platform acceptance.
 The next major phase is the parent application rebrand using a separate task and
