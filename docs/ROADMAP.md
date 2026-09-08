@@ -1,5 +1,12 @@
 # RareIQ Roadmap
 
+## Microphone noise gate - September 8, 2026
+
+Optional gate implemented with saved controls, smooth attack/release and open/closed
+feedback. Synthetic browser audio verification covers actual AudioWorklet processing;
+owner microphone tuning and the fullscreen PUBG acceptance test remain outstanding.
+
+
 ## Fullscreen PUBG voice acceptance - September 8, 2026
 
 Checkpoint the single microphone toggle, bounded held-key fallback and fresh input

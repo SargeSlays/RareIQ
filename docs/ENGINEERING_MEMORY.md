@@ -1,5 +1,17 @@
 # RareIQ engineering memory
 
+## Optional audio filters must preserve input ownership - September 8, 2026
+
+The noise gate connects after input gain and before both dry and effect branches.
+Gating only the wet branch leaks quiet input through the dry mix; averaging stereo
+samples before measuring power can wrongly mute opposite-phase channels. Measure
+per-channel power with one shared envelope/gain, preserving each output channel.
+Bypass remains exact, defaults off, and module/processor failure restores unfiltered
+audio with an explicit status. A pending module must not reconnect after microphone
+stop. Synthetic DSP, loading/cancellation/failure tests and served offline browser
+rendering guard these contracts without acquiring or playing a physical microphone.
+
+
 ## Fullscreen voice test needs input evidence - September 8, 2026
 
 Owner reports hold-to-talk ineffective in fullscreen PUBG. The earlier gate required

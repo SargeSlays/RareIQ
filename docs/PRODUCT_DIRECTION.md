@@ -1,5 +1,14 @@
 # RareIQ: streaming-first product direction
 
+## Optional microphone noise gate - September 8, 2026
+
+Voice Mod has an off-by-default noise gate, adjustable from -70 to -10 dB with
+a -45 dB starting threshold. Its switch and threshold persist in local microphone
+preferences. The gate filters the processed voice and monitor branches before
+effects; Sarge retains its existing raw microphone input. This mutes quiet passages,
+not background noise while speaking, and does not replace Windows microphone routing.
+
+
 ## Microphone toggle and voice test feedback - September 8, 2026
 
 One microphone button changes between Start, Cancel and Stop using the existing

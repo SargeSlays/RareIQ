@@ -252,3 +252,9 @@ body.pp-shell .sarge-console-details p { margin:9px 0 0; }
 body.pp-shell .sarge-voice-console :is(select,input,summary,button):focus-visible { outline:2px solid var(--pp-focus); outline-offset:3px; }
 @container (max-width:700px) { body.pp-shell .sarge-console-toolbar { grid-template-columns:1fr 1fr; } body.pp-shell .sarge-listening-actions { grid-column:1 / -1; } }
 @container (max-width:450px) { body.pp-shell .sarge-console-toolbar,body.pp-shell .sarge-examples { grid-template-columns:1fr; } body.pp-shell .sarge-examples article { padding:8px 10px; } body.pp-shell .sarge-console-heading h3 span { display:block; margin:5px 0 0; } }
+/* A single threshold spans the available microphone panel width, including docks. */
+#voiceModGateThreshold { width:100%; }
+.voice-mod-sliders label:has(#voiceModGateThreshold) { grid-column:1 / -1; }
+.voice-mod-control-card > [aria-label="Noise gate"] { grid-column:1 / -1; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+#voiceModGateStatus { grid-column:1 / -1; }
+@media (max-width:700px) { .voice-mod-control-card > [aria-label="Noise gate"] { grid-template-columns:minmax(0,1fr); } }

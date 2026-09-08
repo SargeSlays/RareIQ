@@ -1,5 +1,19 @@
 # RareIQ Release Checklist
 
+## Optional microphone noise gate - September 8, 2026
+
+Canonical gate passed: **2,527 Python and 259 JavaScript tests**. Twelve new tests
+cover real DSP bypass/stereo/hysteresis/hold/release and module loading, cancellation,
+failure recovery. Served Edge rendered actual AudioWorklet output from offline
+synthetic stereo audio: quiet input muted, louder input passed, release reached
+silence, disabling restored bypass. Saved controls survived reload. Dark/light
+1920/3840/1100 layouts and existing microphone toggle/docking checks passed.
+Artifacts: `.tmp/refinish/noise-gate-release.log` and
+`.tmp/refinish/noise-gate/results.json`. No physical capture, playback, real stream
+or recording was started. Owner microphone tuning remains required; this does not
+verify fullscreen PUBG, external audio routing, or Sarge's separate raw input.
+
+
 ## Microphone toggle and fullscreen input checks - September 8, 2026
 
 Final gate: **2,527 Python and 247 JavaScript tests passed**. New regressions cover

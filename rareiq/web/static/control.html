@@ -27,8 +27,9 @@
 <script defer src="/static/studio_docks.js?v=20260908-4"></script>
 <script defer src="/static/producer-please.motion.js?v=20260908-1"></script>
 <script defer src="/static/studio_motion.js?v=20260908-1"></script>
+<script defer src="/static/studio_noise_gate.js?v=20260908-1"></script>
 <script defer src="/static/studio_voice_control.js?v=20260908-4"></script>
-<script defer src="/static/studiox.js?v=6.9.0-commanddeck96&amp;shell=6.8.93-camera-workspace1&amp;media=20260830-2&amp;grid=20260830-1&amp;speed=20260830-1&amp;audit=20260830-2&amp;cameras=20260830-1&amp;outputs=20260831-3&amp;chase=20260831-6&amp;studio=20260831-1&amp;appearance=20260907-1&amp;refinish=20260907-2&amp;docks=20260908-2&amp;motion=20260908-1&amp;actions=20260908-1&amp;voice=20260908-3"></script>
+<script defer src="/static/studiox.js?v=6.9.0-commanddeck96&amp;shell=6.8.93-camera-workspace1&amp;media=20260830-2&amp;grid=20260830-1&amp;speed=20260830-1&amp;audit=20260830-2&amp;cameras=20260830-1&amp;outputs=20260831-3&amp;chase=20260831-6&amp;studio=20260831-1&amp;appearance=20260907-1&amp;refinish=20260907-2&amp;docks=20260908-2&amp;motion=20260908-1&amp;actions=20260908-1&amp;voice=20260908-3&amp;noise-gate=20260908-1"></script>
     <link rel="icon" type="image/svg+xml" href="/static/brand/producer-please-v2/favicon.svg?v=2.0">
     <link rel="apple-touch-icon" href="/static/brand/producer-please-v2/apple-touch-icon.png?v=2.0">
 <link rel="stylesheet" href="/static/brand/v1/rare-iq-tokens.css?v=1.0">
@@ -39,7 +40,7 @@
 <link rel="stylesheet" href="/static/studiox_multi_card.css?v=20260830-1">
 <link rel="stylesheet" href="/static/studiox_inspector.css?v=20260830-2">
 <link rel="stylesheet" href="/static/broadcast_output.css?v=20260831-4">
-<link rel="stylesheet" href="/static/studio_shell.css?v=20260831-2&amp;refinish=20260907-2&amp;session-tools=20260908-2&amp;sarge=20260908-1">
+<link rel="stylesheet" href="/static/studio_shell.css?v=20260831-2&amp;refinish=20260907-2&amp;session-tools=20260908-2&amp;sarge=20260908-1&amp;noise-gate=20260908-1">
 <link rel="stylesheet" href="/static/producer-please.motion.css?v=20260908-1">
 </head>
 <body class="studiox-ui4 studiox-premium studiox-command-deck pp-shell" data-pp-motion-root data-ui4-region="application-shell" data-operator-layout="v2" data-studiox-visual-system="unified" data-studiox-build="6.9.0-commanddeck96">
@@ -1655,6 +1656,11 @@ Choose a source above</span>
           <label><span>Microphone input</span><select id="voiceModInput"><option value="">Default microphone</option></select><small class="voice-mod-input-status" id="voiceModInputStatus" role="status" aria-live="polite">Checking available microphones.</small></label>
           <label><span>Voice preset</span><select id="voiceModPreset"><option value="clean">Clean Studio</option><option value="deep">Deep Broadcast</option><option value="robot">Robot</option><option value="radio">Radio</option><option value="megaphone">Megaphone</option></select></label>
           <div class="voice-mod-sliders"><label><span>Input Gain <b id="voiceModGainValue">100%</b></span><input id="voiceModGain" type="range" min="0" max="200" value="100"></label><label><span>Effect Mix <b id="voiceModMixValue">75%</b></span><input id="voiceModMix" type="range" min="0" max="100" value="75"></label><label><span>Output <b id="voiceModOutputValue">100%</b></span><input id="voiceModOutput" type="range" min="0" max="150" value="100"></label></div>
+          <section class="voice-mod-route-note" aria-label="Noise gate">
+            <label class="voice-mod-monitor"><input id="voiceModGateEnabled" type="checkbox"><span>Noise gate</span><small>Mute quiet background sound between phrases. Turn off for unfiltered audio.</small></label>
+            <div class="voice-mod-sliders"><label><span>Open threshold <b id="voiceModGateThresholdValue">-45 dB</b></span><input id="voiceModGateThreshold" type="range" min="-70" max="-10" step="1" value="-45" disabled></label></div>
+            <p id="voiceModGateStatus" role="status">Off</p>
+          </section>
           <label class="voice-mod-monitor"><input id="voiceModMonitor" type="checkbox"><span>Monitor processed voice through this computer</span><small>Use headphones. Speaker monitoring can create feedback.</small></label>
           <div class="voice-mod-actions"><button class="riq-button" id="voiceModRefresh" type="button">Refresh Inputs</button></div>
         </section>

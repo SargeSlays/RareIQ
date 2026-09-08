@@ -1,5 +1,14 @@
 # Refinish implementation progress
 
+## Optional microphone noise gate - September 8, 2026
+
+Added persisted on/off and threshold controls to the existing dockable Voice Mod
+panel. Local AudioWorklet filters the processed output and monitor before effects;
+the original microphone ownership and Sarge input remain unchanged. Browser synthetic
+stereo audio passed quiet/voice/release/bypass checks. Physical tuning remains an
+owner test. Usage53%, authorized total55%; baseline0%/reset1789435596 unchanged.
+
+
 ## Microphone toggle and PUBG input follow-up - September 8, 2026
 
 One microphone Start/Cancel/Stop button retains its input owner and docking identity.

@@ -102,7 +102,7 @@ def test_update15_stylesheet_is_last_and_cache_busted() -> None:
         "/static/studiox_multi_card.css?v=20260830-1",
         "/static/studiox_inspector.css?v=20260830-2",
         "/static/broadcast_output.css?v=20260831-4",
-        "/static/studio_shell.css?v=20260831-2&amp;refinish=20260907-2&amp;session-tools=20260908-2&amp;sarge=20260908-1",
+        "/static/studio_shell.css?v=20260831-2&amp;refinish=20260907-2&amp;session-tools=20260908-2&amp;sarge=20260908-1&amp;noise-gate=20260908-1",
         "/static/producer-please.motion.css?v=20260908-1",
     ]
     assert f'/static/studiox.js?v={active_version}' in html

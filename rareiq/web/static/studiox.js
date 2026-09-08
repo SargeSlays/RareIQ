@@ -1468,7 +1468,7 @@ function switchWorkspace(name){
 }
 
 function voiceModPreferences(){try{return JSON.parse(localStorage.getItem(VOICE_MOD_PREFERENCES_KEY)||"{}")||{}}catch(_error){return {}}}
-function saveVoiceModPreferences(){try{localStorage.setItem(VOICE_MOD_PREFERENCES_KEY,JSON.stringify({deviceId:$("voiceModInput")?.dataset.devicesReady==="true"?$("voiceModInput").value:voiceModPreferences().deviceId||"",preset:$("voiceModPreset")?.value||"clean",gain:Number($("voiceModGain")?.value||100),mix:Number($("voiceModMix")?.value||75),output:Number($("voiceModOutput")?.value||100),monitor:Boolean($("voiceModMonitor")?.checked)}))}catch(_error){}}
+function saveVoiceModPreferences(){try{localStorage.setItem(VOICE_MOD_PREFERENCES_KEY,JSON.stringify({deviceId:$("voiceModInput")?.dataset.devicesReady==="true"?$("voiceModInput").value:voiceModPreferences().deviceId||"",preset:$("voiceModPreset")?.value||"clean",gain:Number($("voiceModGain")?.value||100),mix:Number($("voiceModMix")?.value||75),output:Number($("voiceModOutput")?.value||100),monitor:Boolean($("voiceModMonitor")?.checked),gateEnabled:Boolean($("voiceModGateEnabled")?.checked),gateThreshold:voiceModGateSettings().thresholdDb}))}catch(_error){}}
 function setVoiceModStatus(state,label){const host=$("voiceModState"),meter=document.querySelector(".voice-mod-meter-card"),start=$("voiceModStart");if(host){host.dataset.state=state;host.querySelector("span").textContent=label}if(meter)meter.dataset.state=state;if(start){start.disabled=false;start.textContent=state==="starting"?"Cancel":state==="live"?"Stop":"Start";start.setAttribute("aria-label",`${start.textContent} Voice Mod`);}window.StudioVoiceControl?.refresh();}
 function setVoiceModInputStatus(message,state="ready"){const status=$("voiceModInputStatus");if(status){status.textContent=message;status.dataset.state=state}}
 async function refreshVoiceModInputs(){
@@ -1489,11 +1489,14 @@ async function refreshVoiceModInputs(){
 function voiceModDistortion(amount=35){const curve=new Float32Array(44100),k=Number(amount),deg=Math.PI/180;for(let i=0;i<curve.length;i++){const x=i*2/curve.length-1;curve[i]=(3+k)*x*20*deg/(Math.PI+k*Math.abs(x))}return curve}
 function connectVoiceModPreset(context,input,wet,preset){const nodes=[],oscillators=[];let tail=input;const add=node=>{tail.connect(node);tail=node;nodes.push(node);return node};if(preset==="deep"){const low=add(context.createBiquadFilter());low.type="lowpass";low.frequency.value=1450;low.Q.value=.7;const bass=add(context.createBiquadFilter());bass.type="lowshelf";bass.frequency.value=210;bass.gain.value=8;const compressor=add(context.createDynamicsCompressor());compressor.threshold.value=-24;compressor.ratio.value=4}else if(preset==="robot"){const mod=add(context.createGain());mod.gain.value=.58;const oscillator=context.createOscillator(),depth=context.createGain();oscillator.frequency.value=42;depth.gain.value=.42;oscillator.connect(depth);depth.connect(mod.gain);oscillator.start();oscillators.push(oscillator);nodes.push(depth);const band=add(context.createBiquadFilter());band.type="bandpass";band.frequency.value=1200;band.Q.value=.8}else if(preset==="radio"){const high=add(context.createBiquadFilter());high.type="highpass";high.frequency.value=420;const low=add(context.createBiquadFilter());low.type="lowpass";low.frequency.value=3200;const compressor=add(context.createDynamicsCompressor());compressor.threshold.value=-30;compressor.ratio.value=8}else if(preset==="megaphone"){const band=add(context.createBiquadFilter());band.type="bandpass";band.frequency.value=1650;band.Q.value=.75;const shaper=add(context.createWaveShaper());shaper.curve=voiceModDistortion(55);shaper.oversample="2x";const compressor=add(context.createDynamicsCompressor());compressor.threshold.value=-28;compressor.ratio.value=10}tail.connect(wet);return {nodes,oscillators}}
 function updateVoiceModLevels(persist=true){const gain=Number($("voiceModGain")?.value||100),mix=Number($("voiceModMix")?.value||75),output=Number($("voiceModOutput")?.value||100),monitor=$("voiceModMonitor")?.checked?1:0;if($("voiceModGainValue"))$("voiceModGainValue").textContent=`${gain}%`;if($("voiceModMixValue"))$("voiceModMixValue").textContent=`${mix}%`;if($("voiceModOutputValue"))$("voiceModOutputValue").textContent=`${output}%`;if(voiceModState.inputGain)voiceModState.inputGain.gain.value=gain/100;if(voiceModState.dryGain)voiceModState.dryGain.gain.value=1-mix/100;if(voiceModState.wetGain)voiceModState.wetGain.gain.value=mix/100;if(voiceModState.outputGain)voiceModState.outputGain.gain.value=output/100;if(voiceModState.monitorGain)voiceModState.monitorGain.gain.value=monitor;if(persist)saveVoiceModPreferences()}
+function voiceModGateSettings(){const value=Number($("voiceModGateThreshold")?.value??-45);return {enabled:$("voiceModGateEnabled")?.checked===true,thresholdDb:Number.isFinite(value)?Math.max(-70,Math.min(-10,value)):-45};}
+function updateVoiceModGate(persist=true){const settings=voiceModGateSettings();if($("voiceModGateThresholdValue"))$("voiceModGateThresholdValue").textContent=`${settings.thresholdDb} dB`;if($("voiceModGateThreshold"))$("voiceModGateThreshold").disabled=!settings.enabled;if(voiceModState.active&&voiceModState.noiseGate)voiceModState.noiseGate.configure(settings);else if($("voiceModGateStatus"))$("voiceModGateStatus").textContent=settings.enabled?(voiceModState.active?"Unavailable · audio unfiltered":"Ready when microphone starts"):"Off";if(persist)saveVoiceModPreferences();}
 function meterVoiceMod(){cancelAnimationFrame(voiceModState.meterFrame);if(!voiceModState.active||!voiceModState.analyser)return;const samples=new Uint8Array(voiceModState.analyser.fftSize);voiceModState.analyser.getByteTimeDomainData(samples);let sum=0;for(const value of samples){const centered=(value-128)/128;sum+=centered*centered}const rms=Math.sqrt(sum/samples.length),db=rms?20*Math.log10(rms):-Infinity,level=Math.max(0,Math.min(100,(db+60)/60*100));if($("voiceModMeterFill"))$("voiceModMeterFill").style.width=`${level}%`;if($("voiceModLevel"))$("voiceModLevel").textContent=Number.isFinite(db)?`${db.toFixed(1)} dB`:"−∞ dB";voiceModState.meterFrame=requestAnimationFrame(meterVoiceMod)}
 async function stopVoiceMod(){
   window.StudioVoiceControl?.stop("Voice Mod stopped. Start listening again when ready.");
   voiceModRequestGeneration+=1;
   const previous=voiceModState;
+  previous.noiseGate?.close();
   // Detach synchronously: an old close promise must never own a newer session.
   voiceModState={context:null,inputStream:null,source:null,inputGain:null,dryGain:null,wetGain:null,outputGain:null,monitorGain:null,destination:null,analyser:null,nodes:[],oscillators:[],meterFrame:0,active:false};
   window.rareiqVoiceModStream=null;
@@ -1503,7 +1506,7 @@ async function stopVoiceMod(){
   if($("voiceModMeterFill"))$("voiceModMeterFill").style.width="0%";
   if($("voiceModLevel"))$("voiceModLevel").textContent="−∞ dB";
   if($("voiceModRoute"))$("voiceModRoute").textContent="RareIQ stream unavailable until started";
-  setVoiceModStatus("idle","Microphone idle");
+  setVoiceModStatus("idle","Microphone idle");updateVoiceModGate(false);
   if(previous.context&&previous.context.state!=="closed")await previous.context.close();
 }
 async function handleVoiceModInputEnded(track){
@@ -1537,16 +1540,18 @@ async function startVoiceMod(){
     if(requestGeneration!==voiceModRequestGeneration){stream.getTracks().forEach(track=>track.stop());await context.close().catch(()=>{});return}
     const track=stream.getAudioTracks()[0];
     if(!track||track.readyState==="ended")throw new Error("The selected microphone disconnected before startup completed.");
-    const source=context.createMediaStreamSource(stream),inputGain=context.createGain(),dryGain=context.createGain(),wetGain=context.createGain(),mixBus=context.createGain(),outputGain=context.createGain(),analyser=context.createAnalyser(),monitorGain=context.createGain(),destination=context.createMediaStreamDestination();
-    analyser.fftSize=1024;source.connect(inputGain);inputGain.connect(dryGain);dryGain.connect(mixBus);
-    const preset=$("voiceModPreset")?.value||"clean",effect=connectVoiceModPreset(context,inputGain,wetGain,preset);
+    const source=context.createMediaStreamSource(stream),inputGain=context.createGain(),gateOutput=context.createGain(),dryGain=context.createGain(),wetGain=context.createGain(),mixBus=context.createGain(),outputGain=context.createGain(),analyser=context.createAnalyser(),monitorGain=context.createGain(),destination=context.createMediaStreamDestination();
+    analyser.fftSize=1024;source.connect(inputGain);gateOutput.connect(dryGain);dryGain.connect(mixBus);
+    const noiseGate=window.StudioNoiseGate?.create(context,inputGain,gateOutput,state=>{if(voiceModState.context===context&&$("voiceModGateStatus"))$("voiceModGateStatus").textContent=state;});
+    if(!noiseGate)inputGain.connect(gateOutput);
+    const preset=$("voiceModPreset")?.value||"clean",effect=connectVoiceModPreset(context,gateOutput,wetGain,preset);
     wetGain.connect(mixBus);mixBus.connect(outputGain);outputGain.connect(analyser);analyser.connect(destination);analyser.connect(monitorGain);monitorGain.connect(context.destination);
-    voiceModState={context,inputStream:stream,source,inputGain,dryGain,wetGain,outputGain,monitorGain,destination,analyser,nodes:effect.nodes,oscillators:effect.oscillators,meterFrame:0,active:true};
+    voiceModState={context,inputStream:stream,source,inputGain,noiseGate,dryGain,wetGain,outputGain,monitorGain,destination,analyser,nodes:effect.nodes,oscillators:effect.oscillators,meterFrame:0,active:true};
     track.addEventListener("ended",event=>handleVoiceModInputEnded(event.target).catch(error=>notify("Voice Mod Cleanup Failed",error.message||String(error),"error")),{once:true});
     window.rareiqVoiceModStream=destination.stream;
     if($("voiceModPresetName"))$("voiceModPresetName").textContent=VOICE_MOD_PRESETS[preset]||preset;
     if($("voiceModRoute"))$("voiceModRoute").textContent="Processed RareIQ audio stream ready";
-    updateVoiceModLevels();setVoiceModStatus("live","Voice Mod live");refreshVoiceModInputs().catch(()=>{});meterVoiceMod();
+    updateVoiceModLevels();updateVoiceModGate(false);setVoiceModStatus("live","Voice Mod live");refreshVoiceModInputs().catch(()=>{});meterVoiceMod();
     notify("Voice Mod Live",`${VOICE_MOD_PRESETS[preset]||preset} processing is active.`,"success");
   }catch(error){
     if(requestGeneration!==voiceModRequestGeneration){stream?.getTracks().forEach(track=>track.stop());if(context&&context.state!=="closed")await context.close().catch(()=>{});return}
@@ -1569,7 +1574,7 @@ async function toggleVoiceMod(){
   try{if(stopping)await stopVoiceMod();else await startVoiceMod();}
   catch(error){if(!stopping)setVoiceModStatus("error","Microphone unavailable");notify(stopping?"Voice Mod Not Stopped":"Voice Mod Not Started",error.message||String(error),"error");}
 }
-function restoreVoiceModPreferences(){const prefs=voiceModPreferences();if($("voiceModPreset"))$("voiceModPreset").value=VOICE_MOD_PRESETS[prefs.preset]?prefs.preset:"clean";[["voiceModGain",prefs.gain??100],["voiceModMix",prefs.mix??75],["voiceModOutput",prefs.output??100]].forEach(([id,value])=>{if($(id))$(id).value=String(value)});if($("voiceModMonitor"))$("voiceModMonitor").checked=Boolean(prefs.monitor);updateVoiceModLevels(false)}
+function restoreVoiceModPreferences(){const prefs=voiceModPreferences();if($("voiceModPreset"))$("voiceModPreset").value=VOICE_MOD_PRESETS[prefs.preset]?prefs.preset:"clean";[["voiceModGain",prefs.gain??100],["voiceModMix",prefs.mix??75],["voiceModOutput",prefs.output??100]].forEach(([id,value])=>{if($(id))$(id).value=String(value)});if($("voiceModMonitor"))$("voiceModMonitor").checked=Boolean(prefs.monitor);if($("voiceModGateEnabled"))$("voiceModGateEnabled").checked=prefs.gateEnabled===true;if($("voiceModGateThreshold"))$("voiceModGateThreshold").value=String(Number.isFinite(prefs.gateThreshold)?Math.max(-70,Math.min(-10,prefs.gateThreshold)):-45);updateVoiceModGate(false);updateVoiceModLevels(false)}
 const CAMERA_FX_PRESETS={clean:{brightness:100,contrast:100,saturation:100,sepia:0,hue:0},vibrant:{brightness:104,contrast:112,saturation:145,sepia:0,hue:0},cinematic:{brightness:92,contrast:128,saturation:86,sepia:12,hue:-8},warm:{brightness:103,contrast:106,saturation:118,sepia:22,hue:-7},cool:{brightness:101,contrast:108,saturation:112,sepia:0,hue:12},noir:{brightness:98,contrast:145,saturation:0,sepia:0,hue:0},vintage:{brightness:98,contrast:108,saturation:78,sepia:38,hue:-12}};
 function cameraFxPreferences(){try{return JSON.parse(localStorage.getItem(CAMERA_FX_PREFERENCES_KEY)||"{}")||{}}catch(_error){return {}}}
 function cameraFxValues(){return {enabled:cameraFxState.enabled,preset:document.querySelector("[data-camera-fx-preset][aria-pressed=true]")?.dataset.cameraFxPreset||"clean",brightness:Number($("cameraFxBrightness")?.value||100),contrast:Number($("cameraFxContrast")?.value||100),saturation:Number($("cameraFxSaturation")?.value||100),blur:Number($("cameraFxBlur")?.value||0),chroma:Boolean($("cameraFxChroma")?.checked),keyColor:$("cameraFxKeyColor")?.value||"#00ff00",tolerance:Number($("cameraFxTolerance")?.value||32),softness:Number($("cameraFxSoftness")?.value||18)}}
@@ -10952,6 +10957,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   restoreVoiceModPreferences();
   window.StudioVoiceControl=window.StudioVoiceControlFactory?.create({borrow:()=>voiceModState,request:api});
   $("voiceModStart")?.addEventListener("click",()=>toggleVoiceMod());
+  ["voiceModGateEnabled","voiceModGateThreshold"].forEach(id=>$(id)?.addEventListener("input",()=>updateVoiceModGate()));
   $("voiceModRefresh")?.addEventListener("click",()=>refreshVoiceModInputs().then(devices=>notify("Microphones Refreshed",`${devices.length} input${devices.length===1?"":"s"} available.`,"success")).catch(error=>notify("Microphones Unavailable",error.message||String(error),"error")));
   ["voiceModGain","voiceModMix","voiceModOutput","voiceModMonitor"].forEach(id=>$(id)?.addEventListener("input",updateVoiceModLevels));
   $("voiceModInput")?.addEventListener("change",()=>{window.StudioVoiceControl?.stop("Microphone selection changed. Start listening again after checking Voice Mod.");saveVoiceModPreferences();});
