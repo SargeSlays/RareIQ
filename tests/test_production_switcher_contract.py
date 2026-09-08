@@ -17,7 +17,7 @@ def test_production_switcher_api_tracks_preview_program_and_transitions():
     assert '"preview_slot": 2' in SERVER
     assert 'transition in {"cut", "fade", "slide", "zoom"}' in SERVER
     assert '"generation"' in SERVER
-    assert SERVER.count('"reason": "camera_slot_unavailable"') == 2
+    assert SERVER.count('"reason": "camera_slot_unavailable"') == 3
 
 
 def test_production_switching_requires_a_connected_assigned_slot():

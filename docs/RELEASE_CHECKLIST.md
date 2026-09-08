@@ -1,5 +1,14 @@
 # RareIQ Release Checklist
 
+## Scene and rundown action safety - September 8, 2026
+
+Final gate: 2,476 Python and 227 JavaScript tests passed. Four served Edge scenarios
+passed again after managed restart: delayed scene cancellation, old/new run race,
+partial OBS/Spotify pause, and waiting for requested music before advancement.
+No API writes were forwarded and no media started. Saved-scene readiness HTTP tests
+used isolated services. Stop cannot revoke commands already sent.
+Repeat the browser check with `tools/qa_production_rundown.cjs`.
+
 ## Motion and functional production foundation - September 8, 2026
 
 Final gate: 2,472 Python and 218 JavaScript tests passed. Managed restart and

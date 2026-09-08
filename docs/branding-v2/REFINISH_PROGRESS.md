@@ -1,5 +1,13 @@
 # Refinish implementation progress
 
+## Action safety follow-up - September 8, 2026
+
+Scene takes now share camera availability checks. Rundown Stop invalidates awaited
+work; scene OBS/Spotify partial outcomes pause advancement. Final gate: 2,476 Python
+and 227 JavaScript tests, plus four post-restart Edge scenarios. No real broadcast,
+recording or platform message started. Usage is 27% against the authorized total
+30% ceiling; original baseline remains 0%.
+
 ## Motion and functional production foundation - September 8, 2026
 
 Final gate: 2,472 Python and 218 JavaScript tests passed. Post-restart Edge checks

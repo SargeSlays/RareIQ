@@ -3488,6 +3488,9 @@ async def take_production_scene(scene_id: str):
     with PRODUCTION_SWITCHER_LOCK:
         scene = next((item for item in PRODUCTION_SCENES if item.get("id") == scene_id), None)
         if not scene: return JSONResponse(status_code=404, content={"ok": False, "reason": "scene_not_found"})
+        target = int(scene["program_slot"])
+        if not _production_slot_is_ready(target, orchestrator.camera_manager.camera_slots()):
+            return JSONResponse(status_code=409, content={"ok": False, "reason": "camera_slot_unavailable", "slot_id": target})
         previous = int(PRODUCTION_SWITCHER_STATE["program_slot"])
         transition = str(scene.get("transition") or "fade")
         PRODUCTION_SWITCHER_STATE.update({"program_slot": int(scene["program_slot"]), "preview_slot": previous, "transition": transition, "duration_ms": 0 if transition == "cut" else int(scene.get("duration_ms") or 500), "generation": int(PRODUCTION_SWITCHER_STATE["generation"]) + 1, "updated_at": time.time(), "active_scene_id": scene_id})

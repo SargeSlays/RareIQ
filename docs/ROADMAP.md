@@ -9,6 +9,10 @@ Program/audio capture follow. Authorized chat connectors and two independent
 nonpublic publishing outputs remain later acceptance stages. Full game-focus
 acceptance is pending; see [the phase handoff](FUNCTIONAL_PRODUCTION_PHASE.md).
 
+Scene camera guards, partial-result feedback and rundown cancellation are now in
+the operator path. Next adapters must reuse these protections; already-dispatched
+effects remain outside Stop cancellation.
+
 ## Audio docking checkpoint - September 8, 2026
 
 Implemented portable Soundboard and Voice studio panels, saved-selection migration,

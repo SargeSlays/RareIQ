@@ -81,9 +81,24 @@ independent nonpublic output destinations are separate subsequent checkpoints.
 Recheck official APIs/scopes/policies before connector implementation; account setup,
 public broadcasts, posts, tunnels and paid relays are not authorized by an animation.
 
-Known pre-existing gaps: saved scene takes lack the switcher camera-readiness guard;
-scene UI can overstate partial OBS/Spotify outcomes; Stop rundown does not invalidate
-an awaited cue. Fix these before allowing Sarge to execute those actions.
+Action-safety follow-up: saved scene takes use the switcher's assigned/connected
+camera guard before changing Program, screen or OBS. This does not establish frame
+freshness, and scene actions are still outside the voice dispatcher. The focused
+HTTP regressions use isolated camera/overlay/OBS fixtures without device startup.
+
+Rundown Stop invalidates the current run, settles its wait and prevents late
+responses from advancing cues, starting follow-up actions or changing a newer run.
+Scene changes await requested Spotify actions; OBS/Spotify failures produce partial
+feedback and pause the rundown on the selected cue. An action already sent to the
+server or platform cannot be undone by Stop. These remain operator controls, not
+background speech or verified platform receipt.
+
+Follow-up gate: **2,476 Python and 227 JavaScript tests passed**. Four Edge scenarios
+in `tools/qa_production_rundown.cjs` passed after the managed restart, with zero
+forwarded API mutations and zero media starts. Gate evidence is
+`.tmp/refinish/action-safety-gate.log`. Motion/clip checkpoints are `4acb07c` and
+`babcacf9`; their verified backup is outside the repository at
+`C:\Users\jonat\Projects\RareIQ-backups\producer-motion-actions-20260908`.
 
 Rollback: revert the functional and motion checkpoints normally; preserve runtime
 clips, local settings, credentials and the owner's existing AGENTS.md changes. The
@@ -93,5 +108,7 @@ old replay API remains compatible with requests that omit new fields.
 
 Original shared baseline remains 0%, reset timestamp 1789435596. The owner authorized
 a total ceiling of 30% after the 20% pause. Do not establish a new baseline. Shared
-metering was 21% at resumption and 25% before activation; check again between
-bounded steps.
+metering was 21% at resumption, 25% before activation and 27% after the action-safety
+restart. Background speech/full Program capture cannot be reliably bounded within
+the remaining allowance; preserve headroom and obtain a higher total ceiling before
+that substantial stage.

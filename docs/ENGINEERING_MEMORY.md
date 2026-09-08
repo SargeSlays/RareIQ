@@ -1,5 +1,19 @@
 # RareIQ engineering memory
 
+## Saved scenes must share camera availability checks - September 8, 2026
+
+The switcher rejected unavailable cameras, but saved scenes bypassed that guard.
+Saved-scene takes now reject unassigned/disconnected/missing targets while holding
+the production lock, before any Program, screen or OBS effect. HTTP regressions
+assert every downstream effect remains untouched on rejection. This checks
+availability; frame freshness remains a separate preflight concern.
+
+Clearing a rundown timer did not invalidate an action already awaiting a reply.
+Use a run generation across awaits, settle cancelled waits, and check the generation
+before follow-up actions, advancement or feedback. An old finally block must not
+unlock a newer run. Regressions cover Stop/restart races, replay lookup and delayed
+scene/Spotify completion; partial scene outcomes pause rather than auto-follow.
+
 ## Motion and functional production foundation - September 8, 2026
 
 Manual replay previously indexed JPEG highlights while only card-triggered auto
