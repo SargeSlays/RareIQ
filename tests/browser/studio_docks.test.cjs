@@ -9,9 +9,16 @@ test('dock defaults keep production essentials visible without changing older wo
   assert.equal(KEY,'rareiq.studio.docks.v1');
 });
 test('saved layout survives reload with hidden tools and bounded floating positions',()=>{
-  const saved={version:1,tools:{a:{visible:false,position:'float',height:460,x:190,y:70}}};
+  const saved={version:1,tools:{a:{visible:false,position:'float',height:460,customHeight:true,x:190,y:70}}};
   assert.deepEqual(normalize(saved,['a']),saved);
   assert.deepEqual(normalize(normalize(saved,['a']),['a']),saved);
+});
+test('content-sized defaults preserve explicit heights and migrate older custom sizes',()=>{
+  assert.equal(normalize(null,['production-scenes']).tools['production-scenes'].customHeight,false);
+  const old={version:1,tools:{'production-scenes':{height:420}}};
+  assert.equal(normalize(old,['production-scenes']).tools['production-scenes'].customHeight,true);
+  old.tools['production-scenes']={height:560,customHeight:true};
+  assert.equal(normalize(old,['production-scenes']).tools['production-scenes'].customHeight,true);
 });
 test('untrusted storage cannot inject tools, unsupported positions, or unbounded dimensions',()=>{
   const state=normalize({version:1,tools:{a:{position:'window',visible:'yes',height:999999,x:-80,y:Infinity},secret:{token:'never preserve'}}},['a']);

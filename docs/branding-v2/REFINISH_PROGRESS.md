@@ -1,5 +1,20 @@
 # Refinish implementation progress
 
+## Main production studio makeover - September 8, 2026
+
+Refinished nested stage/dock surfaces, typography, hierarchy and transitions using
+the existing brand tokens. Removed obsolete switcher sizing and repeated headings;
+default side docks fit content while custom sizes persist. Broken source thumbnails
+now have explicit recoverable states. Served checks cover three themes, four
+viewports, resize, fullscreen, saved tool sets and pop-outs. Approved total80%;
+baseline0% retained. Shared usage75% at resumption and78% during verification;
+reported reset timestamp varied by one second, with no reset or baseline change.
+
+Final canonical gate passed: 2,604 Python and 268 JavaScript tests. Final shared
+usage check: 79%, within the approved 80% total ceiling. No backend restart or
+physical production action was required for this frontend checkpoint.
+
+
 ## Sarge wake phrase refinement - September 8, 2026
 
 Owner confirmed automatic/hotkey voice operation in fullscreen PUBG. Added real

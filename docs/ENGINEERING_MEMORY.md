@@ -1,5 +1,22 @@
 # RareIQ engineering memory
 
+## Docking must retain its interior styling - September 8, 2026
+
+Moving panels into docks invalidated Broadcast direct-child selectors, restoring
+legacy navy gradients and 6–8px labels. Scope the visual owner to nested dock panels
+and explicitly replace fixed legacy typography. Hide only repeated interior titles;
+retain actions, statuses and the dock's accessible label. Consolidating switcher
+layout must retain zero margin and bounded height: losing the old margin reset
+placed source controls below the stage at short desktop heights. Served QA now
+asserts source-strip containment as well as monitor/transition non-overlap.
+
+Content-sized default side docks need an explicit custom-height flag before native
+resize starts; otherwise an important auto-height rule suppresses the resize.
+Preserve old nondefault heights, save resized heights, and verify a real pointer
+resize plus tool-set reload. Do not wait for a page load event on endless camera
+streams; wait for DOM readiness and initialized controls.
+
+
 ## Recognition vocabulary and execution authorization must agree - September 8, 2026
 
 Owner testing found “cam two” rejected despite “camera two” working. The installed

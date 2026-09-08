@@ -1,5 +1,22 @@
 # RareIQ Release Checklist
 
+## Production studio makeover - September 8, 2026
+
+Canonical gate: **2,604 Python and 268 JavaScript tests passed**.
+
+Served Edge checks pass for Ignite, Afterdark and Daylight at 1920x1080,
+3840x2088, 1366x768 and 720x900. Source controls remain within the desktop stage;
+no horizontal overflow or monitor/transition overlap. Real pointer resizing,
+tool-set save/reload, hidden tools, original node/draft continuity, fullscreen,
+drawer keyboard focus and pop-out/return passed. Production writes are blocked
+in browser QA; no actual stream, recording or playback was started.
+Focused regressions cover thumbnail failure/recovery and custom-height migration.
+Evidence: `.tmp/refinish/studio-makeover-ui.log`,
+`.tmp/refinish/session-tools-{ignite,afterdark,daylight}-*.png` and
+`.tmp/refinish/studio-makeover-release.log`. No backend restart is needed for
+these cache-busted frontend assets. Physical outputs remain an owner test.
+
+
 ## Sarge wake phrases and cam aliases - September 8, 2026
 
 Canonical gate: **2,604 Python and 263 JavaScript tests passed**. Real installed

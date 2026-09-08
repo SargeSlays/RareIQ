@@ -1,5 +1,13 @@
 # RareIQ Roadmap
 
+## Main studio refinish - September 8, 2026
+
+Complete the owner's production-page makeover around a stronger monitor stage,
+compact docks, readable labels and honest source states. Retest the existing
+fullscreen/game workflow using the refreshed controls; preserve voice, audio and
+platform capability boundaries from the prior checkpoint.
+
+
 ## Sarge command language acceptance - September 8, 2026
 
 Owner reports automatic and hotkey commands now work in fullscreen PUBG. Implement

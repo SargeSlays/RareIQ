@@ -1,5 +1,15 @@
 # RareIQ: streaming-first product direction
 
+## Production studio visual refinish - September 8, 2026
+
+The main production page now gives Preview/Program, source selection and Cut/Auto
+clear visual priority. Nested docks use Producer, Please semantic surfaces and
+readable text instead of legacy panel styling. Empty scene docks fit their content;
+custom heights, docking, pop-outs and tool sets remain user-controlled. Camera
+thumbnails distinguish unavailable, unassigned and loading states without broken
+browser images. This phase changes presentation, not broadcasting capability.
+
+
 ## Sarge wake phrases and camera aliases - September 8, 2026
 
 The owner reports both automatic and hotkey voice commands succeeded in the
