@@ -2,16 +2,16 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const source=fs.readFileSync(path.resolve(__dirname,'../../rareiq/web/static/studio_voice_control.js'),'utf8');
 const workletSource=fs.readFileSync(path.resolve(__dirname,'../../rareiq/web/static/studio_voice_capture.worklet.js'),'utf8');
 const settle=async()=>{for(let i=0;i<20;i++)await Promise.resolve()};
-function fixture(handler){
+function fixture(handler,confirmFlow=true){
   const nodes=new Map(),requests=[],worklets=[],connections=[],timers=new Map();let next=0;
-  for(const id of ['studioVoiceStart','studioVoiceStop','studioVoicePractice','studioVoiceStatus','studioVoiceOutcome','studioVoiceControls','studioVoiceMode','studioVoiceBadge','studioVoiceInputSummary','studioVoiceSafetySummary','studioVoiceModeSummary','studioVoiceEmptyOutcome','studioVoiceDiagnostics'])nodes.set(id,{disabled:false,checked:false,dataset:{},textContent:'',addEventListener(){}});
+  for(const id of ['studioVoiceStart','studioVoiceStop','studioVoicePractice','studioVoiceStatus','studioVoiceOutcome','studioVoiceControls','studioVoiceMode','studioVoiceBadge','studioVoiceInputSummary','studioVoiceSafetySummary','studioVoiceModeSummary','studioVoiceEmptyOutcome','studioVoiceDiagnostics','studioVoiceOpenFlow','studioVoiceWakeSummary'])nodes.set(id,{disabled:false,checked:false,dataset:{},textContent:'',addEventListener(){}});
   class Worklet {constructor(){this.port={postMessage:value=>this.commands.push(value),close:()=>{this.closed=true},onmessage:null};this.commands=[];worklets.push(this)}connect(target){connections.push([this,target])}disconnect(){this.disconnected=true}}
   const raw={connect:target=>connections.push([raw,target]),disconnect:target=>connections.push(['disconnect',target])};
   const sink={gain:{value:1},connect(){},disconnect(){this.disconnected=true}};
   const input={active:true,source:raw,inputStream:{getAudioTracks:()=>[{readyState:'live',stop(){throw Error('Must not stop microphone')}}]},context:{state:'running',currentTime:20,destination:{},audioWorklet:{addModule:async()=>{}},createGain:()=>sink}};
   const host={document:{getElementById:id=>nodes.get(id)},location:{hostname:'127.0.0.1'},AudioWorkletNode:Worklet,AbortController,setTimeout:fn=>{timers.set(++next,fn);return next},clearTimeout:id=>timers.delete(id),addEventListener(){}};
   const sandbox={window:host,ArrayBuffer,URLSearchParams,Date,WeakMap,Number,String};vm.runInNewContext(source,sandbox);
-  const request=async(url,options={})=>{requests.push({url,options});if(handler)return handler(url,options);return url.endsWith('/start')?{ok:true,state:'armed',session_id:'session-1',practice:true}:{ok:true,state:'armed',last_result:{state:'validated',message:'Practice accepted; no action.'}}};
+  const request=async(url,options={})=>{requests.push({url,options});const result=handler?await handler(url,options):url.endsWith('/start')?{ok:true,state:'armed',session_id:'session-1',practice:true}:{ok:true,state:'armed',last_result:{state:'validated',message:'Practice accepted; no action.'}};return url.endsWith('/start')&&confirmFlow?{open_flow:JSON.parse(options.body).open_flow,...result}:result;};
   const app=host.StudioVoiceControlFactory.create({borrow:()=>input,request});
   return {app,host,input,nodes,requests,worklets,connections,timers,sink};
 }
@@ -67,7 +67,39 @@ test('PTT mode is explicit, locked while armed, and sends the voiced start times
   await f.app.stop();assert.equal(f.nodes.get('studioVoiceMode').disabled,false);
 });
 test('an unavailable host PTT shortcut gives a recoverable blocker and unlocks mode selection',async()=>{
-  const f=fixture(()=>{const error=Error('Conflict');error.payload={reason:'ptt_hotkey_unavailable'};throw error;});f.nodes.get('studioVoiceMode').value='ptt';await f.app.start();assert.match(f.nodes.get('studioVoiceStatus').textContent,/Ctrl\+Alt\+V is unavailable.*choose Wake phrases/);assert.equal(f.nodes.get('studioVoiceMode').disabled,false);assert.equal(f.worklets.length,0);
+  const f=fixture(()=>{const error=Error('Conflict');error.payload={reason:'ptt_hotkey_unavailable'};throw error;});f.nodes.get('studioVoiceMode').value='ptt';await f.app.start();assert.match(f.nodes.get('studioVoiceStatus').textContent,/Ctrl\+Alt\+V is unavailable.*choose Automatic/);assert.equal(f.nodes.get('studioVoiceMode').disabled,false);assert.equal(f.worklets.length,0);
+});
+
+test('both listening modes require wake phrases unless Open flow is explicitly checked',async()=>{
+  for(const mode of ['wake','ptt']){
+    const f=fixture();f.nodes.get('studioVoiceMode').value=mode;await f.app.start();
+    assert.equal(JSON.parse(f.requests[0].options.body).open_flow,false);
+    assert.match(f.nodes.get('studioVoiceStatus').textContent,/Begin each command with “Sarge” or “Hey Sarge”/);
+    assert.equal(f.nodes.get('studioVoiceOpenFlow').disabled,true);await f.app.stop();
+  }
+});
+
+test('Open flow is confirmed, locked during listening and resets on Stop and restart',async()=>{
+  const f=fixture(),flow=f.nodes.get('studioVoiceOpenFlow');flow.checked=true;f.nodes.get('studioVoiceMode').value='ptt';await f.app.start();
+  assert.equal(JSON.parse(f.requests[0].options.body).open_flow,true);assert.equal(f.app.status().open_flow,true);
+  assert.match(f.nodes.get('studioVoiceStatus').textContent,/Hold Ctrl\+Alt\+V.*Open flow/);
+  flow.checked=false;f.app.refresh();assert.equal(flow.checked,true,'Active session owns the setting');
+  await f.app.stop();assert.equal(flow.checked,false);assert.equal(flow.disabled,false);assert.equal(f.app.status().open_flow,false);
+  await f.app.start();assert.equal(JSON.parse(f.requests.filter(r=>r.url.endsWith('/start')).at(-1).options.body).open_flow,false);
+});
+
+test('an old or mismatched host cannot arm unconfirmed wake requirements',async()=>{
+  for(const response of [{},{open_flow:true}]){
+    const f=fixture(url=>url.endsWith('/start')?{ok:true,state:'armed',session_id:'stale-host',...response}:{ok:true,state:'stopped'},false);
+    await f.app.start();assert.equal(f.app.status().state,'stopped');assert.equal(f.worklets.length,0);
+    assert.ok(f.requests.some(r=>r.url.endsWith('/stop')));assert.equal(f.nodes.get('studioVoiceOpenFlow').checked,false);
+  }
+});
+
+test('cancelling preparation clears Open flow and cannot arm after module loading',async()=>{
+  const f=fixture();f.nodes.get('studioVoiceOpenFlow').checked=true;let resolve;
+  f.input.context.audioWorklet.addModule=()=>new Promise(r=>resolve=r);const starting=f.app.start();
+  await f.app.stop();resolve();await starting;assert.equal(f.requests.length,0);assert.equal(f.nodes.get('studioVoiceOpenFlow').checked,false);
 });
 test('host stop via heartbeat disconnects borrowed branch without a new stop action',async()=>{
   const f=fixture(url=>url.endsWith('/start')?{ok:true,state:'armed',session_id:'owned',practice:true}:{ok:true,state:'stopped'});

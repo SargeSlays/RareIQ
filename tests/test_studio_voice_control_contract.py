@@ -19,7 +19,7 @@ def test_speech_borrows_active_raw_voice_mod_and_stops_before_device_cleanup():
 
 def test_practice_and_arming_are_explicit_with_one_cache_busted_worklet():
     assert 'id="studioVoicePractice" type="checkbox" checked' in CONTROL
-    assert 'studio_voice_control.js?v=20260908-4' in CONTROL
+    assert 'studio_voice_control.js?v=20260908-5' in CONTROL
     assert 'studio_voice_capture.worklet.js?v=20260908-2' in VOICE
     assert "node('studioVoicePractice').checked=true" in VOICE
     assert "host.StudioVoiceControlFactory={create}" in VOICE
@@ -43,5 +43,13 @@ def test_sarge_console_precedes_existing_input_card_without_duplicating_controls
     assert '<details class="sarge-console-details">' in console
     assert 'Commands may be heard on Program' in console
     assert '<article><span>Switch camera</span>' in console
-    for control_id in ('studioVoiceControls', 'studioVoiceStart', 'studioVoiceStop', 'studioVoicePractice', 'studioVoiceMode', 'studioVoiceStatus', 'studioVoiceOutcome'):
+    for control_id in ('studioVoiceControls', 'studioVoiceStart', 'studioVoiceStop', 'studioVoicePractice', 'studioVoiceMode', 'studioVoiceStatus', 'studioVoiceOutcome', 'studioVoiceOpenFlow', 'studioVoiceWakeSummary'):
         assert CONTROL.count(f'id="{control_id}"') == 1
+
+
+def test_wake_guidance_matches_explicit_session_only_open_flow():
+    assert 'id="studioVoiceOpenFlow" type="checkbox"><' in CONTROL
+    assert 'the prefix is optional' not in CONTROL
+    assert 'Hey Sarge, cam two' in CONTROL
+    assert 'for the entire phrase, including “Sarge”' in CONTROL
+    assert "payload.open_flow!==openFlow" in VOICE

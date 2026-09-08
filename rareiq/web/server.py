@@ -1826,6 +1826,7 @@ voice_commands = VoiceCommandService(WindowsSpeechRecognizer(), production_actio
 class VoiceStartRequest(BaseModel):
     practice: bool = True
     mode: Literal['wake', 'ptt'] = 'wake'
+    open_flow: bool = Field(default=False, strict=True)
 
 
 class VoiceStopRequest(BaseModel):
@@ -1846,7 +1847,7 @@ async def voice_control_status(request: Request, session_id: str | None = None):
 @app.post("/api/production/voice/start")
 async def start_voice_control(request: Request, config: VoiceStartRequest):
     _require_voice_loopback(request)
-    result = await asyncio.to_thread(voice_commands.start, practice=config.practice, mode=config.mode)
+    result = await asyncio.to_thread(voice_commands.start, practice=config.practice, mode=config.mode, open_flow=config.open_flow)
     return result if result.get("ok") else JSONResponse(status_code=409, content=result)
 
 

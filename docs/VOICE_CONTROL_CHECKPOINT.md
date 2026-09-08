@@ -30,11 +30,15 @@ second microphone, assistant model or broadcaster.
 1. Open Voice studio, standalone or docked. Under Microphone & Processing select
    the input and click **Start**. That same button becomes **Cancel** while waiting
    for permission, then **Stop** while active.
-2. Leave **Practice** checked. Choose Wake phrases or Hold Ctrl+Alt+V, then select
+2. Leave **Practice** checked and **Open flow** off. Choose Automatic or Hold Ctrl+Alt+V, then select
    **Start listening** in the Sarge console at the top of Voice studio.
-3. In Wake mode, say “Producer please” or “Sarge”, followed by “camera one” through “camera four”,
-   “clip that”, or “save the last fifteen/thirty/sixty/one hundred twenty seconds”.
-   In Hold mode, hold Ctrl+Alt+V through the whole command; the prefix is optional.
+3. In either mode, say “Sarge” or “Hey Sarge” followed by “cam one” through “cam four”,
+   “camera one” through “camera four”, “clip that”, or
+   “save the last fifteen/thirty/sixty/one hundred twenty seconds”. Say the wake phrase
+   and command together, then pause. Legacy “Producer please” commands require Open flow.
+   In Hold mode, hold Ctrl+Alt+V through the whole phrase, including the wake words.
+   Open flow optionally permits bare commands for the current listening session;
+   stop listening to change it. It resets off on Stop and never bypasses the hotkey.
 4. Practice recognizes and validates without executing. Stop listening before
    unchecking Practice and explicitly starting again to enable these two actions.
 5. **Stop listening** releases only the speech branch. Ctrl+Alt+Backspace on the
@@ -51,15 +55,18 @@ Only the local studio can arm or supply audio. English (US) Windows speech suppo
 must be installed. An inactive Voice Mod input keeps Start listening disabled.
 Arming is never persisted or automatic. Feedback is operator text only.
 
-**Limits:** Native hold-to-talk is implemented, but physical/game-keypress acceptance
-and private spoken confirmations remain outstanding.
+**Owner acceptance:** On September 8 the owner reported automatic and hotkey voice
+commands working in the fullscreen PUBG test. This is owner-reported evidence;
+the new cam aliases/wake rules still need their own owner retest.
+**Limits:** Private spoken confirmations remain outstanding.
 The selected Voice Mod microphone may also reach Program: these commands are not
 automatically private. A wake phrase is not speaker authentication. Background
 operation depends on the browser/input graph staying active; browser closure,
 suspension, revoked permission and physical mute cannot be bypassed. No injection
 into games or anti-cheat changes are used. Real microphone accuracy, noisy/guest
 speech, game-focus reliability, headphone routing and game-load impact remain
-unverified. Stop cannot revoke a production adapter that has already begun.
+unverified beyond the owner's reported successful session. Stop cannot revoke a
+production adapter that has already begun.
 
 ## Implementation and boundaries
 

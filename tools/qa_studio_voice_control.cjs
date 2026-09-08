@@ -6,6 +6,7 @@ const origin=process.env.RAREIQ_QA_ORIGIN||'http://127.0.0.1:9040';
 const syntheticWavPath=process.env.RAREIQ_QA_VOICE_WAV;
 const syntheticWav=syntheticWavPath?fs.readFileSync(syntheticWavPath):null;
 const commandMode=process.env.RAREIQ_QA_VOICE_MODE==='ptt'?'ptt':'wake';
+const openFlow=process.env.RAREIQ_QA_OPEN_FLOW==='true';
 if(syntheticWav){assert.ok(syntheticWav.length<=2*1024*1024,'Synthetic WAV fixture must be at most 2 MiB');assert.equal(syntheticWav.toString('ascii',0,4),'RIFF');assert.equal(syntheticWav.toString('ascii',8,12),'WAVE');}
 (async()=>{
   const browser=await chromium.launch({headless:true,channel:'msedge'});
@@ -21,6 +22,7 @@ if(syntheticWav){assert.ok(syntheticWav.length<=2*1024*1024,'Synthetic WAV fixtu
         if(url.pathname.endsWith('/audio'))audioReceived++;
         const result=url.pathname.endsWith('/start')?{ok:true,state:'armed',session_id:'qa-offline',practice:true,mode:commandMode,ptt_down:false}:url.pathname.endsWith('/stop')?{ok:true,state:'stopped'}:{ok:true,state:'armed',practice:true,mode:commandMode,ptt_down:commandMode==='ptt',last_result:audioReceived?{state:'validated',message:'QA fixture: Practice command validated; no action taken.',at:1700000000}:null};
         result.diagnostics={shortcut_presses:commandMode==='ptt'?audioReceived:0,audio_sequence:audioReceived};
+        result.open_flow=url.pathname.endsWith('/stop')?false:openFlow;
         return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(result)});
       }
       if(!['GET','HEAD'].includes(request.method())){blocked.push(url.pathname);return route.abort();}
@@ -30,9 +32,11 @@ if(syntheticWav){assert.ok(syntheticWav.length<=2*1024*1024,'Synthetic WAV fixtu
     await page.goto(origin+'/control?workspace=voice-mod&voice-qa=1',{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>window.StudioVoiceControl);
     await page.locator('.nav-button[data-target="voice-mod"]').click();
-    await page.evaluate(()=>{window.voiceConsoleNodes=['studioVoiceControls','studioVoiceStart','studioVoiceStop','studioVoiceMode','studioVoicePractice','voiceModInput','voiceModStart'].map(id=>document.getElementById(id));});
+    await page.evaluate(()=>{window.voiceConsoleNodes=['studioVoiceControls','studioVoiceStart','studioVoiceStop','studioVoiceMode','studioVoicePractice','studioVoiceOpenFlow','studioVoiceWakeSummary','voiceModInput','voiceModStart'].map(id=>document.getElementById(id));});
     assert.equal(await page.locator('#studioVoiceStart').isDisabled(),true);assert.equal(await page.locator('#studioVoicePractice').isChecked(),true);
     assert.equal(await page.locator('#studioVoiceMode').inputValue(),'wake');await page.locator('#studioVoiceMode').selectOption(commandMode);
+    assert.equal(await page.locator('#studioVoiceOpenFlow').isChecked(),false);
+    if(openFlow)await page.locator('#studioVoiceOpenFlow').check();
     await page.evaluate(async bytes=>{
       const context=new OfflineAudioContext(1,bytes?384000:96000,48000);
       let buffer;
@@ -55,6 +59,8 @@ if(syntheticWav){assert.ok(syntheticWav.length<=2*1024*1024,'Synthetic WAV fixtu
     await page.waitForFunction(()=>StudioVoiceControl.status().state==='armed');
     assert.equal(await page.locator('#studioVoicePractice').isDisabled(),true);
     assert.equal(await page.locator('#studioVoiceMode').isDisabled(),true);assert.equal(startPayload.mode,commandMode);
+    assert.equal(startPayload.open_flow,openFlow);assert.equal(await page.locator('#studioVoiceOpenFlow').isDisabled(),true);
+    assert.match(await page.locator('#studioVoiceWakeSummary').textContent(),openFlow?/Open flow · no wake phrase/:/Wake phrase required/);
     if(commandMode==='ptt')assert.match(await page.locator('#studioVoiceStatus').textContent(),/Hold Ctrl\+Alt\+V/);
     await page.evaluate(()=>offlineVoiceQA.context.startRendering());
     await page.waitForFunction(()=>document.getElementById('studioVoiceOutcome').textContent.includes('QA fixture'));
@@ -63,6 +69,7 @@ if(syntheticWav){assert.ok(syntheticWav.length<=2*1024*1024,'Synthetic WAV fixtu
     const audio=requests.filter(request=>request.path.endsWith('/audio'));assert.equal(audio.length,1);assert.ok(audio[0].bytes>44&&audio[0].bytes<=192044);assert.equal(audio[0].query.sequence,'1');assert.equal(audio[0].query.session_id,'qa-offline');
     assert.ok(Number(audio[0].query.started_at)<Number(audio[0].query.ended_at));if(commandMode==='ptt')assert.equal(await page.evaluate(()=>StudioVoiceControl.status().ptt_down),true);
     await page.locator('#studioVoiceStop').click();await page.waitForFunction(()=>StudioVoiceControl.status().state==='stopped');
+    assert.equal(await page.locator('#studioVoiceOpenFlow').isChecked(),false);assert.equal(await page.locator('#studioVoiceOpenFlow').isDisabled(),false);
     assert.equal(await page.evaluate(()=>voiceModState.active),true);assert.equal(await page.evaluate(()=>mediaStarts),0);
     await page.waitForFunction(()=>!document.getElementById('instantSplash')||getComputedStyle(document.getElementById('instantSplash')).visibility==='hidden');
     fs.mkdirSync('.tmp/refinish/voice',{recursive:true});
@@ -83,6 +90,6 @@ if(syntheticWav){assert.ok(syntheticWav.length<=2*1024*1024,'Synthetic WAV fixtu
     await page.locator('.nav-button[data-target="voice-mod"]').click();assert.equal(await page.evaluate(()=>voiceConsoleNodes.every(node=>node===document.getElementById(node.id))),true);assert.equal(await page.evaluate(()=>mediaStarts),0);
     assert.deepEqual(errors,[]);assert.equal(blocked.some(path=>!['/api/camera/start','/api/recognition/set-context','/api/output/soundboard'].includes(path)),false);
     const report={layer:'Served Edge UI + offline synthetic AudioWorklet + inert host-response fixtures',mode:commandMode,startPayload,input:syntheticWav?'provided synthetic WAV':'generated synthetic tone',capturedSyntheticUtterance:syntheticWav?'.tmp/refinish/voice/captured-synthetic-utterance.wav':null,mediaStarts:0,actualVoiceRequests:0,originalNodesRetained:true,layouts,dockBounds,requests,blocked};
-    fs.writeFileSync('.tmp/refinish/voice/qa-results.json',JSON.stringify(report,null,2));fs.writeFileSync(`.tmp/refinish/voice/qa-results-${commandMode}.json`,JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+    fs.writeFileSync(`.tmp/refinish/voice/qa-results-${commandMode}-${openFlow?'open':'guarded'}.json`,JSON.stringify(report,null,2));console.log(JSON.stringify(report));
   }finally{await browser.close()}
 })().catch(error=>{console.error(error.stack);process.exitCode=1});

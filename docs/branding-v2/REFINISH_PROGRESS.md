@@ -1,5 +1,21 @@
 # Refinish implementation progress
 
+## Sarge wake phrase refinement - September 8, 2026
+
+Owner confirmed automatic/hotkey voice operation in fullscreen PUBG. Added real
+recognizer/parser camera/cam aliases and “Hey Sarge”; wake phrases are required in
+both modes. Open flow is explicit, session-only, resets on Stop, and preserves PTT
+timing checks. UI handshake rejects hosts that do not confirm the setting. Original
+microphone ownership and dock nodes remain intact. Approved total60%; original
+baseline0%/reset1789435596 unchanged (55% at resumption).
+
+Final verification: 2,604 Python/263 JavaScript tests, four served browser mode
+combinations, and five running-server synthetic Practice cases passed. Default
+acceptance is specifically Sarge/Hey Sarge; legacy Producer please requires
+Open flow. Managed server restarted and voice left stopped. Shared usage57% at
+the last check, below the approved60% ceiling.
+
+
 ## Optional microphone noise gate - September 8, 2026
 
 Added persisted on/off and threshold controls to the existing dockable Voice Mod

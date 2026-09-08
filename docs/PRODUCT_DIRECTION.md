@@ -1,5 +1,16 @@
 # RareIQ: streaming-first product direction
 
+## Sarge wake phrases and camera aliases - September 8, 2026
+
+The owner reports both automatic and hotkey voice commands succeeded in the
+fullscreen PUBG test. The next correction accepts “cam” and “camera” interchangeably
+for slots one through four. Every command starts with “Sarge” or “Hey Sarge” in
+both listening modes. Legacy “Producer please” commands require Open flow.
+Explicit Open flow removes that prefix requirement for one listening session,
+resets on Stop, and never bypasses PTT timing or Practice/action authorization.
+This is one complete spoken phrase per command, not a conversational wake session.
+
+
 ## Optional microphone noise gate - September 8, 2026
 
 Voice Mod has an off-by-default noise gate, adjustable from -70 to -10 dB with

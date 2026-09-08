@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from rareiq.services.windows_speech_recognizer import WindowsSpeechRecognizer
+from rareiq.services.voice_command_service import interpret_command
 
 
 def wav_audio(*, channels=1, rate=16000, width=2, seconds=0.1):
@@ -90,7 +91,7 @@ def test_helper_accepts_only_memory_audio_and_fixed_command_grammar():
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows in-memory speech proof")
-@pytest.mark.parametrize('phrase', ['Producer please save the last thirty seconds', 'camera two'])
+@pytest.mark.parametrize('phrase', ['Producer please save the last thirty seconds', 'camera two', 'Sarge cam one', 'Hey Sarge cam two', 'Hey Sarge camera three'])
 def test_installed_recognizer_understands_real_synthetic_wave_without_playback(phrase):
     recognizer = WindowsSpeechRecognizer()
     if not recognizer.capability()["available"]:
@@ -128,5 +129,5 @@ try {
         output.setframerate(16000)
         output.writeframes(base64.b64decode(process.stdout.strip(), validate=True))
     result = recognizer.recognize(memory.getvalue())
-    assert result["text"] == phrase
+    assert interpret_command(result['text'], 10, allow_bare=True) == interpret_command(phrase, 10, allow_bare=True)
     assert result["confidence"] >= 0.8

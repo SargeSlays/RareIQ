@@ -18,13 +18,14 @@ MAX_VOICE_BYTES = 192044
 def interpret_command(text: str, ended_at: float, *, allow_bare=False):
     words = re.sub(r'[^a-z0-9 ]', '', str(text).lower())
     words = ' '.join(words.split())
-    prefix = next((item for item in ('producer please ', 'sarge ') if words.startswith(item)), None)
+    prefixes = ('hey sarge ', 'sarge ') + (('producer please ',) if allow_bare else ())
+    prefix = next((item for item in prefixes if words.startswith(item)), None)
     if not prefix and not allow_bare:
         return None
     command = words[len(prefix):] if prefix else words
     cameras = {'one': 1, 'two': 2, 'three': 3, 'four': 4}
     for word, slot in cameras.items():
-        if command in (f'camera {word}', f'camera {slot}'):
+        if command in (f'camera {word}', f'camera {slot}', f'cam {word}', f'cam {slot}'):
             return 'program.take', {'preview_slot': slot, 'transition': 'cut'}
     durations = {'fifteen': 15, 'thirty': 30, 'sixty': 60, 'one hundred twenty': 120, 'one hundred and twenty': 120}
     if command == 'clip that':
@@ -62,6 +63,7 @@ class VoiceCommandService:
         self._mode = 'wake'
         self._state, self._reason, self._busy = 'stopped', '', False
         self._practice = True
+        self._open_flow = False
         self._last = None
         self._pending_action = None
         self._sequence, self._digest = -1, ''
@@ -95,16 +97,19 @@ class VoiceCommandService:
             keys = self.keys.status()
             return {'ok': True, 'state': self._state, 'practice': self._practice,
                     'reason': self._reason, 'last_result': deepcopy(self._last),
-                    'mode': self._mode, 'ptt_down': keys.get('ptt_down', False),
+                    'mode': self._mode, 'open_flow': self._open_flow,
+                    'ptt_down': keys.get('ptt_down', False),
                     'diagnostics': {'shortcut_presses': keys.get('press_count', 0),
                                     'last_shortcut_at': keys.get('last_pressed_at'),
                                     'audio_sequence': max(0, self._sequence)},
                     'background_requirement': 'Existing microphone session must remain active'}
 
-    def start(self, *, practice=True, mode='wake'):
+    def start(self, *, practice=True, mode='wake', open_flow=False):
         with self._lock:
             if mode not in ('wake', 'ptt'):
                 return {'ok': False, 'reason': 'invalid_voice_mode'}
+            if type(open_flow) is not bool:
+                return {'ok': False, 'reason': 'invalid_open_flow'}
             if self._session or self._busy:
                 return {'ok': False, 'reason': 'voice_session_active_or_finishing'}
             capability = self.recognizer.capability()
@@ -117,6 +122,7 @@ class VoiceCommandService:
             self._session = uuid.uuid4().hex
             self._cancel = threading.Event()
             self._practice = bool(practice)
+            self._open_flow = open_flow
             self._state, self._reason, self._last = 'armed', '', None
             self._pending_action = None
             self._sequence, self._digest = -1, ''
@@ -134,6 +140,7 @@ class VoiceCommandService:
             self._cancel.set()
             self.keys.stop()
             self._session = None
+            self._open_flow = False
             self._state, self._reason, self._last = 'stopped', reason, None
             self._pending_action = None
             return self.status()
@@ -145,6 +152,8 @@ class VoiceCommandService:
         message = result.get('reason') or payload.get('reason') or 'Command could not be confirmed.'
         if message == 'hold_to_talk_required':
             message = 'Hold Ctrl+Alt+V for the whole command, then release. No action was taken.'
+        elif message == 'wake_phrase_required':
+            message = 'Start the command with "Sarge" or "Hey Sarge". No action was taken.'
         if state == 'validated':
             message = 'Practice recognized the command. Production was unchanged.'
         elif result.get('ok'):
@@ -185,13 +194,17 @@ class VoiceCommandService:
             self._busy, self._state = True, 'recognizing'
             self._heartbeat_at = time.monotonic()
             self._sequence, self._digest = sequence, digest
-            cancelled, practice, mode = self._cancel, self._practice, self._mode
+            cancelled, practice, open_flow = self._cancel, self._practice, self._open_flow
         try:
             recognized = self.recognizer.recognize(data)
-            command = interpret_command(recognized.get('text', ''), ended_at, allow_bare=mode == 'ptt')
+            text = recognized.get('text', '')
+            command = interpret_command(text, ended_at, allow_bare=open_flow)
             confidence = recognized.get('confidence', 0)
-            if not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or not math.isfinite(confidence) or not .8 <= confidence <= 1 or not command:
+            if not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or not math.isfinite(confidence) or not .8 <= confidence <= 1:
                 result = {'ok': False, 'state': 'rejected', 'reason': 'command_not_recognized'}
+            elif not command:
+                reason = 'wake_phrase_required' if not open_flow and interpret_command(text, ended_at, allow_bare=True) else 'command_not_recognized'
+                result = {'ok': False, 'state': 'rejected', 'reason': reason}
             elif time.time() > ended_at + 15:
                 result = {'ok': False, 'state': 'rejected', 'reason': 'voice_command_expired'}
             else:

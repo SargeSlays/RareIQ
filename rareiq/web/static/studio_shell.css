@@ -227,7 +227,7 @@ body.pp-shell .sarge-state-badge { padding:7px 10px; border:1px solid var(--pp-b
 body.pp-shell .sarge-voice-console[data-state="armed"] .sarge-state-badge { color:var(--pp-voice-listening); border-color:var(--pp-voice-listening); }
 body.pp-shell .sarge-voice-console[data-state="recognizing"] .sarge-state-badge { color:var(--pp-voice-understanding); border-color:var(--pp-voice-understanding); }
 body.pp-shell .sarge-readiness { display:flex; flex-wrap:wrap; gap:8px 16px; margin-bottom:18px; color:var(--pp-text-muted); font-size:12px; }
-body.pp-shell .sarge-console-toolbar { display:grid; grid-template-columns:minmax(170px,1fr) minmax(210px,1.2fr) auto; align-items:end; gap:12px; }
+body.pp-shell .sarge-console-toolbar { display:grid; grid-template-columns:minmax(170px,1fr) minmax(190px,1fr) minmax(210px,1fr) auto; align-items:end; gap:12px; }
 body.pp-shell .sarge-mode { display:grid; gap:6px; font-size:12px; color:var(--pp-text-muted); }
 body.pp-shell .sarge-mode select { width:100%; min-width:0; min-height:42px; padding:9px 12px; border:1px solid var(--pp-input-border); border-radius:6px; background:var(--pp-input-bg); color:var(--pp-input-text); }
 body.pp-shell .sarge-practice { display:flex; align-items:center; gap:10px; min-height:42px; padding:8px 12px; border:1px solid var(--pp-border); border-radius:6px; background:var(--pp-surface-raised); cursor:pointer; }
@@ -250,7 +250,7 @@ body.pp-shell .sarge-console-details { border-top:1px solid var(--pp-border); fo
 body.pp-shell .sarge-console-details summary { padding-top:12px; cursor:pointer; color:var(--pp-text); }
 body.pp-shell .sarge-console-details p { margin:9px 0 0; }
 body.pp-shell .sarge-voice-console :is(select,input,summary,button):focus-visible { outline:2px solid var(--pp-focus); outline-offset:3px; }
-@container (max-width:700px) { body.pp-shell .sarge-console-toolbar { grid-template-columns:1fr 1fr; } body.pp-shell .sarge-listening-actions { grid-column:1 / -1; } }
+@container (max-width:1000px) { body.pp-shell .sarge-console-toolbar { grid-template-columns:1fr 1fr; } body.pp-shell .sarge-listening-actions { grid-column:1 / -1; } }
 @container (max-width:450px) { body.pp-shell .sarge-console-toolbar,body.pp-shell .sarge-examples { grid-template-columns:1fr; } body.pp-shell .sarge-examples article { padding:8px 10px; } body.pp-shell .sarge-console-heading h3 span { display:block; margin:5px 0 0; } }
 /* A single threshold spans the available microphone panel width, including docks. */
 #voiceModGateThreshold { width:100%; }

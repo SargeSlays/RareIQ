@@ -1,5 +1,35 @@
 # RareIQ Release Checklist
 
+## Sarge wake phrases and cam aliases - September 8, 2026
+
+Canonical gate: **2,604 Python and 263 JavaScript tests passed**. Real installed
+Windows recognition of five synthetic phrases covers legacy commands, bare camera,
+Sarge/cam and Hey Sarge/camera variants without capture or playback. Service and
+HTTP tests cover strict Open flow booleans, required prefixes in both modes,
+explicit bare-command opt-in, PTT timing, stop/restart, and rejected commands causing
+no production action. Read-only guardian review found no actionable regression.
+
+Served Edge passed all four Automatic/Hold and Open flow combinations, dark/light
+1920/3840/1366/720 layouts and a 354px dock. Controls retain their original nodes;
+the host must confirm the requested Open flow setting before capture attaches.
+After an inactive-state check, managed restart succeeded. Live status exposes
+`open_flow:false`, voice stopped; served page carries the new asset version.
+Post-restart Edge checks passed with inert voice endpoints and synthetic input.
+The running HTTP server also passed five real recognizer/Practice cases from
+memory-only synthetic speech: Sarge/cam and Hey Sarge/camera validated, bare and
+legacy Producer please rejected by default, bare cam accepted only with Open flow.
+Every test session explicitly stopped with Open flow false. No physical capture,
+playback or production action occurred. Repeat with `tools/qa_sarge_wake_live.py`
+only when the local studio is idle; evidence: `.tmp/refinish/sarge-live-practice.json`.
+Artifacts: `.tmp/refinish/sarge-wake-release.log`,
+`.tmp/refinish/sarge-post-restart-ui.log`, and
+`.tmp/refinish/voice/qa-results-{wake,ptt}-{guarded,open}.json`.
+
+Owner reports the preceding automatic/hotkey implementation worked in fullscreen
+PUBG. Retest the new phrase rules with the owner; this checkpoint does not establish
+private audio, every speaker/environment, or platform receipt.
+
+
 ## Optional microphone noise gate - September 8, 2026
 
 Canonical gate passed: **2,527 Python and 259 JavaScript tests**. Twelve new tests

@@ -1,5 +1,13 @@
 # RareIQ Roadmap
 
+## Sarge command language acceptance - September 8, 2026
+
+Owner reports automatic and hotkey commands now work in fullscreen PUBG. Implement
+and retest “Hey Sarge, cam two”, wake phrases required in both modes, and explicit
+session-only Open flow. Preserve the successful background input path. Private
+confirmations and full Program audio remain separate outstanding capabilities.
+
+
 ## Microphone noise gate - September 8, 2026
 
 Optional gate implemented with saved controls, smooth attack/release and open/closed

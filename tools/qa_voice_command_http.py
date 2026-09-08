@@ -39,7 +39,7 @@ try {
     $synth.SetOutputToNull()
     $format = [System.Speech.AudioFormat.SpeechAudioFormatInfo]::new(16000, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono)
     $synth.SetOutputToAudioStream($memory, $format)
-    $synth.Speak('Producer please save the last thirty seconds')
+    $synth.Speak('Sarge save the last thirty seconds')
     $synth.SetOutputToNull()
     [Convert]::ToBase64String($memory.ToArray())
 } finally { $synth.Dispose(); $memory.Dispose() }

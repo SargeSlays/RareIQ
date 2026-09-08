@@ -1,5 +1,21 @@
 # RareIQ engineering memory
 
+## Recognition vocabulary and execution authorization must agree - September 8, 2026
+
+Owner testing found “cam two” rejected despite “camera two” working. The installed
+finite speech grammar and server parser both need the alias; a parser-only fix
+cannot recover words the recognizer cannot produce. Guard both with synthetic
+speech through the installed engine and parser/service regression tests.
+
+PTT previously enabled bare commands implicitly. The owner now requires a wake
+phrase in either mode. Keep input mode separate from a strict `open_flow` boolean:
+only an explicitly enabled session may omit the prefix. Capture that configuration
+with the owned recognition job; Stop/default restart clears it. Validate booleans
+without coercion, preserve PTT whole-utterance checks, and require the host to echo
+the requested setting before attaching capture. An older host must not silently
+accept controls whose semantics it does not understand.
+
+
 ## Optional audio filters must preserve input ownership - September 8, 2026
 
 The noise gate connects after input gain and before both dry and effect branches.
