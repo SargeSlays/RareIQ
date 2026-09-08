@@ -95,15 +95,24 @@ class InstantReplayService:
         while self._frames and self._frames[0][0] < cutoff:
             self._frames.popleft()
 
-    def mark(self, seconds: int = 8, name: str = "Highlight") -> dict[str, Any]:
+    def mark(self, seconds: int = 8, name: str = "Highlight", *, export_video: bool = False, ending_at: float | None = None) -> dict[str, Any]:
         try:
-            cutoff = time.time() - max(2, min(self.buffer_seconds, int(seconds)))
+            now = time.time()
+            end = now if ending_at is None else float(ending_at)
+            if not math.isfinite(end) or end > now + 1:
+                return {"created": False, "reason": "invalid_replay_timestamp"}
+            cutoff = end - max(2, min(self.buffer_seconds, int(seconds)))
         except (ValueError, TypeError, OverflowError):
             return {"created": False, "reason": "invalid_replay_length"}
         with self._lock:
             self._prune_frames()
-            frames = [item for item in self._frames if item[0] >= cutoff]
-        return self.save_frames(frames, name)
+            frames = [item for item in self._frames if cutoff <= item[0] <= end]
+        result = self.save_frames(frames, name, export_video=export_video)
+        if result.get("created"):
+            actual = result["highlight"]["duration_seconds"]
+            result.update(requested_seconds=int(seconds), actual_seconds=actual,
+                          shorter_than_requested=actual + 1 / self.fps < int(seconds), ending_at=end)
+        return result
 
     def buffer_window(self, start: float, end: float) -> dict[str, Any]:
         """Copy frame references, never open another camera or duplicate JPEG data."""
@@ -111,7 +120,7 @@ class InstantReplayService:
             self._prune_frames()
             return {"epoch": self._buffer_epoch, "frames": [item for item in self._frames if start <= item[0] <= end]}
 
-    def save_frames(self, frames: list[tuple[float, int, bytes]], name: str, *, auto_clip: dict[str, Any] | None = None, cancelled: Callable[[], bool] = lambda: False) -> dict[str, Any]:
+    def save_frames(self, frames: list[tuple[float, int, bytes]], name: str, *, auto_clip: dict[str, Any] | None = None, export_video: bool = False, cancelled: Callable[[], bool] = lambda: False) -> dict[str, Any]:
         """Manual and automatic highlights share one atomic store and retention limit."""
         if not frames: return {"created": False, "reason": "replay_buffer_empty"}
         highlight_id = uuid.uuid4().hex[:12]
@@ -119,6 +128,11 @@ class InstantReplayService:
         item = {"id": highlight_id, "name": str(name or "Highlight")[:60], "frames": len(frames), "fps": self.fps, "duration_seconds": round(len(frames) / self.fps, 1), "slot_id": frames[-1][1], "created_at": time.time(), "path": str(path)}
         created_directory = False
         try:
+            storage_root = self.root
+            while not storage_root.exists():
+                storage_root = storage_root.parent
+            if (export_video or auto_clip is not None) and shutil.disk_usage(storage_root).free < sum(len(frame[2]) for frame in frames) * 2 + 4 * 1024 * 1024:
+                return {"created": False, "reason": "insufficient_clip_storage"}
             path.mkdir(parents=True, exist_ok=False)
             created_directory = True
             for index, (_, _, data) in enumerate(frames):
@@ -126,9 +140,11 @@ class InstantReplayService:
                     raise InterruptedError("auto_clip_cancelled")
                 if (path / f"{index:04d}.jpg").write_bytes(data) != len(data):
                     raise OSError("incomplete_replay_frame_write")
-            if auto_clip is not None:
+            if export_video or auto_clip is not None:
                 self._encode_video(path, len(frames), cancelled)
-                item.update(auto_clip=dict(auto_clip), video_available=True)
+                item.update(video_available=True, audio_tracks=0, source_kind="program_camera")
+            if auto_clip is not None:
+                item["auto_clip"] = dict(auto_clip)
             with self._lock:
                 if cancelled():
                     raise InterruptedError("auto_clip_cancelled")

@@ -33,6 +33,7 @@ from rareiq.services.provenance_capture_service import ProvenanceCaptureService
 from rareiq.services.spotify_service import spotify
 from rareiq.services.instant_replay_service import InstantReplayService
 from rareiq.services.auto_clip_service import AutoClipService
+from rareiq.services.production_action_service import ActionSpec, ProductionActions
 from rareiq.services.inventory_service import MAX_RECEIPT_DATA_URL_CHARS
 from rareiq.services.recording_service import RecordingService
 from rareiq.services.obs_service import ObsService
@@ -806,6 +807,8 @@ class SpotifySetupRequest(BaseModel):
     redirect_uri: str = Field(default="http://127.0.0.1:8765/api/spotify/callback", max_length=300)
 
 class ProductionSwitcherRequest(BaseModel):
+    request_id: str | None = Field(default=None, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
+    expires_at: float | None = Field(default=None, allow_inf_nan=False)
     preview_slot: int | None = Field(default=None, ge=1, le=4)
     transition: str | None = None
     duration_ms: int | None = Field(default=None, ge=0, le=5000)
@@ -827,8 +830,11 @@ class ProductionSceneRequest(BaseModel):
     screen_accent: str = "cyan"
 
 class ReplayMarkRequest(BaseModel):
-    seconds: int = Field(default=8, ge=2, le=20)
+    seconds: int = Field(default=8, ge=2, le=120)
     name: str = Field(default="Highlight", max_length=60)
+    ending_at: float | None = Field(default=None, gt=0, allow_inf_nan=False)
+    request_id: str | None = Field(default=None, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
+    expires_at: float | None = Field(default=None, allow_inf_nan=False)
 
 class ReplayTakeRequest(BaseModel):
     highlight_id: str
@@ -1808,10 +1814,43 @@ async def download_replay_clip(highlight_id: str):
         return JSONResponse(status_code=404, content={"ok": False, "reason": "clip_video_not_found"})
     return FileResponse(path, media_type="video/mp4", filename=f"RareIQ-{highlight_id}.mp4", headers={"Cache-Control": "no-store"})
 
+production_actions = ProductionActions()
+
+
+def _validate_production_action(model, payload: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, dict) or set(payload) - set(model.model_fields):
+        raise ValueError("invalid_action_parameters")
+    return model.model_validate(payload).model_dump(exclude={"request_id", "expires_at"})
+
+
+def _save_clip_action(payload: dict[str, Any]) -> dict[str, Any]:
+    result = instant_replay.mark(payload["seconds"], payload["name"], export_video=True, ending_at=payload.get("ending_at"))
+    return {"ok": result.get("created") is True, **result}
+
+
+production_actions.register(ActionSpec("clip.save", lambda payload: _validate_production_action(ReplayMarkRequest, payload), _save_clip_action, "replay.buffer", 15))
+
+
+async def _dispatch_manual_action(action_id: str, request: BaseModel, failure_status: int):
+    result = await asyncio.to_thread(production_actions.dispatch, action_id,
+        request.model_dump(exclude={"request_id", "expires_at"}), origin="operator",
+        request_id=request.request_id, expires_at=request.expires_at)
+    details = {key: result[key] for key in ("action_id", "request_id", "state") if key in result}
+    if "result" in result:
+        payload = {**result["result"], "action": details}
+        return payload if result["ok"] else JSONResponse(status_code=failure_status, content=payload)
+    return JSONResponse(status_code=202 if result["state"] == "executing" else 409, content=result)
+
+
+@app.get("/api/production/actions")
+async def production_action_capabilities():
+    return {"ok": True, "actions": production_actions.manifest(), "voice_control": "unavailable",
+            "execution": "existing operator endpoints", "idempotency": "request_id plus expires_at; current process only"}
+
+
 @app.post("/api/production/replay/mark")
 async def mark_production_replay(request: ReplayMarkRequest):
-    result = await asyncio.to_thread(instant_replay.mark, request.seconds, request.name)
-    return _collection_mutation_response(result, "created")
+    return await _dispatch_manual_action("clip.save", request, 422)
 
 @app.post("/api/production/replay/take")
 async def take_production_replay(request: ReplayTakeRequest):
@@ -2035,25 +2074,25 @@ async def production_switcher_preview(request: ProductionSwitcherRequest):
         return {"ok": True, **PRODUCTION_SWITCHER_STATE}
 
 
-@app.post("/api/production/switcher/take")
-async def production_switcher_take(request: ProductionSwitcherRequest):
-    target = int(request.preview_slot or PRODUCTION_SWITCHER_STATE["preview_slot"])
-    slots = orchestrator.camera_manager.camera_slots()
-    if not _production_slot_is_ready(target, slots):
-        return JSONResponse(
-            status_code=409,
-            content={
-                "ok": False,
-                "reason": "camera_slot_unavailable",
-                "slot_id": target,
-            },
-        )
+def _take_program_action(payload: dict[str, Any]) -> dict[str, Any]:
+    request = ProductionSwitcherRequest.model_validate(payload)
     with PRODUCTION_SWITCHER_LOCK:
+        target = int(request.preview_slot or PRODUCTION_SWITCHER_STATE["preview_slot"])
+        slots = orchestrator.camera_manager.camera_slots()
+        if not _production_slot_is_ready(target, slots):
+            return {"ok": False, "reason": "camera_slot_unavailable", "slot_id": target}
         previous = int(PRODUCTION_SWITCHER_STATE["program_slot"])
         transition = request.transition if request.transition in {"cut", "fade", "slide", "zoom"} else PRODUCTION_SWITCHER_STATE["transition"]
         duration = request.duration_ms if request.duration_ms is not None else PRODUCTION_SWITCHER_STATE["duration_ms"]
         PRODUCTION_SWITCHER_STATE.update({"program_slot": target, "preview_slot": previous, "transition": transition, "duration_ms": 0 if transition == "cut" else duration, "generation": int(PRODUCTION_SWITCHER_STATE["generation"]) + 1, "updated_at": time.time()})
         return {"ok": True, **PRODUCTION_SWITCHER_STATE}
+
+production_actions.register(ActionSpec("program.take", lambda payload: _validate_production_action(ProductionSwitcherRequest, payload), _take_program_action, "program.camera", 8))
+
+
+@app.post("/api/production/switcher/take")
+async def production_switcher_take(request: ProductionSwitcherRequest):
+    return await _dispatch_manual_action("program.take", request, 409)
 
 @app.get("/api/production/scenes")
 async def production_scenes_status():
