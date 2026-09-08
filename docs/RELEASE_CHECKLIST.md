@@ -1,5 +1,25 @@
 # RareIQ Release Checklist
 
+## Microphone toggle and fullscreen input checks - September 8, 2026
+
+Final gate: **2,527 Python and 247 JavaScript tests passed**. New regressions cover
+one-button cancellation/late permission/start/stop/failure recovery, fresh physical
+chords without hotkey messages, and ordering of delayed status versus newer audio
+results. Native registration/conflict and complete-utterance gates remain covered.
+Read-only guardian found the delayed-result race; the correction is regression-tested.
+
+Served Edge passed microphone toggle/docking and PTT diagnostic counters after the
+managed restart, with synthetic media/host responses and actual writes/playback
+blocked. First managed launch exited without a startup log; a normal managed retry
+restored a healthy server. Voice remains stopped. No production stream or recording
+was started. Artifacts: `.tmp/refinish/voice-game-input-final-gate.log`,
+`.tmp/refinish/voice-game-ui.log`, `.tmp/refinish/voice-game-toggle.log`, and
+`.tmp/refinish/voice-toggle/qa-results.json`.
+
+**PUBG fullscreen remains an owner retest requirement.** Local/native test doubles
+do not establish actual background microphone/shortcut delivery or private audio.
+Use the counters and result timestamp in [the voice checkpoint](VOICE_CONTROL_CHECKPOINT.md).
+
 ## Program output correction - September 8, 2026
 
 Canonical gate: **2,525 Python and 243 JavaScript tests passed**. Nine served Edge

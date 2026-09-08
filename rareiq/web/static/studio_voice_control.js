@@ -5,6 +5,7 @@
   function create({borrow,request}){
     let generation=0,session=null,branch=null,pollTimer=null,busy=false,starting=false,sequence=0,audioAbort=null,polling=false,lastPoll=0;
     let state='stopped',message='Start Voice Mod before listening.',outcome='',mode='wake',pttDown=false;
+    let diagnostics=null,resultAt=null;
     const node=id=>host.document.getElementById(id);
     const local=()=>['localhost','127.0.0.1','[::1]','::1'].includes(host.location.hostname);
     const ready=()=>{const input=borrow();return input?.active&&input.context?.state==='running'&&input.source&&input.inputStream?.getAudioTracks().some(track=>track.readyState==='live');};
@@ -24,6 +25,7 @@
       if(node('studioVoiceSafetySummary'))node('studioVoiceSafetySummary').textContent=practice?.checked?'Practice · no actions':'Action mode';
       if(node('studioVoiceModeSummary'))node('studioVoiceModeSummary').textContent=(session?mode:node('studioVoiceMode')?.value)==='ptt'?'Hold Ctrl+Alt+V':'Wake phrases';
       if(node('studioVoiceEmptyOutcome'))node('studioVoiceEmptyOutcome').hidden=Boolean(outcome);
+      if(node('studioVoiceDiagnostics'))node('studioVoiceDiagnostics').textContent=diagnostics?`Shortcut presses: ${diagnostics.shortcut_presses} · Audio received: ${diagnostics.audio_sequence} · Last result: ${resultAt?new Date(resultAt*1000).toLocaleTimeString():'none yet'}`:'Start listening to check shortcut and audio delivery.';
     }
     function detach(){
       host.clearTimeout(pollTimer);pollTimer=null;audioAbort?.abort();audioAbort=null;busy=false;
@@ -32,7 +34,11 @@
     function report(payload){
       if(['wake','ptt'].includes(payload.mode))mode=payload.mode;
       if(typeof payload.ptt_down==='boolean')pttDown=payload.ptt_down;
-      if(payload.last_result)outcome=String(payload.last_result.message||({validated:'Practice command validated; no action taken.',succeeded:'Command completed.',failed:'Command failed.',rejected:'Command was not accepted.',executing:'Command is still executing.'}[payload.last_result.state]||'No action confirmed.'));
+      if(payload.diagnostics)diagnostics={shortcut_presses:Math.max(diagnostics?.shortcut_presses||0,payload.diagnostics.shortcut_presses||0),audio_sequence:Math.max(diagnostics?.audio_sequence||0,payload.diagnostics.audio_sequence||0)};
+      if(payload.last_result&&(!resultAt||(Number.isFinite(payload.last_result.at)&&payload.last_result.at>=resultAt))){
+        if(Number.isFinite(payload.last_result.at))resultAt=payload.last_result.at;
+        outcome=String(payload.last_result.message||({validated:'Practice command validated; no action taken.',succeeded:'Command completed.',failed:'Command failed.',rejected:'Command was not accepted.',executing:'Command is still executing.'}[payload.last_result.state]||'No action confirmed.'));
+      }
     }
     async function stop(detail='Listening stopped.',notify=true){
       const previous=session,stoppedGeneration=++generation;session=null;starting=false;pttDown=false;detach();state='stopped';message=detail;refresh();
@@ -68,7 +74,7 @@
       finally{if(token===generation){audioAbort=null;if(state==='armed'){busy=false;branch?.worklet.port.postMessage({type:'enabled',value:true});}}}
     }
     async function start(){
-      if(starting||session)return;outcome='';
+      if(starting||session)return;outcome='';diagnostics=null;resultAt=null;
       if(!local()||!ready()){refresh();return;}
       const input=borrow(),token=++generation;mode=node('studioVoiceMode')?.value==='ptt'?'ptt':'wake';pttDown=false;starting=true;state='starting';message='Preparing voice commands…';refresh();
       let created=null;

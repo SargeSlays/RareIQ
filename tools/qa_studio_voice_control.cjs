@@ -10,7 +10,7 @@ if(syntheticWav){assert.ok(syntheticWav.length<=2*1024*1024,'Synthetic WAV fixtu
 (async()=>{
   const browser=await chromium.launch({headless:true,channel:'msedge'});
   try{
-    const page=await browser.newPage({viewport:{width:1920,height:1080}}),requests=[],blocked=[],errors=[];let startPayload=null;
+    const page=await browser.newPage({viewport:{width:1920,height:1080}}),requests=[],blocked=[],errors=[];let startPayload=null,audioReceived=0;
     page.on('pageerror',error=>errors.push(error.message));
     await page.route('**/api/**',async route=>{
       const request=route.request(),url=new URL(request.url());
@@ -18,7 +18,9 @@ if(syntheticWav){assert.ok(syntheticWav.length<=2*1024*1024,'Synthetic WAV fixtu
         if(url.pathname.endsWith('/start'))startPayload=request.postDataJSON();
         requests.push({path:url.pathname,query:Object.fromEntries(url.searchParams),bytes:request.postDataBuffer()?.length||0});
         if(syntheticWav&&url.pathname.endsWith('/audio')){fs.mkdirSync('.tmp/refinish/voice',{recursive:true});fs.writeFileSync('.tmp/refinish/voice/captured-synthetic-utterance.wav',request.postDataBuffer());}
-        const result=url.pathname.endsWith('/start')?{ok:true,state:'armed',session_id:'qa-offline',practice:true,mode:commandMode,ptt_down:false}:url.pathname.endsWith('/stop')?{ok:true,state:'stopped'}:{ok:true,state:'armed',practice:true,mode:commandMode,ptt_down:commandMode==='ptt',last_result:{state:'validated',message:'QA fixture: Practice command validated; no action taken.'}};
+        if(url.pathname.endsWith('/audio'))audioReceived++;
+        const result=url.pathname.endsWith('/start')?{ok:true,state:'armed',session_id:'qa-offline',practice:true,mode:commandMode,ptt_down:false}:url.pathname.endsWith('/stop')?{ok:true,state:'stopped'}:{ok:true,state:'armed',practice:true,mode:commandMode,ptt_down:commandMode==='ptt',last_result:audioReceived?{state:'validated',message:'QA fixture: Practice command validated; no action taken.',at:1700000000}:null};
+        result.diagnostics={shortcut_presses:commandMode==='ptt'?audioReceived:0,audio_sequence:audioReceived};
         return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(result)});
       }
       if(!['GET','HEAD'].includes(request.method())){blocked.push(url.pathname);return route.abort();}
@@ -56,6 +58,8 @@ if(syntheticWav){assert.ok(syntheticWav.length<=2*1024*1024,'Synthetic WAV fixtu
     if(commandMode==='ptt')assert.match(await page.locator('#studioVoiceStatus').textContent(),/Hold Ctrl\+Alt\+V/);
     await page.evaluate(()=>offlineVoiceQA.context.startRendering());
     await page.waitForFunction(()=>document.getElementById('studioVoiceOutcome').textContent.includes('QA fixture'));
+    assert.match(await page.locator('#studioVoiceDiagnostics').textContent(),/Audio received: 1/);
+    assert.doesNotMatch(await page.locator('#studioVoiceDiagnostics').textContent(),/Last result: none yet/);
     const audio=requests.filter(request=>request.path.endsWith('/audio'));assert.equal(audio.length,1);assert.ok(audio[0].bytes>44&&audio[0].bytes<=192044);assert.equal(audio[0].query.sequence,'1');assert.equal(audio[0].query.session_id,'qa-offline');
     assert.ok(Number(audio[0].query.started_at)<Number(audio[0].query.ended_at));if(commandMode==='ptt')assert.equal(await page.evaluate(()=>StudioVoiceControl.status().ptt_down),true);
     await page.locator('#studioVoiceStop').click();await page.waitForFunction(()=>StudioVoiceControl.status().state==='stopped');

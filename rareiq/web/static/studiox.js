@@ -1469,7 +1469,7 @@ function switchWorkspace(name){
 
 function voiceModPreferences(){try{return JSON.parse(localStorage.getItem(VOICE_MOD_PREFERENCES_KEY)||"{}")||{}}catch(_error){return {}}}
 function saveVoiceModPreferences(){try{localStorage.setItem(VOICE_MOD_PREFERENCES_KEY,JSON.stringify({deviceId:$("voiceModInput")?.dataset.devicesReady==="true"?$("voiceModInput").value:voiceModPreferences().deviceId||"",preset:$("voiceModPreset")?.value||"clean",gain:Number($("voiceModGain")?.value||100),mix:Number($("voiceModMix")?.value||75),output:Number($("voiceModOutput")?.value||100),monitor:Boolean($("voiceModMonitor")?.checked)}))}catch(_error){}}
-function setVoiceModStatus(state,label){const host=$("voiceModState"),meter=document.querySelector(".voice-mod-meter-card"),start=$("voiceModStart"),stop=$("voiceModStop");if(host){host.dataset.state=state;host.querySelector("span").textContent=label}if(meter)meter.dataset.state=state;if(start)start.disabled=state==="live"||state==="starting";if(stop){stop.disabled=!["live","starting"].includes(state);stop.textContent=state==="starting"?"Cancel":"Stop"};window.StudioVoiceControl?.refresh();}
+function setVoiceModStatus(state,label){const host=$("voiceModState"),meter=document.querySelector(".voice-mod-meter-card"),start=$("voiceModStart");if(host){host.dataset.state=state;host.querySelector("span").textContent=label}if(meter)meter.dataset.state=state;if(start){start.disabled=false;start.textContent=state==="starting"?"Cancel":state==="live"?"Stop":"Start";start.setAttribute("aria-label",`${start.textContent} Voice Mod`);}window.StudioVoiceControl?.refresh();}
 function setVoiceModInputStatus(message,state="ready"){const status=$("voiceModInputStatus");if(status){status.textContent=message;status.dataset.state=state}}
 async function refreshVoiceModInputs(){
   if(!navigator.mediaDevices?.enumerateDevices)throw new Error("Microphone selection is not supported in this browser.");
@@ -1563,6 +1563,11 @@ async function startVoiceMod(){
     setVoiceModInputStatus("Microphone access failed. Check browser permission and the selected input.","error");
     throw error;
   }
+}
+async function toggleVoiceMod(){
+  const stopping=voiceModState.active||$("voiceModState")?.dataset.state==="starting";
+  try{if(stopping)await stopVoiceMod();else await startVoiceMod();}
+  catch(error){if(!stopping)setVoiceModStatus("error","Microphone unavailable");notify(stopping?"Voice Mod Not Stopped":"Voice Mod Not Started",error.message||String(error),"error");}
 }
 function restoreVoiceModPreferences(){const prefs=voiceModPreferences();if($("voiceModPreset"))$("voiceModPreset").value=VOICE_MOD_PRESETS[prefs.preset]?prefs.preset:"clean";[["voiceModGain",prefs.gain??100],["voiceModMix",prefs.mix??75],["voiceModOutput",prefs.output??100]].forEach(([id,value])=>{if($(id))$(id).value=String(value)});if($("voiceModMonitor"))$("voiceModMonitor").checked=Boolean(prefs.monitor);updateVoiceModLevels(false)}
 const CAMERA_FX_PRESETS={clean:{brightness:100,contrast:100,saturation:100,sepia:0,hue:0},vibrant:{brightness:104,contrast:112,saturation:145,sepia:0,hue:0},cinematic:{brightness:92,contrast:128,saturation:86,sepia:12,hue:-8},warm:{brightness:103,contrast:106,saturation:118,sepia:22,hue:-7},cool:{brightness:101,contrast:108,saturation:112,sepia:0,hue:12},noir:{brightness:98,contrast:145,saturation:0,sepia:0,hue:0},vintage:{brightness:98,contrast:108,saturation:78,sepia:38,hue:-12}};
@@ -10946,8 +10951,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   });
   restoreVoiceModPreferences();
   window.StudioVoiceControl=window.StudioVoiceControlFactory?.create({borrow:()=>voiceModState,request:api});
-  $("voiceModStart")?.addEventListener("click",()=>startVoiceMod().catch(error=>{setVoiceModStatus("error","Microphone unavailable");notify("Voice Mod Not Started",error.message||String(error),"error")}));
-  $("voiceModStop")?.addEventListener("click",()=>stopVoiceMod().catch(error=>notify("Voice Mod Not Stopped",error.message||String(error),"error")));
+  $("voiceModStart")?.addEventListener("click",()=>toggleVoiceMod());
   $("voiceModRefresh")?.addEventListener("click",()=>refreshVoiceModInputs().then(devices=>notify("Microphones Refreshed",`${devices.length} input${devices.length===1?"":"s"} available.`,"success")).catch(error=>notify("Microphones Unavailable",error.message||String(error),"error")));
   ["voiceModGain","voiceModMix","voiceModOutput","voiceModMonitor"].forEach(id=>$(id)?.addEventListener("input",updateVoiceModLevels));
   $("voiceModInput")?.addEventListener("change",()=>{window.StudioVoiceControl?.stop("Microphone selection changed. Start listening again after checking Voice Mod.");saveVoiceModPreferences();});

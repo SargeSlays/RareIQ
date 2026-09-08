@@ -33,7 +33,6 @@ def test_voice_mod_processing_controls_and_handlers_remain_unique() -> None:
         "voiceModMix",
         "voiceModOutput",
         "voiceModMonitor",
-        "voiceModStop",
     ):
         assert HTML.count(f'id="{element_id}"') == 1
 

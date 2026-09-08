@@ -50,6 +50,8 @@ class WindowsVoiceKeys:
         self._running = self._down = self._emergency = False
         self._reason = "native_keys_unavailable"
         self._windows = deque(maxlen=8)
+        self._released = False
+        self._press_count, self._last_pressed_at = 0, None
 
     def start(self, mode="wake"):
         with self._lifecycle:
@@ -63,6 +65,8 @@ class WindowsVoiceKeys:
                 self._mode, self._reason = mode, "native_keys_start_failed"
                 self._windows.clear()
                 self._running = self._down = self._emergency = False
+                self._released = False
+                self._press_count, self._last_pressed_at = 0, None
             self._stop.clear()
             self._ready.clear()
             self._thread = threading.Thread(target=self._run, name="voice-fixed-keys", daemon=True)
@@ -120,9 +124,17 @@ class WindowsVoiceKeys:
             self._emergency = emergency
             while self._windows and self._windows[0][1] is not None and self._windows[0][1] < now - 30:
                 self._windows.popleft()
-            if message and held and not self._down:
+            # A registered shortcut can lack a queued WM_HOTKEY in a foreground
+            # application. Accept a freshly observed held chord as well; never
+            # synthesize key input or accept a chord already held at startup.
+            if not held:
+                self._released = True
+            if held and not emergency and not self._down and (message or self._released):
                 self._windows.append([now, None])
                 self._down = True
+                self._released = False
+                self._press_count += 1
+                self._last_pressed_at = now
             elif self._down and not held:
                 self._windows[-1][1] = now
                 self._down = False
@@ -145,7 +157,8 @@ class WindowsVoiceKeys:
     def status(self):
         with self._lock:
             return {"available": self._running and not self._stop.is_set(), "reason": self._reason,
-                    "ptt_down": self._running and not self._stop.is_set() and self._down and not self._emergency}
+                    "ptt_down": self._running and not self._stop.is_set() and self._down and not self._emergency,
+                    "press_count": self._press_count, "last_pressed_at": self._last_pressed_at}
 
     def stop(self):
         with self._lifecycle:

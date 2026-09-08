@@ -230,6 +230,24 @@ test("the clean microphone pipeline starts, respects zero output, and releases i
   assert.equal(app.frames.size, 0);
 });
 
+test("one microphone toggle cancels pending permission, rejects its late stream, and then starts and stops", async () => {
+  const app = sandbox(); app.voice(); const permission = deferred(), oldInput = track(); let requests = 0;
+  const button = app.mount("voiceModStart"), label = element(); app.mount("voiceModState", {querySelector: () => label});
+  app.context.navigator.mediaDevices.getUserMedia = () => { requests++; return permission.promise; };
+  const pending = app.context.toggleVoiceMod(); assert.equal(button.textContent, "Cancel"); assert.equal(button.disabled, false);
+  await app.context.toggleVoiceMod(); assert.equal(button.textContent, "Start"); assert.equal(requests, 1);
+  permission.resolve({getTracks: () => [oldInput]}); await pending;
+  assert.equal(oldInput.stopped, true); assert.equal(app.run("voiceModState.active"), false); assert.equal(button.textContent, "Start");
+  const mic = installMicrophone(app); await app.context.toggleVoiceMod(); assert.equal(button.textContent, "Stop"); assert.equal(button.disabled, false);
+  await app.context.toggleVoiceMod(); assert.equal(button.textContent, "Start"); assert.equal(mic.input.stopped, true); assert.equal(mic.output.stopped, true);
+});
+
+test("microphone toggle returns to enabled Start after permission failure", async () => {
+  const app = sandbox(); app.voice(); const button = app.mount("voiceModStart"), label = element(); app.mount("voiceModState", {querySelector: () => label});
+  app.context.navigator.mediaDevices.getUserMedia = async () => { throw Error("Permission denied"); };
+  await app.context.toggleVoiceMod(); assert.equal(button.textContent, "Start"); assert.equal(button.disabled, false); assert.equal(app.elements.get("voiceModState").dataset.state, "error"); assert.equal(app.notices.at(-1)[0], "Voice Mod Not Started");
+});
+
 test("cancel during AudioContext resume releases the microphone immediately", async () => {
   const app = sandbox(); app.voice(); const resuming = deferred();
   const mic = installMicrophone(app, {resume: () => resuming.promise});

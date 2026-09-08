@@ -14,7 +14,8 @@ def test_voice_mod_is_a_dedicated_studio_app():
     assert 'aria-label="Voice Mod"' in CONTROL
     assert 'data-workspace="voice-mod"' in CONTROL
     assert 'id="voiceModStart"' in CONTROL
-    assert 'id="voiceModStop"' in CONTROL
+    assert 'id="voiceModStop"' not in CONTROL
+    assert 'aria-label="Start Voice Mod">Start</button>' in CONTROL
     assert 'id="voiceModRefresh"' in CONTROL
     assert 'id="voiceModState" data-state="idle" role="status" aria-live="polite"' in CONTROL
 
@@ -130,8 +131,9 @@ def test_voice_mod_pending_permission_can_be_cancelled_without_leaking_audio():
     assert "let voiceModRequestGeneration=0" in STUDIO
     assert "voiceModRequestGeneration+=1" in STUDIO
     assert "const requestGeneration=++voiceModRequestGeneration" in STUDIO
-    assert 'stop.disabled=!["live","starting"].includes(state)' in STUDIO
-    assert 'stop.textContent=state==="starting"?"Cancel":"Stop"' in STUDIO
+    assert 'start.disabled=false' in STUDIO
+    assert 'start.textContent=state==="starting"?"Cancel":state==="live"?"Stop":"Start"' in STUDIO
+    assert '$("voiceModStart")?.addEventListener("click",()=>toggleVoiceMod())' in STUDIO
     assert "if(requestGeneration!==voiceModRequestGeneration){stream.getTracks().forEach(track=>track.stop());return}" in STUDIO
     assert "if(requestGeneration!==voiceModRequestGeneration){stream?.getTracks().forEach(track=>track.stop())" in STUDIO
 

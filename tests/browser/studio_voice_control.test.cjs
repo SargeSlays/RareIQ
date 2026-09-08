@@ -4,7 +4,7 @@ const workletSource=fs.readFileSync(path.resolve(__dirname,'../../rareiq/web/sta
 const settle=async()=>{for(let i=0;i<20;i++)await Promise.resolve()};
 function fixture(handler){
   const nodes=new Map(),requests=[],worklets=[],connections=[],timers=new Map();let next=0;
-  for(const id of ['studioVoiceStart','studioVoiceStop','studioVoicePractice','studioVoiceStatus','studioVoiceOutcome','studioVoiceControls','studioVoiceMode','studioVoiceBadge','studioVoiceInputSummary','studioVoiceSafetySummary','studioVoiceModeSummary','studioVoiceEmptyOutcome'])nodes.set(id,{disabled:false,checked:false,dataset:{},textContent:'',addEventListener(){}});
+  for(const id of ['studioVoiceStart','studioVoiceStop','studioVoicePractice','studioVoiceStatus','studioVoiceOutcome','studioVoiceControls','studioVoiceMode','studioVoiceBadge','studioVoiceInputSummary','studioVoiceSafetySummary','studioVoiceModeSummary','studioVoiceEmptyOutcome','studioVoiceDiagnostics'])nodes.set(id,{disabled:false,checked:false,dataset:{},textContent:'',addEventListener(){}});
   class Worklet {constructor(){this.port={postMessage:value=>this.commands.push(value),close:()=>{this.closed=true},onmessage:null};this.commands=[];worklets.push(this)}connect(target){connections.push([this,target])}disconnect(){this.disconnected=true}}
   const raw={connect:target=>connections.push([raw,target]),disconnect:target=>connections.push(['disconnect',target])};
   const sink={gain:{value:1},connect(){},disconnect(){this.disconnected=true}};
@@ -43,6 +43,21 @@ test('console readiness, actual listening badge, and latest result follow the ex
   await f.app.start();assert.equal(f.nodes.get('studioVoiceBadge').textContent,'LISTENING');
   f.worklets[0].port.onmessage({data:{type:'utterance',wav:new ArrayBuffer(100),endedContextTime:19}});assert.equal(f.nodes.get('studioVoiceBadge').textContent,'PROCESSING');await settle();assert.equal(f.nodes.get('studioVoiceEmptyOutcome').hidden,true);
   await f.app.stop();assert.equal(f.nodes.get('studioVoiceBadge').textContent,'NOT LISTENING');assert.match(f.nodes.get('studioVoiceOutcome').textContent,/Practice accepted/);
+});
+test('input checks show host counters and clear the prior result time on a fresh session',async()=>{
+  const f=fixture(url=>url.endsWith('/start')?{ok:true,state:'armed',session_id:'check',diagnostics:{shortcut_presses:0,audio_sequence:0}}:{ok:true,state:'armed',diagnostics:{shortcut_presses:2,audio_sequence:1},last_result:{message:'Practice accepted',at:1700000000}});
+  await f.app.start();assert.match(f.nodes.get('studioVoiceDiagnostics').textContent,/Shortcut presses: 0 · Audio received: 0 · Last result: none yet/);
+  f.worklets[0].port.onmessage({data:{type:'utterance',wav:new ArrayBuffer(100),endedContextTime:19}});await settle();
+  assert.match(f.nodes.get('studioVoiceDiagnostics').textContent,/Shortcut presses: 2 · Audio received: 1/);assert.doesNotMatch(f.nodes.get('studioVoiceDiagnostics').textContent,/none yet/);
+  await f.app.stop();await f.app.start();assert.match(f.nodes.get('studioVoiceDiagnostics').textContent,/Last result: none yet/);assert.equal(f.nodes.get('studioVoiceOutcome').textContent,'');
+});
+test('a delayed status poll cannot replace newer input evidence or outcome',async()=>{
+  let resolveStatus;
+  const f=fixture(url=>url.endsWith('/start')?{ok:true,state:'armed',session_id:'ordered'}:url.includes('/status')?new Promise(resolve=>resolveStatus=resolve):{ok:true,state:'armed',diagnostics:{shortcut_presses:2,audio_sequence:1},last_result:{message:'New result',at:200}});
+  await f.app.start();f.timers.values().next().value();await settle();
+  f.worklets[0].port.onmessage({data:{type:'utterance',wav:new ArrayBuffer(100),endedContextTime:19}});await settle();
+  resolveStatus({ok:true,state:'armed',diagnostics:{shortcut_presses:1,audio_sequence:0},last_result:{message:'Old result',at:100}});await settle();
+  assert.equal(f.nodes.get('studioVoiceOutcome').textContent,'New result');assert.match(f.nodes.get('studioVoiceDiagnostics').textContent,/Shortcut presses: 2 · Audio received: 1/);
 });
 test('PTT mode is explicit, locked while armed, and sends the voiced start timestamp',async()=>{
   const f=fixture(url=>url.endsWith('/start')?{ok:true,state:'armed',session_id:'ptt',practice:true,mode:'ptt',ptt_down:false}:{ok:true,state:'armed',mode:'ptt',ptt_down:true});

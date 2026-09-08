@@ -1,5 +1,13 @@
 # RareIQ: streaming-first product direction
 
+## Microphone toggle and voice test feedback - September 8, 2026
+
+One microphone button changes between Start, Cancel and Stop using the existing
+input owner. Voice-command readiness now includes observed shortcut presses, audio
+received and the latest result time. This supports the owner's fullscreen PUBG
+acceptance test; the reported background failure remains open until a real retest.
+Fixed-chord fallback preserves registration and complete-utterance authorization.
+
 ## Program camera output correction - September 8, 2026
 
 Open Program Output follows the selected Program camera through the existing clean

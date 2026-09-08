@@ -90,6 +90,28 @@ def test_recent_intervals_are_bounded_and_repeated_hotkey_message_does_not_split
     assert not helper._windows and not helper.permits(109.2)
 
 
+def test_fresh_physical_chord_without_hotkey_message_is_accepted_after_release(ptt):
+    helper, native, clock = ptt
+    # A chord held before the first observation cannot silently arm PTT.
+    native.keys = {0x11, 0x12, 0x56}
+    helper._poll_once()
+    assert not helper.status()['ptt_down']
+    release(ptt, 100.2)
+    clock[0] = 100.5
+    native.keys = {0x11, 0x12, 0x56}
+    helper._poll_once()  # no WM_HOTKEY
+    assert helper.status()['ptt_down']
+    assert helper.status()['press_count'] == 1
+    clock[0] = 101
+    assert helper.permits(100.9, 100.6)
+    assert not helper.permits(100.9, 100.2)
+    helper._poll_once()
+    assert helper.status()['press_count'] == 1
+    release(ptt, 101.5)
+    assert not helper.status()['ptt_down']
+    assert helper.status()['last_pressed_at'] == 100.5
+
+
 @pytest.mark.parametrize('ended,started', [(True, None), (float('nan'), None), (float('inf'), None), ('100', None), (100, False), (100, 101), (100, 'bad')])
 def test_malformed_timestamps_fail_closed(ptt, ended, started):
     press(ptt, 100)

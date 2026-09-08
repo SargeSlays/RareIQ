@@ -4,9 +4,32 @@ September 8, 2026. This continues the existing Producer, Please studio and Sarge
 action foundation. It does not replace the read-only Sarge advisor or install a
 second microphone, assistant model or broadcaster.
 
+## Owner test notes - September 8, 2026
+
+- Requested: replace separate microphone Start/Stop controls with one button that
+  shows Start when idle, Cancel while requesting input, and Stop while active.
+- Observed: the supplied screenshot shows Voice Mod live and a successful Practice
+  recognition. It does not establish which application had focus for that result.
+- Reported failure: hold-to-talk appears ineffective while the game has focus.
+  This remains an unresolved acceptance failure, not a verified background workflow.
+- Next investigation: distinguish native chord detection, browser capture delivery
+  and recognition results during game focus. Record fresh result timing so an old
+  Practice confirmation cannot appear to validate a later attempt. The owner
+  identified **PUBG in fullscreen** as the reproduction case.
+- Follow-up: fixed-chord polling can recognize a fresh hold without waiting for a
+  queued hotkey message. Registration/conflict guards and whole-utterance gating
+  remain required. This is a candidate correction, not proof of PUBG acceptance.
+- The Sarge console now shows Shortcut presses, Audio received and Last result time.
+  Counters reset on a fresh listening session; returning from the game can therefore
+  distinguish no observed press, no audio delivery and a new recognition outcome.
+- Owner approved total55%; original0% baseline/reset1789435596 remain unchanged.
+  Shared usage reported49% at resumption and50% during focused verification.
+
 ## Operator workflow
 
-1. Open Voice studio, standalone or docked, and start the existing Voice Mod input.
+1. Open Voice studio, standalone or docked. Under Microphone & Processing select
+   the input and click **Start**. That same button becomes **Cancel** while waiting
+   for permission, then **Stop** while active.
 2. Leave **Practice** checked. Choose Wake phrases or Hold Ctrl+Alt+V, then select
    **Start listening** in the Sarge console at the top of Voice studio.
 3. In Wake mode, say “Producer please” or “Sarge”, followed by “camera one” through “camera four”,
@@ -124,6 +147,20 @@ before binding memory output. This incident and durable guard are recorded in
 engineering memory.
 
 ## Recovery and allowance
+
+Fullscreen PUBG retest: open `http://127.0.0.1:9040/control?workspace=voice-mod`
+and refresh once, start the microphone, keep Practice checked, choose Hold Ctrl+Alt+V,
+and start listening. Confirm Shortcut presses and Audio received begin at zero.
+Enter fullscreen PUBG; hold Ctrl+Alt+V, say “camera one”, release after finishing,
+and wait ten seconds. Return to the same tab without refreshing. Record both counters,
+Last result time and the outcome. Zero presses means no shortcut was observed;
+presses without audio isolates the next investigation to audio delivery/segmentation;
+a fresh Practice result is required to pass. Repeat emergency stop in the game.
+
+Latest authorization: total55%, same original0% baseline and reset1789435596.
+The microphone toggle and input checks were verified locally; actual PUBG acceptance
+and private spoken confirmations remain pending. No game settings or privilege
+changes were made.
 
 Revert this checkpoint normally to remove voice arming; retain existing clips,
 Voice Mod settings and user-authored AGENTS.md changes. No voice preferences,

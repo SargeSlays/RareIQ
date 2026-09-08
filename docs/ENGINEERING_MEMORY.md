@@ -1,5 +1,23 @@
 # RareIQ engineering memory
 
+## Fullscreen voice test needs input evidence - September 8, 2026
+
+Owner reports hold-to-talk ineffective in fullscreen PUBG. The earlier gate required
+both a queued WM_HOTKEY and physically held Ctrl+Alt+V; missing message delivery
+therefore rejected a real held chord. After successful registration, a fresh
+physical chord now also opens the bounded hold interval. Initial held state without
+a message requires release/repress. Conflicts still block arming; zero key state,
+observer failure and emergency stop cannot authorize commands. Only the fixed
+chord is polled; no input injection, hooks, privilege or game changes are used.
+Microsoft documents the high-order bit as current key state, with zero possible
+on access failure: [GetAsyncKeyState](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getasynckeystate).
+
+A generic Practice message can remain visible across attempts. Expose per-session
+shortcut/audio counters and the result timestamp; duplicate requests must not make
+old feedback look new. Diagnostic counts and one timestamp stay in memory, without
+transcripts or stored audio. Test actual gameplay separately; mocked native state cannot establish
+that PUBG permits observation or that the browser delivers audio while backgrounded.
+
 ## Program logo and audience-source isolation - September 8, 2026
 
 An image selector (`.program img`) assigned full-frame dimensions to the corner

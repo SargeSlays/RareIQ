@@ -1,5 +1,15 @@
 # Refinish implementation progress
 
+## Microphone toggle and PUBG input follow-up - September 8, 2026
+
+One microphone Start/Cancel/Stop button retains its input owner and docking identity.
+Sarge exposes shortcut/audio counters and a result time. Fixed-chord polling can
+recognize a fresh hold without a queued hotkey message; registration and whole
+utterance checks remain. Delayed polls cannot overwrite fresher feedback.
+Final gate: 2,527 Python and 247 JavaScript tests; post-restart served checks passed.
+Actual PUBG fullscreen acceptance remains pending. Shared usage51% at verification,
+approved total55%, original baseline0%/reset1789435596 unchanged.
+
 ## Program output correction - September 8, 2026
 
 Fixed the image-selector collision that stretched the 34px corner mark over the

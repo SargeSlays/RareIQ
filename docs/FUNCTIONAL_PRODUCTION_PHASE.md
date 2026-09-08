@@ -110,7 +110,8 @@ old replay API remains compatible with requests that omit new fields.
 
 Original shared baseline remains 0%, reset timestamp 1789435596. The owner authorized
 35%, then 40% for the Sarge UI and 50% for the Program output repair. The current total
-ceiling is 50%; do not establish a new baseline. Shared
+ceiling was subsequently raised to 55% for the microphone toggle and fullscreen
+PUBG input investigation; do not establish a new baseline. Shared
 metering was 21% at resumption, 25% before activation and 27% after the action-safety
 restart; voice work resumed at 27% under the 35% ceiling and reported 30% during
 verification. The UI checkpoint ended at 38%; Program repair resumed at 41% and

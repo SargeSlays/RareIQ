@@ -80,6 +80,23 @@ def test_ptt_shortcut_conflict_does_not_arm(voice):
     assert service.status()['state'] == 'stopped'
 
 
+def test_session_diagnostics_distinguish_key_presses_audio_and_fresh_results(voice):
+    service, _, _ = voice
+    service.keys.status = lambda: {'available': True, 'press_count': 3, 'last_pressed_at': 100}
+    session = service.start()['session_id']
+    assert service.status()['diagnostics'] == {'shortcut_presses': 3, 'last_shortcut_at': 100, 'audio_sequence': 0}
+    now, data = time.time(), audio_bytes()
+    result = service.audio(session, 1, now, data)
+    assert result['diagnostics']['audio_sequence'] == 1
+    timestamp = result['last_result']['at']
+    assert timestamp >= now
+    assert service.audio(session, 1, now, data)['last_result']['at'] == timestamp
+    service.stop(session)
+    service.start()
+    assert service.status()['diagnostics']['audio_sequence'] == 0
+    assert service.status()['last_result'] is None
+
+
 def test_lost_key_observer_revokes_wake_session(voice):
     service, _, calls = voice
     session = service.start(practice=False)['session_id']

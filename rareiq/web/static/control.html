@@ -27,8 +27,8 @@
 <script defer src="/static/studio_docks.js?v=20260908-4"></script>
 <script defer src="/static/producer-please.motion.js?v=20260908-1"></script>
 <script defer src="/static/studio_motion.js?v=20260908-1"></script>
-<script defer src="/static/studio_voice_control.js?v=20260908-3"></script>
-<script defer src="/static/studiox.js?v=6.9.0-commanddeck96&amp;shell=6.8.93-camera-workspace1&amp;media=20260830-2&amp;grid=20260830-1&amp;speed=20260830-1&amp;audit=20260830-2&amp;cameras=20260830-1&amp;outputs=20260831-3&amp;chase=20260831-6&amp;studio=20260831-1&amp;appearance=20260907-1&amp;refinish=20260907-2&amp;docks=20260908-2&amp;motion=20260908-1&amp;actions=20260908-1&amp;voice=20260908-2"></script>
+<script defer src="/static/studio_voice_control.js?v=20260908-4"></script>
+<script defer src="/static/studiox.js?v=6.9.0-commanddeck96&amp;shell=6.8.93-camera-workspace1&amp;media=20260830-2&amp;grid=20260830-1&amp;speed=20260830-1&amp;audit=20260830-2&amp;cameras=20260830-1&amp;outputs=20260831-3&amp;chase=20260831-6&amp;studio=20260831-1&amp;appearance=20260907-1&amp;refinish=20260907-2&amp;docks=20260908-2&amp;motion=20260908-1&amp;actions=20260908-1&amp;voice=20260908-3"></script>
     <link rel="icon" type="image/svg+xml" href="/static/brand/producer-please-v2/favicon.svg?v=2.0">
     <link rel="apple-touch-icon" href="/static/brand/producer-please-v2/apple-touch-icon.png?v=2.0">
 <link rel="stylesheet" href="/static/brand/v1/rare-iq-tokens.css?v=1.0">
@@ -1644,18 +1644,19 @@ Choose a source above</span>
             <div class="sarge-listening-actions"><button class="riq-button primary" id="studioVoiceStart" type="button" disabled>Start listening</button><button class="riq-button danger" id="studioVoiceStop" type="button" disabled>Stop listening</button></div>
           </div>
           <p class="sarge-session-status" id="studioVoiceStatus" role="status">Start Voice Mod before listening.</p>
+          <p id="studioVoiceDiagnostics" class="sarge-session-status">Start listening to check shortcut and audio delivery.</p>
           <div class="sarge-outcome"><span class="sarge-eyebrow">LATEST OUTCOME</span><p id="studioVoiceOutcome" role="status"></p><p id="studioVoiceEmptyOutcome">No command yet. Sarge will show the result here.</p></div>
           <div class="sarge-examples" aria-label="Example commands"><article><span>Switch camera</span><q>Sarge, camera two</q></article><article><span>Save a moment</span><q>Sarge, clip that</q></article><article><span>Choose a duration</span><q>Sarge, save the last 30 seconds</q></article></div>
           <p class="sarge-routing-caution">Commands may be heard on Program if your mic is routed there. Hold mode does not mute it.</p>
           <details class="sarge-console-details"><summary>Commands, routing &amp; keyboard shortcuts</summary><div><p>Start Voice Mod first. In Wake phrases mode, begin with “Producer please” or “Sarge”. In Hold mode, hold Ctrl+Alt+V while saying the command; the prefix is optional. Pause after each command.</p><p>Choose camera one through four, “clip that”, or “save the last 15, 30, 60 or 120 seconds”. Your selected microphone remains active in both modes.</p><p>Ctrl+Alt+Backspace stops voice commands on the host. Commands run only in the local studio. Spoken confirmations are not available yet.</p></div></details>
         </section>
         <section class="voice-mod-control-card">
-          <header><div><span>Input</span><h3>Microphone &amp; Processing</h3></div><button class="riq-button primary" id="voiceModStart" type="button">Start Voice Mod</button></header>
+          <header><div><span>Input</span><h3>Microphone &amp; Processing</h3></div><button class="riq-button primary" id="voiceModStart" type="button" aria-label="Start Voice Mod">Start</button></header>
           <label><span>Microphone input</span><select id="voiceModInput"><option value="">Default microphone</option></select><small class="voice-mod-input-status" id="voiceModInputStatus" role="status" aria-live="polite">Checking available microphones.</small></label>
           <label><span>Voice preset</span><select id="voiceModPreset"><option value="clean">Clean Studio</option><option value="deep">Deep Broadcast</option><option value="robot">Robot</option><option value="radio">Radio</option><option value="megaphone">Megaphone</option></select></label>
           <div class="voice-mod-sliders"><label><span>Input Gain <b id="voiceModGainValue">100%</b></span><input id="voiceModGain" type="range" min="0" max="200" value="100"></label><label><span>Effect Mix <b id="voiceModMixValue">75%</b></span><input id="voiceModMix" type="range" min="0" max="100" value="75"></label><label><span>Output <b id="voiceModOutputValue">100%</b></span><input id="voiceModOutput" type="range" min="0" max="150" value="100"></label></div>
           <label class="voice-mod-monitor"><input id="voiceModMonitor" type="checkbox"><span>Monitor processed voice through this computer</span><small>Use headphones. Speaker monitoring can create feedback.</small></label>
-          <div class="voice-mod-actions"><button class="riq-button" id="voiceModRefresh" type="button">Refresh Inputs</button><button class="riq-button danger" id="voiceModStop" type="button" disabled>Stop</button></div>
+          <div class="voice-mod-actions"><button class="riq-button" id="voiceModRefresh" type="button">Refresh Inputs</button></div>
         </section>
         <section class="voice-mod-meter-card" data-state="idle"><header><div><span>Processed Output</span><h3>Live Signal</h3></div><b id="voiceModPresetName">Clean Studio</b></header><div class="voice-mod-meter"><i id="voiceModMeterFill"></i></div><div class="voice-mod-readout"><strong id="voiceModLevel">−∞ dB</strong><span id="voiceModRoute" role="status">RareIQ stream unavailable until started</span></div><div class="voice-mod-route-note"><b>Production Audio Handoff</b><p>RareIQ exposes the processed stream internally as <code>window.rareiqVoiceModStream</code>. A virtual audio cable is still required to use it as a system microphone in unrelated desktop apps.</p></div></section>
       </div>

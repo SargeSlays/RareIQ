@@ -1,5 +1,12 @@
 # RareIQ Roadmap
 
+## Fullscreen PUBG voice acceptance - September 8, 2026
+
+Checkpoint the single microphone toggle, bounded held-key fallback and fresh input
+diagnostics, then repeat the owner's fullscreen PUBG test. Require a new shortcut
+press, delivered audio and a fresh Practice result before accepting background
+operation. Private confirmations/full Program audio remain subsequent work.
+
 ## Program output repair - September 8, 2026
 
 Fix the full-screen logo regression, reuse the clean reconnecting camera view, and

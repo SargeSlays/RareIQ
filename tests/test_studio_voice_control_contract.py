@@ -19,7 +19,7 @@ def test_speech_borrows_active_raw_voice_mod_and_stops_before_device_cleanup():
 
 def test_practice_and_arming_are_explicit_with_one_cache_busted_worklet():
     assert 'id="studioVoicePractice" type="checkbox" checked' in CONTROL
-    assert 'studio_voice_control.js?v=20260908-3' in CONTROL
+    assert 'studio_voice_control.js?v=20260908-4' in CONTROL
     assert 'studio_voice_capture.worklet.js?v=20260908-2' in VOICE
     assert "node('studioVoicePractice').checked=true" in VOICE
     assert "host.StudioVoiceControlFactory={create}" in VOICE

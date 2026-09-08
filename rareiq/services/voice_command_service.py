@@ -92,9 +92,13 @@ class VoiceCommandService:
                     self._pending_action = None
                     if self._state == 'recognizing':
                         self._state = 'armed'
+            keys = self.keys.status()
             return {'ok': True, 'state': self._state, 'practice': self._practice,
                     'reason': self._reason, 'last_result': deepcopy(self._last),
-                    'mode': self._mode, 'ptt_down': self.keys.status().get('ptt_down', False),
+                    'mode': self._mode, 'ptt_down': keys.get('ptt_down', False),
+                    'diagnostics': {'shortcut_presses': keys.get('press_count', 0),
+                                    'last_shortcut_at': keys.get('last_pressed_at'),
+                                    'audio_sequence': max(0, self._sequence)},
                     'background_requirement': 'Existing microphone session must remain active'}
 
     def start(self, *, practice=True, mode='wake'):
@@ -150,7 +154,7 @@ class VoiceCommandService:
                     message += ' Less history was available than requested.'
             else:
                 message = f"Program camera {payload.get('program_slot')} selected."
-        return {key: value for key, value in {'ok': result.get('ok') is True, 'state': state,
+        return {key: value for key, value in {'ok': result.get('ok') is True, 'state': state, 'at': time.time(),
                 'action_id': result.get('action_id'), 'reason': result.get('reason') or payload.get('reason'), 'message': message}.items() if value is not None}
 
     def audio(self, session_id, sequence, ended_at, data, started_at=None):
