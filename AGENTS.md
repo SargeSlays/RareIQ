@@ -18,6 +18,20 @@ material external side effect without explicit authority for that action. Never 
 hardware, OBS, platform receipt, audio playback, or a third-party integration works
 unless it was actually verified at that layer.
 
+## Local compute and token discipline
+
+The owner reports an RTX 4090 GPU and Ryzen 9 CPU on the development PC. Prefer
+local deterministic tools for builds, tests, searches, asset conversion, rendering,
+packaging and bulk processing. Use GPU acceleration for supported, measured
+workloads such as existing OCR/inference or media processing; verify the actual
+backend/device and preserve capacity for OBS and active production. Cache results,
+batch work and return concise summaries instead of large raw outputs. Reserve
+model calls for decisions and work that benefits from reasoning; avoid repetitive
+generation and open-ended agent loops. Codex reasoning still uses account tokens;
+local hardware does not automatically run this assistant. Do not install/download
+large models or replace services merely to consume the GPU. Existing usage caps
+and authorization requirements remain in force.
+
 ## Decision hierarchy
 
 When instructions conflict, use this order:

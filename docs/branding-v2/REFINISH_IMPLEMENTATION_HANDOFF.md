@@ -40,6 +40,30 @@ This handoff resolves its stale asset and typography guidance. Do not let the
 old Signal Cut identity, reference-board text or an old prompt silently replace
 the selected mascot or override the current product boundaries.
 
+### Local compute and token discipline
+
+The owner reports an **RTX 4090 GPU and Ryzen 9 CPU** on this development PC.
+Prefer local tools for builds/tests, searches, asset conversion, document rendering,
+packaging, validation and bulk data processing. Write a reusable local script for
+repeatable work instead of repeatedly asking a model to perform each item. Cache
+outputs, batch independent operations and inspect concise summaries or selected
+visual evidence rather than flooding context with raw logs.
+
+Use CPU parallelism where it helps without starving the app. Use the GPU for
+supported workloads such as existing OCR/inference and media processing only
+after confirming the installed backend and actual device use. Hardware ownership
+does not prove CUDA, model availability, acceleration or performance. Measure a
+representative workload, preserve capacity for OBS/video and active production,
+and report fallback truthfully. Do not move trivial CPU work to the GPU for show.
+
+Reserve model calls for design decisions, reasoning and targeted review. Avoid
+repeated image generation, unnecessary cloud processing and open-ended agent
+loops. Codex's own reasoning still consumes account tokens; this PC does not
+automatically host this assistant. A local model would be a separate configured
+tool. Do not download large models, install new runtimes, replace services or
+expand the backend scope just to use available hardware. Respect the existing
+allowance cap; local execution reduces avoidable model work but does not remove it.
+
 ## 2. Scope and non-negotiable preservation
 
 Change frontend presentation, identity assets, compatible preference handling,
