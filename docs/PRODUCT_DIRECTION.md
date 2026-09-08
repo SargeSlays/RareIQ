@@ -1,5 +1,13 @@
 # RareIQ: streaming-first product direction
 
+## Parent application refinish in progress - September 7, 2026
+
+The actual operator header, title, splash and web manifest now display Producer,
+Please using the supplied v2 package. RareIQ retains its independent original
+character and existing Card Studio access. Five operator skins are selectable
+through the existing preference controller. Full workspace/Sarge/Windows branding
+and hardware acceptance remain in progress; see `branding-v2/REFINISH_PROGRESS.md`.
+
 ## Brand architecture correction - September 7, 2026
 
 The owner's branding request and recovered approved handoff establish **Producer,

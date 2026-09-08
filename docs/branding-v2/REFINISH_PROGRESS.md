@@ -4,10 +4,71 @@
 
 Original shared baseline remains 0%, reset timestamp 1789435596. On September 7,
 2026 the owner authorized proceeding from 4% to a total ceiling of 6% for the
-first tested implementation checkpoint. Latest reading before implementation: 5%.
+first tested implementation checkpoint. The owner subsequently approved a 7%
+ceiling for the parent identity/five-skin checkpoint, then approved a 9% ceiling
+for completing that checkpoint and the first customizable production-studio slice.
+Latest reading: 7%. Original reset timestamp and baseline are unchanged.
 Do not reset this baseline. Check again before further substantial work.
 
 ## Plan and dependency map
+
+### Parent identity and five-skin checkpoint
+
+Continuing from `4000e78f`; no restart of the project or preference system.
+The owner's supplied `Producer_Please_Brand_System_v2.zip` supersedes the earlier
+parent reference-only kit and supplied mascot adaptations for current integration.
+Its original RareIQ character and orange/lime parent assets are copied unchanged;
+source paths/hashes are in `static/brand/producer-please-v2/PROVENANCE.json`.
+The book, all three implementation documents and asset provenance were reviewed.
+
+Implemented in the actual operator app: Producer, Please header/title/splash,
+web icons and manifest branding, visible RareIQ entry/icon, five named choices,
+immediate preview, persisted selection, keyboard radio navigation, OS following
+and reset. The existing appearance controller remains the only preference owner.
+All 116 supplied tokens per skin are retained; only their selectors are adapted.
+Existing command-deck variables map to those tokens with legacy-page fallbacks.
+Old forced logo substitutions exclude the current shell. The supplied demo and
+its controller are not loaded. No output document or backend file is modified.
+
+Actual Edge checks: all five skins on Studio and Appearance at 1920x1080; reload,
+keyboard/Home/arrow selection, OS following, reset and 20 rapid changes preserving
+camera/scan DOM and an edited audience-theme field. No page script errors.
+Ignite/Daylight settings bounds checked at 1366x768, 2560x1440, 3840x2160 and
+720x900 without page overflow. Header uses a 180px horizontal asset; the existing
+mobile shell hides that header. Captures and gallery remain local under
+`.tmp/refinish/`, with private camera/card images masked. The earlier state-only
+checkpoint captures provide before views. No server restart was needed: the
+current served files and cache parameters were exercised directly.
+
+Remaining acceptance: complete per-workspace/dialog/menu/tooltip/status/meter
+semantic audit (especially Daylight), Sarge comma/waveform and truthful service
+states/commands, remaining parent copy and Windows launcher icon integration,
+Windows scaling/reduced-motion checks, actual RareIQ recognition/camera/overlay
+continuity and broadcast-render comparison. No hardware or platform operation is
+certified by these frontend checks. The complete refinish is not finished.
+
+Final branding gate: 2,456 Python and 200 JavaScript tests passed, including the
+disabled-input specificity guard. The actual browser confirmed the winning
+disabled foreground. Runtime asset bytes are protected from checkout line-ending
+conversion so supplied-asset checksum guards remain valid on Windows.
+
+Owner's next production requirement: an OBS/Streamlabs-style production workspace
+in Producer, Please's own identity, full-screen mode, and tools that dock, resize,
+reorder, hide/restore and pop out around the canvas. Preserve individual layouts
+and working controls/state. Destination scope includes YouTube, Twitch, Facebook,
+TikTok, Kick, Rumble, other supported services and custom endpoints. Inspect
+existing destination and encoder support before adding connection claims; no
+actual broadcast is authorized. First slice prioritizes the working production
+canvas and safe layout customization; external-window lifecycle and each service
+connection need their own verified contracts.
+
+Launch/preview: open the already running `http://127.0.0.1:9040/control`; choose
+Settings > Appearance. This modifies this checkout's served application; it is
+not a newly packaged Windows installer. Revert this checkpoint to `4000e78f` to
+restore the previous visuals while retaining the shared appearance record. Do not
+reset or delete user preferences/data. Owner-authored AGENTS.md edits remain intact.
+
+### Earlier foundation checkpoint (historical)
 
 1. Baseline and appearance state foundation: implemented; checkpoint validation below.
 2. Parent/RareIQ identity, five semantic skins and accessible Appearance selector.

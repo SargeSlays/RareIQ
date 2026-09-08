@@ -9,11 +9,11 @@ MANIFEST = json.loads((STATIC / "rareiq.webmanifest").read_text(encoding="utf-8"
 
 
 def test_studiox_exposes_installable_mobile_metadata() -> None:
-    assert '<link rel="manifest" href="/static/rareiq.webmanifest?v=6.9.0-commanddeck96">' in HTML
+    assert '<link rel="manifest" href="/static/rareiq.webmanifest?v=20260907-pp2">' in HTML
     assert '<meta id="studioThemeColor" name="theme-color" content="#080B0D">' in HTML
     assert '<meta name="mobile-web-app-capable" content="yes">' in HTML
     assert '<meta name="apple-mobile-web-app-capable" content="yes">' in HTML
-    assert '<meta name="apple-mobile-web-app-title" content="Rare IQ">' in HTML
+    assert '<meta name="apple-mobile-web-app-title" content="Producer, Please">' in HTML
 
 
 def test_manifest_launches_the_live_operator_surface() -> None:
@@ -22,15 +22,15 @@ def test_manifest_launches_the_live_operator_surface() -> None:
     assert MANIFEST["scope"] == "/"
     assert MANIFEST["display"] == "standalone"
     assert MANIFEST["orientation"] == "any"
-    assert MANIFEST["theme_color"] == "#080B0D"
-    assert MANIFEST["background_color"] == "#080B0D"
+    assert MANIFEST["theme_color"] == "#FF8A00"
+    assert MANIFEST["background_color"] == "#0B0B0F"
 
 
 def test_manifest_icons_are_real_local_assets() -> None:
-    assert {icon["sizes"] for icon in MANIFEST["icons"]} == {"any"}
+    assert {icon["sizes"] for icon in MANIFEST["icons"]} == {"192x192", "512x512"}
     for icon in MANIFEST["icons"]:
         assert icon["src"].startswith("/static/")
-        assert icon["type"] == "image/svg+xml"
+        assert icon["type"] == "image/png"
         asset = STATIC / icon["src"].removeprefix("/static/")
         assert asset.is_file()
         assert asset.stat().st_size > 0

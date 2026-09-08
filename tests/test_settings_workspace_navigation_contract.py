@@ -64,7 +64,7 @@ def test_existing_settings_controls_and_interface_handlers_are_preserved():
         "cameraManagerState",
     ):
         assert f'id="{element_id}"' in CONTROL
-    assert 'data-theme-choice="dark"' in CONTROL
+    assert 'data-theme-choice="ignite"' in CONTROL
     assert 'onclick="openProgram()"' in CONTROL
     assert "window.open('/studio501')" in CONTROL
     assert "window.open('/legacy-control')" in CONTROL

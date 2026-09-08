@@ -2,6 +2,12 @@
 
 ## Refinish in progress - September 7, 2026
 
+Parent header/title/splash/web icons and five supplied operator skins are now
+integrated, retaining RareIQ access and the one preference controller. Next within
+this same phase: complete component/state audit, remaining parent copy, Sarge
+visual integration, launcher assets and the handoff's full acceptance matrix.
+The state-foundation note below describes the previous checkpoint.
+
 Shared first-paint/runtime appearance state is implemented with versioned legacy
 preference migration and blocked-storage handling. The current light/dark/system
 controls remain. Next: supplied parent/RareIQ assets, five semantic skin palettes

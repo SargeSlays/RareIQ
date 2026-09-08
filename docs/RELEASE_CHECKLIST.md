@@ -1,5 +1,25 @@
 # RareIQ Release Checklist
 
+## Parent identity and five operator skins - September 7, 2026
+
+- [x] Supplied parent header/splash/web assets, original RareIQ icons and manifest
+  branding integrated into the existing app; payload provenance/hashes recorded.
+- [x] All five 116-token skins, selection, reload, keyboard, reset and OS following
+  checked against the actual served app. No second preference controller loaded.
+- [x] Original 1,338 IDs retained; only three appearance IDs added. Twenty rapid
+  switches preserved camera/scan nodes and an edited audience-theme field.
+- [x] Main Studio/Appearance captured in all five skins at 1080p; Ignite/Daylight
+  settings checked at 1366, 2560, 3840 and 720px widths without page overflow.
+- [x] Final canonical gate passed 2,456 Python and 200 JavaScript tests. One earlier
+  reference-learning persistence failure passed its focused suite and full rerun;
+  recorded in engineering memory, with no backend changes.
+- [ ] Complete component/state/Daylight contrast audit across every workspace.
+- [ ] Sarge visual/service-state integration and remaining parent/Windows branding.
+- [ ] Full scaling, reduced-motion, device/recognition and audience-output acceptance.
+
+This is an installed local source checkpoint, not a finished Windows installer or
+completed refinish. See `branding-v2/REFINISH_PROGRESS.md` for preview and rollback.
+
 ## Refinish appearance state foundation - September 7, 2026
 
 - [x] One shared bootstrap/runtime state; legacy preferences preserved for rollback.

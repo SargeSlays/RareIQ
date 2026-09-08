@@ -119,12 +119,15 @@ function studioThemePreference(){const state=window.StudioAppearance.snapshot();
 function applyStudioTheme(preference,persist=false){
   const state=preference===undefined?window.StudioAppearance.apply():window.StudioAppearance.select(preference,persist);
   const resolved=state.theme,choice=state.followSystem?"system":resolved;
-  const themeColor=$("studioThemeColor");if(themeColor)themeColor.content=resolved==="light"?"#F5F0E6":"#080B0D";
-  document.querySelectorAll("[data-theme-choice]").forEach(button=>{const active=button.dataset.themeChoice===choice;button.classList.toggle("active",active);button.setAttribute("aria-checked",String(active));});
+  const skinName=state.resolvedSkin[0].toUpperCase()+state.resolvedSkin.slice(1);
+  const themeColor=$("studioThemeColor");if(themeColor)themeColor.content=getComputedStyle(document.body).getPropertyValue("--pp-bg").trim()||(resolved==="light"?"#F5F0E6":"#080B0D");
+  document.querySelectorAll("[data-theme-choice]").forEach(button=>{const candidate=button.dataset.themeChoice;const active=candidate===(["dark","light","system"].includes(candidate)?choice:state.resolvedSkin);button.classList.toggle("active",active);button.setAttribute("aria-checked",String(active));button.tabIndex=active?0:-1;});
+  const follow=$("studioFollowSystem");if(follow)follow.checked=state.followSystem;
+  const status=$("studioAppearanceStatus");if(status)status.textContent=`${state.followSystem?"Following system · ":""}${skinName}${state.persisted?" · Saved on this device":" · Applied in this window; saving is unavailable"}`;
   const toggle=$("studioThemeToggle"),label=$("studioThemeToggleLabel"),next=resolved==="dark"?"light":"dark";
   if(toggle){toggle.dataset.theme=resolved;toggle.setAttribute("aria-pressed",String(resolved==="light"));toggle.setAttribute("aria-label",`Switch to ${next} mode`);toggle.title=`Switch to ${next} mode`;}
   if(label)label.textContent=next[0].toUpperCase()+next.slice(1);
-  if(persist){notify(state.persisted?"Appearance Updated":"Appearance applied for this window",state.persisted?(choice==="system"?`Following system · ${resolved}`:`${choice[0].toUpperCase()}${choice.slice(1)} mode enabled`):"Your browser blocked saving. This choice may be lost when the window closes.",state.persisted?"success":"warning");}
+  if(persist){notify(state.persisted?"Appearance Updated":"Appearance applied for this window",state.persisted?(choice==="system"?`Following system · ${skinName}`:`${skinName} enabled`):"Your browser blocked saving. This choice may be lost when the window closes.",state.persisted?"success":"warning");}
 }
 studioThemeMedia.addEventListener?.("change",()=>{if(window.StudioAppearance.snapshot().followSystem)applyStudioTheme()});
 
@@ -3493,7 +3496,7 @@ function initializeLibraryConsole(){
 
 const SETTINGS_VIEW_KEY="rareiq.settings.view.v1";
 const SETTINGS_VIEW_COPY={
-  appearance:["Appearance","Choose how RareIQ Studio looks on this device."],
+  appearance:["Appearance","Choose how Producer, Please looks on this device."],
   mobile:["Mobile Access","Review secure phone and tablet access for this RareIQ server."],
   recognition:["Recognition Handoff","Configure only the operator-facing transition to the next card."],
   health:["System Health","Read current camera, recognition, catalog, index, and storage status."],
@@ -7918,7 +7921,7 @@ function renderMobileWakeLockState(state="off",detail=""){
   const toggle=$("mobileWakeLockEnabled");
   const supported=mobileWakeLockSupported();
   if(toggle){toggle.disabled=!supported;toggle.checked=supported&&mobileWakeLockRequested}
-  const defaults={off:"Off · enable for this operator session",active:"Active · screen will remain awake",paused:"Paused while Studio X is hidden",unsupported:"Unavailable in this browser",error:"Could not keep the screen awake"};
+  const defaults={off:"Off · enable for this operator session",active:"Active · screen will remain awake",paused:"Paused while Producer, Please is hidden",unsupported:"Unavailable in this browser",error:"Could not keep the screen awake"};
   const status=detail||defaults[supported?state:"unsupported"];
   setCardText("mobileWakeLockStatus",status);
   const deckToggle=$("mobileOperatorWakeLock");
@@ -7979,8 +7982,8 @@ function renderStudioXInstallState(state="guidance",detail=""){
   const panel=document.querySelector(".mobile-install-state");
   const button=$("mobileInstallButton");
   if(panel)panel.dataset.state=installed?"installed":state;
-  if(button){button.disabled=!installable;button.textContent=installed?"Installed":"Install Studio X"}
-  const defaults={guidance:"Use your browser menu to Add to Home Screen.",ready:"Native install is ready on this device.",accepted:"Install accepted · finishing setup.",dismissed:"Install dismissed · you can try again later.",installed:"Running as an installed Studio X app."};
+  if(button){button.disabled=!installable;button.textContent=installed?"Installed":"Install Producer, Please"}
+  const defaults={guidance:"Use your browser menu to Add to Home Screen.",ready:"Native install is ready on this device.",accepted:"Install accepted · finishing setup.",dismissed:"Install dismissed · you can try again later.",installed:"Running as an installed Producer, Please app."};
   setCardText("mobileInstallStatus",detail||defaults[installed?"installed":state]||defaults.guidance);
 }
 
@@ -10742,7 +10745,16 @@ document.addEventListener("DOMContentLoaded",()=>{
   $("packStartCardsButton")?.addEventListener("click",()=>startCardsFromPack(false));
   $("nextPackSessionButton")?.addEventListener("click",startNextPackSession);
   applyStudioTheme();
-  document.querySelectorAll("[data-theme-choice]").forEach(button=>button.addEventListener("click",()=>applyStudioTheme(button.dataset.themeChoice,true)));
+  const themeChoices=Array.from(document.querySelectorAll("[data-theme-choice]"));
+  themeChoices.forEach((button,index)=>{
+    button.addEventListener("click",()=>applyStudioTheme(button.dataset.themeChoice,true));
+    button.addEventListener("keydown",event=>{
+      const next={ArrowRight:(index+1)%themeChoices.length,ArrowDown:(index+1)%themeChoices.length,ArrowLeft:(index+themeChoices.length-1)%themeChoices.length,ArrowUp:(index+themeChoices.length-1)%themeChoices.length,Home:0,End:themeChoices.length-1}[event.key];
+      if(next===undefined)return;event.preventDefault();themeChoices[next].focus();applyStudioTheme(themeChoices[next].dataset.themeChoice,true);
+    });
+  });
+  $("studioFollowSystem")?.addEventListener("change",event=>applyStudioTheme(event.target.checked?"system":window.StudioAppearance.snapshot().resolvedSkin,true));
+  $("studioAppearanceReset")?.addEventListener("click",()=>applyStudioTheme("ignite",true));
   $("studioThemeToggle")?.addEventListener("click",()=>applyStudioTheme(document.documentElement.dataset.theme==="light"?"dark":"light",true));
   initializeAutoScreenshotConfiguration();
   initializeStudioXUI4();

@@ -1,0 +1,58 @@
+{
+  "archive_sha256": "f5fc56543a5cd5b4ab0a7ee1de58ce885fb39a595be82ce830ee56526353d464",
+  "files": {
+    "PP_horizontal_on-dark.svg": {
+      "source": "01_Logos/SVG/PP_horizontal_on-dark.svg",
+      "sha256": "ca04e54001ec94084cfc751fdbba5177d925082b38b887aa27d7e8783c50304c"
+    },
+    "PP_horizontal_on-light.svg": {
+      "source": "01_Logos/SVG/PP_horizontal_on-light.svg",
+      "sha256": "e72d692e16f17179cb2067dadcce869d8936c7bebb6221e5b720ba078a27a85c"
+    },
+    "PP_Mark_micro.svg": {
+      "source": "01_Logos/SVG/PP_Mark_micro.svg",
+      "sha256": "32aebce6aa2d766bfe868ad63124cce26ba14f027fdfc0f5e5d94399a3f31bea"
+    },
+    "PP_Approved_3D_Horizontal_on-dark_2400.png": {
+      "source": "01_Logos/PNG/PP_Approved_3D_Horizontal_on-dark_2400.png",
+      "sha256": "e4d99d21fd5940eb124d60e012b1c1d0c5c81b9da28fa41bc69d1e2cb7ce00e2"
+    },
+    "PP_Approved_3D_Horizontal_on-light_2400.png": {
+      "source": "01_Logos/PNG/PP_Approved_3D_Horizontal_on-light_2400.png",
+      "sha256": "5c64d112952e6e009097bf5377d690949ef893f85dbc1dcb8b461bbeb9d5dc7e"
+    },
+    "favicon.svg": {
+      "source": "02_App_Icons/Web/favicon.svg",
+      "sha256": "f5224d63c444c337baaeeb54c05a41a4778c1f74030b1b7f4e5cdcfd738ac7ec"
+    },
+    "apple-touch-icon.png": {
+      "source": "02_App_Icons/Web/apple-touch-icon.png",
+      "sha256": "dbfea3542bbf1a1650a399f1e65a5f19a8674a3433d995b0a6eda544435db276"
+    },
+    "icon-192.png": {
+      "source": "02_App_Icons/Web/icon-192.png",
+      "sha256": "708074f83a03f220bdaaf16041a8a320ff949f812266d33a95175cf5005ce5e7"
+    },
+    "icon-512.png": {
+      "source": "02_App_Icons/Web/icon-512.png",
+      "sha256": "5564e4fda2733e9ed740950c366f1f09acb2548bc660ad32489fd3fda293e59b"
+    },
+    "maskable-512.png": {
+      "source": "02_App_Icons/Web/maskable-512.png",
+      "sha256": "7342d7742d16280850917ee6159956fa30f8b85fabb56c6aa6e2d8aa3510d484"
+    },
+    "RareIQ_Icon_24.png": {
+      "source": "07_RareIQ/RareIQ_Icon_24.png",
+      "sha256": "c9a78291cd4eb81fc7a2677c6d0b5ccff8cdef14d51ee0d533ec9e31878f821b"
+    },
+    "RareIQ_Icon_256.png": {
+      "source": "07_RareIQ/RareIQ_Icon_256.png",
+      "sha256": "aeb09f38ac87cbd77bbc50e574ec9d38e47c4b027f660ac8ecd5b1df52f57b08"
+    },
+    "producer-please.tokens.json": {
+      "source": "03_Themes/producer-please.tokens.json",
+      "sha256": "c801a6318cfdc14232f47154bbd60424fb1a84159fe5501d36cf9e520e0eba0d"
+    }
+  },
+  "token_adaptation": "Only selectors adapted to existing data-operator-skin; all supplied declarations retained."
+}

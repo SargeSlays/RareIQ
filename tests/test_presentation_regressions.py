@@ -44,10 +44,18 @@ def test_primary_action_text_has_accessible_contrast_in_both_themes():
         linear = [channel / 12.92 if channel <= .04045 else ((channel + .055) / 1.055) ** 2.4 for channel in channels]
         return sum(channel * weight for channel, weight in zip(linear, (.2126, .7152, .0722)))
 
-    css = (STATIC / "studiox_command_deck.css").read_text(encoding="utf-8")
-    for theme in ("dark", "light"):
-        block = re.search(r'html\[data-theme="' + theme + r'"\] body\.studiox-command-deck\[data-studiox-visual-system="unified"\]\s*\{([^}]+)', css)[1]
-        accent = re.search(r"--sx-accent:\s*(#[\da-f]+)", block)[1]
-        text = re.search(r"--sx-on-accent:\s*(#[\da-f]+)", block)[1]
-        bright, dark = sorted((luminance(accent), luminance(text)), reverse=True)
-        assert (bright + .05) / (dark + .05) >= 4.5
+    css = (STATIC / "brand/producer-please-v2/producer-please.tokens.css").read_text(encoding="utf-8")
+    blocks = re.findall(r"\{([^}]+)\}", css)
+    assert len(blocks) == 5
+    for block in blocks:
+        tokens = dict(re.findall(r"(--pp-[\w-]+):\s*([^;]+);", block))
+        assert len(tokens) == 116
+        for foreground, background in (("on-primary","primary"),("text-inverse","primary-ink"),("text","surface"),("text-muted","surface-raised"),("disabled-text","disabled-bg")):
+            bright, dark = sorted((luminance(tokens["--pp-"+foreground]), luminance(tokens["--pp-"+background])), reverse=True)
+            assert (bright+.05)/(dark+.05) >= 4.5, (foreground,background)
+
+
+def test_disabled_field_owner_matches_legacy_input_specificity():
+    css = (STATIC / "studio_shell.css").read_text(encoding="utf-8")
+    assert ':is(button,input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),select,textarea):disabled {' in css
+    assert 'select,textarea):not(:disabled) { background:var(--pp-input-bg)' in css

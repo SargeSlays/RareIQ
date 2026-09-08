@@ -20,7 +20,7 @@ OFFICIAL_ASSETS = {
 }
 
 
-def test_official_signal_cut_assets_are_local_and_transparent():
+def test_archived_signal_cut_assets_remain_intact():
     logo_root = STATIC / "brand" / "v1" / "logos"
     for filename, foreground in OFFICIAL_ASSETS.items():
         asset = logo_root / filename
@@ -35,7 +35,7 @@ def test_official_signal_cut_assets_are_local_and_transparent():
         assert len(hashlib.sha256(text.strip().encode()).hexdigest()) == 64
 
 
-def test_official_developer_tokens_are_the_product_source_of_truth():
+def test_legacy_token_dependencies_remain_available():
     expected = {
         "--riq-signal-mint": "#A6E8CE",
         "--riq-deep-mint": "#4B9F83",
@@ -87,7 +87,9 @@ def test_current_control_does_not_load_superseded_presentation_layers():
 
 
 def test_horizontal_lockup_is_default_and_old_neon_assets_are_not_rendered():
-    assert CONTROL.count("brand/v1/logos/rare-iq-primary-dark.svg") >= 2
+    assert "PP_horizontal_on-dark.svg" in CONTROL
+    assert "PP_Approved_3D_Horizontal_on-dark_2400.png" in CONTROL
+    assert "brand/v1/logos/" not in CONTROL
     assert 'class="brand-lockup-image"' in CONTROL
     assert "Intelligence for every collectible." not in CONTROL or "Project Iron Vision" not in CONTROL
     assert "Project Iron Vision" not in CONTROL
@@ -98,8 +100,8 @@ def test_horizontal_lockup_is_default_and_old_neon_assets_are_not_rendered():
 
 
 def test_dark_and_light_themes_have_official_surface_and_logo_variants():
-    assert 'html[data-theme="dark"] body.studiox-ui4 .brand-lockup-image' in BRAND_CSS
-    assert 'html[data-theme="light"] body.studiox-ui4 .brand-lockup-image' in BRAND_CSS
+    assert 'html[data-theme="dark"] body.studiox-ui4:not(.pp-shell) .brand-lockup-image' in BRAND_CSS
+    assert 'html[data-theme="light"] body.studiox-ui4:not(.pp-shell) .brand-lockup-image' in BRAND_CSS
     assert "rare-iq-primary-dark.svg" in BRAND_CSS
     assert "rare-iq-primary-light.svg" in BRAND_CSS
     assert 'html[data-theme="light"] body.studiox-ui4' in BRAND_CSS
@@ -114,16 +116,27 @@ def test_brand_layer_contains_no_legacy_cyan_purple_identity():
         assert forbidden not in lowered
 
 
-def test_manifest_uses_official_signal_cut_identity():
-    assert MANIFEST["name"] == "Rare IQ Studio X"
-    assert MANIFEST["short_name"] == "Rare IQ"
-    assert MANIFEST["background_color"] == "#080B0D"
-    assert MANIFEST["theme_color"] == "#080B0D"
-    assert MANIFEST["icons"] == [
-        {
-            "src": "/static/brand/v1/logos/rare-iq-icon-dark.svg",
-            "sizes": "any",
-            "type": "image/svg+xml",
-            "purpose": "any",
-        }
-    ]
+def test_manifest_applies_parent_branding_without_changing_application_identity():
+    assert MANIFEST["name"] == "Producer, Please"
+    assert MANIFEST["short_name"] == "ProducerPlease"
+    assert MANIFEST["background_color"] == "#0B0B0F"
+    assert MANIFEST["theme_color"] == "#FF8A00"
+    assert MANIFEST["id"] == MANIFEST["start_url"] == "/control"
+    assert MANIFEST["scope"] == "/"
+    for icon in MANIFEST["icons"]:
+        assert icon["src"].startswith("/static/brand/producer-please-v2/")
+        assert (STATIC / icon["src"].removeprefix("/static/")).is_file()
+
+
+def test_v2_assets_match_supplied_payload_and_operator_does_not_load_demo_controller():
+    root=STATIC / "brand" / "producer-please-v2"
+    record=json.loads((root / "PROVENANCE.json").read_text())
+    for name, source in record["files"].items():
+        assert hashlib.sha256((root / name).read_bytes()).hexdigest() == source["sha256"]
+    assert "RareIQ_Icon_24.png" in CONTROL and "RareIQ_Icon_256.png" in CONTROL
+    assert "producer-please.theme.js" not in CONTROL
+    assert "Theme_Preview" not in CONTROL
+    assert "producer-please.tokens.css" in CONTROL
+    for path in STATIC.glob("*.html"):
+        if path.name != "control.html":
+            assert "producer-please.tokens.css" not in path.read_text(encoding="utf-8")

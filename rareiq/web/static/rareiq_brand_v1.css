@@ -71,19 +71,19 @@ body.studiox-ui4 :is(.brand-logo-image, .brand-lockup-image, .brand-watermark, .
   animation: none !important;
 }
 
-html[data-theme="dark"] body.studiox-ui4 .brand-lockup-image {
+html[data-theme="dark"] body.studiox-ui4:not(.pp-shell) .brand-lockup-image {
   content: url("/static/brand/v1/logos/rare-iq-primary-dark.svg");
 }
 
-html[data-theme="light"] body.studiox-ui4 .brand-lockup-image {
+html[data-theme="light"] body.studiox-ui4:not(.pp-shell) .brand-lockup-image {
   content: url("/static/brand/v1/logos/rare-iq-primary-light.svg");
 }
 
-html[data-theme="dark"] body.studiox-ui4 :is(.brand-logo-image, .brand-watermark, .ui4-card-placeholder-logo, .brand-context-icon) {
+html[data-theme="dark"] body.studiox-ui4:not(.pp-shell) :is(.brand-logo-image, .brand-watermark, .ui4-card-placeholder-logo, .brand-context-icon) {
   content: url("/static/brand/v1/logos/rare-iq-icon-dark.svg");
 }
 
-html[data-theme="light"] body.studiox-ui4 :is(.brand-logo-image, .brand-watermark, .ui4-card-placeholder-logo, .brand-context-icon) {
+html[data-theme="light"] body.studiox-ui4:not(.pp-shell) :is(.brand-logo-image, .brand-watermark, .ui4-card-placeholder-logo, .brand-context-icon) {
   content: url("/static/brand/v1/logos/rare-iq-icon-light.svg");
 }
 

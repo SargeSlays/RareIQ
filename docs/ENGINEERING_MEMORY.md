@@ -1,5 +1,21 @@
 # RareIQ engineering memory
 
+## V2 operator token and asset adoption - September 7, 2026
+
+Late command-deck rules owned the winning colors while v1 CSS forcibly substituted
+logos. The current shell now excludes those v1 substitutions; existing semantic
+variables resolve the supplied v2 tokens with legacy-page fallbacks. Tests retain
+ordering, local asset hashes, technical routing and contrast checks across all five
+palettes. Read/write text explicitly as UTF-8: a migration helper briefly decoded
+a test's Unicode expectations using the Windows default; restoring the original
+test with explicit UTF-8 corrected it without changing product copy.
+
+During the v2 gate, `test_pack_transition_learning_survives_restart` failed once
+with an empty restored prediction rather than `[18]`; all 27 reference-prewarm
+tests passed immediately afterward. Root cause is unconfirmed. No recognition
+backend or test was changed to bypass this result; retain it as an intermittent
+test investigation if it recurs. This rebrand does not authorize backend changes.
+
 ## Shared appearance persistence - September 7, 2026
 
 The old first-paint and runtime theme resolvers duplicated state; a blocked save

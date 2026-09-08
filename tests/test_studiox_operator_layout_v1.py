@@ -12,7 +12,7 @@ DECK_CSS = (STATIC / "studiox_command_deck.css").read_text(encoding="utf-8")
 
 
 def test_command_deck_layout_is_versioned_and_enabled() -> None:
-    assert 'class="studiox-ui4 studiox-premium studiox-command-deck"' in HTML
+    assert 'class="studiox-ui4 studiox-premium studiox-command-deck pp-shell"' in HTML
     assert 'studiox-operator studiox-command-deck' not in HTML
     assert 'data-operator-layout="v2"' in HTML
     assert 'data-studiox-build="6.9.0-commanddeck96"' in HTML
@@ -69,37 +69,37 @@ def test_unified_visual_system_has_complete_dark_and_light_semantic_tokens() -> 
         assert unified.count(token) >= 2
 
 
-def test_unified_visual_system_uses_obsidian_slate_depth_palette() -> None:
+def test_unified_visual_system_maps_parent_tokens_with_legacy_fallbacks() -> None:
     for declaration in (
-        "--sx-canvas: #07090d",
-        "--sx-chrome: #0b1016",
-        "--sx-surface: #111821",
-        "--sx-surface-raised: #18222e",
-        "--sx-surface-muted: #1c2835",
-        "--sx-surface-hover: #202d3b",
-        "--sx-divider: #293747",
-        "--sx-divider-strong: #3a4b60",
-        "--sx-text: #f4f7fa",
-        "--sx-text-soft: #b5c0cc",
-        "--sx-text-muted: #778493",
-        "--sx-accent: #8be8ca",
+        "--sx-canvas: var(--pp-bg, #07090d)",
+        "--sx-chrome: var(--pp-surface-sunken, #0b1016)",
+        "--sx-surface: var(--pp-surface, #111821)",
+        "--sx-surface-raised: var(--pp-surface-raised, #18222e)",
+        "--sx-surface-muted: var(--pp-surface-raised, #1c2835)",
+        "--sx-surface-hover: var(--pp-hover, #202d3b)",
+        "--sx-divider: var(--pp-border, #293747)",
+        "--sx-divider-strong: var(--pp-control-border, #3a4b60)",
+        "--sx-text: var(--pp-text, #f4f7fa)",
+        "--sx-text-soft: var(--pp-text-muted, #b5c0cc)",
+        "--sx-text-muted: var(--pp-text-subtle, #778493)",
+        "--sx-accent: var(--pp-primary-ink, #8be8ca)",
         "--sx-active: var(--sx-accent)",
-        "--sx-warning: #f2b84b",
-        "--sx-danger: #ed6a70",
+        "--sx-warning: var(--pp-warning, #f2b84b)",
+        "--sx-danger: var(--pp-error, #ed6a70)",
     ):
         assert declaration in DECK_CSS
 
     for declaration in (
-        "--sx-canvas: #eef2f4",
-        "--sx-chrome: #f8fafb",
-        "--sx-surface: #ffffff",
-        "--sx-surface-raised: #f5f8fa",
-        "--sx-surface-muted: #e7edf1",
-        "--sx-surface-hover: #dee7ed",
-        "--sx-divider: #c7d2dc",
-        "--sx-divider-strong: #9eafbf",
-        "--sx-text: #17212b",
-        "--sx-accent: #187f66",
+        "--sx-canvas: var(--pp-bg, #eef2f4)",
+        "--sx-chrome: var(--pp-surface-sunken, #f8fafb)",
+        "--sx-surface: var(--pp-surface, #ffffff)",
+        "--sx-surface-raised: var(--pp-surface-raised, #f5f8fa)",
+        "--sx-surface-muted: var(--pp-surface-raised, #e7edf1)",
+        "--sx-surface-hover: var(--pp-hover, #dee7ed)",
+        "--sx-divider: var(--pp-border, #c7d2dc)",
+        "--sx-divider-strong: var(--pp-control-border, #9eafbf)",
+        "--sx-text: var(--pp-text, #17212b)",
+        "--sx-accent: var(--pp-primary-ink, #187f66)",
         "--sx-active: var(--sx-accent)",
     ):
         assert declaration in DECK_CSS
