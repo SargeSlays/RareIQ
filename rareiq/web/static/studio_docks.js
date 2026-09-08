@@ -199,6 +199,9 @@
       if(view!=="live"||root.innerWidth<=1100||!workspace.getBoundingClientRect().width)return;
       frame.style.setProperty("--studio-frame-height",`${Math.max(320,root.innerHeight-Math.max(0,frame.getBoundingClientRect().top)-20)}px`);
     }
+    const addTool=button("＋ Add a tool",()=>openLibrary(addTool));
+    addTool.className="studio-dock-add-tool";addTool.setAttribute("aria-label","Add a tool to your studio");
+    regions.left.append(addTool);
     function render(){
       frame.dataset.view=view;viewChoice.value=view;stage.hidden=view!=="live";center.hidden=view!=="live";
       for(const [id,item] of registry){
@@ -221,7 +224,8 @@
         item.wrapper.style.height=view==="live"?`${saved.height}px`:"";
         if(saved.position==="float"&&!item.wrapper.hidden)clampFloat(item,saved);
       }
-      for(const region of Object.values(regions)){const count=[...region.children].filter(node=>!node.hidden).length;region.dataset.empty=String(!count);region.dataset.count=String(count);}
+      for(const region of Object.values(regions)){const count=[...region.children].filter(node=>node.classList.contains("studio-dock-tool")&&!node.hidden).length;region.dataset.empty=String(!count);region.dataset.count=String(count);}
+      addTool.hidden=view!=="live"||regions.left.dataset.empty==="true";
       const selectedCount=Object.values(state.tools).filter(item=>item.visible).length+sets.workspaces.length;
       toolsButton.textContent=`Session tools · ${selectedCount}`;
       launcher.replaceChildren(Object.assign(el("option","","Open workspace…"),{value:""}),...sets.workspaces.map(id=>Object.assign(el("option","",WORKSPACES[id]),{value:id})));

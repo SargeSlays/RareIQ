@@ -1,5 +1,20 @@
 # RareIQ Release Checklist
 
+## Second studio polish pass - September 8, 2026
+
+Canonical gate passed: **2,604 Python and 268 JavaScript tests**. A targeted
+read-only guardian review found no actionable regression in the final changes.
+
+Served Edge checks passed at 1920x1080, 3840x2088, 1366x768 and 720x900 in Ignite,
+Afterdark and Daylight. Populated readiness fixtures cover eight rows, including
+blockers and recovery text. Lower actions remain reachable by scrolling; narrow
+docks have no horizontal overflow. Add a tool opens the existing drawer and returns
+keyboard focus on Escape; hiding every tool still collapses its empty region.
+Resize, saved tool sets, node continuity, fullscreen and pop-out checks pass.
+Evidence: `.tmp/refinish/studio-polish-ui.log`, `.tmp/refinish/session-tools-*.png`
+and `.tmp/refinish/studio-polish-release.log`. Production writes were blocked;
+no real stream, recording, playback or backend restart was needed.
+
 ## Production studio makeover - September 8, 2026
 
 Canonical gate: **2,604 Python and 268 JavaScript tests passed**.

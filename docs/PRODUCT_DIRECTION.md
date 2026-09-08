@@ -1,5 +1,12 @@
 # RareIQ: streaming-first product direction
 
+## Studio console polish - September 8, 2026
+
+Production uses narrower side docks, a compact readiness checklist and a readable
+session console. Add a tool opens the existing session tool chooser from beneath
+Scenes. Saved positions, custom sizes and pop-out ownership stay unchanged. Every
+readiness detail, recovery instruction and guarded start action remains available.
+
 ## Production studio visual refinish - September 8, 2026
 
 The main production page now gives Preview/Program, source selection and Cut/Auto

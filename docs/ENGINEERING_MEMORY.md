@@ -1,5 +1,16 @@
 # RareIQ engineering memory
 
+## Test populated docks, not just their loading shells - September 8, 2026
+
+Early visual QA could capture an empty Preflight while its read request was pending;
+an every-element font check then passed vacuously. The served layout test now uses
+eight explicit readiness fixture rows with failure, warning, pass and skip states,
+waits for them, and verifies readable detail text plus reachable lower controls.
+This fixture verifies layout only, never hardware or platform readiness. Use actual
+DOM selectors for incident forms, event logs and health journals; historical class
+names silently missed these interiors. A dock's Add a tool affordance must not count
+as a selected tool or keep an otherwise empty region open.
+
 ## Docking must retain its interior styling - September 8, 2026
 
 Moving panels into docks invalidated Broadcast direct-child selectors, restoring

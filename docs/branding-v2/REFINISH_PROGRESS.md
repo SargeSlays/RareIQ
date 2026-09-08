@@ -1,5 +1,18 @@
 # Refinish implementation progress
 
+## Second studio polish pass - September 8, 2026
+
+Owner approved total usage up to 85%; original baseline 0% and reset 1789435596
+retained. Shared usage was 81% at resumption and 82% during visual checks. Compact
+readiness rows, narrower docks, clearer session fields/clock and the Add a tool
+shortcut retain existing production behavior and saved layouts. Light-mode readiness
+uses semantic status foregrounds and backgrounds. Served checks now require populated
+readiness fixtures instead of accepting an empty loading shell.
+
+Final gate: 2,604 Python/268 JavaScript tests passed; served layout and interaction
+checks passed in all 12 theme/viewport combinations. Shared usage was 83% at the
+final implementation check, within the approved 85% ceiling.
+
 ## Main production studio makeover - September 8, 2026
 
 Refinished nested stage/dock surfaces, typography, hierarchy and transitions using

@@ -1,5 +1,11 @@
 # RareIQ Roadmap
 
+## Second studio polish pass - September 8, 2026
+
+Tighten the main production console and inspect populated readiness states across
+the supported themes and viewports. Keep further broadcasting, private confirmations
+and Program audio work separate from this presentation checkpoint.
+
 ## Main studio refinish - September 8, 2026
 
 Complete the owner's production-page makeover around a stronger monitor stage,
