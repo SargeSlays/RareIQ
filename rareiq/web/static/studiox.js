@@ -114,20 +114,19 @@ let voiceModRequestGeneration=0;
 let voiceModInputRequest=0;
 let cameraFxState={enabled:false,frame:0,lastFrame:0};
 
-const studioThemeMedia=window.matchMedia("(prefers-color-scheme: light)");
-function studioThemePreference(){try{return localStorage.getItem(STUDIOX_THEME_KEY)||"system"}catch(_error){return "system"}}
-function applyStudioTheme(preference=studioThemePreference(),persist=false){
-  const choice=["dark","light","system"].includes(preference)?preference:"system";
-  const resolved=choice==="system"?(studioThemeMedia.matches?"light":"dark"):choice;
-  document.documentElement.dataset.theme=resolved;document.documentElement.dataset.themePreference=choice;
+const studioThemeMedia=window.StudioAppearance.media;
+function studioThemePreference(){const state=window.StudioAppearance.snapshot();return state.followSystem?"system":state.resolvedSkin}
+function applyStudioTheme(preference,persist=false){
+  const state=preference===undefined?window.StudioAppearance.apply():window.StudioAppearance.select(preference,persist);
+  const resolved=state.theme,choice=state.followSystem?"system":resolved;
   const themeColor=$("studioThemeColor");if(themeColor)themeColor.content=resolved==="light"?"#F5F0E6":"#080B0D";
   document.querySelectorAll("[data-theme-choice]").forEach(button=>{const active=button.dataset.themeChoice===choice;button.classList.toggle("active",active);button.setAttribute("aria-checked",String(active));});
   const toggle=$("studioThemeToggle"),label=$("studioThemeToggleLabel"),next=resolved==="dark"?"light":"dark";
   if(toggle){toggle.dataset.theme=resolved;toggle.setAttribute("aria-pressed",String(resolved==="light"));toggle.setAttribute("aria-label",`Switch to ${next} mode`);toggle.title=`Switch to ${next} mode`;}
   if(label)label.textContent=next[0].toUpperCase()+next.slice(1);
-  if(persist){try{localStorage.setItem(STUDIOX_THEME_KEY,choice)}catch(_error){}notify("Appearance Updated",choice==="system"?`Following system · ${resolved}`:`${choice[0].toUpperCase()}${choice.slice(1)} mode enabled`,"success");}
+  if(persist){notify(state.persisted?"Appearance Updated":"Appearance applied for this window",state.persisted?(choice==="system"?`Following system · ${resolved}`:`${choice[0].toUpperCase()}${choice.slice(1)} mode enabled`):"Your browser blocked saving. This choice may be lost when the window closes.",state.persisted?"success":"warning");}
 }
-studioThemeMedia.addEventListener?.("change",()=>{if(studioThemePreference()==="system")applyStudioTheme("system")});
+studioThemeMedia.addEventListener?.("change",()=>{if(window.StudioAppearance.snapshot().followSystem)applyStudioTheme()});
 
 
 

@@ -1,5 +1,20 @@
 # RareIQ Release Checklist
 
+## Refinish appearance state foundation - September 7, 2026
+
+- [x] One shared bootstrap/runtime state; legacy preferences preserved for rollback.
+- [x] First-use default, five valid stored skin values, migration/reload, OS following,
+  corrupt data and blocked storage covered by behavior tests.
+- [x] All 15 current/fallback Studio X entry points load the shared dependency first.
+- [x] Final canonical gate passed: 2,453 Python and 200 JavaScript tests.
+- [x] Actual served build checked in Edge: dark/light reload at 1080p; blocked-save
+  feedback, OS change and rapid switching with an audience field preserved at 1366x768.
+- [ ] Supplied identity migration, five visible semantic skins and selector.
+- [ ] Full visual/workflow/output-isolation and Sarge acceptance from the handoff.
+
+Details and rollback: `branding-v2/REFINISH_PROGRESS.md`. This is a state
+foundation checkpoint; the visual refinish remains pending.
+
 ## RareIQ brand package v2 - September 7, 2026
 
 - [x] Original approved reference recovered and preserved unchanged.

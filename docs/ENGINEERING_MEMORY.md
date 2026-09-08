@@ -1,5 +1,18 @@
 # RareIQ engineering memory
 
+## Shared appearance persistence - September 7, 2026
+
+The old first-paint and runtime theme resolvers duplicated state; a blocked save
+still displayed success and a later OS event reread stale storage. The shared
+`studio_appearance.js` record now owns both paths, preserves legacy preferences
+and unsaved in-memory selections, and reports persistence failure. All HTML entry
+points consuming `studiox.js`, including fallback pages, load this dependency
+first. Behavior tests cover migration, reload, corrupt/blocked storage and OS
+following; an entry-point guard prevents missing bootstrap dependencies.
+
+This is the state foundation only. Five skin palettes and identity migration
+remain pending; existing light/dark controls and presentation are retained.
+
 ## Branding provenance and false transparency - September 7, 2026
 
 Symptom: two image-generation extractions displayed checkerboards but were RGB

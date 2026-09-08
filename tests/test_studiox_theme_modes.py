@@ -7,10 +7,20 @@ CSS=Path("rareiq/web/static/studiox_update15.css").read_text(encoding="utf-8")
 def test_theme_selector_supports_dark_light_and_system():
     for choice in ("dark","light","system"):
         assert f'data-theme-choice="{choice}"' in CONTROL
-    assert 'rareiq.studiox.theme.v1' in CONTROL
+    appearance=Path("rareiq/web/static/studio_appearance.js").read_text(encoding="utf-8")
+    assert 'rareiq.studiox.theme.v1' in appearance
+    assert CONTROL.index('/static/studio_appearance.js?v=') < CONTROL.index('/static/studiox.css?v=')
     assert 'const STUDIOX_THEME_KEY=' in STUDIO
     assert 'function applyStudioTheme(' in STUDIO
-    assert 'prefers-color-scheme: light' in STUDIO
+    assert 'prefers-color-scheme: light' in appearance
+    assert 'window.StudioAppearance' in STUDIO
+
+def test_every_studiox_entry_loads_the_shared_appearance_dependency_first():
+    for page in Path("rareiq/web/static").glob("*.html"):
+        text=page.read_text(encoding="utf-8")
+        if 'src="/static/studiox.js' in text:
+            assert '/static/studio_appearance.js?v=' in text, page.name
+            assert text.index('/static/studio_appearance.js?v=') < text.index('src="/static/studiox.js'), page.name
 
 def test_light_theme_covers_shell_and_operational_surfaces():
     assert 'html[data-theme="light"] body.studiox-ui4' in CSS

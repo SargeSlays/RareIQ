@@ -1,5 +1,13 @@
 # RareIQ Roadmap
 
+## Refinish in progress - September 7, 2026
+
+Shared first-paint/runtime appearance state is implemented with versioned legacy
+preference migration and blocked-storage handling. The current light/dark/system
+controls remain. Next: supplied parent/RareIQ assets, five semantic skin palettes
+and selector, workspace/Sarge styling, then full runtime acceptance. See
+`branding-v2/REFINISH_PROGRESS.md`; the visual refinish is not yet complete.
+
 ## Brand package checkpoint - September 7, 2026
 
 The v2 RareIQ/RareIQ OCR brand book and reusable asset library are delivered under
