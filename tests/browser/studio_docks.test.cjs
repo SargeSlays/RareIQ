@@ -30,3 +30,16 @@ test('tool sets reject unsupported versions, unknown workspaces and arbitrary sa
   const sets=normalizeSets({version:1,active:'gone',workspaces:['fake','soundboard'],profiles:[null,{id:'ok',label:' Demo ',secret:'omit',workspaces:['fake','live']},{id:'ok',label:'Duplicate'}]},['a']);
   assert.equal(sets.active,'');assert.deepEqual(sets.workspaces,['soundboard']);assert.equal(sets.profiles.length,1);assert.equal(sets.profiles[0].label,'Demo');assert.deepEqual(sets.profiles[0].workspaces,['live']);assert.equal('secret' in sets.profiles[0],false);
 });
+
+test('old workspace selections migrate to audio docks without overriding an explicit dock choice',()=>{
+  const ids=['production-scenes','workspace-soundboard','workspace-voice-mod'];
+  const state=normalize({version:1,tools:{'workspace-voice-mod':{visible:false}}},ids,['soundboard','voice-mod']);
+  assert.equal(state.tools['workspace-soundboard'].visible,true);
+  assert.equal(state.tools['workspace-voice-mod'].visible,false);
+  const sets=normalizeSets({version:1,active:'audio',workspaces:['soundboard','settings'],profiles:[{id:'audio',label:'Audio',layout:{version:1,tools:{}},workspaces:['soundboard','voice-mod','settings']}]},ids);
+  assert.deepEqual(sets.workspaces,['settings']);
+  assert.equal(sets.profiles[0].layout.tools['workspace-soundboard'].visible,true);
+  assert.equal(sets.profiles[0].layout.tools['workspace-voice-mod'].visible,true);
+  assert.deepEqual(sets.profiles[0].workspaces,['settings']);
+  assert.deepEqual(normalizeSets(sets,ids),sets);
+});

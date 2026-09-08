@@ -9,18 +9,18 @@ CSS = (STATIC / "studiox_command_deck.css").read_text(encoding="utf-8-sig")
 
 def test_light_voice_mod_sliders_use_readable_theme_surfaces() -> None:
     voice_mod = CSS[CSS.index("/* Voice Mod */") : CSS.index("/* Camera FX */")]
-    assert '.workspace[data-workspace="voice-mod"] .voice-mod-sliders label' in voice_mod
+    assert ':is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-sliders label' in voice_mod
     assert "background: var(--sx-surface-muted)" in voice_mod
     assert "color: var(--sx-text-muted)" in voice_mod
-    assert '.workspace[data-workspace="voice-mod"] .voice-mod-sliders b' in voice_mod
+    assert ':is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-sliders b' in voice_mod
     assert "color: var(--sx-accent)" in voice_mod
 
 
 def test_light_voice_mod_supporting_panels_match_the_active_theme() -> None:
     voice_mod = CSS[CSS.index("/* Voice Mod */") : CSS.index("/* Camera FX */")]
-    assert '.workspace[data-workspace="voice-mod"] .voice-mod-monitor' in voice_mod
+    assert ':is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-monitor' in voice_mod
     assert "background: var(--sx-accent-faint)" in voice_mod
-    assert '.workspace[data-workspace="voice-mod"] .voice-mod-route-note' in voice_mod
+    assert ':is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-route-note' in voice_mod
     assert "background: var(--sx-surface-muted)" in voice_mod
 
 

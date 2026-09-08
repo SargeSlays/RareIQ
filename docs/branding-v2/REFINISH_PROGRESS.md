@@ -1,5 +1,26 @@
 # Refinish implementation progress
 
+## Portable Soundboard and Voice studio - September 8, 2026
+
+Final gate: 2,461 Python and 208 JavaScript tests passed.
+Soundboard routing collapses inside docks and restores its original standalone
+layout; duplicate headings are omitted only while docked.
+
+Session tools now offers 30 dockable panels and eight separate workspace shortcuts.
+Soundboard and Voice studio retain their original nodes, listeners and media owner;
+opening their standalone workspace restores those same panels to their original
+location. Returning to Live Control docks them again when selected. Existing saved
+workspace selections migrate into the corresponding audio docks.
+
+Both audio tools support popouts. Voice gain edits reach the original controls;
+Soundboard number shortcuts are scoped to its dock and cannot switch Program.
+Dock selection itself performs no media activation or API mutation. Actual served
+Edge checks passed migration, identity, drafts, navigation, popout propagation,
+keyboard isolation and light/dark bounds at desktop, 4K and narrow sizes. Browser
+QA blocks API writes and media starts; hardware and external delivery remain untested.
+
+Further workspace adapters, full splitters and destination setup remain pending.
+
 ## Session tool selection and compact studio - September 8, 2026
 
 Final gate: 2,461 Python and 207 JavaScript tests passed. Actual served Edge

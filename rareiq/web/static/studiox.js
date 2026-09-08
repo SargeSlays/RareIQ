@@ -1440,6 +1440,7 @@ function switchWorkspace(name){
     el.classList.toggle("active",active);
     el.setAttribute("aria-hidden",active?"false":"true");
   });
+  document.querySelector('.workspace[data-workspace="broadcast"]')?._studioDocks?.syncWorkspace(name);
   document.querySelectorAll(".nav-button").forEach(el=>{
     const active=el.dataset.target===name;
     el.classList.toggle("active",active);

@@ -4030,8 +4030,8 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
 }
 
 /* Soundboard */
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-shell,
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-shell,
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-shell,
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-shell,
 html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="camera-fx"] .camera-fx-shell,
 html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="spotify"] .spotify-shell {
   box-sizing: border-box !important;
@@ -4048,7 +4048,7 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   box-shadow: none !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] :is(
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) :is(
   .soundboard-app-toolbar,
   .soundboard-app-playback-row,
   .soundboard-app-queue,
@@ -4067,7 +4067,7 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
 /* Soundboard semantic cleanup
    The legacy feature stylesheet still supplies the layout mechanics. This final
    layer owns its color, elevation, and shape so the app follows the command deck. */
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] :is(
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) :is(
   .soundboard-now-playing,
   .soundboard-app-playback-mode,
   .soundboard-queue-panel,
@@ -4080,7 +4080,7 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   box-shadow: none !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] :is(
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) :is(
   #soundboardSearch,
   #soundboardAppPreset,
   #soundboardAppPlaybackMode
@@ -4092,11 +4092,11 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   box-shadow: none !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] #soundboardAppVolume {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) #soundboardAppVolume {
   accent-color: var(--sx-accent-strong) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] :is(
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) :is(
   .soundboard-app-header > div:first-child > span,
   .soundboard-app-toolbar > strong,
   .soundboard-app-deck-head span,
@@ -4105,7 +4105,7 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   color: var(--sx-accent) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] :is(
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) :is(
   .soundboard-now-playing-copy span,
   .soundboard-app-playback-mode > span,
   .soundboard-app-deck-head small,
@@ -4114,18 +4114,18 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   color: var(--sx-text-muted) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-now-playing-track {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-now-playing-track {
   border-radius: 2px !important;
   background: var(--sx-divider) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-now-playing-track i {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-now-playing-track i {
   border-radius: 2px !important;
   background: linear-gradient(90deg, var(--sx-accent-strong), var(--sx-accent)) !important;
   box-shadow: none !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-pad {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-pad {
   border: 1px solid var(--sx-divider) !important;
   border-radius: 4px !important;
   color: var(--sx-text) !important;
@@ -4134,29 +4134,29 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   transform: none !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-pad::after {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-pad::after {
   display: none !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-pad i {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-pad i {
   border-radius: 4px !important;
   color: var(--sx-accent) !important;
   background: var(--sx-accent-soft) !important;
   box-shadow: none !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-pad:hover {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-pad:hover {
   border-color: var(--sx-divider-strong) !important;
   background: var(--sx-surface-hover) !important;
   box-shadow: none !important;
   transform: none !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-pad small {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-pad small {
   color: var(--sx-text-muted) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-queue-panel li:not(.is-empty) {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-queue-panel li:not(.is-empty) {
   border: 1px solid var(--sx-divider) !important;
   border-radius: 3px !important;
   color: var(--sx-text-soft) !important;
@@ -4167,11 +4167,11 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
 /* Soundboard performance composition
    Keep transport and queue context visible, but reserve the viewport for the
    pads an operator actually performs with. */
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-shell {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-shell {
   gap: 10px !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-header {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-header {
   box-sizing: border-box !important;
   min-height: 86px !important;
   padding: 12px 16px !important;
@@ -4181,46 +4181,46 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   box-shadow: none !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-toolbar {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-toolbar {
   min-height: 58px !important;
   padding: 9px 12px !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-playback-row {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-playback-row {
   min-height: 88px !important;
   padding: 10px !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-queue {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-queue {
   min-height: 100px !important;
   max-height: 126px !important;
   padding: 0 !important;
   overflow: hidden !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-queue > header {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-queue > header {
   padding: 9px 12px !important;
   border-bottom: 1px solid var(--sx-divider) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-queue > ol {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-queue > ol {
   max-height: 72px !important;
   padding: 8px 10px !important;
   scrollbar-color: var(--sx-divider-strong) var(--sx-chrome) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-deck {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-deck {
   min-height: 320px !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-grid > p {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-grid > p {
   border: 1px dashed var(--sx-divider-strong) !important;
   border-radius: 4px !important;
   background: var(--sx-surface-muted) !important;
   color: var(--sx-text-muted) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-pad > kbd {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-pad > kbd {
   border: 1px solid var(--sx-divider-strong) !important;
   border-radius: 3px !important;
   background: var(--sx-chrome) !important;
@@ -4228,17 +4228,17 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   box-shadow: none !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-pad[draggable="true"]::before {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-pad[draggable="true"]::before {
   color: var(--sx-text-muted) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-pad.is-drag-over {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-pad.is-drag-over {
   border-color: var(--sx-accent) !important;
   background: var(--sx-accent-faint) !important;
   box-shadow: 0 0 0 2px var(--sx-accent-soft) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-pad.is-playing {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-pad.is-playing {
   border-color: var(--sx-accent) !important;
   background: var(--sx-accent-soft) !important;
   color: var(--sx-text) !important;
@@ -4247,28 +4247,28 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   animation: none !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-pad.is-playing::after {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-pad.is-playing::after {
   display: none !important;
   animation: none !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-pad:focus-visible {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-pad:focus-visible {
   outline: 2px solid var(--sx-accent) !important;
   outline-offset: 2px !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-editor[open] {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-editor[open] {
   background: var(--sx-surface-raised) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .studiox-soundboard-config-row {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .studiox-soundboard-config-row {
   padding: 10px !important;
   border: 1px solid var(--sx-divider) !important;
   border-radius: 4px !important;
   background: var(--sx-surface-muted) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .studiox-soundboard-config-row :is(input, select) {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .studiox-soundboard-config-row :is(input, select) {
   border: 1px solid var(--sx-divider) !important;
   border-radius: 4px !important;
   background: var(--sx-surface) !important;
@@ -4276,23 +4276,23 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
 }
 
 @media (max-width: 900px) {
-  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-header {
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-header {
     min-height: 0 !important;
   }
 
-  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="soundboard"] .soundboard-app-queue {
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="soundboard"], .studio-dock-tool[data-tool-workspace="soundboard"]) .soundboard-app-queue {
     max-height: 146px !important;
   }
 }
 
 /* Voice Mod */
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) {
   overflow: auto !important;
   padding: 20px !important;
   background: var(--sx-canvas) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-shell {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-shell {
   display: grid !important;
   grid-template-rows: auto auto !important;
   align-content: start !important;
@@ -4307,7 +4307,7 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   box-shadow: none !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-header {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-header {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
@@ -4319,7 +4319,7 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   background: var(--sx-surface-raised) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] :is(
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) :is(
   .voice-mod-header > div:first-child,
   .voice-mod-control-card > header > div,
   .voice-mod-meter-card > header > div
@@ -4328,7 +4328,7 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   gap: 4px !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] :is(
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) :is(
   .studiox-app-eyebrow,
   .voice-mod-control-card > header span,
   .voice-mod-meter-card > header span
@@ -4340,14 +4340,14 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   text-transform: uppercase !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-header h2 {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-header h2 {
   margin: 0 !important;
   color: var(--sx-text) !important;
   font-size: clamp(24px, 2vw, 32px) !important;
   line-height: 1.05 !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-header p {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-header p {
   max-width: 760px !important;
   margin: 0 !important;
   color: var(--sx-text-soft) !important;
@@ -4355,7 +4355,7 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   line-height: 1.5 !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-state {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-state {
   display: inline-flex !important;
   align-items: center !important;
   gap: 8px !important;
@@ -4371,49 +4371,49 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   text-transform: uppercase !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-state i {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-state i {
   width: 8px !important;
   height: 8px !important;
   border-radius: 50% !important;
   background: var(--sx-text-muted) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-state[data-state="starting"] {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-state[data-state="starting"] {
   border-color: color-mix(in srgb, var(--sx-warning), transparent 62%) !important;
   color: var(--sx-warning) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-state[data-state="starting"] i {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-state[data-state="starting"] i {
   background: var(--sx-warning) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-state[data-state="live"] {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-state[data-state="live"] {
   border-color: var(--sx-divider-strong) !important;
   color: var(--sx-accent) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-state[data-state="live"] i {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-state[data-state="live"] i {
   background: var(--sx-accent) !important;
   box-shadow: 0 0 10px color-mix(in srgb, var(--sx-accent), transparent 35%) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-state[data-state="error"] {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-state[data-state="error"] {
   border-color: color-mix(in srgb, var(--sx-danger), transparent 62%) !important;
   color: var(--sx-danger) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-state[data-state="error"] i {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-state[data-state="error"] i {
   background: var(--sx-danger) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-grid {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-grid {
   display: grid !important;
   grid-template-columns: minmax(0, 1.12fr) minmax(360px, .88fr) !important;
   align-items: stretch !important;
   gap: 14px !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] :is(.voice-mod-control-card, .voice-mod-meter-card) {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) :is(.voice-mod-control-card, .voice-mod-meter-card) {
   display: grid !important;
   align-content: start !important;
   gap: 16px !important;
@@ -4425,19 +4425,19 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   box-shadow: none !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-control-card {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-control-card {
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-control-card > :is(header, .voice-mod-sliders, .voice-mod-monitor, .voice-mod-actions) {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-control-card > :is(header, .voice-mod-sliders, .voice-mod-monitor, .voice-mod-actions) {
   grid-column: 1 / -1 !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-meter-card {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-meter-card {
   grid-template-rows: auto auto auto minmax(0, 1fr) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] :is(.voice-mod-control-card, .voice-mod-meter-card) > header {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) :is(.voice-mod-control-card, .voice-mod-meter-card) > header {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
@@ -4447,14 +4447,14 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   border-bottom: 1px solid var(--sx-divider) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] :is(.voice-mod-control-card, .voice-mod-meter-card) h3 {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) :is(.voice-mod-control-card, .voice-mod-meter-card) h3 {
   margin: 0 !important;
   color: var(--sx-text) !important;
   font-size: 17px !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-control-card > label,
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-sliders label {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-control-card > label,
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-sliders label {
   display: grid !important;
   align-content: start !important;
   gap: 7px !important;
@@ -4464,7 +4464,7 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   font-weight: 800 !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-control-card select {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-control-card select {
   box-sizing: border-box !important;
   width: 100% !important;
   height: 40px !important;
@@ -4475,44 +4475,44 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   color: var(--sx-text) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-input-status {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-input-status {
   color: var(--sx-text-muted) !important;
   font-size: 9px !important;
   line-height: 1.45 !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-input-status[data-state="permission"] { color: var(--sx-warning) !important; }
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-input-status[data-state="error"] { color: var(--sx-danger) !important; }
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-input-status[data-state="ready"] { color: var(--sx-accent-strong) !important; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-input-status[data-state="permission"] { color: var(--sx-warning) !important; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-input-status[data-state="error"] { color: var(--sx-danger) !important; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-input-status[data-state="ready"] { color: var(--sx-accent-strong) !important; }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-sliders {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-sliders {
   display: grid !important;
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   gap: 10px !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-sliders label {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-sliders label {
   padding: 12px !important;
   border: 1px solid var(--sx-divider) !important;
   background: var(--sx-surface-muted) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-sliders label span {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-sliders label span {
   display: flex !important;
   justify-content: space-between !important;
   gap: 8px !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-sliders b {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-sliders b {
   color: var(--sx-accent) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] input[type="range"] {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) input[type="range"] {
   width: 100% !important;
   accent-color: var(--sx-accent-strong) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-monitor {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-monitor {
   display: grid !important;
   grid-template-columns: auto minmax(0, 1fr) !important;
   align-items: center !important;
@@ -4523,24 +4523,24 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   color: var(--sx-text-soft) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-monitor input {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-monitor input {
   grid-row: 1 / 3 !important;
   accent-color: var(--sx-accent-strong) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-monitor small {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-monitor small {
   color: var(--sx-text-muted) !important;
   font-size: 9px !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-actions {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-actions {
   display: flex !important;
   justify-content: flex-end !important;
   gap: 8px !important;
   padding-top: 2px !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-meter {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-meter {
   height: 20px !important;
   padding: 3px !important;
   border: 1px solid var(--sx-divider-strong) !important;
@@ -4549,7 +4549,7 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   overflow: hidden !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-meter i {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-meter i {
   display: block !important;
   width: 0;
   height: 100% !important;
@@ -4559,7 +4559,7 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   transition: width 70ms linear !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-readout {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-readout {
   display: flex !important;
   align-items: end !important;
   justify-content: space-between !important;
@@ -4567,22 +4567,22 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   min-height: 54px !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-readout strong {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-readout strong {
   color: var(--sx-text) !important;
   font-size: 32px !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-readout span {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-readout span {
   color: var(--sx-text-muted) !important;
   font-size: 10px !important;
   font-weight: 800 !important;
   text-align: right !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-meter-card[data-state="live"] .voice-mod-readout span { color: var(--sx-accent-strong) !important; }
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-meter-card[data-state="error"] .voice-mod-readout span { color: var(--sx-danger) !important; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-meter-card[data-state="live"] .voice-mod-readout span { color: var(--sx-accent-strong) !important; }
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-meter-card[data-state="error"] .voice-mod-readout span { color: var(--sx-danger) !important; }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-route-note {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-route-note {
   display: grid !important;
   align-content: start !important;
   gap: 7px !important;
@@ -4594,64 +4594,64 @@ html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"]
   background: var(--sx-surface-muted) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-route-note b {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-route-note b {
   color: var(--sx-text) !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-route-note p {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-route-note p {
   margin: 0 !important;
   color: var(--sx-text-soft) !important;
   font-size: 10px !important;
   line-height: 1.55 !important;
 }
 
-html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-route-note code {
+html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-route-note code {
   color: var(--sx-accent) !important;
 }
 
 @media (min-width: 1800px) {
-  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-ui4-workspace="voice-mod"][data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-shell {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-ui4-workspace="voice-mod"][data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-shell {
     width: 100% !important;
     max-width: none !important;
     margin: 0 !important;
   }
 
-  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-ui4-workspace="voice-mod"][data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-grid {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-ui4-workspace="voice-mod"][data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-grid {
     grid-template-columns: minmax(0, 1.35fr) minmax(620px, .65fr) !important;
     gap: 16px !important;
   }
 
-  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-ui4-workspace="voice-mod"][data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-control-card {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-ui4-workspace="voice-mod"][data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-control-card {
     grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   }
 
-  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-ui4-workspace="voice-mod"][data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-control-card > label {
+  html[data-theme] body.studiox-ui4.studiox-premium.studiox-command-deck[data-ui4-workspace="voice-mod"][data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-control-card > label {
     grid-column: span 2 !important;
   }
 }
 
 @media (max-width: 1100px) {
-  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-control-card {
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-control-card {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 }
 
 @media (max-width: 900px) {
-  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-grid {
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-grid {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
-  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] .voice-mod-sliders {
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) .voice-mod-sliders {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 }
 
 @media (max-width: 620px) {
-  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] {
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) {
     padding: 8px !important;
   }
 
-  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-workspace="voice-mod"] :is(.voice-mod-header, .voice-mod-control-card > header) {
+  html[data-theme] body.studiox-command-deck[data-studiox-visual-system="unified"] :is(.workspace[data-workspace="voice-mod"], .studio-dock-tool[data-tool-workspace="voice-mod"]) :is(.voice-mod-header, .voice-mod-control-card > header) {
     align-items: stretch !important;
     flex-direction: column !important;
   }

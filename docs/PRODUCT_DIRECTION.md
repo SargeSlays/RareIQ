@@ -1,5 +1,16 @@
 # RareIQ: streaming-first product direction
 
+## Audio tools in the production studio - September 8, 2026
+
+Soundboard and Voice studio now use the same original controls in either a
+production dock or their standalone workspace. Both support the existing popout
+window. Session tools contains 30 docks and eight workspace shortcuts; existing
+saved audio selections migrate without changing explicit dock choices.
+
+Layout selection does not start playback, microphones or broadcasting. Voice
+processing and digital output retain their existing availability and limitations.
+Camera effects, Spotify and Creator still use separate workspaces.
+
 ## Session tool selection and compact studio - September 8, 2026
 
 Dock headers now contain only the title/drag handle and an options button. The

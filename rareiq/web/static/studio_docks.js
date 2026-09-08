@@ -4,21 +4,22 @@
   const DEFAULTS={"production-scenes":"left","show-preflight":"right","production-session":"bottom","operator-health":"bottom"};
   const SETS_KEY="rareiq.studio.toolsets.v1";
   const WORKSPACES={soundboard:"Soundboard","voice-mod":"Voice studio","camera-fx":"Camera effects",spotify:"Spotify DJ",creator:"Creator studio",live:"RareIQ Card Studio",collection:"Collection",ai:"AI Lab",library:"Reference library",settings:"Studio settings"};
+  const PORTABLE={soundboard:".soundboard-app-shell","voice-mod":".voice-mod-shell"};
   function normalizeSets(raw,ids){
     if(raw?.version!==1)raw=null;
-    const profiles=[],seen=new Set(),allowed=values=>Array.isArray(values)?Object.keys(WORKSPACES).filter(id=>values.includes(id)):[];
+    const profiles=[],seen=new Set(),allowed=values=>Array.isArray(values)?Object.keys(WORKSPACES).filter(id=>values.includes(id)&&!ids.includes(`workspace-${id}`)):[];
     if(raw?.version===1&&Array.isArray(raw.profiles))for(const item of raw.profiles.slice(0,12)){
       if(!item||typeof item.id!=="string"||!/^[\w-]{1,80}$/.test(item.id)||seen.has(item.id)||typeof item.label!=="string"||!item.label.trim())continue;
-      seen.add(item.id);profiles.push({id:item.id,label:item.label.trim().slice(0,60),layout:normalize(item.layout,ids),workspaces:allowed(item.workspaces)});
+      seen.add(item.id);profiles.push({id:item.id,label:item.label.trim().slice(0,60),layout:normalize(item.layout,ids,item.workspaces),workspaces:allowed(item.workspaces)});
     }
     return {version:1,active:seen.has(raw?.active)?raw.active:"",workspaces:allowed(raw?.workspaces),profiles};
   }
-  function normalize(raw,ids){
+  function normalize(raw,ids,previousWorkspaces=[]){
     const tools={};
     for(const id of ids){
       const saved=raw?.version===1?raw.tools?.[id]:null;
       tools[id]={position:POSITIONS.includes(saved?.position)?saved.position:DEFAULTS[id]||"right",
-        visible:typeof saved?.visible==="boolean"?saved.visible:Boolean(DEFAULTS[id]),
+        visible:typeof saved?.visible==="boolean"?saved.visible:Boolean(DEFAULTS[id]||(Array.isArray(previousWorkspaces)&&previousWorkspaces.includes(id.replace(/^workspace-/,""))&&id.startsWith("workspace-"))),
         height:Number.isFinite(saved?.height)?Math.max(160,Math.min(800,saved.height)):(["production-scenes","show-preflight"].includes(id)?560:280),
         x:Number.isFinite(saved?.x)?Math.max(0,Math.min(3000,saved.x)):40,
         y:Number.isFinite(saved?.y)?Math.max(0,Math.min(1800,saved.y)):40};
@@ -37,9 +38,32 @@
       const labels={"production-session-metadata":"Show details","production-session":"Session control","studio-product-bar":"Studio preferences","production-report-actions":"Reports","break-history-controls":"History filters"};
       registry.set(id,{panel,view:panel.dataset.broadcastPanel,title:labels[id]||panel.querySelector("h2,h3")?.textContent?.trim()||id.replaceAll("-"," ")});
     });
+    for(const [id,selector] of Object.entries(PORTABLE)){
+      const origin=document.querySelector(`.workspace[data-workspace="${id}"]`),panel=origin?.querySelector(selector);
+      if(!panel)continue;
+      const anchor=document.createComment(`Studio home: ${id}`);panel.before(anchor);
+      panel.dataset.studioWorkspaceTool=id;panel.tabIndex=0;panel.setAttribute("aria-label",WORKSPACES[id]);
+      // These remain the original controls and media owner. Keys in an audio tool never switch Program.
+      panel.addEventListener("keydown",event=>{
+        if(!panel.closest(".studio-dock-tool"))return;
+        event.stopPropagation();
+        if(id!=="soundboard"||event.repeat||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||!/^\d$/.test(event.key)||event.target.closest("input,textarea,select,button,a,[contenteditable=true]"))return;
+        const pad=panel.querySelector(`[data-soundboard-shortcut="${event.key==="0"?"10":event.key}"]`);
+        if(pad){event.preventDefault();pad.click();}
+      });
+      let routing;
+      if(id==="soundboard"){
+        const output=panel.querySelector(".soundboard-output-controls");
+        if(output){
+          const home=document.createComment("Soundboard routing home"),details=document.createElement("details"),summary=document.createElement("summary");
+          output.before(home);details.className="studio-audio-routing";summary.textContent="Audio output & routing";details.append(summary);routing={output,home,details};
+        }
+      }
+      registry.set(`workspace-${id}`,{panel,origin,anchor,routing,view:"live",title:WORKSPACES[id]});
+    }
     let raw;try{raw=JSON.parse(root.localStorage.getItem(KEY));}catch{}
-    let state=normalize(raw,[...registry.keys()]),view="live";
     let rawSets;try{rawSets=JSON.parse(root.localStorage.getItem(SETS_KEY));}catch{}
+    let state=normalize(raw,[...registry.keys()],rawSets?.version===1?rawSets.workspaces:[]),view="live",activeWorkspace=workspace.classList.contains("active")?"broadcast":"";
     let sets=normalizeSets(rawSets,[...registry.keys()]);
     const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text)node.textContent=text;return node;};
     const button=(text,action)=>{const node=el("button","riq-button",text);node.type="button";node.addEventListener("click",action);return node;};
@@ -94,7 +118,7 @@
     profileBar.append(profileChoice,profileName,newSet,updateSet,removeSet);
     const bulk=el("div","studio-tool-bulk"),search=el("input"),drawerStatus=el("p","studio-tool-drawer-status");
     search.type="search";search.placeholder="Find a tool…";search.setAttribute("aria-label","Find session tools");drawerStatus.setAttribute("role","status");
-    function selectAll(visible){for(const item of Object.values(state.tools))item.visible=visible;sets.workspaces=visible?Object.keys(WORKSPACES):[];render();save(visible?"All session tools selected.":"Session tools cleared. Preview and Program remain available.");}
+    function selectAll(visible){for(const item of Object.values(state.tools))item.visible=visible;sets.workspaces=visible?[...workspaceToggles.keys()]:[];render();save(visible?"All session tools selected.":"Session tools cleared. Preview and Program remain available.");}
     bulk.append(button("Select all tools",()=>selectAll(true)),button("Clear all tools",()=>selectAll(false)),reset);
     const list=el("div","studio-tool-list"),rows=[],empty=el("p","studio-tools-empty","No tools match your search.");empty.hidden=true;list.append(empty);
     function filterRows(){const query=search.value.trim().toLocaleLowerCase();for(const row of rows)row.hidden=!row.dataset.search.includes(query);empty.hidden=rows.some(row=>!row.hidden);}
@@ -137,7 +161,7 @@
       pop.setAttribute("aria-label",`Pop out ${item.title}`);pop.disabled=!toolWindows;
       if(!toolWindows)pop.title="Tool windows are unavailable. Reload the studio to try again.";
       const options=button("⋯",()=>openLibrary(options,id));options.setAttribute("aria-label",`Options for ${item.title}`);options.setAttribute("aria-haspopup","dialog");
-      header.append(name,options);wrapper.append(header,item.panel);
+      header.append(name,options);wrapper.append(header,item.panel);if(item.origin)wrapper.dataset.toolWorkspace=item.origin.dataset.workspace;
       const row=el("section","studio-tool-row"),label=el("label"),toggle=el("input");row.dataset.search=(item.title+" "+item.view).toLocaleLowerCase();row.dataset.toolRow=id;
       toggle.type="checkbox";toggle.addEventListener("change",()=>{state.tools[id].visible=toggle.checked;render();save();});label.append(toggle,document.createTextNode(item.title));
       const hint=el("small","",`${[...tabs.querySelectorAll("[data-broadcast-view]")].find(tab=>tab.dataset.broadcastView===item.view)?.textContent||item.view} · Studio dock`);row.append(label,hint,position,pop);list.append(row);rows.push(row);
@@ -155,7 +179,7 @@
       });
       wrapper.addEventListener("pointerup",()=>{if(view!=="live")return;const height=parseFloat(wrapper.style.height);if(Number.isFinite(height)&&height!==state.tools[id].height){state.tools[id].height=Math.max(160,Math.min(800,height));save();}});
     }
-    for(const [id,labelText] of Object.entries(WORKSPACES)){
+    for(const [id,labelText] of Object.entries(WORKSPACES).filter(([id])=>!registry.has(`workspace-${id}`))){
       const row=el("section","studio-tool-row"),label=el("label"),toggle=el("input");row.dataset.search=labelText.toLocaleLowerCase();toggle.type="checkbox";
       toggle.addEventListener("change",()=>{sets.workspaces=Object.keys(WORKSPACES).filter(key=>key===id?toggle.checked:sets.workspaces.includes(key));render();save();});label.append(toggle,document.createTextNode(labelText));
       const open=button("Open workspace",()=>openWorkspace(id));open.setAttribute("aria-label",`Open ${labelText} workspace`);
@@ -171,6 +195,16 @@
         const saved=state.tools[id],region=regions[saved.position];
         if(item.wrapper.parentElement!==region)region.append(item.wrapper);
         item.wrapper.hidden=view==="live"?!saved.visible:item.view!==view;
+        if(item.origin){
+          const docked=activeWorkspace==="broadcast"&&view==="live"&&saved.visible;
+          if(docked&&item.panel.parentElement!==item.wrapper)item.wrapper.append(item.panel);
+          else if(!docked&&item.panel.parentElement!==item.origin)item.anchor.after(item.panel);
+          if(item.routing){
+            const {output,home,details}=item.routing;
+            if(docked){if(details.parentElement!==item.panel)home.after(details);if(output.parentElement!==details)details.append(output);}
+            else{home.after(output);details.remove();}
+          }
+        }
         item.panel.hidden=false;item.position.value=saved.position;item.toggle.checked=saved.visible;
         item.wrapper.dataset.position=saved.position;
         item.wrapper.style.height=view==="live"?`${saved.height}px`:"";
@@ -192,10 +226,10 @@
     if(typeof ResizeObserver!=="undefined")new ResizeObserver(()=>{for(const [id,item] of registry)if(state.tools[id].position==="float")clampFloat(item,state.tools[id]);}).observe(grid);
     workspace.dataset.studioDocks="ready";
     if(typeof ResizeObserver!=="undefined")new ResizeObserver(fitFrame).observe(workspace);
-    workspace._studioDocks={setView(next){view=next;render();},snapshot(){return normalize(state,[...registry.keys()]);}};
+    workspace._studioDocks={syncWorkspace(name){activeWorkspace=name;render();},setView(next){view=next;render();},snapshot(){return normalize(state,[...registry.keys()]);}};
     render();return workspace._studioDocks;
   }
-  const api=Object.freeze({init,normalize,normalizeSets,KEY,SETS_KEY,POSITIONS,WORKSPACES});
+  const api=Object.freeze({init,normalize,normalizeSets,KEY,SETS_KEY,POSITIONS,WORKSPACES,PORTABLE});
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
   else root.ProducerStudioDocks=api;
 })(typeof window!=="undefined"?window:globalThis);

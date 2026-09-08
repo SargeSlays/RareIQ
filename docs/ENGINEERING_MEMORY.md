@@ -1,5 +1,20 @@
 # RareIQ engineering memory
 
+## Portable controls need their original state and styling context - September 8, 2026
+
+Moving an audio shell outside its standalone workspace preserved listeners but
+lost workspace-scoped control styling. Extend the existing style selectors to the
+dock's tool identity, and preserve that identity in popout wrappers. The dock owns
+width/padding while original tokens and control rules remain shared. Verify actual
+rendering; node identity checks alone do not catch missing ancestor styles.
+
+Use anchors to restore the original shell when leaving Live Control. Never clone
+controllers or replay input/change events while docking. Local audio keys must not
+bubble into Program switching. Saved launcher-to-dock migrations must preserve
+explicit new choices and migrate both the current selection and named sets.
+Guards: model migration test plus `tools/qa_studio_audio_docks.cjs`; all API mutations
+and media starts are blocked in the browser test.
+
 ## Tool sets, modal focus and full-screen navigation - September 8, 2026
 
 Automatically overwriting the active saved set while preparing Save as new loses

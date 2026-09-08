@@ -5,7 +5,7 @@ const origin=process.env.RAREIQ_QA_ORIGIN||'http://127.0.0.1:9040';
   const browser=await chromium.launch({headless:true,channel:'msedge'});
   try{
     const page=await browser.newPage({viewport:{width:1920,height:1080}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
-    await page.route('**/api/production/**',route=>{if(!['GET','HEAD'].includes(route.request().method())){errors.push('Unexpected production write blocked');return route.abort();}return route.continue();});
+    await page.route('**/api/**',route=>{if(!['GET','HEAD'].includes(route.request().method())){if(!['/api/camera/start','/api/recognition/set-context','/api/output/soundboard'].includes(new URL(route.request().url()).pathname))errors.push('Unexpected API write blocked');return route.abort();}return route.continue();});
     await page.goto(origin+'/control?workspace=studio&session-tools=20260908-1');await page.waitForSelector('[data-studio-docks="ready"]');await page.waitForTimeout(300);
     await page.evaluate(()=>{window.heldNodes=['productionProgramPreview','productionTransition','productionSessionName'].map(id=>document.getElementById(id));document.getElementById('productionSessionName').value='Unsaved studio draft';});
     const drawer=page.getByRole('dialog',{name:'Session tools'}),tools=page.getByRole('button',{name:/^Session tools/});
@@ -17,7 +17,7 @@ const origin=process.env.RAREIQ_QA_ORIGIN||'http://127.0.0.1:9040';
     await drawer.getByLabel('Saved tool set').selectOption(alpha);assert.equal(await drawer.locator('input[type=checkbox]:checked').count(),2);
     await drawer.getByLabel('Find session tools').fill('no-tool-matches-this');assert.equal(await drawer.getByText('No tools match your search.').isVisible(),true);await drawer.getByLabel('Find session tools').fill('');
     await page.keyboard.press('Escape');assert.equal(await drawer.isVisible(),false);assert.equal(await tools.evaluate(e=>document.activeElement===e),true);
-    assert.equal(await page.getByLabel('Open session workspace').locator('option').count(),2);
+    assert.equal(await page.getByLabel('Open session workspace').isVisible(),false);assert.equal(await page.locator('.studio-dock-tool .soundboard-app-shell').isVisible(),true);
     await page.getByRole('button',{name:'Options for Production Scenes',exact:true}).click();assert.equal(await drawer.getByLabel('Production Scenes position',{exact:true}).evaluate(e=>document.activeElement===e),true);
     const popupReady=page.waitForEvent('popup');await drawer.getByRole('button',{name:'Pop out Production Scenes',exact:true}).click();const popup=await popupReady;await popup.waitForSelector('.production-scenes');await popup.getByRole('button',{name:'Return to main studio'}).click();await page.waitForFunction(()=>!document.getElementById('studioDockLibrary').open);assert.equal(await page.getByRole('button',{name:'Options for Production Scenes',exact:true}).evaluate(e=>e===document.activeElement),true);await popup.close();
     assert.equal(await page.evaluate(()=>heldNodes.every(node=>node===document.getElementById(node.id))&&document.getElementById('productionSessionName').value==='Unsaved studio draft'),true);

@@ -1,5 +1,13 @@
 # RareIQ Roadmap
 
+## Audio docking checkpoint - September 8, 2026
+
+Implemented portable Soundboard and Voice studio panels, saved-selection migration,
+original-node restoration on navigation, scoped audio shortcuts and popout controls.
+The remaining customizable-studio scope includes additional specialty workspace
+adapters, full dock splitters, expanded/custom destination setup and per-tool
+hardware/platform acceptance. Preserve original controllers in those adapters.
+
 ## Session tool selection and compact studio - September 8, 2026
 
 Dock headers now contain only the title/drag handle and an options button. The

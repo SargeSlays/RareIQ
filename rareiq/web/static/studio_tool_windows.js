@@ -42,7 +42,7 @@
       const heading=node("h1",title),notice=node("p","Connected to the main studio. Previews, file imports and protected fields stay there."),host=node("section"),wrapper=node("div");
       notice.className="pp-window-notice";notice.setAttribute("role","status");
       host.className="workspace studiox-app-workspace--broadcast active pp-window-content";host.dataset.workspace="broadcast";
-      wrapper.className="studio-dock-tool";host.append(wrapper);doc.body.append(toolbar,heading,notice,host);
+      wrapper.className="studio-dock-tool";if(panel.dataset.studioWorkspaceTool)wrapper.dataset.toolWorkspace=panel.dataset.studioWorkspaceTool;host.append(wrapper);doc.body.append(toolbar,heading,notice,host);
       const copies=new WeakMap(),originals=new WeakMap(),edits=new Map();let stopped=false,queued=false,timer;
       function theme(){
         html.dataset.theme=ownerDocument.documentElement.dataset.theme||"dark";html.dataset.operatorSkin=ownerDocument.documentElement.dataset.operatorSkin||"ignite";

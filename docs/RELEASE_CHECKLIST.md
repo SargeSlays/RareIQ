@@ -1,5 +1,22 @@
 # RareIQ Release Checklist
 
+## Portable audio panel acceptance - September 8, 2026
+
+Final gate: 2,461 Python and 208 JavaScript tests passed.
+Soundboard routing collapses inside docks and restores its original standalone
+layout; duplicate headings are omitted only while docked.
+
+Actual served Edge QA passed old-selection migration, original-node identity,
+retained edits, standalone/docked navigation, local Soundboard shortcuts and Voice
+popout gain propagation. Ignite/Daylight were checked at 1920x1080, 3840x2160,
+1366x768 and 720x900 without horizontal overflow. Session selection and existing
+window fixtures are regression checks for the shared infrastructure.
+
+`tools/qa_studio_audio_docks.cjs` blocks every API mutation and browser media start.
+Existing startup camera restoration, recognition context and soundboard output
+registration requests remain blocked during QA. No microphone, playback, OBS or
+platform delivery is established by these checks.
+
 ## Session tool selection and compact studio - September 8, 2026
 
 Final gate: 2,461 Python and 207 JavaScript tests passed. Actual served Edge

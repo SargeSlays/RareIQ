@@ -158,12 +158,12 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
         "/static/brand/v1/rare-iq-tokens.css?v=1.0",
         "/static/brand/producer-please-v2/producer-please.tokens.css?v=2.0",
         f"/static/rareiq_brand_v1.css?v={version}&amp;audit=20260830-2&amp;refinish=20260907-2",
-        f"/static/studiox_command_deck.css?v={version}&amp;clips=20260830-1&amp;grid=20260830-1&amp;speed=20260830-2&amp;audit=20260830-2&amp;chase=20260831-6&amp;outputs=20260831-2&amp;refinish=20260907-2",
+        f"/static/studiox_command_deck.css?v={version}&amp;clips=20260830-1&amp;grid=20260830-1&amp;speed=20260830-2&amp;audit=20260830-2&amp;chase=20260831-6&amp;outputs=20260831-2&amp;refinish=20260907-2&amp;audio-docks=20260908-1",
         "/static/studiox_camera_workspace.css?v=20260830-1",
         "/static/studiox_multi_card.css?v=20260830-1",
         "/static/studiox_inspector.css?v=20260830-2",
         "/static/broadcast_output.css?v=20260831-4",
-        "/static/studio_shell.css?v=20260831-2&amp;refinish=20260907-2&amp;session-tools=20260908-1",
+        "/static/studio_shell.css?v=20260831-2&amp;refinish=20260907-2&amp;session-tools=20260908-2",
     ]
     assert len(styles) == 13
     assert not any("studiox_60.css" in style for style in styles)
