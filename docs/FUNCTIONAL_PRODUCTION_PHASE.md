@@ -12,7 +12,7 @@ passed by this checkpoint.
 | --- | --- |
 | Operator motion | Integrated supplied Motion Pack v1 runtime, independent four-mode preference, OS reduction and confirmed OBS streaming limiter. Browser regressions use controlled service-state inputs; no game-load measurement. |
 | Sarge advice | Existing read-only local/optional HTTP advisor. Configuration is labeled configured, not connected. Replies never execute actions. |
-| Speech / wake phrase / background PTT | Experimental local wake commands borrow Voice Mod's raw input. Practice and camera/clip execution passed synthetic worklet/Windows/HTTP tests. Native PTT, actual microphone and game-focus acceptance remain pending. See [voice checkpoint](VOICE_CONTROL_CHECKPOINT.md). |
+| Speech / wake phrase / background PTT | Experimental local wake/PTT commands borrow Voice Mod's raw input. Practice and camera/clip execution passed synthetic worklet/Windows/HTTP tests. Native hotkey registration/cleanup passed; physical keypress, actual microphone and game-focus acceptance remain pending. See [voice checkpoint](VOICE_CONTROL_CHECKPOINT.md). |
 | Shared actions | Initial host dispatcher implements `clip.save` and `program.take`, behind existing operator endpoints. Other scene, sound and preset actions still need adapters. |
 | Manual clips | HTTP save/download and full decoding verified with synthetic frames. Uses existing silent, 5fps, up-to-1280px Program-camera buffer, normally 20 seconds. Not full game/graphics/mixed-audio capture. |
 | Sound | Existing local playback and browser-output lease/deduplication. Voice confirmations are operator text only; private spoken output and end-to-end route receipt remain unimplemented/unverified. |

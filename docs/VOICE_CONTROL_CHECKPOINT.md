@@ -7,9 +7,11 @@ second microphone, assistant model or broadcaster.
 ## Operator workflow
 
 1. Open Voice studio, standalone or docked, and start the existing Voice Mod input.
-2. Leave **Practice** checked, then choose **Start listening** under Voice commands.
-3. Say “Producer please” or “Sarge”, followed by “camera one” through “camera four”,
+2. Leave **Practice** checked. Choose Wake phrases or Hold Ctrl+Alt+V, then select
+   **Start listening** under Voice commands.
+3. In Wake mode, say “Producer please” or “Sarge”, followed by “camera one” through “camera four”,
    “clip that”, or “save the last fifteen/thirty/sixty/one hundred twenty seconds”.
+   In Hold mode, hold Ctrl+Alt+V through the whole command; the prefix is optional.
 4. Practice recognizes and validates without executing. Stop listening before
    unchecking Practice and explicitly starting again to enable these two actions.
 5. **Stop listening** releases only the speech branch. Ctrl+Alt+Backspace on the
@@ -26,7 +28,8 @@ Only the local studio can arm or supply audio. English (US) Windows speech suppo
 must be installed. An inactive Voice Mod input keeps Start listening disabled.
 Arming is never persisted or automatic. Feedback is operator text only.
 
-**Limits:** Hold-to-talk and private spoken confirmations are not implemented.
+**Limits:** Native hold-to-talk is implemented, but physical/game-keypress acceptance
+and private spoken confirmations remain outstanding.
 The selected Voice Mod microphone may also reach Program: these commands are not
 automatically private. A wake phrase is not speaker authentication. Background
 operation depends on the browser/input graph staying active; browser closure,
@@ -52,14 +55,28 @@ production actions. `program.take` and `clip.save` use the same registry as manu
 controls. Original timestamps anchor clips; accepted request IDs prevent duplicate
 saves. Timed-out actions retain their Future and are observed without re-execution.
 
-An owned heartbeat expires abandoned sessions after 30 seconds. A fixed native
-emergency-chord watcher observes only Ctrl, Alt and Backspace while armed. Stop
+An owned heartbeat expires abandoned sessions after 30 seconds. One fixed native
+key observer checks only the configured chords while armed. Hold mode registers
+Ctrl+Alt+V with Windows and fails closed if unavailable. Both first and last voiced
+timestamps must fit one native held interval before recognition; the host keeps at
+most eight intervals for 30 seconds. The microphone remains active and can still
+be routed to Program: holding the key only gates command acceptance. The key
+registration is removed on Stop, errors and shutdown. Observer failure revokes the
+listening session, including Wake mode's emergency control. Stop
 invalidates pending recognition and suppresses late feedback; an adapter not yet
 entered also checks cancellation. Already-entered effects can finish.
 
 Primary API reference: Microsoft's [SpeechRecognitionEngine documentation](https://learn.microsoft.com/en-us/dotnet/api/system.speech.recognition.speechrecognitionengine?view=netframework-4.8.1).
 
 ## Evidence and repeatable checks
+
+Hold-to-talk follow-up gate: **2,524 Python and 238 JavaScript tests passed**.
+The restarted managed app registered PTT in Practice, rejected supplied synthetic
+audio outside a held interval before recognition, and explicitly stopped/released
+the shortcut. Post-restart Edge PTT controls passed with inert voice endpoints.
+Evidence: `.tmp/refinish/voice-ptt-gate.log` and
+`.tmp/refinish/voice/qa-results-ptt.json`. The first wake-command checkpoint is
+`9ebb40dc`; this follow-up retains all of its microphone ownership protections.
 
 Final gate: **2,506 Python and 235 JavaScript tests passed**. The managed app was
 restarted with show/recording inactive and OBS closed. Its real voice endpoint
@@ -88,6 +105,11 @@ Evidence: `.tmp/refinish/voice-final-gate.log`.
 - Unit/HTTP regressions cover strict commands, practice, confidence, malformed/stale
   input, duplicates, stop during recognition, busy jobs, emergency/lease shutdown,
   post-error shutdown, late action completion and nonlocal rejection.
+- Native-key tests cover shortcut conflicts, one-interval start/end validation,
+  bounded history, failed observers and cleanup. Actual Windows registration and
+  removal passed with foreground unchanged and no key injection. Bare “camera two”
+  passed real synthetic recognition. Physical hold-to-talk during gameplay is not
+  established by registration or injected native-API test doubles.
 
 No real microphone, live recording, audience audio or platform delivery is claimed
 by these tests. One earlier synthesis diagnostic may have played a test phrase after
@@ -102,5 +124,7 @@ Voice Mod settings and user-authored AGENTS.md changes. No voice preferences,
 credentials, transcript history or user-audio files are persisted.
 
 The owner approved a total 35% ceiling. Original shared baseline remains 0%, reset
-timestamp 1789435596. Usage was 27% at resumption and 30% during verification.
-Check again before another substantial step; do not establish a new baseline.
+timestamp 1789435596. Usage was 27% at resumption, 30% during wake verification
+and 32% after PTT activation. Private monitor routing/full Program audio cannot be
+reliably bounded within the remaining headroom; obtain a higher total ceiling before
+that substantial stage. Do not establish a new baseline.

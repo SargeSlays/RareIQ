@@ -1,5 +1,14 @@
 # Refinish implementation progress
 
+## Native hold-to-talk checkpoint - September 8, 2026
+
+Voice commands now offer Wake phrases or Hold Ctrl+Alt+V. Windows registration,
+cleanup and whole-utterance authorization are tested; microphone ownership stays
+with Voice Mod. Final gate: 2,524 Python and 238 JavaScript tests, plus restarted
+host rejection and browser checks. Actual physical-game-keypress, microphone and
+private spoken feedback remain outstanding. Shared usage32%/approved35%, original
+0% baseline unchanged. See [the checkpoint](../VOICE_CONTROL_CHECKPOINT.md).
+
 ## Local wake-command checkpoint - September 8, 2026
 
 Voice studio now offers explicit Practice/listening controls using its existing

@@ -15,6 +15,12 @@ disclosed to the owner. All synthesis tests now set ErrorActionPreference=Stop a
 select null output before binding explicit memory output; a failed binding aborts
 before Speak. Never assume a failed output-selection call preserved privacy.
 
+PTT must validate first and last voiced timestamps within one held-key interval;
+checking only the last word permits speech from before the press. Reserve the
+shortcut on its native worker, fail closed on conflict, and unregister on that
+same worker. A dead native observer must revoke Wake mode too, because its emergency
+stop is otherwise lost even when the audio/heartbeat path remains healthy.
+
 ## Saved scenes must share camera availability checks - September 8, 2026
 
 The switcher rejected unavailable cameras, but saved scenes bypassed that guard.

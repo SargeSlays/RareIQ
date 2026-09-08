@@ -5,8 +5,9 @@
 Explicit local wake-command control now borrows the existing Voice Mod input for
 Windows speech recognition. Practice defaults on; only camera selection and
 silent camera-buffer clip saving can execute through the shared action registry.
-Synthetic worklet/recognizer/HTTP/MP4 checks pass. Real microphone/game-focus
-acceptance, hold-to-talk, private spoken feedback, multichat and multistream remain
+Native Hold Ctrl+Alt+V is an alternative with whole-utterance gating and explicit
+shortcut conflicts. Synthetic worklet/recognizer/HTTP/MP4 checks pass. Real microphone/game-focus
+and physical-key acceptance, private spoken feedback, multichat and multistream remain
 pending. See [voice control boundaries and operation](VOICE_CONTROL_CHECKPOINT.md).
 
 ## Motion and functional production foundation - September 8, 2026

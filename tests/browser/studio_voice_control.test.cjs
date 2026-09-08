@@ -4,7 +4,7 @@ const workletSource=fs.readFileSync(path.resolve(__dirname,'../../rareiq/web/sta
 const settle=async()=>{for(let i=0;i<20;i++)await Promise.resolve()};
 function fixture(handler){
   const nodes=new Map(),requests=[],worklets=[],connections=[],timers=new Map();let next=0;
-  for(const id of ['studioVoiceStart','studioVoiceStop','studioVoicePractice','studioVoiceStatus','studioVoiceOutcome','studioVoiceControls'])nodes.set(id,{disabled:false,checked:false,dataset:{},textContent:'',addEventListener(){}});
+  for(const id of ['studioVoiceStart','studioVoiceStop','studioVoicePractice','studioVoiceStatus','studioVoiceOutcome','studioVoiceControls','studioVoiceMode'])nodes.set(id,{disabled:false,checked:false,dataset:{},textContent:'',addEventListener(){}});
   class Worklet {constructor(){this.port={postMessage:value=>this.commands.push(value),close:()=>{this.closed=true},onmessage:null};this.commands=[];worklets.push(this)}connect(target){connections.push([this,target])}disconnect(){this.disconnected=true}}
   const raw={connect:target=>connections.push([raw,target]),disconnect:target=>connections.push(['disconnect',target])};
   const sink={gain:{value:1},connect(){},disconnect(){this.disconnected=true}};
@@ -16,7 +16,7 @@ function fixture(handler){
   return {app,host,input,nodes,requests,worklets,connections,timers,sink};
 }
 test('requires active existing local input and defaults to Practice without auto-arming',async()=>{
-  const f=fixture();assert.equal(f.nodes.get('studioVoicePractice').checked,true);assert.equal(f.requests.length,0);
+  const f=fixture();assert.equal(f.nodes.get('studioVoicePractice').checked,true);assert.equal(f.nodes.get('studioVoiceMode').value,'wake');assert.equal(f.requests.length,0);
   f.input.active=false;await f.app.start();assert.equal(f.requests.length,0);assert.equal(f.nodes.get('studioVoiceStart').disabled,true);
   f.input.active=true;f.host.location.hostname='192.168.1.2';await f.app.start();assert.equal(f.requests.length,0);
 });
@@ -34,7 +34,18 @@ test('one utterance request, timestamp from audio clock, and stop ignores late r
   await f.app.start();const port=f.worklets[0].port,handler=port.onmessage,utterance={data:{type:'utterance',wav:new ArrayBuffer(100),endedContextTime:18}};
   handler(utterance);handler(utterance);await settle();const sent=f.requests.filter(r=>r.url.includes('/audio?'));assert.equal(sent.length,1);
   const query=new URL(sent[0].url,'http://localhost').searchParams;assert.ok(Number(query.get('ended_at'))<Date.now()/1000-1.5);assert.equal(query.get('sequence'),'1');assert.equal(sent[0].options.headers['Content-Type'],'audio/wav');assert.equal(sent[0].options.retries,0);
+  assert.equal(query.has('started_at'),false,'Older wake fixtures remain accepted without a start timestamp');
   await f.app.stop();resolve({ok:true,state:'armed',last_result:{message:'Late result must stay hidden'}});await settle();assert.equal(f.nodes.get('studioVoiceOutcome').textContent,'');assert.equal(f.app.status().state,'stopped');
+});
+test('PTT mode is explicit, locked while armed, and sends the voiced start timestamp',async()=>{
+  const f=fixture(url=>url.endsWith('/start')?{ok:true,state:'armed',session_id:'ptt',practice:true,mode:'ptt',ptt_down:false}:{ok:true,state:'armed',mode:'ptt',ptt_down:true});
+  f.nodes.get('studioVoiceMode').value='ptt';await f.app.start();assert.equal(JSON.parse(f.requests[0].options.body).mode,'ptt');assert.equal(f.nodes.get('studioVoiceMode').disabled,true);assert.match(f.nodes.get('studioVoiceStatus').textContent,/Hold Ctrl\+Alt\+V/);
+  const port=f.worklets[0].port;port.onmessage({data:{type:'utterance',wav:new ArrayBuffer(100),startedContextTime:17,endedContextTime:18}});await settle();
+  const query=new URL(f.requests.find(r=>r.url.includes('/audio?')).url,'http://localhost').searchParams;assert.equal(Number(query.get('ended_at'))-Number(query.get('started_at')),1);assert.equal(f.app.status().ptt_down,true);assert.match(f.nodes.get('studioVoiceStatus').textContent,/host reports key held/);
+  await f.app.stop();assert.equal(f.nodes.get('studioVoiceMode').disabled,false);
+});
+test('an unavailable host PTT shortcut gives a recoverable blocker and unlocks mode selection',async()=>{
+  const f=fixture(()=>{const error=Error('Conflict');error.payload={reason:'ptt_hotkey_unavailable'};throw error;});f.nodes.get('studioVoiceMode').value='ptt';await f.app.start();assert.match(f.nodes.get('studioVoiceStatus').textContent,/Ctrl\+Alt\+V is unavailable.*choose Wake phrases/);assert.equal(f.nodes.get('studioVoiceMode').disabled,false);assert.equal(f.worklets.length,0);
 });
 test('host stop via heartbeat disconnects borrowed branch without a new stop action',async()=>{
   const f=fixture(url=>url.endsWith('/start')?{ok:true,state:'armed',session_id:'owned',practice:true}:{ok:true,state:'stopped'});
@@ -52,6 +63,9 @@ function processor(rate=48000){
 }
 test('worklet emits bounded 16k mono PCM16 WAV after speech and silence, never audio output',()=>{
   const f=processor(44100);f.feed(.3,0);f.feed(.7);f.feed(.6,0);const clips=f.messages.filter(m=>m.type==='utterance');assert.equal(clips.length,1);const view=new DataView(clips[0].wav);assert.equal(view.getUint32(24,true),16000);assert.equal(view.getUint16(22,true),1);assert.equal(view.getUint16(34,true),16);assert.ok(view.byteLength<=192044);assert.ok(clips[0].endedContextTime<1.1);f.feed(2);assert.equal(f.messages.filter(m=>m.type==='utterance').length,1);
+});
+test('worklet timestamps the first voiced frame rather than the pre-roll or message receipt',()=>{
+  const f=processor();f.feed(.4,0);f.feed(.5);f.feed(.6,0);const clip=f.messages.find(m=>m.type==='utterance');assert.ok(clip.startedContextTime>=.39&&clip.startedContextTime<.43);assert.ok(clip.endedContextTime>clip.startedContextTime);
 });
 test('worklet caps continuous utterances at six seconds and ignores silence',()=>{
   const silent=processor();silent.feed(7,0);assert.equal(silent.messages.some(m=>m.type==='utterance'),false);

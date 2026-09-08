@@ -28,7 +28,8 @@ def voice():
             lambda params: calls.append(params) or {'ok': True, 'program_slot': 2, 'actual_seconds': 4, 'shorter_than_requested': True}, 'fixture'))
     recognizer = SimpleNamespace(capability=lambda: {'available': True},
         recognize=lambda _wav: {'text': 'Sarge camera two', 'confidence': .95})
-    service = VoiceCommandService(recognizer, actions, emergency_probe=lambda: False)
+    keys = SimpleNamespace(start=lambda _mode: {'ok': True}, stop=lambda: None, status=lambda: {'ptt_down': False}, permits=lambda _end, _start: False)
+    service = VoiceCommandService(recognizer, actions, emergency_probe=lambda: False, key_monitor=keys)
     yield service, recognizer, calls
     service.close()
     actions.close()
@@ -52,6 +53,42 @@ def test_practice_never_executes_and_real_clip_keeps_audio_timestamp(voice):
     assert calls == [{'seconds': 60, 'name': 'Voice highlight', 'ending_at': ended}]
     assert 'Less history' in result['last_result']['message']
     assert 'text' not in result['last_result']
+
+
+def test_ptt_requires_entire_utterance_window_before_recognition(voice):
+    service, recognizer, calls = voice
+    recognized = []
+    recognizer.recognize = lambda _wav: recognized.append(True) or {'text': 'camera two', 'confidence': .99}
+    session = service.start(practice=False, mode='ptt')['session_id']
+    now = time.time()
+    assert service.audio(session, 1, now, audio_bytes(), now-1)['last_result']['reason'] == 'hold_to_talk_required'
+    assert not recognized and not calls
+    service.keys.permits = lambda end, start: start == now-.5 and end == now
+    result = service.audio(session, 2, now, audio_bytes(), now-.5)
+    assert result['last_result']['state'] == 'succeeded' and len(calls) == 1
+    assert len(recognized) == 1
+    service.stop(session)
+    session = service.start(practice=False)['session_id']
+    assert service.audio(session, 1, now, audio_bytes())['last_result']['state'] == 'rejected'
+    assert len(calls) == 1
+
+
+def test_ptt_shortcut_conflict_does_not_arm(voice):
+    service, _, _ = voice
+    service.keys.start = lambda _mode: {'ok': False, 'reason': 'shortcut_conflict'}
+    assert service.start(mode='ptt') == {'ok': False, 'reason': 'shortcut_conflict'}
+    assert service.status()['state'] == 'stopped'
+
+
+def test_lost_key_observer_revokes_wake_session(voice):
+    service, _, calls = voice
+    session = service.start(practice=False)['session_id']
+    service.keys.status = lambda: {'available': False, 'ptt_down': False}
+    assert service.audio(session, 1, time.time(), audio_bytes())['state'] == 'stopped'
+    deadline = time.monotonic() + 1
+    while service.status()['state'] != 'stopped' and time.monotonic() < deadline:
+        time.sleep(.01)
+    assert service.status()['reason'] == 'voice_shortcut_unavailable' and not calls
 
 
 def test_duplicate_audio_conflicts_and_low_confidence_fail_closed(voice):

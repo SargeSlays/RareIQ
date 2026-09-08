@@ -90,7 +90,8 @@ def test_helper_accepts_only_memory_audio_and_fixed_command_grammar():
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows in-memory speech proof")
-def test_installed_recognizer_understands_real_synthetic_wave_without_playback():
+@pytest.mark.parametrize('phrase', ['Producer please save the last thirty seconds', 'camera two'])
+def test_installed_recognizer_understands_real_synthetic_wave_without_playback(phrase):
     recognizer = WindowsSpeechRecognizer()
     if not recognizer.capability()["available"]:
         pytest.skip("An English (US) Windows recognizer is not installed")
@@ -113,6 +114,7 @@ try {
     $memory.Dispose()
 }
 """
+    script = script.replace('Producer please save the last thirty seconds', phrase)
     process = subprocess.run(
         [str(recognizer._powershell()), "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script],
         capture_output=True, encoding="utf-8", timeout=15,
@@ -126,5 +128,5 @@ try {
         output.setframerate(16000)
         output.writeframes(base64.b64decode(process.stdout.strip(), validate=True))
     result = recognizer.recognize(memory.getvalue())
-    assert result["text"] == "Producer please save the last thirty seconds"
-    assert result["confidence"] >= 0.7
+    assert result["text"] == phrase
+    assert result["confidence"] >= 0.8

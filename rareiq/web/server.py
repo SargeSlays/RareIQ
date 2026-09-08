@@ -1825,6 +1825,7 @@ voice_commands = VoiceCommandService(WindowsSpeechRecognizer(), production_actio
 
 class VoiceStartRequest(BaseModel):
     practice: bool = True
+    mode: Literal['wake', 'ptt'] = 'wake'
 
 
 class VoiceStopRequest(BaseModel):
@@ -1845,7 +1846,7 @@ async def voice_control_status(request: Request, session_id: str | None = None):
 @app.post("/api/production/voice/start")
 async def start_voice_control(request: Request, config: VoiceStartRequest):
     _require_voice_loopback(request)
-    result = await asyncio.to_thread(voice_commands.start, practice=config.practice)
+    result = await asyncio.to_thread(voice_commands.start, practice=config.practice, mode=config.mode)
     return result if result.get("ok") else JSONResponse(status_code=409, content=result)
 
 
@@ -1857,7 +1858,7 @@ async def stop_voice_control(request: Request, config: VoiceStopRequest):
 
 
 @app.post("/api/production/voice/audio")
-async def voice_control_audio(request: Request, session_id: str, sequence: int, ended_at: float):
+async def voice_control_audio(request: Request, session_id: str, sequence: int, ended_at: float, started_at: float | None = None):
     _require_voice_loopback(request)
     if request.headers.get("content-type", "").split(";", 1)[0] != "audio/wav":
         raise HTTPException(status_code=415, detail="voice_requires_wav")
@@ -1865,7 +1866,7 @@ async def voice_control_audio(request: Request, session_id: str, sequence: int, 
         data = await _read_bounded_body(request, MAX_VOICE_BYTES)
     except RequestBodyTooLarge:
         raise HTTPException(status_code=413, detail="voice_audio_too_large")
-    result = await asyncio.to_thread(voice_commands.audio, session_id, sequence, ended_at, data)
+    result = await asyncio.to_thread(voice_commands.audio, session_id, sequence, ended_at, data, started_at)
     return result if result.get("ok") else JSONResponse(status_code=409, content=result)
 
 
@@ -1896,7 +1897,7 @@ async def _dispatch_manual_action(action_id: str, request: BaseModel, failure_st
 
 @app.get("/api/production/actions")
 async def production_action_capabilities():
-    return {"ok": True, "actions": production_actions.manifest(), "voice_control": "experimental_local_wake_commands",
+    return {"ok": True, "actions": production_actions.manifest(), "voice_control": "experimental_local_voice_commands",
             "execution": "existing operator endpoints", "idempotency": "request_id plus expires_at; current process only"}
 
 

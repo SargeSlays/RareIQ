@@ -18,9 +18,9 @@ try {
     $audio = [System.IO.MemoryStream]::new($bytes, $false)
     $engine = [System.Speech.Recognition.SpeechRecognitionEngine]::new($installed[0].Id)
     $phrases = [System.Speech.Recognition.Choices]::new()
-    foreach ($prefix in @('Producer please', 'Sarge')) {
+    foreach ($prefix in @('Producer please', 'Sarge', '')) {
         foreach ($command in @('camera one', 'camera two', 'camera three', 'camera four', 'clip that', 'save the last fifteen seconds', 'save the last thirty seconds', 'save the last sixty seconds', 'save the last one hundred twenty seconds')) {
-            $phrases.Add($prefix + ' ' + $command)
+            $phrases.Add(($prefix + ' ' + $command).Trim())
         }
     }
     $builder = [System.Speech.Recognition.GrammarBuilder]::new($phrases)

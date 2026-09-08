@@ -1,5 +1,15 @@
 # RareIQ Release Checklist
 
+## Native hold-to-talk checkpoint - September 8, 2026
+
+Final gate: 2,524 Python and 238 JavaScript tests passed. Native Ctrl+Alt+V
+registration/cleanup passed without key injection or foreground changes. Entire
+voiced intervals are gated, conflicts fail closed and native observer failure
+revokes listening. The restarted app rejected synthetic audio outside a key hold
+in Practice and was stopped. Post-restart PTT browser checks passed.
+Physical keyboard/game/microphone/private-audio acceptance remains unverified;
+see [voice control](VOICE_CONTROL_CHECKPOINT.md).
+
 ## Local wake-command checkpoint - September 8, 2026
 
 Final gate: 2,506 Python and 235 JavaScript tests passed. Real synthetic speech

@@ -4,8 +4,9 @@
 
 Implemented the first local wake-command path with the existing input owner,
 practice, strict camera/clip commands, stop/expiry guards and real synthetic
-speech-to-clip evidence. Next: native hold-to-talk and configured private monitor
-feedback, then real microphone/background-game acceptance and full Program/audio
+speech-to-clip evidence. Native hold-to-talk now gates whole utterances, with tested
+registration/cleanup. Next: configured private monitor feedback, physical-key and
+real microphone/background-game acceptance, then full Program/audio
 capture. Chat and independent publishing remain separate unimplemented stages.
 See [the checkpoint](VOICE_CONTROL_CHECKPOINT.md).
 
