@@ -1,5 +1,28 @@
 # RareIQ Release Checklist
 
+## Customizable studio checkpoint - September 8, 2026
+
+The main Studio now centers the existing Preview/Program switcher, transitions
+and source inputs. The existing Broadcast tools can be shown from Tools, placed
+at any edge, hidden/restored, or floated inside the studio. Layout saves locally;
+reset restores defaults. Side/floating panels have vertical resize handles.
+Native full screen and the seven existing Broadcast views remain available.
+Final gate: 2,461 Python and 203 JavaScript tests passed. Hidden-workspace
+resize, drag/drop, floating drag and blocked-storage feedback passed in Edge.
+Original controls and DOM nodes are retained; no second controller is started.
+
+External browser-window tool popouts, audio-workspace docking, full dock-width/
+height splitters, custom destinations and additional platform connection flows
+are still pending. Floating panels are explicitly labeled as staying in Studio.
+Existing platform evidence remains truthful; no live broadcast was initiated.
+
+Actual served Edge checks passed: placement, float, hide/restore, reload, reset,
+all seven views, native full screen, and original nodes/unsaved input continuity.
+Ignite/Daylight at 1080p, 4K, 1366x768 and 720px have no page overflow or overlapping
+monitor/transition regions. Camera imagery is masked in local QA captures. These
+checks do not verify encoder/platform delivery or hardware continuity.
+
+
 ## Parent identity and five operator skins - September 7, 2026
 
 - [x] Supplied parent header/splash/web assets, original RareIQ icons and manifest

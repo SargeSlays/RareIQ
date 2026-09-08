@@ -1,5 +1,25 @@
 # RareIQ engineering memory
 
+## Docked tools and legacy grid placement - September 8, 2026
+
+A retained tool may still inherit wide-screen grid-column/grid-row placement.
+Moving the switcher into a dock initially let monitors overlap transitions at
+1920px despite no page overflow. The scoped dock owner resets both column and row
+placement on every direct switcher child; source and real-browser overlap checks
+now cover it. Existing Broadcast visibility also must delegate to the dock owner,
+otherwise tab selection hides pinned tools. Preserve actual nodes and document
+ownership: external adoption breaks the app's document-based lookups.
+Do not clamp floating coordinates while their workspace is unrendered: zero
+bounds erase positions. A visibility guard and browser resize regression cover
+this case. Give the parent lockup an explicit 36px height: Edge collapsed its
+auto height to zero on the CSS Daylight image swap despite a valid SVG ratio.
+
+Generated branding CSS/provenance was normalized to LF after byte-preservation
+attributes exposed CRLF as whitespace errors. Check Git command exit codes before
+continuing to commit; do not treat the final command's success as proof that an
+earlier check passed. Imported payload hashes remain unchanged.
+
+
 ## V2 operator token and asset adoption - September 7, 2026
 
 Late command-deck rules owned the winning colors while v1 CSS forcibly substituted

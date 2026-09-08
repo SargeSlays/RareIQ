@@ -3549,6 +3549,7 @@ function setBroadcastWorkspaceView(requested,{persist=true,focus=false,scroll=tr
   const view=views.includes(requested)?requested:"live";
   workspace.dataset.broadcastView=view;
   workspace.querySelectorAll("[data-broadcast-panel]").forEach(panel=>{panel.hidden=panel.dataset.broadcastPanel!==view});
+  workspace._studioDocks?.setView(view);
   let selectedTab=null;
   workspace.querySelectorAll("[data-broadcast-view]").forEach(button=>{
     const selected=button.dataset.broadcastView===view;
@@ -3571,6 +3572,7 @@ function initializeBroadcastWorkspace(){
     const panel=workspace.querySelector(selector);
     if(panel)panel.dataset.broadcastPanel=view;
   }));
+  window.ProducerStudioDocks?.init(workspace);
   tabs.querySelectorAll("[data-broadcast-view]").forEach(button=>{
     button.addEventListener("click",()=>setBroadcastWorkspaceView(button.dataset.broadcastView));
     button.addEventListener("keydown",event=>{

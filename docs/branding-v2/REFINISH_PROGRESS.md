@@ -1,5 +1,28 @@
 # Refinish implementation progress
 
+## Customizable studio checkpoint - September 8, 2026
+
+The main Studio now centers the existing Preview/Program switcher, transitions
+and source inputs. The existing Broadcast tools can be shown from Tools, placed
+at any edge, hidden/restored, or floated inside the studio. Layout saves locally;
+reset restores defaults. Side/floating panels have vertical resize handles.
+Native full screen and the seven existing Broadcast views remain available.
+Final gate: 2,461 Python and 203 JavaScript tests passed. Hidden-workspace
+resize, drag/drop, floating drag and blocked-storage feedback passed in Edge.
+Original controls and DOM nodes are retained; no second controller is started.
+
+External browser-window tool popouts, audio-workspace docking, full dock-width/
+height splitters, custom destinations and additional platform connection flows
+are still pending. Floating panels are explicitly labeled as staying in Studio.
+Existing platform evidence remains truthful; no live broadcast was initiated.
+
+Actual served Edge checks passed: placement, float, hide/restore, reload, reset,
+all seven views, native full screen, and original nodes/unsaved input continuity.
+Ignite/Daylight at 1080p, 4K, 1366x768 and 720px have no page overflow or overlapping
+monitor/transition regions. Camera imagery is masked in local QA captures. These
+checks do not verify encoder/platform delivery or hardware continuity.
+
+
 ## Authorized usage
 
 Original shared baseline remains 0%, reset timestamp 1789435596. On September 7,
@@ -7,7 +30,7 @@ Original shared baseline remains 0%, reset timestamp 1789435596. On September 7,
 first tested implementation checkpoint. The owner subsequently approved a 7%
 ceiling for the parent identity/five-skin checkpoint, then approved a 9% ceiling
 for completing that checkpoint and the first customizable production-studio slice.
-Latest reading: 7%. Original reset timestamp and baseline are unchanged.
+Latest reading: 8%. Original reset timestamp and baseline are unchanged.
 Do not reset this baseline. Check again before further substantial work.
 
 ## Plan and dependency map
