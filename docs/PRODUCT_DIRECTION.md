@@ -1,5 +1,14 @@
 # RareIQ: streaming-first product direction
 
+## Program camera output correction - September 8, 2026
+
+Open Program Output follows the selected Program camera through the existing clean
+camera output. Detection annotations stay in operator previews. A small corner
+mark remains separate from camera sizing and transitions; the page title/favicon
+identify Producer, Please. Program is still a camera-only browser source, without
+a mixed-audio track or complete studio composition. This correction does not add
+broadcasting or change OBS state.
+
 ## Sarge console presentation - September 8, 2026
 
 Voice studio places the existing Sarge controls in a full-width console above the

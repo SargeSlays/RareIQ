@@ -53,7 +53,7 @@ def test_switcher_ui_and_program_output_follow_shared_state():
     assert '.program-monitor' in CSS
     assert '.preview-monitor' in CSS
     assert '/api/production/switcher' in PROGRAM
-    assert '/api/camera-slots/${state.program_slot}/stream' in PROGRAM
+    assert '/output/camera/${state.program_slot}' in PROGRAM
     assert 'button.disabled=slot===program||!ready' in STUDIO
     assert '$("productionCut").disabled=!previewReady||preview===program' in STUDIO
     assert 'monitor.dataset.sourceState=ready?"connected"' in STUDIO

@@ -1,5 +1,21 @@
 # RareIQ Release Checklist
 
+## Program output correction - September 8, 2026
+
+Canonical gate: **2,525 Python and 243 JavaScript tests passed**. Nine served Edge
+cases passed using synthetic clean-camera WebSocket frames: 1920x1080, 3840x2160,
+1366x768, 720x900 and 1080x1920; 34x34 bottom-right logo; contained imagery;
+rapid camera switching; outgoing-view release; disconnect/reconnect; page exit.
+No real subscriptions, API writes or media starts occur in that regression.
+Repeat with `tools/qa_program_output.cjs`; screenshots are in
+`.tmp/refinish/program-output/` and the gate log is `.tmp/refinish/program-output-gate.log`.
+
+A separate read-only check of the already-active selected Program camera showed
+the actual 1920x1080 clean frame, without the enlarged logo or detection box.
+Evidence: `actual-program.json` and `actual-program-1920.png` in that same directory.
+No camera settings, Program selection, recording or platform output were changed.
+Updated static HTML was checked as served; no backend restart was required.
+
 ## Sarge console UI checkpoint - September 8, 2026
 
 Canonical gate: **2,525 Python and 239 JavaScript tests passed**. Served Edge checks

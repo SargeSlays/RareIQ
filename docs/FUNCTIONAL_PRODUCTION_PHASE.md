@@ -109,7 +109,10 @@ old replay API remains compatible with requests that omit new fields.
 ## Usage authorization
 
 Original shared baseline remains 0%, reset timestamp 1789435596. The owner authorized
-a total ceiling of 35% after the 30% checkpoint. Do not establish a new baseline. Shared
+35%, then 40% for the Sarge UI and 50% for the Program output repair. The current total
+ceiling is 50%; do not establish a new baseline. Shared
 metering was 21% at resumption, 25% before activation and 27% after the action-safety
 restart; voice work resumed at 27% under the 35% ceiling and reported 30% during
-verification. Preserve headroom before another substantial stage.
+verification. The UI checkpoint ended at 38%; Program repair resumed at 41% and
+reported 43% during verification. These shared readings include other account use.
+Preserve headroom before another substantial stage.

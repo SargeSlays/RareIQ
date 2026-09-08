@@ -1,5 +1,22 @@
 # RareIQ engineering memory
 
+## Program logo and audience-source isolation - September 8, 2026
+
+An image selector (`.program img`) assigned full-frame dimensions to the corner
+logo and outweighed `.program-bug`. Restrict frame layout and transitions to a
+dedicated frame class; explicitly bound the decorative image to 34x34px with its
+own positioning. Check computed browser geometry, not only source declarations.
+The adjacent audience outputs were audited; no matching active logo collision was
+found.
+
+Program also used the annotated operator preview feed. It now embeds the existing
+clean camera output, retaining that view's reconnect and stale-frame protection.
+A direct swap to clean MJPEG is insufficient: its lease ends after source or scan
+camera reassignment. Program must preserve the clean view's reconnection behavior.
+Rapid takes now update the active view synchronously and cancel old release timers;
+closing Program removes both views and prevents late fetches from reopening them.
+Regressions exercise selection, rapid takes, invalid state and close-during-fetch.
+
 ## Sarge console layout must retain input ownership - September 8, 2026
 
 The voice controls were buried inside the microphone card, making status and the

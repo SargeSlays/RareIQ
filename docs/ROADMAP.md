@@ -1,5 +1,13 @@
 # RareIQ Roadmap
 
+## Program output repair - September 8, 2026
+
+Fix the full-screen logo regression, reuse the clean reconnecting camera view, and
+verify normal/rapid camera switches before the next checkpoint. Full Program/audio
+composition remains a separate functional stage; the camera-only output must stay
+truthfully labeled. Owner authorized a total 50% ceiling; original usage baseline
+0% and reset1789435596 remain unchanged (41% at resumption).
+
 ## Sarge UI checkpoint - September 8, 2026
 
 The owner's next priority is a clearer Sarge experience. Elevate existing voice

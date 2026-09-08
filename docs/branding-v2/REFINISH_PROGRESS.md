@@ -1,5 +1,16 @@
 # Refinish implementation progress
 
+## Program output correction - September 8, 2026
+
+Fixed the image-selector collision that stretched the 34px corner mark over the
+camera. Program now reuses the clean reconnecting camera view, preserving the whole
+image and excluding recognition annotations. Rapid-switch timer cleanup is guarded.
+Gate: 2,525 Python and 243 JavaScript tests. Nine synthetic served Edge cases passed;
+the already-active real camera was also inspected without changing production state.
+Owner approved total ceiling50%; original baseline0%, reset1789435596 unchanged.
+Shared usage was41% at resumption and43% during verification. See release checklist
+for evidence. Mixed Program audio/composition and platform receipt remain unclaimed.
+
 ## Sarge console UI checkpoint - September 8, 2026
 
 Elevated existing voice controls above the microphone card, with actual listening
