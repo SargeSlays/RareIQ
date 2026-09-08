@@ -1,5 +1,40 @@
 # RareIQ Release Checklist
 
+## Session tool selection and compact studio - September 8, 2026
+
+Final gate: 2,461 Python and 207 JavaScript tests passed. Actual served Edge
+regressions passed after the fullscreen and popout focus fixes.
+
+Dock headers now contain only the title/drag handle and an options button. The
+Session tools drawer owns placement, popout, visibility, layout reset and saved
+tool sets. A compact Studio view selector replaces the horizontal seven-tab row;
+the original navigation and production controls remain intact.
+
+The picker includes 28 Broadcast docks and 10 separate workspace shortcuts, with
+search, select all and clear all. Workspace selection adds launcher choices; it
+does not start tools or change their availability. Separate workspaces remain
+explicitly distinct from dockable panels. Named tool sets save locally in this
+browser. Save as new preserves previous sets; Save changes updates the selected
+set. Current unsaved selections survive reload separately from saved sets. No
+production-session metadata or device settings are written by these controls.
+
+On desktop, the frame uses actual available viewport height; a single side panel
+fills its dock. The native drawer overlays the studio and traps keyboard focus.
+Returning from a popout closes the drawer and restores tool focus. Opening another
+workspace through the session launcher/drawer exits full screen before navigating.
+Narrow screens retain vertical flow for readable controls.
+
+Actual Edge checks cover bulk selection, search/empty state, two saved sets,
+explicit update, reload, original nodes/unsaved fields, popout return, full screen,
+blocked storage, and dark/light at 1920x1080, 3840x2088, 1366x768 and 720px. Desktop
+frame bounds fit without outer vertical overflow or monitor/transition overlap.
+Production writes are blocked in the repeatable browser QA script:
+`tools/qa_studio_session_tools.cjs`. No broadcasting or recording was initiated.
+
+Destination setup, separate audio docking and the broader per-tool acceptance
+remain outstanding. This is the owner's requested layout/selection checkpoint.
+
+
 ## 3D identity and separate tool windows - September 8, 2026
 
 The owner requested a more expressive parent logo. The main header now uses the

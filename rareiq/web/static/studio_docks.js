@@ -2,6 +2,17 @@
   "use strict";
   const KEY="rareiq.studio.docks.v1", POSITIONS=["left","right","top","bottom","float"];
   const DEFAULTS={"production-scenes":"left","show-preflight":"right","production-session":"bottom","operator-health":"bottom"};
+  const SETS_KEY="rareiq.studio.toolsets.v1";
+  const WORKSPACES={soundboard:"Soundboard","voice-mod":"Voice studio","camera-fx":"Camera effects",spotify:"Spotify DJ",creator:"Creator studio",live:"RareIQ Card Studio",collection:"Collection",ai:"AI Lab",library:"Reference library",settings:"Studio settings"};
+  function normalizeSets(raw,ids){
+    if(raw?.version!==1)raw=null;
+    const profiles=[],seen=new Set(),allowed=values=>Array.isArray(values)?Object.keys(WORKSPACES).filter(id=>values.includes(id)):[];
+    if(raw?.version===1&&Array.isArray(raw.profiles))for(const item of raw.profiles.slice(0,12)){
+      if(!item||typeof item.id!=="string"||!/^[\w-]{1,80}$/.test(item.id)||seen.has(item.id)||typeof item.label!=="string"||!item.label.trim())continue;
+      seen.add(item.id);profiles.push({id:item.id,label:item.label.trim().slice(0,60),layout:normalize(item.layout,ids),workspaces:allowed(item.workspaces)});
+    }
+    return {version:1,active:seen.has(raw?.active)?raw.active:"",workspaces:allowed(raw?.workspaces),profiles};
+  }
   function normalize(raw,ids){
     const tools={};
     for(const id of ids){
@@ -28,15 +39,22 @@
     });
     let raw;try{raw=JSON.parse(root.localStorage.getItem(KEY));}catch{}
     let state=normalize(raw,[...registry.keys()]),view="live";
+    let rawSets;try{rawSets=JSON.parse(root.localStorage.getItem(SETS_KEY));}catch{}
+    let sets=normalizeSets(rawSets,[...registry.keys()]);
     const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text)node.textContent=text;return node;};
     const button=(text,action)=>{const node=el("button","riq-button",text);node.type="button";node.addEventListener("click",action);return node;};
     const frame=el("section","studio-dock-frame"),toolbar=el("header","studio-dock-toolbar"),grid=el("div","studio-dock-grid");
     frame.setAttribute("aria-label","Customizable production studio");
     const title=el("div","studio-dock-title"),heading=el("strong","","Production studio"),status=el("span","studio-dock-status","Your tools. Your layout.");
     status.setAttribute("role","status");title.append(heading,status);
-    const toolWindows=root.ProducerStudioToolWindows?.create({status:message=>{status.textContent=message;},returned:id=>{root.switchWorkspace?.("broadcast");root.setBroadcastWorkspaceView?.("live");state.tools[id].visible=true;render();registry.get(id)?.position.focus();}});
-    const library=el("section","studio-dock-library");library.id="studioDockLibrary";library.hidden=true;library.setAttribute("aria-label","Studio tools");
-    const toolsButton=button("Tools",()=>{library.hidden=!library.hidden;toolsButton.setAttribute("aria-expanded",String(!library.hidden));});
+    const toolWindows=root.ProducerStudioToolWindows?.create({status:message=>{status.textContent=message;},returned:id=>{root.switchWorkspace?.("broadcast");root.setBroadcastWorkspaceView?.("live");state.tools[id].visible=true;render();drawerTrigger=registry.get(id)?.options;if(library.open)library.close();drawerTrigger?.focus();}});
+    const library=el("dialog","studio-dock-library");library.id="studioDockLibrary";library.hidden=true;library.setAttribute("aria-label","Session tools");
+    let drawerTrigger;
+    function openLibrary(trigger=toolsButton,id){
+      drawerTrigger=trigger;library.hidden=false;if(!library.open)library.showModal();toolsButton.setAttribute("aria-expanded","true");
+      if(id){search.value="";filterRows();registry.get(id).row.scrollIntoView({block:"nearest"});registry.get(id).position.focus();}
+    }
+    const toolsButton=button("Session tools",()=>openLibrary());
     toolsButton.setAttribute("aria-controls",library.id);toolsButton.setAttribute("aria-expanded","false");
     const fullscreen=button("Full screen",async()=>{
       try{if(document.fullscreenElement===workspace)await document.exitFullscreen();else if(workspace.requestFullscreen)await workspace.requestFullscreen();else status.textContent="Full screen is unavailable in this browser. Use the browser's full screen command.";}
@@ -45,9 +63,46 @@
     document.addEventListener("fullscreenchange",()=>{fullscreen.textContent=document.fullscreenElement===workspace?"Exit full screen":"Full screen";fullscreen.setAttribute("aria-pressed",String(document.fullscreenElement===workspace));});
     fullscreen.setAttribute("aria-pressed","false");
     const reset=button("Reset layout",()=>{state=normalize(null,[...registry.keys()]);render();save("Default layout restored.");});
-    toolbar.append(title,toolsButton,reset,fullscreen);
-    const help=el("p","","Choose the tools shown in Live Control. Drag a tool header to an edge, or choose its position. Floating tools stay inside this studio.");
-    library.append(help);
+    const tabs=workspace.querySelector(".broadcast-workspace-tabs"),viewChoice=el("select"),launcher=el("select");
+    viewChoice.setAttribute("aria-label","Studio view");
+    tabs.querySelectorAll("[data-broadcast-view]").forEach(tab=>{const option=el("option","",tab.textContent);option.value=tab.dataset.broadcastView;viewChoice.append(option);});
+    viewChoice.addEventListener("change",()=>root.setBroadcastWorkspaceView?.(viewChoice.value));
+    let navigating=false;
+    async function openWorkspace(id){
+      if(!WORKSPACES[id]||navigating)return;
+      navigating=true;
+      try{if(document.fullscreenElement===workspace)await document.exitFullscreen();if(library.open){drawerTrigger=null;library.close();}root.switchWorkspace?.(id);}
+      catch{status.textContent=drawerStatus.textContent="Could not leave full screen. Exit full screen and try opening the workspace again.";}
+      finally{navigating=false;launcher.value="";}
+    }
+    launcher.setAttribute("aria-label","Open session workspace");launcher.addEventListener("change",()=>openWorkspace(launcher.value));
+    toolbar.append(viewChoice,title,launcher,toolsButton,fullscreen);
+    const drawerHeader=el("header","studio-tool-drawer-heading"),drawerTitle=el("h2","","Session tools"),close=button("Close",()=>library.close());
+    drawerHeader.append(drawerTitle,close);
+    const help=el("p","","Choose your tools for Live Control. Workspaces are added to Open session workspace. Selection does not start a show, playback, or recording.");
+    const profileBar=el("section","studio-tool-profiles"),profileChoice=el("select"),profileName=el("input");
+    profileChoice.setAttribute("aria-label","Saved tool set");profileName.setAttribute("aria-label","New tool set name");profileName.placeholder="Project or session tool set";profileName.maxLength=60;
+    const newSet=button("Save as new",()=>{
+      const label=profileName.value.trim();if(!label){drawerStatus.textContent="Enter a name for this tool set.";profileName.focus();return;}
+      if(sets.profiles.length>=12){drawerStatus.textContent="Twelve tool sets are saved. Select one to update it, or remove a saved set.";return;}
+      const id=root.crypto?.randomUUID?.()||`set-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      sets.profiles.push({id,label,layout:normalize(state,[...registry.keys()]),workspaces:[...sets.workspaces]});sets.active=id;profileName.value="";render();save("Tool set saved. Use Save changes to update this saved set.");
+    });
+    const updateSet=button("Save changes",()=>{const active=sets.profiles.find(item=>item.id===sets.active);if(!active)return;active.layout=normalize(state,[...registry.keys()]);active.workspaces=[...sets.workspaces];render();save("Saved tool set updated.");});
+    const removeSet=button("Remove saved set",()=>{sets.profiles=sets.profiles.filter(item=>item.id!==sets.active);sets.active="";render();save("Saved tool set removed. Your current tools remain available.");});
+    profileChoice.addEventListener("change",()=>{sets.active=profileChoice.value;const selected=sets.profiles.find(item=>item.id===sets.active);if(selected){state=normalize(selected.layout,[...registry.keys()]);sets.workspaces=[...selected.workspaces];}render();save("Tool set loaded.");});
+    profileBar.append(profileChoice,profileName,newSet,updateSet,removeSet);
+    const bulk=el("div","studio-tool-bulk"),search=el("input"),drawerStatus=el("p","studio-tool-drawer-status");
+    search.type="search";search.placeholder="Find a tool…";search.setAttribute("aria-label","Find session tools");drawerStatus.setAttribute("role","status");
+    function selectAll(visible){for(const item of Object.values(state.tools))item.visible=visible;sets.workspaces=visible?Object.keys(WORKSPACES):[];render();save(visible?"All session tools selected.":"Session tools cleared. Preview and Program remain available.");}
+    bulk.append(button("Select all tools",()=>selectAll(true)),button("Clear all tools",()=>selectAll(false)),reset);
+    const list=el("div","studio-tool-list"),rows=[],empty=el("p","studio-tools-empty","No tools match your search.");empty.hidden=true;list.append(empty);
+    function filterRows(){const query=search.value.trim().toLocaleLowerCase();for(const row of rows)row.hidden=!row.dataset.search.includes(query);empty.hidden=rows.some(row=>!row.hidden);}
+    search.addEventListener("input",filterRows);
+    library.append(drawerHeader,help,profileBar,bulk,search,drawerStatus,list);
+    library.addEventListener("close",()=>{library.hidden=true;toolsButton.setAttribute("aria-expanded","false");drawerTrigger?.focus();});
+    library.addEventListener("keydown",event=>event.stopPropagation());
+    const workspaceToggles=new Map();
     const regions={};
     for(const position of POSITIONS){
       const region=el("section",`studio-dock-region studio-dock-${position}`);region.dataset.dockRegion=position;
@@ -61,10 +116,10 @@
     const center=el("main","studio-dock-center");center.append(stage);grid.append(center);
     frame.append(toolbar,library,grid);workspace.querySelector(".broadcast-workspace-tabs").after(frame);
     function save(message="Layout saved for this browser."){
-      try{root.localStorage.setItem(KEY,JSON.stringify(state));status.textContent=message;}
-      catch{status.textContent="Layout changed for this visit. This browser could not save it.";}
+      try{root.localStorage.setItem(KEY,JSON.stringify(state));root.localStorage.setItem(SETS_KEY,JSON.stringify(sets));status.textContent=drawerStatus.textContent=message;}
+      catch{status.textContent=drawerStatus.textContent="Layout changed for this visit. This browser could not save it.";}
     }
-    function place(id,position){state.tools[id].position=position;state.tools[id].visible=true;render();save();registry.get(id).position.focus();}
+    function place(id,position){state.tools[id].position=position;state.tools[id].visible=true;render();save();if(library.open)registry.get(id).position.focus();else registry.get(id).options.focus();}
     function clampFloat(item,saved){
       const bounds=grid.getBoundingClientRect();
       if(view!=="live"||item.wrapper.hidden||!bounds.width||!bounds.height)return;
@@ -78,14 +133,15 @@
       position.setAttribute("aria-label",`${item.title} position`);
       for(const value of POSITIONS){const option=el("option","",value==="float"?"Float in studio":`Dock ${value}`);option.value=value;position.append(option);}
       position.addEventListener("change",()=>place(id,position.value));
-      const hide=button("Hide",()=>{state.tools[id].visible=false;render();save(`${item.title} hidden. Restore it from Tools.`);toolsButton.focus();});
-      hide.setAttribute("aria-label",`Hide ${item.title}`);
       const pop=button("Pop out",()=>toolWindows?.open(id,item.title,item.panel));
       pop.setAttribute("aria-label",`Pop out ${item.title}`);pop.disabled=!toolWindows;
       if(!toolWindows)pop.title="Tool windows are unavailable. Reload the studio to try again.";
-      header.append(name,position,pop,hide);wrapper.append(header,item.panel);
-      const label=el("label"),toggle=el("input");toggle.type="checkbox";toggle.addEventListener("change",()=>{state.tools[id].visible=toggle.checked;render();save();});label.append(toggle,document.createTextNode(item.title));library.append(label);
-      Object.assign(item,{wrapper,position,toggle,hide});
+      const options=button("⋯",()=>openLibrary(options,id));options.setAttribute("aria-label",`Options for ${item.title}`);options.setAttribute("aria-haspopup","dialog");
+      header.append(name,options);wrapper.append(header,item.panel);
+      const row=el("section","studio-tool-row"),label=el("label"),toggle=el("input");row.dataset.search=(item.title+" "+item.view).toLocaleLowerCase();row.dataset.toolRow=id;
+      toggle.type="checkbox";toggle.addEventListener("change",()=>{state.tools[id].visible=toggle.checked;render();save();});label.append(toggle,document.createTextNode(item.title));
+      const hint=el("small","",`${[...tabs.querySelectorAll("[data-broadcast-view]")].find(tab=>tab.dataset.broadcastView===item.view)?.textContent||item.view} · Studio dock`);row.append(label,hint,position,pop);list.append(row);rows.push(row);
+      Object.assign(item,{wrapper,position,toggle,options,row});
       header.addEventListener("dragstart",event=>{event.dataTransfer.setData("application/x-pp-tool",id);event.dataTransfer.effectAllowed="move";grid.classList.add("is-dragging");});
       header.addEventListener("dragend",()=>{grid.classList.remove("is-dragging");for(const region of Object.values(regions))region.classList.remove("is-drop-target");});
       // Floating uses the same nodes and listeners; no second controller or media owner.
@@ -99,26 +155,47 @@
       });
       wrapper.addEventListener("pointerup",()=>{if(view!=="live")return;const height=parseFloat(wrapper.style.height);if(Number.isFinite(height)&&height!==state.tools[id].height){state.tools[id].height=Math.max(160,Math.min(800,height));save();}});
     }
+    for(const [id,labelText] of Object.entries(WORKSPACES)){
+      const row=el("section","studio-tool-row"),label=el("label"),toggle=el("input");row.dataset.search=labelText.toLocaleLowerCase();toggle.type="checkbox";
+      toggle.addEventListener("change",()=>{sets.workspaces=Object.keys(WORKSPACES).filter(key=>key===id?toggle.checked:sets.workspaces.includes(key));render();save();});label.append(toggle,document.createTextNode(labelText));
+      const open=button("Open workspace",()=>openWorkspace(id));open.setAttribute("aria-label",`Open ${labelText} workspace`);
+      row.append(label,el("small","","Workspace · opens in its own view"),open);list.append(row);rows.push(row);workspaceToggles.set(id,toggle);
+    }
+    function fitFrame(){
+      if(view!=="live"||root.innerWidth<=1100||!workspace.getBoundingClientRect().width)return;
+      frame.style.setProperty("--studio-frame-height",`${Math.max(320,root.innerHeight-Math.max(0,frame.getBoundingClientRect().top)-20)}px`);
+    }
     function render(){
-      frame.dataset.view=view;stage.hidden=view!=="live";center.hidden=view!=="live";
+      frame.dataset.view=view;viewChoice.value=view;stage.hidden=view!=="live";center.hidden=view!=="live";
       for(const [id,item] of registry){
         const saved=state.tools[id],region=regions[saved.position];
         if(item.wrapper.parentElement!==region)region.append(item.wrapper);
         item.wrapper.hidden=view==="live"?!saved.visible:item.view!==view;
-        item.panel.hidden=false;item.position.value=saved.position;item.toggle.checked=saved.visible;item.hide.hidden=view!=="live";
+        item.panel.hidden=false;item.position.value=saved.position;item.toggle.checked=saved.visible;
         item.wrapper.dataset.position=saved.position;
         item.wrapper.style.height=view==="live"?`${saved.height}px`:"";
         if(saved.position==="float"&&!item.wrapper.hidden)clampFloat(item,saved);
       }
-      for(const [position,region] of Object.entries(regions))region.dataset.empty=String(![...region.children].some(node=>!node.hidden));
+      for(const region of Object.values(regions)){const count=[...region.children].filter(node=>!node.hidden).length;region.dataset.empty=String(!count);region.dataset.count=String(count);}
+      const selectedCount=Object.values(state.tools).filter(item=>item.visible).length+sets.workspaces.length;
+      toolsButton.textContent=`Session tools · ${selectedCount}`;
+      launcher.replaceChildren(Object.assign(el("option","","Open workspace…"),{value:""}),...sets.workspaces.map(id=>Object.assign(el("option","",WORKSPACES[id]),{value:id})));
+      launcher.hidden=!sets.workspaces.length;
+      for(const [id,toggle] of workspaceToggles)toggle.checked=sets.workspaces.includes(id);
+      profileChoice.replaceChildren(Object.assign(el("option","","Current studio"),{value:""}),...sets.profiles.map(item=>Object.assign(el("option","",item.label),{value:item.id})));
+      const active=sets.profiles.find(item=>item.id===sets.active),changed=active&&(JSON.stringify(active.layout)!==JSON.stringify(state)||JSON.stringify(active.workspaces)!==JSON.stringify(sets.workspaces));
+      if(changed)profileChoice.querySelector(`option[value="${sets.active}"]`).textContent=active.label+" · modified";
+      profileChoice.value=sets.active;updateSet.disabled=!changed;updateSet.title=sets.active?"Update the selected saved tool set":"Choose a saved tool set first";removeSet.disabled=!sets.active;removeSet.title=sets.active?"Remove this saved tool set":"Choose a saved tool set first";
+      root.requestAnimationFrame(fitFrame);
     }
-    root.addEventListener("resize",()=>{for(const [id,item] of registry)if(state.tools[id].position==="float")clampFloat(item,state.tools[id]);});
+    root.addEventListener("resize",()=>{fitFrame();for(const [id,item] of registry)if(state.tools[id].position==="float")clampFloat(item,state.tools[id]);});
     if(typeof ResizeObserver!=="undefined")new ResizeObserver(()=>{for(const [id,item] of registry)if(state.tools[id].position==="float")clampFloat(item,state.tools[id]);}).observe(grid);
     workspace.dataset.studioDocks="ready";
+    if(typeof ResizeObserver!=="undefined")new ResizeObserver(fitFrame).observe(workspace);
     workspace._studioDocks={setView(next){view=next;render();},snapshot(){return normalize(state,[...registry.keys()]);}};
     render();return workspace._studioDocks;
   }
-  const api=Object.freeze({init,normalize,KEY,POSITIONS});
+  const api=Object.freeze({init,normalize,normalizeSets,KEY,SETS_KEY,POSITIONS,WORKSPACES});
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
   else root.ProducerStudioDocks=api;
 })(typeof window!=="undefined"?window:globalThis);

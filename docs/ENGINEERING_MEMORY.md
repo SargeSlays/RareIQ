@@ -1,5 +1,21 @@
 # RareIQ engineering memory
 
+## Tool sets, modal focus and full-screen navigation - September 8, 2026
+
+Automatically overwriting the active saved set while preparing Save as new loses
+the original project selection. Keep the working draft in existing local layout
+storage and update named sets only with explicit Save changes. Independent opaque
+IDs, duplicate labels, switching and reload are covered by regression checks.
+
+A full-screen workspace cannot display a sibling workspace. Exit full screen
+before session-launcher/drawer navigation. A popout returning to the main studio
+must close the modal tool drawer and restore the intended tool's focus, rather
+than its stale trigger. Real browser regressions cover both transitions.
+Measure available frame height from its rendered top position rather than a fixed
+header subtraction. Hidden workspaces must not reset geometry; narrow viewports
+retain vertical document flow. Camera and production DOM owners are unchanged.
+
+
 ## Tool-window presentation contracts - September 8, 2026
 
 A cloned select loses its machine values if the general attribute filter drops
