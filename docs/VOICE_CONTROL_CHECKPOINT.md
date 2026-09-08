@@ -8,7 +8,7 @@ second microphone, assistant model or broadcaster.
 
 1. Open Voice studio, standalone or docked, and start the existing Voice Mod input.
 2. Leave **Practice** checked. Choose Wake phrases or Hold Ctrl+Alt+V, then select
-   **Start listening** under Voice commands.
+   **Start listening** in the Sarge console at the top of Voice studio.
 3. In Wake mode, say “Producer please” or “Sarge”, followed by “camera one” through “camera four”,
    “clip that”, or “save the last fifteen/thirty/sixty/one hundred twenty seconds”.
    In Hold mode, hold Ctrl+Alt+V through the whole command; the prefix is optional.
@@ -70,6 +70,12 @@ Primary API reference: Microsoft's [SpeechRecognitionEngine documentation](https
 
 ## Evidence and repeatable checks
 
+Sarge console UI follow-up: **2,525 Python and 239 JavaScript tests passed**.
+Both command modes passed served Edge checks across Ignite/Daylight at 1080p,
+4K, 1366px and 720px, plus a 354px dock. Original node identities survive docking
+and return; actual voice writes and media starts were blocked. Evidence:
+`.tmp/refinish/sarge-ui-gate.log` and `.tmp/refinish/voice/qa-results-{wake,ptt}.json`.
+
 Hold-to-talk follow-up gate: **2,524 Python and 238 JavaScript tests passed**.
 The restarted managed app registered PTT in Practice, rejected supplied synthetic
 audio outside a held interval before recognition, and explicitly stopped/released
@@ -123,8 +129,10 @@ Revert this checkpoint normally to remove voice arming; retain existing clips,
 Voice Mod settings and user-authored AGENTS.md changes. No voice preferences,
 credentials, transcript history or user-audio files are persisted.
 
-The owner approved a total 35% ceiling. Original shared baseline remains 0%, reset
-timestamp 1789435596. Usage was 27% at resumption, 30% during wake verification
-and 32% after PTT activation. Private monitor routing/full Program audio cannot be
-reliably bounded within the remaining headroom; obtain a higher total ceiling before
-that substantial stage. Do not establish a new baseline.
+The owner subsequently approved a total 40% ceiling and prioritized a UI update.
+Original shared baseline remains 0%, reset timestamp 1789435596. Usage was 27% at
+wake resumption, 32% after PTT activation, 36% at UI resumption and 37% during the
+UI checkpoint, reaching 38% during verification. These shared readings include
+other account activity. This bounded
+stage improves the existing Sarge console; private monitor routing/full Program
+audio remain a separate substantial stage. Do not establish a new baseline.

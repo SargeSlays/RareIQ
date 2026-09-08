@@ -1,5 +1,14 @@
 # RareIQ: streaming-first product direction
 
+## Sarge console presentation - September 8, 2026
+
+Voice studio places the existing Sarge controls in a full-width console above the
+audio tools. Microphone readiness, Practice/action mode, command mode and the latest
+outcome stay visible together; examples are passive guidance. Detailed instructions
+collapse while the Program-routing caution remains visible. Docking retains the
+same controls and microphone owner. This presentation change adds no new commands,
+private audio, chat connection or publishing capability.
+
 ## Local voice command checkpoint - September 8, 2026
 
 Explicit local wake-command control now borrows the existing Voice Mod input for

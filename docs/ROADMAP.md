@@ -1,5 +1,13 @@
 # RareIQ Roadmap
 
+## Sarge UI checkpoint - September 8, 2026
+
+The owner's next priority is a clearer Sarge experience. Elevate existing voice
+controls, verify state feedback and responsive layouts, then checkpoint the tested
+change. Keep private monitor feedback, real microphone/game-focus acceptance and
+full Program/audio capture as the next functional work, within separately checked
+remaining usage headroom.
+
 ## Local voice command checkpoint - September 8, 2026
 
 Implemented the first local wake-command path with the existing input owner,

@@ -28,6 +28,7 @@ if(syntheticWav){assert.ok(syntheticWav.length<=2*1024*1024,'Synthetic WAV fixtu
     await page.goto(origin+'/control?workspace=voice-mod&voice-qa=1',{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>window.StudioVoiceControl);
     await page.locator('.nav-button[data-target="voice-mod"]').click();
+    await page.evaluate(()=>{window.voiceConsoleNodes=['studioVoiceControls','studioVoiceStart','studioVoiceStop','studioVoiceMode','studioVoicePractice','voiceModInput','voiceModStart'].map(id=>document.getElementById(id));});
     assert.equal(await page.locator('#studioVoiceStart').isDisabled(),true);assert.equal(await page.locator('#studioVoicePractice').isChecked(),true);
     assert.equal(await page.locator('#studioVoiceMode').inputValue(),'wake');await page.locator('#studioVoiceMode').selectOption(commandMode);
     await page.evaluate(async bytes=>{
@@ -61,13 +62,23 @@ if(syntheticWav){assert.ok(syntheticWav.length<=2*1024*1024,'Synthetic WAV fixtu
     assert.equal(await page.evaluate(()=>voiceModState.active),true);assert.equal(await page.evaluate(()=>mediaStarts),0);
     await page.waitForFunction(()=>!document.getElementById('instantSplash')||getComputedStyle(document.getElementById('instantSplash')).visibility==='hidden');
     fs.mkdirSync('.tmp/refinish/voice',{recursive:true});
-    for(const [skin,width,height] of [['ignite',1920,1080],['daylight',1366,768],['daylight',720,900]]){
+    const layouts=[];
+    for(const skin of ['ignite','daylight'])for(const [width,height] of [[1920,1080],[3840,2160],[1366,768],[720,900]]){
       await page.setViewportSize({width,height});await page.evaluate(s=>applyStudioTheme(s,false),skin);
       await page.locator('#studioVoiceControls').scrollIntoViewIfNeeded();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+      const layout=await page.locator('#studioVoiceControls').evaluate(console=>({first:console.parentElement.firstElementChild===console,fullWidth:Math.abs(console.getBoundingClientRect().width-console.parentElement.getBoundingClientRect().width)<3,overflow:console.scrollWidth>console.clientWidth+2,detailsClosed:!console.querySelector('details').open}));assert.deepEqual(layout,{first:true,fullWidth:true,overflow:false,detailsClosed:true});layouts.push({skin,width,...layout});
       await page.locator('#studioVoiceControls').screenshot({path:`.tmp/refinish/voice/${skin}-${width}.png`});
     }
+    await page.setViewportSize({width:1920,height:1080});await page.locator('.nav-button[data-target="broadcast"]').click();
+    const drawer=page.getByRole('dialog',{name:'Session tools'});await page.getByRole('button',{name:/^Session tools/}).click();await drawer.getByRole('button',{name:'Clear all tools',exact:true}).click();await drawer.getByLabel('Voice studio',{exact:true}).check();await drawer.getByLabel('Voice studio position',{exact:true}).selectOption('right');await drawer.getByRole('button',{name:'Close',exact:true}).click();
+    const dock=page.locator('.studio-dock-tool .voice-mod-shell');assert.equal(await dock.isVisible(),true);
+    await page.locator('#studioVoiceControls').scrollIntoViewIfNeeded();
+    const dockBounds=await page.locator('#studioVoiceControls').evaluate(console=>({width:console.clientWidth,overflow:console.scrollWidth>console.clientWidth+2}));assert.equal(dockBounds.overflow,false);assert.ok(dockBounds.width<700);
+    assert.equal(await page.evaluate(()=>voiceConsoleNodes.every(node=>node===document.getElementById(node.id))),true);assert.equal(requests.filter(r=>r.path.endsWith('/start')).length,1);
+    await page.locator('#studioVoiceControls').screenshot({path:'.tmp/refinish/voice/daylight-narrow-dock.png'});
+    await page.locator('.nav-button[data-target="voice-mod"]').click();assert.equal(await page.evaluate(()=>voiceConsoleNodes.every(node=>node===document.getElementById(node.id))),true);assert.equal(await page.evaluate(()=>mediaStarts),0);
     assert.deepEqual(errors,[]);assert.equal(blocked.some(path=>!['/api/camera/start','/api/recognition/set-context','/api/output/soundboard'].includes(path)),false);
-    const report={layer:'Served Edge UI + offline synthetic AudioWorklet + inert host-response fixtures',mode:commandMode,startPayload,input:syntheticWav?'provided synthetic WAV':'generated synthetic tone',capturedSyntheticUtterance:syntheticWav?'.tmp/refinish/voice/captured-synthetic-utterance.wav':null,mediaStarts:0,actualVoiceRequests:0,requests,blocked};
+    const report={layer:'Served Edge UI + offline synthetic AudioWorklet + inert host-response fixtures',mode:commandMode,startPayload,input:syntheticWav?'provided synthetic WAV':'generated synthetic tone',capturedSyntheticUtterance:syntheticWav?'.tmp/refinish/voice/captured-synthetic-utterance.wav':null,mediaStarts:0,actualVoiceRequests:0,originalNodesRetained:true,layouts,dockBounds,requests,blocked};
     fs.writeFileSync('.tmp/refinish/voice/qa-results.json',JSON.stringify(report,null,2));fs.writeFileSync(`.tmp/refinish/voice/qa-results-${commandMode}.json`,JSON.stringify(report,null,2));console.log(JSON.stringify(report));
   }finally{await browser.close()}
 })().catch(error=>{console.error(error.stack);process.exitCode=1});

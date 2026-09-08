@@ -1,5 +1,15 @@
 # Refinish implementation progress
 
+## Sarge console UI checkpoint - September 8, 2026
+
+Elevated existing voice controls above the microphone card, with actual listening
+state, readiness, Practice/mode controls, latest outcome, passive examples and
+collapsed help. Existing semantic tokens, microphone owner and docking are retained.
+Gate: 2,525 Python and 239 JavaScript tests. Served Edge passed both modes,
+dark/light, 1080p/4K/narrow and a 354px dock with no actual writes or media starts.
+Owner ceiling40%, original baseline0% and reset1789435596 unchanged; shared usage
+38% during verification. See [voice checkpoint](../VOICE_CONTROL_CHECKPOINT.md).
+
 ## Native hold-to-talk checkpoint - September 8, 2026
 
 Voice commands now offer Wake phrases or Hold Ctrl+Alt+V. Windows registration,

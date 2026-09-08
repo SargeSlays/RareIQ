@@ -1,5 +1,16 @@
 # RareIQ Release Checklist
 
+## Sarge console UI checkpoint - September 8, 2026
+
+Canonical gate: **2,525 Python and 239 JavaScript tests passed**. Served Edge checks
+passed Wake and PTT, Ignite/Daylight at 1920x1080, 3840x2160, 1366x768 and 720x900,
+plus a 354px dock. Root visual review covered desktop and the light narrow dock.
+Original nodes survive docking/return; one Start and one synthetic utterance were
+observed per run. Actual API writes and media starts were blocked. Updated HTML,
+CSS and JavaScript were served with cache busts; no Python restart was needed.
+Evidence: `.tmp/refinish/sarge-ui-gate.log`, `.tmp/refinish/voice/qa-results-wake.json`
+and `qa-results-ptt.json`. This does not add hardware/game/private-audio acceptance.
+
 ## Native hold-to-talk checkpoint - September 8, 2026
 
 Final gate: 2,524 Python and 238 JavaScript tests passed. Native Ctrl+Alt+V

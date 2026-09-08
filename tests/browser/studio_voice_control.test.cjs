@@ -4,7 +4,7 @@ const workletSource=fs.readFileSync(path.resolve(__dirname,'../../rareiq/web/sta
 const settle=async()=>{for(let i=0;i<20;i++)await Promise.resolve()};
 function fixture(handler){
   const nodes=new Map(),requests=[],worklets=[],connections=[],timers=new Map();let next=0;
-  for(const id of ['studioVoiceStart','studioVoiceStop','studioVoicePractice','studioVoiceStatus','studioVoiceOutcome','studioVoiceControls','studioVoiceMode'])nodes.set(id,{disabled:false,checked:false,dataset:{},textContent:'',addEventListener(){}});
+  for(const id of ['studioVoiceStart','studioVoiceStop','studioVoicePractice','studioVoiceStatus','studioVoiceOutcome','studioVoiceControls','studioVoiceMode','studioVoiceBadge','studioVoiceInputSummary','studioVoiceSafetySummary','studioVoiceModeSummary','studioVoiceEmptyOutcome'])nodes.set(id,{disabled:false,checked:false,dataset:{},textContent:'',addEventListener(){}});
   class Worklet {constructor(){this.port={postMessage:value=>this.commands.push(value),close:()=>{this.closed=true},onmessage:null};this.commands=[];worklets.push(this)}connect(target){connections.push([this,target])}disconnect(){this.disconnected=true}}
   const raw={connect:target=>connections.push([raw,target]),disconnect:target=>connections.push(['disconnect',target])};
   const sink={gain:{value:1},connect(){},disconnect(){this.disconnected=true}};
@@ -36,6 +36,13 @@ test('one utterance request, timestamp from audio clock, and stop ignores late r
   const query=new URL(sent[0].url,'http://localhost').searchParams;assert.ok(Number(query.get('ended_at'))<Date.now()/1000-1.5);assert.equal(query.get('sequence'),'1');assert.equal(sent[0].options.headers['Content-Type'],'audio/wav');assert.equal(sent[0].options.retries,0);
   assert.equal(query.has('started_at'),false,'Older wake fixtures remain accepted without a start timestamp');
   await f.app.stop();resolve({ok:true,state:'armed',last_result:{message:'Late result must stay hidden'}});await settle();assert.equal(f.nodes.get('studioVoiceOutcome').textContent,'');assert.equal(f.app.status().state,'stopped');
+});
+test('console readiness, actual listening badge, and latest result follow the existing session',async()=>{
+  const f=fixture();f.input.active=false;f.app.refresh();assert.equal(f.nodes.get('studioVoiceBadge').textContent,'MICROPHONE OFF');
+  f.input.active=true;f.app.refresh();assert.equal(f.nodes.get('studioVoiceBadge').textContent,'NOT LISTENING');assert.equal(f.nodes.get('studioVoiceInputSummary').textContent,'Microphone active');assert.equal(f.nodes.get('studioVoiceSafetySummary').textContent,'Practice · no actions');assert.equal(f.nodes.get('studioVoiceEmptyOutcome').hidden,false);
+  await f.app.start();assert.equal(f.nodes.get('studioVoiceBadge').textContent,'LISTENING');
+  f.worklets[0].port.onmessage({data:{type:'utterance',wav:new ArrayBuffer(100),endedContextTime:19}});assert.equal(f.nodes.get('studioVoiceBadge').textContent,'PROCESSING');await settle();assert.equal(f.nodes.get('studioVoiceEmptyOutcome').hidden,true);
+  await f.app.stop();assert.equal(f.nodes.get('studioVoiceBadge').textContent,'NOT LISTENING');assert.match(f.nodes.get('studioVoiceOutcome').textContent,/Practice accepted/);
 });
 test('PTT mode is explicit, locked while armed, and sends the voiced start timestamp',async()=>{
   const f=fixture(url=>url.endsWith('/start')?{ok:true,state:'armed',session_id:'ptt',practice:true,mode:'ptt',ptt_down:false}:{ok:true,state:'armed',mode:'ptt',ptt_down:true});

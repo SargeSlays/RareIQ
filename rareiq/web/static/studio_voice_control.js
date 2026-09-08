@@ -19,6 +19,11 @@
       if(node('studioVoiceStatus'))node('studioVoiceStatus').textContent=!local()?'Voice commands are available only in the local studio.':!available&&!session&&!starting?'Start Voice Mod before listening.':message;
       if(node('studioVoiceOutcome'))node('studioVoiceOutcome').textContent=outcome;
       if(node('studioVoiceControls'))node('studioVoiceControls').dataset.state=state;
+      if(node('studioVoiceBadge'))node('studioVoiceBadge').textContent=!local()?'LOCAL STUDIO ONLY':starting?'PREPARING':session&&state==='recognizing'?'PROCESSING':session&&state==='armed'?(mode==='ptt'?(pttDown?'KEY HELD':'WAITING FOR KEY'):'LISTENING'):available?'NOT LISTENING':'MICROPHONE OFF';
+      if(node('studioVoiceInputSummary'))node('studioVoiceInputSummary').textContent=ready()?'Microphone active':'Microphone off';
+      if(node('studioVoiceSafetySummary'))node('studioVoiceSafetySummary').textContent=practice?.checked?'Practice · no actions':'Action mode';
+      if(node('studioVoiceModeSummary'))node('studioVoiceModeSummary').textContent=(session?mode:node('studioVoiceMode')?.value)==='ptt'?'Hold Ctrl+Alt+V':'Wake phrases';
+      if(node('studioVoiceEmptyOutcome'))node('studioVoiceEmptyOutcome').hidden=Boolean(outcome);
     }
     function detach(){
       host.clearTimeout(pollTimer);pollTimer=null;audioAbort?.abort();audioAbort=null;busy=false;
@@ -87,6 +92,8 @@
     }
     node('studioVoicePractice').checked=true;
     if(node('studioVoiceMode'))node('studioVoiceMode').value='wake';
+    node('studioVoiceMode')?.addEventListener('change',refresh);
+    node('studioVoicePractice').addEventListener('change',refresh);
     node('studioVoiceStart').addEventListener('click',start);
     node('studioVoiceStop').addEventListener('click',()=>stop());
     host.addEventListener('pagehide',()=>stop('Listening stopped because the studio closed.'));

@@ -1,5 +1,15 @@
 # RareIQ engineering memory
 
+## Sarge console layout must retain input ownership - September 8, 2026
+
+The voice controls were buried inside the microphone card, making status and the
+latest command result difficult to find. Move the existing console into the same
+Voice studio grid above that card; do not clone controls or build a second media
+owner for docking. A served Edge regression retains exact node identities through
+dock/return, checks one Start request and blocks actual media and API writes.
+Readiness badges derive from the existing session and input, never decorative
+activity. Container rules cover the 354px dock independently of viewport width.
+
 ## Voice ownership, delayed completion and safe synthesis - September 8, 2026
 
 Speech borrows the raw Voice Mod node; it must never own a second microphone or

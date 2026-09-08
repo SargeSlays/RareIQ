@@ -216,3 +216,39 @@ html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[
 html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .studio-dock-tool [data-studio-workspace-tool] :is(.soundboard-app-header,.voice-mod-header) { padding:10px!important; }
 html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .studio-dock-tool .studio-audio-routing { margin:10px 0!important; border:1px solid var(--pp-border)!important; border-radius:6px!important; }
 html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .studio-dock-tool .studio-audio-routing > summary { cursor:pointer!important; padding:12px!important; font-size:13px!important; color:var(--pp-text)!important; }
+
+/* Sarge's operator console owns its presentation in both the workspace and docks. */
+body.pp-shell .sarge-voice-console { grid-column:1 / -1; min-width:0; padding:22px; border:1px solid var(--pp-border); border-top:3px solid var(--pp-primary); border-radius:10px; background:var(--pp-surface); color:var(--pp-text); container-type:inline-size; }
+body.pp-shell .sarge-console-heading { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:12px; }
+body.pp-shell .sarge-eyebrow { font-size:10px; font-weight:700; letter-spacing:.12em; color:var(--pp-text-muted); }
+body.pp-shell .sarge-console-heading h3 { margin:4px 0 0; font-size:27px; line-height:1.15; letter-spacing:-.02em; }
+body.pp-shell .sarge-console-heading h3 span { margin-left:8px; font-size:15px; font-weight:400; letter-spacing:0; color:var(--pp-text-muted); }
+body.pp-shell .sarge-state-badge { padding:7px 10px; border:1px solid var(--pp-border-strong); border-radius:6px; background:var(--pp-surface-raised); color:var(--pp-text-muted); font-size:10px; font-weight:700; letter-spacing:.05em; }
+body.pp-shell .sarge-voice-console[data-state="armed"] .sarge-state-badge { color:var(--pp-voice-listening); border-color:var(--pp-voice-listening); }
+body.pp-shell .sarge-voice-console[data-state="recognizing"] .sarge-state-badge { color:var(--pp-voice-understanding); border-color:var(--pp-voice-understanding); }
+body.pp-shell .sarge-readiness { display:flex; flex-wrap:wrap; gap:8px 16px; margin-bottom:18px; color:var(--pp-text-muted); font-size:12px; }
+body.pp-shell .sarge-console-toolbar { display:grid; grid-template-columns:minmax(170px,1fr) minmax(210px,1.2fr) auto; align-items:end; gap:12px; }
+body.pp-shell .sarge-mode { display:grid; gap:6px; font-size:12px; color:var(--pp-text-muted); }
+body.pp-shell .sarge-mode select { width:100%; min-width:0; min-height:42px; padding:9px 12px; border:1px solid var(--pp-input-border); border-radius:6px; background:var(--pp-input-bg); color:var(--pp-input-text); }
+body.pp-shell .sarge-practice { display:flex; align-items:center; gap:10px; min-height:42px; padding:8px 12px; border:1px solid var(--pp-border); border-radius:6px; background:var(--pp-surface-raised); cursor:pointer; }
+body.pp-shell .sarge-practice input { accent-color:var(--pp-primary); margin:0; width:16px; height:16px; }
+body.pp-shell .sarge-practice b,body.pp-shell .sarge-practice small { display:block; line-height:1.4; }
+body.pp-shell .sarge-practice b { font-size:12px; color:var(--pp-text); }
+body.pp-shell .sarge-practice small { font-size:11px; color:var(--pp-text-muted); }
+body.pp-shell .sarge-listening-actions { display:flex; flex-wrap:wrap; gap:8px; }
+body.pp-shell .sarge-listening-actions button { min-height:42px; white-space:nowrap; }
+body.pp-shell .sarge-session-status { margin:12px 0; font-size:12px; line-height:1.5; color:var(--pp-text-muted); }
+body.pp-shell .sarge-outcome { padding:13px 15px; border:1px solid var(--pp-border); border-radius:7px; background:var(--pp-surface-sunken); }
+body.pp-shell .sarge-outcome p { margin:7px 0 0; font-size:14px; line-height:1.5; color:var(--pp-text); overflow-wrap:anywhere; }
+body.pp-shell .sarge-outcome p:empty { display:none; }
+body.pp-shell .sarge-examples { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:14px; }
+body.pp-shell .sarge-examples article { padding:10px 12px; border:1px solid var(--pp-border); border-radius:6px; }
+body.pp-shell .sarge-examples span { display:block; margin-bottom:5px; font-size:10px; color:var(--pp-text-muted); }
+body.pp-shell .sarge-examples q { font-size:12px; line-height:1.5; color:var(--pp-text); }
+body.pp-shell .sarge-routing-caution { margin:12px 0; font-size:11px; line-height:1.5; color:var(--pp-warning); }
+body.pp-shell .sarge-console-details { border-top:1px solid var(--pp-border); font-size:12px; line-height:1.55; color:var(--pp-text-muted); }
+body.pp-shell .sarge-console-details summary { padding-top:12px; cursor:pointer; color:var(--pp-text); }
+body.pp-shell .sarge-console-details p { margin:9px 0 0; }
+body.pp-shell .sarge-voice-console :is(select,input,summary,button):focus-visible { outline:2px solid var(--pp-focus); outline-offset:3px; }
+@container (max-width:700px) { body.pp-shell .sarge-console-toolbar { grid-template-columns:1fr 1fr; } body.pp-shell .sarge-listening-actions { grid-column:1 / -1; } }
+@container (max-width:450px) { body.pp-shell .sarge-console-toolbar,body.pp-shell .sarge-examples { grid-template-columns:1fr; } body.pp-shell .sarge-examples article { padding:8px 10px; } body.pp-shell .sarge-console-heading h3 span { display:block; margin:5px 0 0; } }
