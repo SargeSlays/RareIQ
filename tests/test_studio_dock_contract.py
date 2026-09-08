@@ -32,4 +32,4 @@ def test_hidden_workspace_resize_does_not_erase_floating_position():
 
 def test_parent_lockup_retains_height_when_css_image_changes():
     css = (STATIC / "studio_shell.css").read_text(encoding="utf-8")
-    assert "width:180px !important; min-width:180px !important; height:36px !important" in css
+    assert "width:208px !important; min-width:208px !important; height:59px !important" in css

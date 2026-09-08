@@ -1,5 +1,22 @@
 # RareIQ engineering memory
 
+## Tool-window presentation contracts - September 8, 2026
+
+A cloned select loses its machine values if the general attribute filter drops
+OPTION.value. An initial fixture used labels equal to values and missed this;
+review caught it. Preserve OPTION/BUTTON values, synchronize editable properties
+separately, and test labels like General streaming with a value of studio.
+The canonical unit guard and real Edge fixture cover this distinction.
+
+Mirrored tools must keep original DOM ownership, guard disconnected/disabled
+sources at interaction time, retain focused drafts through background updates,
+and flush them before submission. Reconcile stable nodes rather than rebuilding
+while typing. Exclude executable/media/credential elements before insertion;
+re-evaluate restrictions after type/identity changes. Never start another control
+app or camera/audio owner in a popup. Explicit popup width/display ownership is
+required to override the old workspace's 12-column grid.
+
+
 ## Docked tools and legacy grid placement - September 8, 2026
 
 A retained tool may still inherit wide-screen grid-column/grid-row placement.

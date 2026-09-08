@@ -1,5 +1,36 @@
 # RareIQ Release Checklist
 
+## 3D identity and separate tool windows - September 8, 2026
+
+The owner requested a more expressive parent logo. The main header now uses the
+exact supplied approved 3D orange/lime lockup at 208x59px, with dark/light variants;
+the existing micro mark still serves constrained spaces. No logo art was generated
+or recolored, and RareIQ retains its own identity.
+
+Final gate: 2,461 Python and 205 JavaScript tests passed.
+
+Broadcast tool headers now offer Pop out. Each separate browser window presents
+the existing tool and forwards supported form/control interactions to its original
+nodes. The main studio remains the controller. Protected fields, file inputs,
+iframes, images, canvas and audio/video are replaced by main-studio guidance.
+Global production keyboard shortcuts stay in the main window. Notifications point
+back to the main studio for details/confirmation. Closing a tool window does not
+stop a show; reloading/closing the parent disables the old window's controls.
+
+Real Edge fixture regressions cover native validation/Enter, distinct select labels
+and values, checkbox state, editing during background updates, dynamic and stale
+controls, disabled guards, one activation, theme, window reuse/block/close, parent
+reload and no copied credentials/media/API owner. Actual served Scenes and Show
+Details windows plus unsaved text propagation were checked without saving or
+starting any production action. Five header skins and narrow/1080p/4K bounds passed.
+
+Still pending: docking the separate audio workspaces, complete splitters, custom
+and expanded destination connection flows, full per-tool visual/interaction audit,
+and actual hardware/platform acceptance. Popout support does not establish OBS
+or destination delivery. Local evidence is under `.tmp/refinish/`; the repeatable
+browser regression is `tools/qa_studio_tool_windows.cjs` (Playwright + installed Edge).
+
+
 ## Customizable studio checkpoint - September 8, 2026
 
 The main Studio now centers the existing Preview/Program switcher, transitions

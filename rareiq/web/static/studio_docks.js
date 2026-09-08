@@ -34,6 +34,7 @@
     frame.setAttribute("aria-label","Customizable production studio");
     const title=el("div","studio-dock-title"),heading=el("strong","","Production studio"),status=el("span","studio-dock-status","Your tools. Your layout.");
     status.setAttribute("role","status");title.append(heading,status);
+    const toolWindows=root.ProducerStudioToolWindows?.create({status:message=>{status.textContent=message;},returned:id=>{root.switchWorkspace?.("broadcast");root.setBroadcastWorkspaceView?.("live");state.tools[id].visible=true;render();registry.get(id)?.position.focus();}});
     const library=el("section","studio-dock-library");library.id="studioDockLibrary";library.hidden=true;library.setAttribute("aria-label","Studio tools");
     const toolsButton=button("Tools",()=>{library.hidden=!library.hidden;toolsButton.setAttribute("aria-expanded",String(!library.hidden));});
     toolsButton.setAttribute("aria-controls",library.id);toolsButton.setAttribute("aria-expanded","false");
@@ -79,7 +80,10 @@
       position.addEventListener("change",()=>place(id,position.value));
       const hide=button("Hide",()=>{state.tools[id].visible=false;render();save(`${item.title} hidden. Restore it from Tools.`);toolsButton.focus();});
       hide.setAttribute("aria-label",`Hide ${item.title}`);
-      header.append(name,position,hide);wrapper.append(header,item.panel);
+      const pop=button("Pop out",()=>toolWindows?.open(id,item.title,item.panel));
+      pop.setAttribute("aria-label",`Pop out ${item.title}`);pop.disabled=!toolWindows;
+      if(!toolWindows)pop.title="Tool windows are unavailable. Reload the studio to try again.";
+      header.append(name,position,pop,hide);wrapper.append(header,item.panel);
       const label=el("label"),toggle=el("input");toggle.type="checkbox";toggle.addEventListener("change",()=>{state.tools[id].visible=toggle.checked;render();save();});label.append(toggle,document.createTextNode(item.title));library.append(label);
       Object.assign(item,{wrapper,position,toggle,hide});
       header.addEventListener("dragstart",event=>{event.dataTransfer.setData("application/x-pp-tool",id);event.dataTransfer.effectAllowed="move";grid.classList.add("is-dragging");});

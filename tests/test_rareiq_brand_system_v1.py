@@ -86,8 +86,7 @@ def test_current_control_does_not_load_superseded_presentation_layers():
     assert "commandDeckSplashOut" in (STATIC / "studiox_command_deck.css").read_text(encoding="utf-8")
 
 
-def test_horizontal_lockup_is_default_and_old_neon_assets_are_not_rendered():
-    assert "PP_horizontal_on-dark.svg" in CONTROL
+def test_main_lockup_uses_supplied_3d_parent_art():
     assert "PP_Approved_3D_Horizontal_on-dark_2400.png" in CONTROL
     assert "brand/v1/logos/" not in CONTROL
     assert 'class="brand-lockup-image"' in CONTROL
