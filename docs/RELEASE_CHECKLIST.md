@@ -1,5 +1,13 @@
 # RareIQ Release Checklist
 
+## Single-source OBS handoff - September 8, 2026
+
+Focused source/catalog/bootstrap tests pass. After confirming the show and recording
+inactive and OBS closed, the managed app restarted; `/output/studio` returned 200 and
+contained Program, graphics and Soundboard layers. No OBS playback, microphone capture,
+stream, recording or platform receipt was exercised. Evidence:
+`.tmp/refinish/obs-studio-output-release.log`.
+
 ## Second studio polish pass - September 8, 2026
 
 Canonical gate passed: **2,604 Python and 268 JavaScript tests**. A targeted
@@ -717,3 +725,54 @@ Inventory each connector before testing; do not treat a UI placeholder as workin
 - [ ] Review permissions, secrets, local data retention, diagnostics, and exported customer data.
 - [ ] Run the automated release gate again and archive the full validation evidence bundle.
 - [ ] Create the release commit and annotated tag only after every required gate is signed off.
+
+## Studio-to-OBS handoff focused follow-up - September 16, 2026
+
+Local recovery fixes passed these focused checks:
+
+- `node --test tests/browser/program_output.test.cjs tests/browser/soundboard_output.test.cjs tests/browser/studio_audio_transport.test.cjs tests/browser/overlay_runtime.test.cjs`: 35 passed.
+- `.venv\Scripts\python.exe -B -m pytest tests/test_studio_output_contract.py tests/test_broadcast_outputs.py -q`: 26 passed.
+
+This is deterministic behavior/backend evidence, not live browser or OBS acceptance.
+The full release gate was not run for this bounded follow-up; no checkpoint was committed.
+After authorization, confirm current-build Program switching, transparent graphics and
+clear/expiry, one routed Soundboard playback, and disconnect/reconnect in an OBS Browser
+Source using `/output/studio`. Check OBS audio routing and avoid capturing the same sound
+through both the combined source and a separate Soundboard or desktop-audio path. Do not
+start real playback, recording or streaming without the owner's explicit authorization.
+
+## Authorized local OBS handoff acceptance - September 17, 2026
+
+The owner authorized configuration and local playback with streaming/recording off.
+The existing RareIQ Program Browser was migrated from /program to /output/studio,
+1920x1080, Control audio via OBS enabled, shutdown/activation refresh disabled.
+Its transform fits the 3840x2160 canvas without cropping. The separate Soundboard
+scene item in RareIQ Program was disabled, retained for recovery, not deleted.
+The source remains unmuted at unity with monitoring off to avoid speaker feedback.
+
+- Actual OBS source audit: Studio Program configured, no reported issues.
+- Slot 1 now uses the discovered Insta360 Link through RareIQ's existing capture
+  owner. Fresh physical-camera frames reached Program and were visually inspected
+  in an OBS scene screenshot after a Browser Source cache refresh.
+- A temporary lower-third was visually present over Program, then absent after its
+  duration. Previous hidden graphic content was restored; no test graphic remains.
+- Two brief low-volume Soundboard tests produced OBS Program meter events before
+  and after refresh. The separate disabled Soundboard layer produced no meter events
+  during the final test. Audio transport was empty and Program meters idle afterward.
+- Final state: Program camera 1, physical camera connected, graphics hidden,
+  OBS streaming false and recording false. No stream or recording was started.
+
+This verifies local OBS video composition and audio-meter receipt, not listener
+quality, microphone mixing, encoded recording, delivery to a platform or a network
+outage recovery. Refresh recovery was exercised; transport-failure handling remains
+covered by the September 16 deterministic tests. The full release gate was not rerun.
+Local recovery settings and redacted numeric evidence are under
+.tmp/obs-handoff-20260917; camera captures there remain private and untracked.
+
+## Camera reassignment acceptance - September 17, 2026
+
+Canonical gate passed 2,612 Python tests and 275 JavaScript tests. Focused camera
+checks passed 57 tests. After managed restart, two physical Insta360 unassign/restore
+cycles and one reconnect resumed fresh frames. OBS input settings and scene visibility
+were preserved; Program slot 1, streaming off, recording off. See
+CAMERA_REASSIGNMENT_CHECKPOINT.md. Logs and numeric evidence remain local in .tmp.

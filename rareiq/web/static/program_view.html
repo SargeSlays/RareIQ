@@ -21,17 +21,27 @@
     <iframe id="programB" class="program-frame out" title="Program camera B"></iframe>
     <img class="program-bug" src="/static/brand/rareiq_icon_transparent.png" alt="" aria-hidden="true">
   </main>
+  <script src="/static/overlay_runtime.js?v=1"></script>
   <script>
     const stage=document.getElementById('program');
     const frames=[document.getElementById('programA'),document.getElementById('programB')];
-    let active=0,generation=-1,stopped=false,pollTimer,transitionTimer;
-    async function sync(){
-      try{
-        const response=await fetch('/api/production/switcher',{cache:'no-store'});
-        if(!response.ok)throw Error('Switcher unavailable');
-        const state=await response.json();
-        if(!stopped&&Number.isInteger(state.generation)&&[1,2,3,4].includes(state.program_slot)&&state.generation!==generation){
+    let active=0,generation=-1,programSlot=null,transitionTimer;
+    function clearProgram(){
+      clearTimeout(transitionTimer);
+      generation=-1;programSlot=null;
+      for(const frame of frames){frame.classList.add('out');frame.removeAttribute('src');}
+    }
+    RareIQOverlay.start({
+      interval:300,
+      load:signal=>RareIQOverlay.json('/api/production/switcher',signal),
+      clear:clearProgram,
+      render:state=>{
+        if(!Number.isInteger(state.generation)||![1,2,3,4].includes(state.program_slot)){
+          clearProgram();return;
+        }
+        if(state.generation!==generation||state.program_slot!==programSlot){
           generation=state.generation;
+          programSlot=state.program_slot;
           clearTimeout(transitionTimer);
           const incoming=frames[1-active],outgoing=frames[active];
           const transition=['cut','fade','slide','zoom'].includes(state.transition)?state.transition:'cut';
@@ -45,14 +55,8 @@
           active=1-active;
           transitionTimer=setTimeout(()=>outgoing.removeAttribute('src'),duration);
         }
-      }catch{}
-      if(!stopped)pollTimer=setTimeout(sync,300);
-    }
-    addEventListener('pagehide',()=>{
-      stopped=true;clearTimeout(pollTimer);clearTimeout(transitionTimer);
-      for(const frame of frames)frame.removeAttribute('src');
+      }
     });
-    sync();
   </script>
 </body>
 </html>

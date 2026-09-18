@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Producer, Please — Studio Output</title>
+  <link rel="icon" type="image/svg+xml" href="/static/brand/producer-please-v2/favicon.svg?v=2.0">
+  <style>
+    html,body,main{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
+    main{position:relative;isolation:isolate}
+    iframe{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none}
+    .program{z-index:1;background:#000}.graphics{z-index:2;background:transparent}
+    .audio{z-index:3;width:1px;height:1px;opacity:0}
+  </style>
+</head>
+<body>
+  <main aria-label="Clean Studio Program output">
+    <iframe class="program" src="/program?embedded=1" title="Program video"></iframe>
+    <iframe class="graphics" src="/overlay/graphics?embedded=1" title="Program graphics"></iframe>
+    <iframe class="audio" src="/output/soundboard" allow="autoplay" title="Routed production audio" aria-hidden="true"></iframe>
+  </main>
+</body>
+</html>

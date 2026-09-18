@@ -16,9 +16,10 @@
         const audio = new this.AudioType(voice.url), entry = {audio, cancelled: false};
         this.players.set(voice.id, entry); audio.volume = voice.volume;
         if (typeof document !== 'undefined') { audio.hidden = true; audio.dataset.playbackId = voice.id; document.body.append(audio); }
-        const finish = () => { this.completed.add(voice.id); while (this.completed.size > 256) this.completed.delete(this.completed.values().next().value); this.stop(voice.id); };
+        const current = () => !entry.cancelled && this.players.get(voice.id) === entry;
+        const finish = () => { if (!current()) return; this.completed.add(voice.id); while (this.completed.size > 256) this.completed.delete(this.completed.values().next().value); this.stop(voice.id); };
         audio.addEventListener('ended', finish, {once:true});
-        audio.addEventListener('error', () => { finish(); this.report('Audio asset unavailable'); }, {once:true});
+        audio.addEventListener('error', () => { if (!current()) return; finish(); this.report('Audio asset unavailable'); }, {once:true});
         audio.addEventListener('loadedmetadata', () => {
           if (entry.cancelled) return;
           if (Number.isFinite(audio.duration) && voice.position >= audio.duration) { finish(); return; }
@@ -35,13 +36,14 @@
   const status = document.getElementById('status'), report = text => { status.textContent = text; };
   const receiver = new SoundboardReceiver(Audio, report);
   const events = new EventSource('/api/output/soundboard/events');
-  let lastEvent = Date.now();
+  let lastEvent = Date.now(), stopped = false;
   events.onmessage = event => {
-    try { const state = JSON.parse(event.data); lastEvent = Date.now(); receiver.sync(state.voices || []); if (!state.voices.length) report('Connected · waiting for soundboard playback'); }
+    if (stopped) return;
+    try { const state = JSON.parse(event.data); if (!Array.isArray(state.voices)) throw new Error('Invalid audio state'); lastEvent = Date.now(); receiver.sync(state.voices); if (!state.voices.length) report('Connected · waiting for soundboard playback'); }
     catch (_) { receiver.silence(); report('Audio state unavailable'); }
   };
-  events.onerror = () => { receiver.silence(); report('RareIQ disconnected · audio stopped'); };
+  events.onerror = () => { if (stopped) return; receiver.silence(); report('RareIQ disconnected · audio stopped'); };
   const watchdog = setInterval(() => { if (Date.now() - lastEvent > 1500) receiver.silence(); }, 500);
   document.getElementById('enableAudio').onclick = () => { receiver.blocked.clear(); report('Preview enabled · play a pad in RareIQ'); };
-  addEventListener('pagehide', () => { clearInterval(watchdog); events.close(); receiver.silence(); });
+  addEventListener('pagehide', () => { stopped = true; clearInterval(watchdog); events.close(); receiver.silence(); });
 })(typeof window !== 'undefined' ? window : globalThis);

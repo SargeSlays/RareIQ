@@ -178,12 +178,14 @@ def test_camera_output_pages_exist_and_invalid_slots_fail_closed(name):
         asyncio.run(server.camera_output_page("5"))
 
 
-def test_obs_output_plan_has_every_camera_and_isolated_audio():
+def test_obs_output_plan_has_every_camera_and_routed_audio():
     from rareiq.services.obs_service import ObsService
     plan = ObsService.bootstrap_plan("http://127.0.0.1:9040")
     assert all(any(item["url"].endswith(f"/output/camera/{slot}") for item in plan) for slot in ["scan", "all", 1,2,3,4])
     audio = [item for item in plan if item.get("audio")]
-    assert len(audio) == 1 and audio[0]["url"].endswith("/output/soundboard")
+    assert {item["key"] for item in audio} == {"program", "soundboard"}
+    assert next(item for item in audio if item["key"] == "program")["url"].endswith("/output/studio")
+    assert next(item for item in audio if item["key"] == "soundboard")["url"].endswith("/output/soundboard")
 
 
 def test_camera_websocket_multiplexes_slots_and_releases_every_lease(monkeypatch):

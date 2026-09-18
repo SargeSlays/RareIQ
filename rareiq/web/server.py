@@ -3873,6 +3873,11 @@ async def studio_page():
 async def program_page():
     return FileResponse(STATIC_DIR / "program_view.html")
 
+
+@app.get("/output/studio")
+async def studio_output_page():
+    return FileResponse(STATIC_DIR / "studio_output.html")
+
 @app.get("/overlay/landscape")
 async def landscape_overlay():
     return FileResponse(STATIC_DIR / "overlay_landscape.html")

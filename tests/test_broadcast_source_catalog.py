@@ -13,7 +13,7 @@ def test_source_catalog_has_unique_clean_urls_names_and_keys():
         assert len({item[field] for item in sources}) == len(sources)
     assert not ({item["scene"] for item in sources} & {item["source"] for item in sources})
     assert all(item["path"].startswith("/") and "?" not in item["path"] for item in sources)
-    assert [item["key"] for item in sources if item["audio"]] == ["soundboard"]
+    assert [item["key"] for item in sources if item["audio"]] == ["program", "soundboard"]
     assert all(item["width"] > 0 and item["height"] > 0 for item in sources)
 
 
@@ -33,6 +33,8 @@ def test_obs_plan_and_operator_guide_share_metadata_without_changing_catalog(mon
     guide["browser_source_details"][0]["width"] = 1
     assert broadcast_sources()[0]["width"] == 1920
     assert broadcast_sources()[0]["source"] == "RareIQ Program Browser"
+    assert broadcast_sources()[0]["path"] == "/output/studio"
+    assert broadcast_sources()[0]["audio"] is True
 
 
 def test_all_source_routes_are_registered_including_the_chase_strip():

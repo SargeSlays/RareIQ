@@ -35,3 +35,16 @@ test('disconnect cancels pending metadata, and stale or arbitrary audio is not p
   receiver.sync([{...voice,id:'old',position:100},{...voice,id:'external',url:'https://example.com/audio.mp3'}]);
   receiver.players.get('old').audio.listeners.loadedmetadata();assert.equal(receiver.players.size,0);
 });
+
+test('late events from disconnected audio cannot finish or stop its replacement', () => {
+  const reports=[],receiver=new SoundboardReceiver(AudioFake,text=>reports.push(text));
+  receiver.sync([voice]);const old=receiver.players.get('one').audio;
+  receiver.silence();receiver.sync([{...voice,position:8}]);
+  const replacement=receiver.players.get('one').audio;
+  old.listeners.error();old.listeners.ended();old.listeners.loadedmetadata();
+  assert.equal(receiver.players.get('one').audio,replacement);
+  assert.equal(receiver.completed.has('one'),false);assert.equal(reports.length,0);
+  replacement.listeners.loadedmetadata();
+  assert.equal(replacement.currentTime,8);assert.equal(replacement.plays,1);assert.equal(old.plays,0);
+  receiver.sync([{...voice,position:9}]);assert.equal(replacement.plays,1);
+});

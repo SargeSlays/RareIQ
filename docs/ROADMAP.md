@@ -1,5 +1,11 @@
 # RareIQ Roadmap
 
+## OBS-equivalent production foundation - September 8, 2026
+
+Land one composed Studio Program source first. Next checkpoints add the complete
+microphone/program mix, source transforms, filters, mixer monitoring, multiview,
+recording/replay, hotkeys and independent multistream delivery before launch acceptance.
+
 ## Second studio polish pass - September 8, 2026
 
 Tighten the main production console and inspect populated readiness states across
@@ -426,3 +432,15 @@ See [giveaway specification and acceptance checklist](CREATOR_GIVEAWAYS.md).
 - Tournament brackets
 - Enterprise dealer workflows
 - Universal collectibles beyond cards
+
+## Studio handoff checkpoint - September 17, 2026
+
+Local OBS configuration and acceptance completed for combined Program video,
+graphics/expiry and Soundboard meter receipt, including source refresh. Existing
+Program was migrated and its redundant Soundboard scene item disabled. No public
+stream or recording occurred; no new Git checkpoint was made.
+The observed camera reassignment HTTP 500 was subsequently fixed in checkpoint
+498b0117: capture cleanup belongs to the worker, with guarded retry and regression
+coverage. Two physical-camera reassignment cycles and a reconnect passed. The full
+release gate passed 2,612 Python and 275 JavaScript tests. Broader microphone,
+recording and platform acceptance remain separate work.

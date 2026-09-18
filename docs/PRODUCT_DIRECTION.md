@@ -1,5 +1,13 @@
 # RareIQ: streaming-first product direction
 
+## Single-source OBS handoff - September 8, 2026
+
+New OBS setups use `/output/studio` as the primary 1920x1080 Browser Source. It
+composes the switched Program camera, graphics overlay and routed Soundboard audio;
+OBS performs final microphone capture, monitoring, encoding, recording and delivery.
+Individual camera, overlay and audio sources remain available for advanced layouts.
+This foundation is locally tested but has not been played in OBS or sent to a platform.
+
 ## Studio console polish - September 8, 2026
 
 Production uses narrower side docks, a compact readiness checklist and a readable
@@ -348,3 +356,12 @@ Changing navigation labels alone would leave these dependencies in place.
   recovery; module toggles, access checks and no accidental live publishing.
 - For native publishing only if approved: test actual destination receipt and
   disconnect/reconnect, not just a successful encoder process or socket connection.
+
+## Local OBS Studio handoff acceptance - September 17, 2026
+
+The existing OBS Program scene now uses the combined /output/studio source with
+OBS audio routing and without a second active Soundboard scene layer. Physical
+Insta360 Program video, temporary graphics/expiry, and Soundboard meter receipt were
+checked in actual OBS with streaming and recording off. Camera output and audio receipt
+survived source refresh. This is local OBS acceptance, not platform delivery,
+listener-quality validation, microphone-mix acceptance or standalone broadcasting.

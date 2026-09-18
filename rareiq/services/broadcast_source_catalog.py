@@ -20,7 +20,9 @@ class BroadcastSource:
 
 
 _SOURCES = (
-    BroadcastSource("program", "Program", "/program", "RareIQ Program", "RareIQ Program Browser"),
+    # The primary OBS source is one browser composition. OBS renders the camera,
+    # graphics and routed web audio once, then NVENC handles encoding.
+    BroadcastSource("program", "Studio Program", "/output/studio", "RareIQ Program", "RareIQ Program Browser", audio=True),
     BroadcastSource("graphics", "Graphics", "/overlay/graphics", "RareIQ Graphics", "RareIQ Graphics Browser"),
     BroadcastSource("production_screen", "Production Screen", "/production-screen", "RareIQ Production Screen", "RareIQ Production Screen Browser"),
     BroadcastSource("replay", "Replay", "/replay", "RareIQ Replay", "RareIQ Replay Browser"),

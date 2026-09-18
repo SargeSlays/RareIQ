@@ -1,5 +1,13 @@
 # RareIQ engineering memory
 
+## Keep one primary OBS composition - September 8, 2026
+
+Mirroring every operator panel as a separate OBS input duplicates rendering and setup.
+Bootstrap one Studio Program Browser Source containing camera, graphics and routed web
+audio, while retaining individual sources for advanced layouts. Mark the composed
+source as audio-capable so OBS enables browser-audio routing. Do not claim a complete
+mix while the microphone is still captured once in OBS.
+
 ## Test populated docks, not just their loading shells - September 8, 2026
 
 Early visual QA could capture an empty Preflight while its read request was pending;
@@ -343,3 +351,59 @@ Before a checkpoint or push:
 The code guardian should report findings and add guards; it must not silently
 rewrite user work, remove evidence, expose credentials, or claim untested live
 integrations are working.
+
+## Studio output reconnect guards - September 16, 2026
+
+Program previously swallowed switcher failures, leaving the previous camera selected,
+and an indefinitely stalled request prevented further polling. It also compared only
+process-local generation values, missing a changed slot when a restart reused a value.
+Program now uses the existing overlay transport's single-flight requests, four-second
+deadline, abort and teardown guards. Failure or invalid state clears both camera
+frames; recovery restores current state, comparing generation and slot together.
+
+Soundboard callbacks from a disposed player could mark a reconnected playback ID
+complete and stop its replacement. Completion/error handlers now check player ownership;
+pagehide also blocks queued transport events from recreating audio. The combined Studio
+source explicitly permits autoplay on its audio iframe; this is permission delegation,
+not evidence of OBS playback. The soundboard script URL was versioned for cache refresh.
+
+Regression evidence: 35 JavaScript behavior tests and 26 focused Python tests passed.
+New cases cover stalled/failed switcher recovery, reused generation values, stale audio
+callbacks, heartbeat loss, malformed snapshots and post-close events. Existing graphics
+checks cover hiding, expiration and same-generation reconnect. Tests use fake media,
+transports and isolated backend fixtures; no OBS control, real playback, capture, stream,
+recording or running-app restart occurred. Actual OBS acceptance remains pending.
+
+## Existing OBS scene migration and physical-camera acceptance - September 17, 2026
+
+The existing OBS Program source still pointed to the older camera-only /program URL
+with audio rerouting off, and the scene separately included Soundboard. Updating the
+bootstrap plan alone does not migrate preserved scenes. An explicitly authorized
+migration changed the existing source to /output/studio and disabled the redundant
+Soundboard scene item. Keep one audio route in the combined Program scene. Actual
+OBS meters received the two short tests; the redundant route was inactive.
+
+An available virtual-camera endpoint returned fresh placeholder artwork. Connected
+status and fresh frames alone do not prove a physical camera picture: inspect actual
+OBS output. Program now selects the physical Insta360 in slot 1, with a picture
+visually confirmed after source refresh. The Mevo placeholder assignment in slot 2
+was retained rather than described as a verified physical feed.
+
+During configuration, slot 1 was assigned to Insta360 but had no fresh staging frames
+before an output subscriber was attached. Attempting to restore its prior assignment
+returned HTTP 500 and left Insta360 assigned. Opening the existing camera-output
+WebSocket produced fresh frames, permitting a guarded Program take; OBS then held the
+output subscription. The reassignment error's root cause was not established or fixed.
+Follow-up: reproduce staging-source reassignment/stop failure in isolation, ensure API
+failures are recoverable and truthfully reported, and add a focused regression guard.
+Do not mistake the successful handoff acceptance for a fix to that separate error.
+
+## Camera read/release race resolved - September 17, 2026
+
+The prior reassignment HTTP 500 was traced to OpenCV capture.release in stop,
+called from the request thread while the capture worker could still be reading.
+The worker now owns release; slow cleanup retains the session and prevents
+replacement handles. API cleanup failures return a sanitized 503. Seven isolated
+regression cases were added, and actual Insta360 reassignment twice plus reconnect
+passed after a managed restart with OBS configuration preserved and outputs off.
+See CAMERA_REASSIGNMENT_CHECKPOINT.md for evidence and driver-failure limitations.

@@ -280,6 +280,9 @@ def test_bootstrap_dry_run_is_non_mutating_and_complete(tmp_path: Path):
     chase = next(item for item in result["plan"] if item["key"] == "set_chase")
     assert (chase["width"], chase["height"], chase["placement"]) == (1280, 320, "bottom-center")
     assert next(item for item in result["plan"] if item["scene"] == "RareIQ Multi Card")["url"].endswith("/overlay/multi-card")
+    studio = next(item for item in result["plan"] if item["key"] == "program")
+    assert studio["url"].endswith("/output/studio")
+    assert studio["audio"] is True
 
 
 def test_diagnostic_distinguishes_disabled_and_closed_port(monkeypatch, tmp_path: Path):
