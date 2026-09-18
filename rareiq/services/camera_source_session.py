@@ -102,6 +102,7 @@ class CameraSourceSession:
         self.source = enrich_camera_source(source)
         self.source_id = self.source["source_id"]
         self._capture_factory = capture_factory or cv2.VideoCapture
+        self._operation_lock = threading.RLock()
         self._lifecycle_lock = threading.RLock()
         self._frame_lock = threading.Lock()
         self._stop_event = threading.Event()
@@ -118,9 +119,17 @@ class CameraSourceSession:
         self._release_count = 0
 
     def start(self) -> dict[str, Any]:
+        with self._operation_lock:
+            return self._start()
+
+    def _start(self) -> dict[str, Any]:
         with self._lifecycle_lock:
             if self._thread is not None and self._thread.is_alive():
+                if self._stop_event.is_set():
+                    raise RuntimeError("Camera worker is still stopping. Retry after it stops.")
                 return self.status()
+            if self._capture is not None:
+                raise RuntimeError("Camera cleanup failed; the device has not been released.")
             self._stop_event.clear()
             self._state = "connecting"
             self._error = None
@@ -133,26 +142,33 @@ class CameraSourceSession:
         return self.status()
 
     def stop(self) -> dict[str, Any]:
+        with self._operation_lock:
+            return self._stop()
+
+    def _stop(self) -> dict[str, Any]:
         with self._lifecycle_lock:
             self._stop_event.set()
             thread = self._thread
-            capture = self._capture
-            self._capture = None
-        self._release_capture(capture)
+        # OpenCV read/release must never overlap. The pump owns the handle
+        # through cleanup, including when a driver takes too long to stop.
         if thread is not None and thread.is_alive():
             thread.join(timeout=2.0)
         with self._lifecycle_lock:
             if thread is not None and thread.is_alive():
                 self._state = "error"
                 self._error = "Camera worker did not stop within 2 seconds."
-            else:
+            elif self._capture is None:
                 self._thread = None
                 self._state = "disconnected"
+        with self._frame_lock:
+            self._latest_frame = self._latest_jpeg = None
+            self._last_frame_at = None
         return self.status()
 
     def restart(self) -> dict[str, Any]:
-        self.stop()
-        return self.start()
+        with self._operation_lock:
+            self.stop()
+            return self.start()
 
     reconnect = restart
 
@@ -196,6 +212,7 @@ class CameraSourceSession:
             "frame_id": frame_id,
             "error": self._error,
             "worker_alive": alive,
+            "release_pending": self._capture is not None and self._stop_event.is_set(),
             "subscribers": subscribers,
             "open_count": self._open_count,
             "release_count": self._release_count,
@@ -230,6 +247,8 @@ class CameraSourceSession:
             self._state = "connected"
             while not self._stop_event.is_set():
                 ok, frame = capture.read()
+                if self._stop_event.is_set():
+                    break
                 if not ok or frame is None:
                     self._state = "disconnected"
                     self._error = "Camera frame read failed."
@@ -245,12 +264,14 @@ class CameraSourceSession:
             self._state = "error"
             self._error = str(exc)
         finally:
-            with self._lifecycle_lock:
-                owned_capture = self._capture is capture
-                if owned_capture:
-                    self._capture = None
-            if owned_capture:
+            try:
                 self._release_capture(capture)
+            except Exception:
+                self._state = "error"
+                self._error = "Camera cleanup failed; the device has not been released."
+            else:
+                with self._lifecycle_lock:
+                    self._capture = None
 
     def _release_capture(self, capture: Any | None) -> None:
         if capture is None:

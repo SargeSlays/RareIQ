@@ -759,9 +759,13 @@ class CameraManagerService:
         return session
 
     def _stop_preview_session(self, source_id: str) -> None:
-        session = self._sessions.pop(str(source_id), None)
+        session = self._sessions.get(str(source_id))
         if session is not None:
             session.stop()
+            status = session.status()
+            if status.get("worker_alive") or status.get("release_pending"):
+                raise RuntimeError("Camera cleanup is incomplete. Retry after the device stops.")
+            self._sessions.pop(str(source_id), None)
 
     def _slot_for_source(self, source_id: str) -> int | None:
         return next((

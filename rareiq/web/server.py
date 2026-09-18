@@ -1192,6 +1192,11 @@ async def assign_camera_slot(slot_id: int, req: CameraSlotSourceRequest):
             status_code=400,
             content={"ok": False, "error": "invalid_assignment", "message": str(exc)},
         )
+    except RuntimeError:
+        return JSONResponse(status_code=503, content={
+            "ok": False, "error": "camera_cleanup_pending",
+            "message": "Camera cleanup is incomplete. Retry after the device stops.",
+        })
     return {"ok": True, "slot": slot}
 
 
@@ -1224,6 +1229,11 @@ async def reconnect_camera_source(source_id: str):
             status_code=404,
             content={"ok": False, "error": "source_not_found", "message": str(exc)},
         )
+    except RuntimeError:
+        return JSONResponse(status_code=503, content={
+            "ok": False, "error": "camera_cleanup_pending",
+            "message": "Camera cleanup is incomplete. Retry after the device stops.",
+        })
     return {"ok": True, "source": status}
 
 
@@ -1238,6 +1248,11 @@ async def restart_camera_source(source_id: str):
             status_code=404,
             content={"ok": False, "error": "source_not_found", "message": str(exc)},
         )
+    except RuntimeError:
+        return JSONResponse(status_code=503, content={
+            "ok": False, "error": "camera_cleanup_pending",
+            "message": "Camera cleanup is incomplete. Retry after the device stops.",
+        })
     return {"ok": True, "source": status}
 
 @app.post("/api/camera/start")
