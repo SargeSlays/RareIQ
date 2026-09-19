@@ -18,10 +18,10 @@ function element(tag){
 }
 function app(){
   const buttons=Array.from({length:4},(_,index)=>{const button=element('button');button.dataset.productionSlot=String(index+1);button.append(Object.assign(element('span'),{textContent:`INPUT ${index+1}`}));button.append(Object.assign(element('strong'),{textContent:`Camera ${index+1}`}));button.append(element('img'));button.addEventListener('click',()=>{});return button;});
-  const grid=element('div'),nodes={productionSceneGrid:grid},context=vm.createContext({WeakMap,productionSwitcherState:{},productionScenes:[],$:id=>nodes[id]||null,document:{createElement:element,querySelectorAll:()=>buttons}});
+  const grid=element('div'),nodes={productionSceneGrid:grid,productionCut:element('button'),productionAuto:element('button')},context=vm.createContext({WeakMap,productionSwitcherState:{},productionScenes:[],$:id=>nodes[id]||null,document:{createElement:element,querySelectorAll:()=>buttons}});
   vm.runInContext(code,context);
   const render=slots=>context.renderProductionSwitcher({program_slot:1,preview_slot:2,slots,generation:1});
-  return {context,buttons,grid,render};
+  return {context,buttons,grid,nodes,render};
 }
 test('missing and offline inputs hide and clear thumbnails with readable fallback and unchanged slot controls',()=>{
   const ui=app(),button=ui.buttons[2],click=button.listeners.get('click');
@@ -34,7 +34,7 @@ test('missing and offline inputs hide and clear thumbnails with readable fallbac
   assert.equal(button.children[0].textContent,'INPUT 3');assert.equal(button.children[1].textContent,'Camera 3');assert.equal(button.listeners.get('click'),click);
 });
 test('image error hides broken preview and existing source refresh recovers without replacing the button',()=>{
-  const ui=app(),slots=[{slot_id:3,source_id:'three',connected:true}],button=ui.buttons[2];ui.render(slots);
+  const ui=app(),slots=[{slot_id:3,source_id:'three',connected:true,production_readiness:{ready:true}}],button=ui.buttons[2];ui.render(slots);
   const first=button.querySelector('img');assert.equal(button.dataset.thumbnailState,'loading');assert.equal(first.hidden,true);
   first.onerror();assert.equal(button.dataset.thumbnailState,'error');assert.equal(first.getAttribute('src'),null);assert.equal(first.hidden,true);
   assert.match(button.querySelector('.production-input-empty').textContent,/Refresh Sources/);
@@ -52,4 +52,24 @@ test('empty scenes explain existing creation controls without adding buttons',()
   const ui=app();ui.context.renderProductionScenes([]);
   assert.equal(ui.grid.children.length,1);assert.equal(ui.grid.children[0].tag,'p');
   assert.match(ui.grid.children[0].textContent,/Save Current/);assert.match(ui.grid.children[0].textContent,/New Scene/);
+});
+
+test('stale camera disables selection and takes with a reason, then fresh state recovers',()=>{
+  const ui=app(),slot={slot_id:2,source_id:'two',connected:true,production_readiness:{ready:false,detail:'Camera 2 is connected but stale'}};
+  ui.render([slot]);
+  assert.equal(ui.buttons[1].disabled,true);
+  assert.match(ui.buttons[1].title,/stale/);
+  for(const id of ['productionCut','productionAuto']){
+    assert.equal(ui.nodes[id].disabled,true);assert.match(ui.nodes[id].title,/stale/);
+  }
+  ui.render([{...slot,production_readiness:{ready:true}}]);
+  assert.equal(ui.buttons[1].disabled,false);
+  assert.equal(ui.nodes.productionCut.disabled,false);assert.equal(ui.nodes.productionAuto.disabled,false);
+});
+
+test('missing freshness evidence cannot enable connected inputs',()=>{
+  const ui=app();ui.render([{slot_id:2,source_id:'two',connected:true}]);
+  assert.equal(ui.buttons[1].disabled,true);
+  assert.match(ui.buttons[1].title,/fresh frame/);
+  assert.equal(ui.nodes.productionCut.disabled,true);
 });

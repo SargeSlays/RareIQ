@@ -5,6 +5,7 @@ import html
 import io
 import json
 import logging
+import math
 import os
 import signal
 import threading
@@ -2103,18 +2104,20 @@ async def spotify_player(request: SpotifyPlaybackRequest):
 @app.get("/api/production/switcher")
 async def production_switcher_status():
     with PRODUCTION_SWITCHER_LOCK:
-        return {"ok": True, **PRODUCTION_SWITCHER_STATE, "slots": orchestrator.camera_manager.camera_slots()}
+        slots = orchestrator.camera_manager.camera_slots()
+        checked_at = time.time()
+        return {"ok": True, **PRODUCTION_SWITCHER_STATE, "slots": [
+            {**slot, "production_readiness": _program_camera_readiness(
+                slots, slot["slot_id"], now=checked_at)} for slot in slots
+        ]}
 
 
 def _production_slot_is_ready(
     slot_id: int,
     slots: list[dict[str, Any]],
 ) -> bool:
-    slot = next(
-        (item for item in slots if int(item.get("slot_id") or 0) == slot_id),
-        None,
-    )
-    return bool(slot and slot.get("source_id") and slot.get("connected"))
+    # Preview, manual/voice takes and saved scenes share the launch guard.
+    return bool(_program_camera_readiness(slots, slot_id)["ready"])
 
 
 @app.post("/api/production/switcher/preview")
@@ -2222,8 +2225,12 @@ def _program_camera_readiness(
             "frame_age_seconds": None,
         }
     try:
-        frame_age = max(0.0, checked_at - float(slot.get("last_frame_at")))
-    except (TypeError, ValueError):
+        frame_timestamp = float(slot.get("last_frame_at"))
+        frame_age = checked_at - frame_timestamp
+        if (not math.isfinite(checked_at) or not math.isfinite(frame_timestamp)
+                or not math.isfinite(frame_age) or frame_timestamp <= 0 or frame_age < 0):
+            frame_age = None
+    except (TypeError, ValueError, OverflowError):
         frame_age = None
     if frame_age is None or frame_age > PRODUCTION_CAMERA_FRESHNESS_SECONDS:
         age_detail = "no frame timestamp" if frame_age is None else f"last frame {frame_age:.1f}s ago"
@@ -2767,7 +2774,9 @@ async def production_preflight(workflow: Literal["studio", "cards"] = "studio"):
         program_camera["action"],
     )
 
-    add("browser", "Browser outputs", "pass", f"{len(broadcast_sources())} browser sources configured; verify playback in your encoder")
+    add("browser", "Browser outputs", "warn",
+        f"{len(broadcast_sources())} output routes available; OBS setup and playback are not verified by this check",
+        "Use Check sources in OBS setup, then verify the picture and audio in OBS")
     add("scenes", "RareIQ scenes", "pass" if PRODUCTION_SCENES else "fail", f"{len(PRODUCTION_SCENES)} production scenes configured", "Create at least one production scene")
     if workflow == "cards":
         add("recognition", "Card recognition", "fail" if "error" in recognition_state or "fail" in recognition_state else "pass", recognition_state.replace("_", " ").title(), "Open Card Studio diagnostics and clear the error")

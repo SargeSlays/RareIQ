@@ -444,3 +444,11 @@ The observed camera reassignment HTTP 500 was subsequently fixed in checkpoint
 coverage. Two physical-camera reassignment cycles and a reconnect passed. The full
 release gate passed 2,612 Python and 275 JavaScript tests. Broader microphone,
 recording and platform acceptance remain separate work.
+
+## 2026-09-19 launch-hardening checkpoint
+
+Camera freshness now gates Preview, manual/voice Take and saved-scene Take, with
+operator-facing readiness and regression coverage. The canonical local gate passes.
+Next launch-critical step is the authorized hardware/OBS acceptance pass: restore
+the intended Program camera, confirm OBS stability, and verify the final audio mix.
+Do not substitute local test success for recording or destination acceptance.

@@ -57,6 +57,10 @@ def test_general_preflight_never_reads_or_depends_on_card_engine(production):
     assert preflight["broadcast_ready"] is False
     assert next(c for c in preflight["checks"] if c["id"] == "recognition")["state"] == "skip"
     production.recognition.assert_not_called()
+    browser = next(c for c in preflight["checks"] if c["id"] == "browser")
+    assert browser["state"] == "warn"
+    assert "not verified" in browser["detail"]
+    assert "Check sources" in browser["action"]
 
 
 def test_card_preflight_preserves_recognition_blocker_and_checks_startup_slot(production):

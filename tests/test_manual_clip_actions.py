@@ -63,7 +63,7 @@ def test_encoding_and_disk_failures_never_publish_a_clip(replay, monkeypatch):
 
 def test_program_adapter_reuses_validated_engine_and_rejects_missing_camera(monkeypatch):
     from rareiq.web import server
-    monkeypatch.setattr(server, 'orchestrator', SimpleNamespace(camera_manager=SimpleNamespace(camera_slots=lambda: [{'slot_id':2,'source_id':'fixture','connected':True}])))
+    monkeypatch.setattr(server, 'orchestrator', SimpleNamespace(camera_manager=SimpleNamespace(camera_slots=lambda: [{'slot_id':2,'source_id':'fixture','connected':True,'last_frame_at':time.time()}])))
     monkeypatch.setattr(server, 'PRODUCTION_SWITCHER_STATE', {'preview_slot':2,'program_slot':1,'transition':'fade','duration_ms':500,'generation':0})
     request = server.ProductionSwitcherRequest(preview_slot=2, request_id='camera-'+str(time.time_ns()), expires_at=time.time()+30)
     first = asyncio.run(server.production_switcher_take(request))

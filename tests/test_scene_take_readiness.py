@@ -1,4 +1,5 @@
 import asyncio
+import time
 from copy import deepcopy
 from types import SimpleNamespace
 
@@ -35,7 +36,7 @@ def test_ready_scene_still_applies_camera_screen_and_reports_obs_failure(monkeyp
         raise RuntimeError('OBS unavailable')
     monkeypatch.setattr(server, 'PRODUCTION_SWITCHER_STATE', {'program_slot': 1, 'preview_slot': 2, 'generation': 0})
     monkeypatch.setattr(server, 'PRODUCTION_SCENES', [{'id': 'fixture', 'program_slot': 2, 'screen_action': 'show'}])
-    monkeypatch.setattr(server, 'orchestrator', SimpleNamespace(camera_manager=SimpleNamespace(camera_slots=lambda: [{'slot_id': 2, 'source_id': 'fixture', 'connected': True}]), overlay_state=SimpleNamespace(get=lambda: {}, update=updates.append)))
+    monkeypatch.setattr(server, 'orchestrator', SimpleNamespace(camera_manager=SimpleNamespace(camera_slots=lambda: [{'slot_id': 2, 'source_id': 'fixture', 'connected': True, 'last_frame_at': time.time()}]), overlay_state=SimpleNamespace(get=lambda: {}, update=updates.append)))
     monkeypatch.setattr(server, 'obs', SimpleNamespace(sync_scene=unavailable))
     response = asyncio.run(server.take_production_scene('fixture'))
     assert response['ok'] and response['program_slot'] == 2 and response['generation'] == 1

@@ -1,4 +1,5 @@
 from pathlib import Path
+import time
 
 from rareiq.web.server import _production_slot_is_ready
 
@@ -22,7 +23,7 @@ def test_production_switcher_api_tracks_preview_program_and_transitions():
 
 def test_production_switching_requires_a_connected_assigned_slot():
     slots = [
-        {"slot_id": 1, "source_id": "camera-a", "connected": True},
+        {"slot_id": 1, "source_id": "camera-a", "connected": True, "last_frame_at": time.time()},
         {"slot_id": 2, "source_id": None, "connected": False},
         {"slot_id": 3, "source_id": "camera-c", "connected": False},
     ]

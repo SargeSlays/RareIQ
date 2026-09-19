@@ -776,3 +776,22 @@ checks passed 57 tests. After managed restart, two physical Insta360 unassign/re
 cycles and one reconnect resumed fresh frames. OBS input settings and scene visibility
 were preserved; Program slot 1, streaming off, recording off. See
 CAMERA_REASSIGNMENT_CHECKPOINT.md. Logs and numeric evidence remain local in .tmp.
+
+## 2026-09-19 bounded launch-hardening pass
+
+- [x] Reject stale, missing, malformed, non-finite and future frame timestamps
+  before Preview/Take/scene actions mutate production state or reach OBS.
+- [x] Recover readiness when fresh frames arrive; explain disabled switcher actions.
+- [x] Keep browser-route availability distinct from verified OBS source/playback setup.
+- [x] Canonical release gate: 2,639 Python tests plus JavaScript behavior, syntax,
+  assets, dependency integrity, whitespace and credential-hygiene checks passed.
+- [x] Safely reload the managed local server with OBS closed, session inactive and
+  recording inactive; confirm the live API exposes per-slot readiness and the
+  browser-output warning. No stream or recording was started.
+- [ ] Full launch sign-off: current Program slot 1 is disconnected; slot 2 has a
+  fresh frame. Assignments were preserved. Resolve and recheck the intended camera.
+- [ ] OBS stability after the earlier Windows handle-exhaustion incident, the final
+  audio mix, authorized recording/listener acceptance and destination receipt remain
+  separate hardware/platform acceptance tasks. This pass does not verify them.
+- [ ] Narrow-screen full-shell visual acceptance remains incomplete; isolated
+  component captures are not proof of the complete running Studio layout.

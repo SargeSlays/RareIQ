@@ -365,3 +365,11 @@ Insta360 Program video, temporary graphics/expiry, and Soundboard meter receipt 
 checked in actual OBS with streaming and recording off. Camera output and audio receipt
 survived source refresh. This is local OBS acceptance, not platform delivery,
 listener-quality validation, microphone-mix acceptance or standalone broadcasting.
+
+## 2026-09-19 production-readiness evidence
+
+Implemented and locally tested: shared fresh-frame guards across production camera
+actions, per-slot readiness explanations and truthful browser-output preflight.
+A connected device or registered output route is not proof of fresh video, a usable
+OBS source, audible audio or successful broadcasting. Hardware and platform launch
+acceptance remain explicitly separate from the passing local release gate.

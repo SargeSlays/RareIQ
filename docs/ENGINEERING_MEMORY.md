@@ -407,3 +407,20 @@ replacement handles. API cleanup failures return a sanitized 503. Seven isolated
 regression cases were added, and actual Insta360 reassignment twice plus reconnect
 passed after a managed restart with OBS configuration preserved and outputs off.
 See CAMERA_REASSIGNMENT_CHECKPOINT.md for evidence and driver-failure limitations.
+
+## 2026-09-19: Connected cameras are not necessarily safe to take
+
+- Symptom: Preview, manual/voice Take and saved-scene Take accepted a connected
+  camera without a recent frame. Non-finite or future frame timestamps could also
+  make preflight readiness misleading or non-JSON-safe.
+- Root cause: action validation checked connection state separately from the
+  existing Program frame-freshness contract; timestamp arithmetic did not reject
+  non-finite values or future times.
+- Durable guard: all camera take paths share the two-second freshness check.
+  Timestamps must be finite, positive and not in the future. The switcher API
+  returns per-slot readiness, and Preview/Cut/Auto explain unavailable inputs.
+- Regression evidence: 27 new Python cases failed before the fix; focused Python
+  and browser-renderer checks then passed, including recovery on a fresh frame.
+  The canonical gate passed with 2,639 Python tests and its JavaScript suite.
+- Route registration is not OBS acceptance: browser-output preflight now warns
+  that source setup, picture and audio still require OBS verification.
