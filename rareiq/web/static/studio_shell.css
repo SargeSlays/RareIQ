@@ -404,3 +404,12 @@ html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[
 html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .show-preflight-signals > span[data-state="blocked"] { color:var(--pp-error)!important; background:var(--pp-error-bg)!important; border-color:var(--pp-border)!important; }
 html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .show-start-controls label { min-height:24px!important; height:auto!important; padding:0!important; }
 html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .show-start-controls { grid-auto-rows:auto!important; align-content:start!important; }
+
+/* Narrow Studio uses page flow for default tools, not nested clipped panels.
+   Explicit custom tool heights retain their existing scroll/resize behavior. */
+@media (max-width:1100px) {
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-region:not(.studio-dock-float) { max-height:none!important; overflow:visible!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] :is(.studio-dock-top,.studio-dock-bottom) { flex-direction:column!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] :is(.studio-dock-top,.studio-dock-bottom) > .studio-dock-tool { flex:0 0 auto!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool[data-custom-height="false"] { height:auto!important; max-height:none!important; flex:0 0 auto!important; }
+}

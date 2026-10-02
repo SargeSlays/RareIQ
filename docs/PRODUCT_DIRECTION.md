@@ -373,3 +373,29 @@ actions, per-slot readiness explanations and truthful browser-output preflight.
 A connected device or registered output route is not proof of fresh video, a usable
 OBS source, audible audio or successful broadcasting. Hardware and platform launch
 acceptance remain explicitly separate from the passing local release gate.
+## 2026-10-01 owner direction: Studio launch, accounts and monthly subscriptions
+
+The owner requests an end-of-week product target: sharpen Studio, prepare for real
+streaming/testing, and add customer login plus a monthly platform subscription tied
+to the owner's StackThis.AI platform. This is a new product requirement, not a claim
+that authentication, checkout or the integration is implemented or launch-ready.
+
+- Studio remains the primary product; Card Studio stays optional. Protect the
+  setup -> Preview -> Program -> OBS workflow before adding adjacent features.
+- Customer identity must be separate from local/LAN device pairing. Confirm whether
+  StackThis.AI owns accounts, billing or both, and its supported integration contract,
+  before choosing an identity provider or implementing provider-specific endpoints.
+- Monthly pricing, currency, trials and access rules are not yet approved. Do not
+  invent amounts, activate live billing, create duplicate billing identities or
+  impose a new restriction on the development installation.
+- Subscription changes require authenticated server-side evidence. Test duplicate,
+  delayed and out-of-order events and reconcile missed events; a checkout redirect
+  or a browser-supplied paid flag must not grant access by itself.
+- Keep local OBS outputs separate from interactive account login. Define and approve
+  offline/grace behavior; a routine login or billing refresh failure must not
+  unexpectedly interrupt an active show.
+- Streaming-ready and commercially ready need separate acceptance evidence. Existing
+  local checks do not replace OBS/audio, encoded-output or destination verification.
+- Exact StackThis.AI URL/docs and account/billing ownership are awaiting confirmation.
+  No real charge, stream, recording, deployment or public release is authorized by
+  this product-direction update alone.

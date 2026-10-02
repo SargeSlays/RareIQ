@@ -452,3 +452,26 @@ operator-facing readiness and regression coverage. The canonical local gate pass
 Next launch-critical step is the authorized hardware/OBS acceptance pass: restore
 the intended Program camera, confirm OBS stability, and verify the final audio mix.
 Do not substitute local test success for recording or destination acceptance.
+## 2026-10-01 proposed end-of-week launch sequence
+
+Owner priority is a polished Studio plus customer login and a monthly platform
+subscription connected to StackThis.AI. Recommend a bounded paid-beta scope rather
+than treating every historical roadmap item as an end-of-week launch requirement.
+The deadline is a target, not a guarantee or a substitute for acceptance checks.
+
+1. Studio readiness: sharpen the existing setup and readiness workflow, resolve the
+   intended Program camera, check graphics/audio/reconnect, and finish full-shell
+   dark/light, desktop/4K/narrow visual acceptance. Preserve OBS configuration.
+2. Identity contract: confirm StackThis.AI URL/docs and ownership of accounts and
+   billing. Reuse its supported identity mechanism where available; device pairing
+   is not a substitute for customer login or per-customer data isolation.
+3. Subscription sandbox: implement the approved monthly plan, checkout/account
+   management, authenticated status sync and recovery. Exercise payment failure,
+   cancellation, duplicate/delayed events and restart. Price/currency remain unset.
+4. Launch decision: current-build regression gate plus an explicitly authorized
+   OBS/audio and end-to-end streaming acceptance pass. Keep public release, real
+   charges, playback, recording and streaming behind their respective approvals.
+
+First implementation priority remains Studio readiness while the integration
+contract is clarified. Do not build a speculative StackThis-specific adapter or
+claim that the September 19 gate verifies the current October launch scope.
