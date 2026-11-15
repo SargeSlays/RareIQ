@@ -8,7 +8,8 @@ Floating windows retain independent sizing. The production console now uses more
 consistent spacing, compact headings and controls, and grouped health cards in the
 existing semantic themes. This is a presentation change, not a broadcasting upgrade.
 
-The owner also requests several people collaborating on one live production.
+The owner also requests several people collaborating on one live production, with
+both local and remote internet access explicitly confirmed on November 15, 2026.
 Plan browser clients joining an authenticated shared production workspace, with
 one authoritative host for production state and device/output ownership. Define
 member permissions, presence, reconnect recovery, revision/conflict handling and
@@ -18,6 +19,26 @@ it is not a prerequisite for the shared control interface. Existing local/LAN
 pairing and WebSocket updates do not establish individual customer accounts or
 safe concurrent editing. Shared login/collaboration is not implemented by this pass.
 Use the existing identity integration direction once its actual contract is available.
+Local and remote members must use the same authenticated membership and permission
+model. Remote access must use an authenticated encrypted connection, not public
+exposure of the current local control, camera or OBS endpoints. Keep one production
+host responsible for physical devices and output; an operator disconnect must not
+stop the production. Remote camera contribution is a separate media capability
+from collaborative control and must be designed and verified separately.
+
+Accountability is an explicit owner requirement for shared productions. Keep a
+server-recorded activity history for each production: authenticated actor identity,
+server timestamp, action and target, safe before/after details, and success/failure
+outcome. Cover scene/source edits, transitions, audio adjustments, session/show
+controls, membership and permission changes. Attribute automatic actions to the
+service, retaining the initiating member when applicable. Derive actor identity
+from the authenticated session, never a client-supplied name. Correlate requests
+and outcomes so retries do not create duplicate successful actions or hide failures.
+For live output commands, distinguish a request from a confirmed external result.
+Restrict history access to authorized members; ordinary users cannot edit or delete
+events. Exclude credentials, tokens and unnecessary private content. Define retention,
+export permissions and tamper protection before calling this a complete audit trail.
+This activity history is a planned requirement, not an implemented capability.
 
 For this requested studio direction, Producer, Please is the separate production
 brand and RareIQ is an optional paid card add-on. This does not invent prices,

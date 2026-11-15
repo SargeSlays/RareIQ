@@ -6,11 +6,18 @@
   compact console controls, and semantic theme polish. Browser checks cover dark/light
   at 1920x1080, 3840x2160 and 960x900, including previously saved short tool heights.
 - Next requested capability: authenticated members joining one production workspace
-  through browsers. Confirm local-only versus internet access and the existing
-  identity provider contract. Implement permissions, shared state/revisions, presence,
+  through browsers, supporting both local and remote internet teammates (confirmed
+  November 15). Confirm the existing identity provider contract and design an
+  authenticated encrypted remote connection without exposing local control endpoints.
+  Implement permissions, shared state/revisions, presence,
   reconnection and critical-action ownership with two-client conflict/recovery checks.
   Keep personal dock layouts separate from shared production state. This remains planned;
   no hosted service, public exposure, shared login or native client ships in the UI pass.
+- Required accountability: production activity history with authenticated actor,
+  server time, action/target, safe change details and outcome. Include manual,
+  automated and administrative changes; distinguish requested from confirmed live
+  output actions. Test impersonation rejection, failed/conflicting actions, retries,
+  reconnects, unauthorized history access and prevention of ordinary-user edits.
 
 ## OBS-equivalent production foundation - September 8, 2026
 
