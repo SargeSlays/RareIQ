@@ -1,5 +1,26 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 - Scene activity and concurrent editing
+
+Focused service/HTTP and browser-model checks pass. An isolated server with production
+routes and a separate fixture database demonstrated two browser clients, propagation,
+409 conflict rejection, preserved unsaved fields and three authoritative history events.
+That fixture disables lifespan/hardware startup; test edits never entered live history.
+The populated scene form/activity view was inspected and horizontal overflow guarded
+at 1920x1080, 3840x2160 and 960x900 in Ignite and Daylight.
+
+After checking session/recording inactive and OBS closed, the managed local server
+restarted successfully. Live scene/history reads returned revision zero, zero scenes
+and zero events, with individual identity explicitly unavailable. No stream, recording,
+scene take, account login, real LAN client or internet teammate was exercised.
+
+Evidence: F:/Temp/jonat/ProducerPlease-theme-20261115/scene-history-release.log,
+scene-browser-results.json, scene-conflict-history.png and scene-editor-*.png.
+The final canonical gate result, including the legacy-entry-point dependency guard,
+is recorded in scene-history-release.log.
+One earlier unrelated reference-prewarm test
+failed, then passed in isolation and on the complete rerun; no recognition code changed.
+
 ## November 15, 2026 - Content-sized production console
 
 Served-page layout checks pass in Ignite and Daylight at 1920x1080, 3840x2160 and

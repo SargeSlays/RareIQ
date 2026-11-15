@@ -1,5 +1,29 @@
 # RareIQ: streaming-first product direction
 
+## November 15, 2026 - Scene collaboration foundation
+
+Scene saves and deletions now use durable SQLite transactions containing the scene
+collection, its revision, a minimal retry receipt and a server-recorded activity event.
+The existing JSON scene file is imported once and preserved. Conflicting edits return
+409; the browser preserves the draft and asks the operator to review the latest scene.
+Visible Studio clients refresh scene snapshots every five seconds without rebasing an
+open draft. The Scene activity disclosure shows paginated changes and rejected conflicts.
+It covers saves/deletes only, not scene takes, live output, audio or all other controls.
+
+Current attribution is explicitly unverified: local operator or paired LAN operator.
+The browser cannot submit an actor name. Named-user login, production membership,
+roles, remote internet transport and critical live-action ownership remain unimplemented.
+Append-only database triggers prevent ordinary history edits; this is not proof against
+an administrator replacing the database. Retention/export policy is still pending.
+
+Coordination with the owner's Stackthis Dev chat found Clerk-backed identity and
+app-session verification in its October 23 security-candidate checkout. The inspected
+`lib/clerk-auth.ts`, `lib/app-sessions.ts`, `app/api/licenses/check/route.ts` and
+`app/api/apps/session/check/route.ts` provide candidate integration contracts. They do
+not supply production membership/roles. Producer, Please was absent from that checkout's
+app registries; current deployed registration and the latest canonical source still
+need verification. No StackThis deployment, credentials, billing or access rules changed.
+
 ## November 15, 2026 - Studio presentation and shared production
 
 The owner requests content-sized production tools: docked panels grow downward and

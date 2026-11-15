@@ -1591,6 +1591,9 @@ function restoreCameraFxPreferences(){const prefs=cameraFxPreferences(),preset=C
 
 let productionSwitcherState={program_slot:1,preview_slot:2,transition:"fade",duration_ms:500,generation:0};
 let productionScenes=[];
+const productionSceneEdits=new ProductionSceneEdits();
+let productionSceneSaving=false;
+const productionSceneDeletes=new Map();
 let operatorHealthTimer=0;
 let productionSessionState={active:false,started_at:0,events:[],recording:{configured:false,active:false}},productionSessionTimer=0;
 function analyticsRows(containerId,values={},empty="No activity yet."){const box=$(containerId),entries=Object.entries(values).sort((a,b)=>b[1]-a[1]);if(!box)return;const max=Math.max(1,...entries.map(([,value])=>Number(value)||0));box.replaceChildren(...(entries.length?entries.map(([label,value])=>{const row=document.createElement("div");row.className="analytics-row";row.innerHTML="<span></span><i><b></b></i><strong></strong>";row.querySelector("span").textContent=label;row.querySelector("b").style.width=`${Math.max(4,Number(value)/max*100)}%`;row.querySelector("strong").textContent=String(value);return row;}):[Object.assign(document.createElement("p"),{textContent:empty})]));}
@@ -1906,10 +1909,82 @@ function renderProductionInputThumbnail(button,slotState,generation=0){
 function renderProductionSwitcher(state={}){productionSwitcherState={...productionSwitcherState,...state};const program=Number(productionSwitcherState.program_slot)||1,preview=Number(productionSwitcherState.preview_slot)||2,generation=Number(productionSwitcherState.generation)||0,slots=Array.isArray(productionSwitcherState.slots)?productionSwitcherState.slots:[],slotState=id=>slots.find(slot=>Number(slot.slot_id)===Number(id))||null,slotReady=id=>{const slot=slotState(id);return Boolean(slot?.source_id&&slot?.connected&&slot.production_readiness?.ready===true)},slotMessage=id=>{const slot=slotState(id);if(!slot?.source_id)return `Camera ${id} · No source assigned`;if(!slot.connected)return `Camera ${id} · Source offline`;return slot.production_readiness?.ready===true?`Camera ${id}`:slot.production_readiness?.detail||`Camera ${id} · Waiting for a fresh frame`},programReady=slotReady(program),previewReady=slotReady(preview);if($("productionProgramLabel"))$("productionProgramLabel").textContent=slotMessage(program);if($("productionPreviewLabel"))$("productionPreviewLabel").textContent=slotMessage(preview);if($("productionProgramPreview"))$("productionProgramPreview").src=`/api/camera-slots/${program}/stream?g=${generation}`;if($("productionPreviewPreview"))$("productionPreviewPreview").src=`/api/camera-slots/${preview}/stream?g=${generation}`;[["productionProgramPreview",program,programReady],["productionPreviewPreview",preview,previewReady]].forEach(([id,slot,ready])=>{const monitor=$(id)?.closest(".production-monitor");if(!monitor)return;monitor.dataset.sourceState=ready?"connected":slotState(slot)?.source_id?"offline":"unassigned";monitor.dataset.sourceMessage=ready?"":slotMessage(slot)});if($("productionTransition"))$("productionTransition").value=productionSwitcherState.transition||"fade";if($("productionDuration"))$("productionDuration").value=String(productionSwitcherState.duration_ms||500);if($("productionCut")){$("productionCut").disabled=!previewReady||preview===program;$("productionCut").title=!previewReady?slotMessage(preview):preview===program?"Preview is already on Program":"Take Preview to Program";}if($("productionAuto")){$("productionAuto").disabled=!previewReady||preview===program;$("productionAuto").title=!previewReady?slotMessage(preview):preview===program?"Preview is already on Program":"Transition Preview to Program";}document.querySelectorAll("[data-production-slot]").forEach(button=>{const slot=Number(button.dataset.productionSlot),ready=slotReady(slot);button.classList.toggle("is-program",slot===program);button.classList.toggle("is-preview",slot===preview);button.dataset.sourceState=ready?"connected":slotState(slot)?.source_id?"offline":"unassigned";button.disabled=slot===program||!ready;button.title=ready?`Select Camera ${slot} for Preview`:slotMessage(slot);renderProductionInputThumbnail(button,slotState(slot),generation);});}
 async function loadProductionSwitcher(){const state=await api("/api/production/switcher");renderProductionSwitcher(state);return state;}
 function renderProductionScenes(scenes=[]){productionScenes=scenes;const grid=$("productionSceneGrid");if(!grid)return;grid.replaceChildren(...(scenes.length?scenes.map(scene=>{const card=document.createElement("article");card.className="production-scene-card";card.dataset.sceneId=scene.id;card.innerHTML=`<div><span></span><strong></strong><small></small></div><div class="production-scene-actions"></div>`;card.querySelector("span").textContent=`Camera ${scene.program_slot} · ${scene.transition}`;card.querySelector("strong").textContent=scene.name;card.querySelector("small").textContent=`Spotify: ${scene.spotify_action} · Sounds: ${scene.soundboard_action}`;const actions=card.querySelector(".production-scene-actions"),take=document.createElement("button"),edit=document.createElement("button"),remove=document.createElement("button");take.type=edit.type=remove.type="button";take.textContent="TAKE";edit.textContent="Edit";remove.textContent="×";take.addEventListener("click",()=>takeProductionScene(scene).catch(error=>notify("Scene Failed",error.message||String(error),"error")));edit.addEventListener("click",()=>openProductionSceneEditor(scene));remove.addEventListener("click",()=>deleteProductionScene(scene.id).catch(error=>notify("Scene Not Deleted",error.message||String(error),"error")));actions.append(take,edit,remove);return card;}):[Object.assign(document.createElement("p"),{textContent:"Build your first scene: choose Save Current to keep this setup, or New Scene to prepare another shot."})]));}
-async function loadProductionScenes(){const payload=await api("/api/production/scenes");renderProductionScenes(payload.scenes||[]);return payload;}
-function openProductionSceneEditor(scene=null){const current=scene||{id:"",name:"New Scene",program_slot:productionSwitcherState.program_slot,preview_slot:productionSwitcherState.preview_slot,transition:productionSwitcherState.transition,duration_ms:productionSwitcherState.duration_ms,spotify_action:"keep",soundboard_action:"keep"};if($("productionSceneId"))$("productionSceneId").value=current.id||"";if($("productionSceneName"))$("productionSceneName").value=current.name;if($("productionSceneProgram"))$("productionSceneProgram").value=String(current.program_slot);if($("productionScenePreview"))$("productionScenePreview").value=String(current.preview_slot);if($("productionSceneTransition"))$("productionSceneTransition").value=current.transition;if($("productionSceneSpotify"))$("productionSceneSpotify").value=current.spotify_action;if($("productionSceneSoundboard"))$("productionSceneSoundboard").value=current.soundboard_action;if($("productionSceneEditor"))$("productionSceneEditor").hidden=false;}
-async function saveProductionScene(event){event.preventDefault();const payload=await api("/api/production/scenes",{method:"POST",body:JSON.stringify({id:$("productionSceneId")?.value||null,name:$("productionSceneName")?.value||"Scene",program_slot:Number($("productionSceneProgram")?.value)||1,preview_slot:Number($("productionScenePreview")?.value)||2,transition:$("productionSceneTransition")?.value||"fade",duration_ms:Number($("productionDuration")?.value)||500,spotify_action:$("productionSceneSpotify")?.value||"keep",soundboard_action:$("productionSceneSoundboard")?.value||"keep"})});renderProductionScenes(payload.scenes||[]);$("productionSceneEditor").hidden=true;notify("Scene Saved",payload.scene?.name||"Production scene saved.","success");}
-async function deleteProductionScene(id){const payload=await api(`/api/production/scenes/${encodeURIComponent(id)}`,{method:"DELETE"});renderProductionScenes(payload.scenes||[]);}
+let productionScenesLoading=null;
+async function loadProductionScenes(){
+  if(productionScenesLoading)return productionScenesLoading;
+  productionScenesLoading=(async()=>{const payload=await api("/api/production/scenes");
+    if(productionSceneEdits.revision===null||payload.revision>=productionSceneEdits.revision){
+      const changed=payload.revision!==productionSceneEdits.revision;productionSceneEdits.loaded(payload.revision);
+      if(changed)renderProductionScenes(payload.scenes||[]);ensureProductionSceneHistory();
+    }return payload;})();
+  try{return await productionScenesLoading;}finally{productionScenesLoading=null;}
+}
+setInterval(()=>{if(document.body.dataset.ui4Workspace==="broadcast"&&!document.hidden)loadProductionScenes().catch(()=>{});},5000);
+function openProductionSceneEditor(scene=null){if(productionSceneEdits.revision===null){notify("Scenes Loading","Wait for scenes to load, then try again.","warning");return;}productionSceneEdits.begin();const current=scene||{id:"",name:"New Scene",program_slot:productionSwitcherState.program_slot,preview_slot:productionSwitcherState.preview_slot,transition:productionSwitcherState.transition,duration_ms:productionSwitcherState.duration_ms,spotify_action:"keep",soundboard_action:"keep"};if($("productionSceneId"))$("productionSceneId").value=current.id||"";if($("productionSceneName"))$("productionSceneName").value=current.name;if($("productionSceneProgram"))$("productionSceneProgram").value=String(current.program_slot);if($("productionScenePreview"))$("productionScenePreview").value=String(current.preview_slot);if($("productionSceneTransition"))$("productionSceneTransition").value=current.transition;if($("productionSceneSpotify"))$("productionSceneSpotify").value=current.spotify_action;if($("productionSceneSoundboard"))$("productionSceneSoundboard").value=current.soundboard_action;if($("productionSceneEditor"))$("productionSceneEditor").hidden=false;}
+async function saveProductionScene(event){
+  event.preventDefault();if(productionSceneSaving)return;
+  const form=$("productionSceneEditor"),button=form?.querySelector('[type="submit"]');
+  const data={id:$("productionSceneId")?.value||null,name:$("productionSceneName")?.value||"Scene",program_slot:Number($("productionSceneProgram")?.value)||1,preview_slot:Number($("productionScenePreview")?.value)||2,transition:$("productionSceneTransition")?.value||"fade",duration_ms:Number($("productionDuration")?.value)||500,spotify_action:$("productionSceneSpotify")?.value||"keep",soundboard_action:$("productionSceneSoundboard")?.value||"keep"};
+  productionSceneSaving=true;if(button)button.disabled=true;
+  try{
+    const payload=await api("/api/production/scenes",{method:"POST",body:JSON.stringify(productionSceneEdits.prepare(data))});
+    productionSceneEdits.saved();form.hidden=true;
+    notify("Scene Saved","Production scene saved.","success");
+    await loadProductionScenes().catch(()=>notify("Scene Saved","Refresh the studio to see the latest scenes.","warning"));
+  }catch(error){
+    if(error.payload?.reason==="scene_revision_conflict"){
+      await loadProductionScenes();
+      throw new Error("Another operator changed the scenes. Your draft is still open. Copy any changes you need, then Cancel and reopen the latest scene before saving.");
+    }throw error;
+  }finally{productionSceneSaving=false;if(button)button.disabled=false;}
+}
+async function deleteProductionScene(id){
+  let operation=productionSceneDeletes.get(id);
+  if(operation?.busy)return;
+  if(!operation){operation={revision:productionSceneEdits.revision,request_id:ProductionSceneEdits.requestId()};productionSceneDeletes.set(id,operation);}
+  if(operation.revision===null)throw new Error("Scenes are still loading.");
+  operation.busy=true;
+  try{
+    const query=new URLSearchParams({expected_revision:String(operation.revision),request_id:operation.request_id});
+    const payload=await api(`/api/production/scenes/${encodeURIComponent(id)}?${query}`,{method:"DELETE"});
+    productionSceneDeletes.delete(id);
+    await loadProductionScenes().catch(()=>notify("Scene Deleted","Refresh the studio to see the latest scenes.","warning"));
+  }catch(error){
+    if(error.status===409||error.status===404){productionSceneDeletes.delete(id);await loadProductionScenes();throw new Error("The scene list changed. Review the refreshed scenes before deleting again.");}
+    throw error;
+  }finally{operation.busy=false;}
+}
+function ensureProductionSceneHistory(){
+  const host=$("productionSceneGrid")?.closest(".production-scenes");if(!host||$("productionSceneActivity"))return;
+  const details=document.createElement("details");details.id="productionSceneActivity";details.className="scene-activity";
+  const summary=document.createElement("summary");summary.textContent="Scene activity";
+  const note=document.createElement("p");note.textContent="Scene saves and deletions only. Device access is recorded; individual sign-in is not connected yet.";
+  const list=document.createElement("ol");list.setAttribute("aria-live","polite");
+  const refresh=document.createElement("button");refresh.type="button";refresh.textContent="Refresh history";
+  const older=document.createElement("button");older.type="button";older.textContent="Load older";older.hidden=true;
+  let beforeId=null,busy=false;
+  async function load(append=false){
+    if(busy)return;busy=true;refresh.disabled=older.disabled=true;
+    try{
+      const payload=await api('/api/production/scenes/activity'+(append&&beforeId?`?before_id=${beforeId}`:''));
+      if(!append)list.replaceChildren();
+      for(const event of payload.events||[]){
+        const row=document.createElement("li"),title=document.createElement("strong"),detail=document.createElement("span");
+        const actor=event.actor_kind==="local_operator"?"Local operator (unidentified)":"Paired operator (unidentified)";
+        title.textContent=`${event.action==="scene.save"?"Save scene":"Delete scene"} · ${event.target} · ${event.outcome==="succeeded"?"Completed":event.outcome.replaceAll('_',' ')}`;
+        detail.textContent=`${actor} · ${new Date(event.timestamp).toLocaleString()} · revision ${event.before_revision} → ${event.after_revision}`;
+        const changed=document.createElement("span");changed.textContent=Object.entries(event.changes||{}).map(([key,value])=>key.replaceAll("_"," ")+(value.changed?" changed":`: ${value.before??"unset"} → ${value.after??"removed"}`)).join(" · ");
+        row.append(title,detail,changed);list.append(row);
+      }
+      if(!list.children.length){const row=document.createElement("li");row.textContent="No scene changes recorded yet.";list.append(row);}
+      beforeId=payload.next_before_id;older.hidden=!beforeId;
+    }catch(error){notify("History Unavailable","Try Refresh history again.","warning");}
+    finally{busy=false;refresh.disabled=older.disabled=false;}
+  }
+  refresh.addEventListener("click",()=>load());older.addEventListener("click",()=>load(true));
+  details.addEventListener("toggle",()=>{if(details.open)load();});
+  details.append(summary,note,list,refresh,older);host.append(details);
+}
 async function takeProductionScene(scene,{isCurrent=()=>true}={}){
   if(!isCurrent())return {cancelled:true};
   const state=await api(`/api/production/scenes/${encodeURIComponent(scene.id)}/take`,{method:"POST"}),warnings=[];

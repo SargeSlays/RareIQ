@@ -1,5 +1,19 @@
 # RareIQ Roadmap
 
+## November 15, 2026 - First shared-editing implementation checkpoint
+
+Implemented locally: transactional scene save/delete, revision conflicts, durable
+retry receipts, five-second snapshot refresh, preserved stale drafts and scene activity
+history. Two isolated browser clients exercise propagation and rejection of a stale save.
+Current device-level attribution is labeled unidentified; no personal identity is claimed.
+
+Next: reconcile the StackThis candidate sign-in contract with its canonical deployed
+source, register Producer, Please through the approved app integration, then establish
+production membership/roles and verified actor subjects. Do not reuse marketplace
+admin roles as studio permissions. Extend authoritative history to transitions, audio,
+session/show controls and administration only as those execution paths are integrated.
+Internet transport, presence/reconnect UI and critical-action ownership remain planned.
+
 ## November 15, 2026 - Studio flow and shared production
 
 - Implemented locally: content-sized docked tools, one workspace scrolling surface,

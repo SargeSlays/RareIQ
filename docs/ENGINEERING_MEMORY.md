@@ -1,5 +1,27 @@
 # RareIQ engineering memory
 
+## November 15, 2026 - Shared scene writes and honest attribution
+
+The previous scene path changed the in-memory list before JSON persistence and allowed
+stale clients to overwrite each other. Use one SQLite transaction for scene state,
+revision, activity and a minimal idempotency receipt; history failure rolls back the edit.
+Retain the legacy JSON without rewriting it. Never archive all scene free text in each
+retry receipt. Record allowlisted value changes and only changed flags for free text.
+
+Keep a draft's starting revision independent of polling. A delayed/replayed mutation
+receipt must not replace a newer visible snapshot. Refresh current state after success.
+HTTP LAN clients may lack crypto.randomUUID; use crypto.getRandomValues as its fallback.
+Shared pairing cookies and loopback access identify neither a person nor a unique device;
+label the coarse access origin unverified until the sign-in adapter provides a subject.
+
+Guards: test_production_scene_store.py, production_scene_edits.test.cjs and
+qa_studio_scene_activity.cjs cover transactions, concurrent writers, retries, pagination,
+unpaired reads, forged actors, browser propagation and preserved conflict drafts.
+Populated scene forms require the narrow dock grid rules; empty-state screenshots miss
+their overflow. Visual checks include the open editor and populated activity disclosure.
+Shared controller dependencies must also load in the served fallback HTML pages;
+the browser test checks script ordering in every Studio entry point.
+
 ## November 15, 2026 - Natural-height production tools
 
 Viewport-sized dock frames, fixed bottom rows and independently scrolling tool wrappers

@@ -8,6 +8,7 @@ import logging
 import math
 import os
 import signal
+import sqlite3
 import threading
 import time
 import uuid
@@ -20,7 +21,7 @@ import cv2
 import httpx
 import numpy as np
 import uvicorn
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -35,6 +36,7 @@ from rareiq.services.spotify_service import spotify
 from rareiq.services.instant_replay_service import InstantReplayService
 from rareiq.services.auto_clip_service import AutoClipService
 from rareiq.services.production_action_service import ActionSpec, ProductionActions
+from rareiq.services.production_scene_store import ProductionSceneStore
 from rareiq.services.voice_command_service import VoiceCommandService, MAX_VOICE_BYTES
 from rareiq.services.windows_speech_recognizer import WindowsSpeechRecognizer
 from rareiq.services.inventory_service import MAX_RECEIPT_DATA_URL_CHARS
@@ -120,6 +122,11 @@ async def _read_bounded_json(request: Request, max_bytes: int = MAX_CONTROL_REQU
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     orchestrator.set_loop(asyncio.get_running_loop())
+    try:
+        PRODUCTION_SCENES[:] = production_scene_store.snapshot()["scenes"]
+    except (OSError, ValueError, sqlite3.Error):
+        PRODUCTION_SCENES.clear()
+        LOGGER.warning("Production scene storage is unavailable; scene recall is disabled")
 
     async def boot_in_background() -> None:
         await asyncio.sleep(0.15)
@@ -820,7 +827,10 @@ class ProductionSwitcherRequest(BaseModel):
     duration_ms: int | None = Field(default=None, ge=0, le=5000)
 
 class ProductionSceneRequest(BaseModel):
-    id: str | None = None
+    model_config = {"extra": "forbid"}
+    expected_revision: int = Field(ge=0, strict=True)
+    request_id: str = Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
+    id: str | None = Field(default=None, min_length=1, max_length=60)
     name: str = Field(min_length=1, max_length=40)
     program_slot: int = Field(default=1, ge=1, le=4)
     preview_slot: int = Field(default=2, ge=1, le=4)
@@ -904,11 +914,19 @@ def _load_production_scenes() -> list[dict[str, Any]]:
         return value[:20] if isinstance(value, list) else list(DEFAULT_PRODUCTION_SCENES)
     except (OSError, ValueError, TypeError):
         return list(DEFAULT_PRODUCTION_SCENES)
-def _save_production_scenes(scenes: list[dict[str, Any]]) -> None:
-    temp = PRODUCTION_SCENE_PATH.with_suffix(".tmp")
-    temp.write_text(json.dumps(scenes, indent=2), encoding="utf-8")
-    temp.replace(PRODUCTION_SCENE_PATH)
 PRODUCTION_SCENES = _load_production_scenes()
+production_scene_store = ProductionSceneStore(
+    storage.get_path("config_path") / "production_scenes.sqlite3",
+    PRODUCTION_SCENE_PATH, DEFAULT_PRODUCTION_SCENES,
+)
+
+def _scene_actor(request: Request) -> str:
+    # Device access does not identify a person. Never trust submitted actor names.
+    from rareiq.web.remote_access import is_loopback_client
+    return "local_operator" if is_loopback_client(request.client.host if request.client else None) else "paired_lan_operator"
+
+def _scene_storage_error() -> JSONResponse:
+    return JSONResponse(status_code=503, content={"ok": False, "reason": "scene_storage_unavailable", "message": "Scene storage is unavailable. No change was confirmed; keep your draft and retry."})
 PRODUCTION_SESSION_LOCK = threading.RLock()
 PRODUCTION_SESSION_PATH = BASE_DIR.parent.parent / "production_session.json"
 PRODUCTION_HISTORY_PATH = BASE_DIR.parent.parent / "production_history.json"
@@ -2169,7 +2187,21 @@ async def production_switcher_take(request: ProductionSwitcherRequest):
 @app.get("/api/production/scenes")
 async def production_scenes_status():
     with PRODUCTION_SWITCHER_LOCK:
-        return {"ok": True, "scenes": list(PRODUCTION_SCENES)}
+        try:
+            state = production_scene_store.snapshot()
+            PRODUCTION_SCENES[:] = state["scenes"]
+            return state
+        except (OSError, ValueError, sqlite3.Error):
+            return _scene_storage_error()
+
+@app.get("/api/production/scenes/activity")
+async def production_scene_activity(before_id: int | None = None, limit: int = 50):
+    try:
+        return production_scene_store.history(before_id=before_id, limit=limit)
+    except ValueError:
+        return JSONResponse(status_code=400, content={"ok": False, "reason": "invalid_history_page"})
+    except (OSError, sqlite3.Error):
+        return _scene_storage_error()
 
 
 def _connected_production_camera_count(slots: list[dict[str, Any]]) -> int:
@@ -3539,27 +3571,32 @@ async def production_safe_recovery():
     return response
 
 @app.post("/api/production/scenes")
-async def save_production_scene(request: ProductionSceneRequest):
+async def save_production_scene(request: ProductionSceneRequest, http_request: Request):
     if request.transition not in {"cut", "fade", "slide", "zoom"} or request.spotify_action not in {"keep", "play", "pause"} or request.soundboard_action not in {"keep", "stop"} or request.screen_action not in {"keep", "show", "hide"} or request.screen_mode not in {"starting-soon", "brb", "ending", "countdown"} or request.screen_accent not in {"cyan", "purple", "gold", "green", "red"}:
         return JSONResponse(status_code=400, content={"ok": False, "reason": "invalid_scene_configuration"})
-    scene = request.model_dump()
-    scene["id"] = str(request.id or f"scene-{uuid.uuid4().hex[:10]}")[:60]
+    scene = request.model_dump(exclude={"expected_revision", "request_id"})
     with PRODUCTION_SWITCHER_LOCK:
-        index = next((i for i, item in enumerate(PRODUCTION_SCENES) if item.get("id") == scene["id"]), -1)
-        if index >= 0: PRODUCTION_SCENES[index] = scene
-        elif len(PRODUCTION_SCENES) < 20: PRODUCTION_SCENES.append(scene)
-        else: return JSONResponse(status_code=409, content={"ok": False, "reason": "scene_limit_reached"})
-        _save_production_scenes(PRODUCTION_SCENES)
-        return {"ok": True, "scene": scene, "scenes": list(PRODUCTION_SCENES)}
+        try:
+            result = production_scene_store.edit(action="save", target=request.id, scene=scene,
+                expected_revision=request.expected_revision, request_id=request.request_id,
+                actor_kind=_scene_actor(http_request))
+            PRODUCTION_SCENES[:] = production_scene_store.snapshot()["scenes"]
+            return result if result["ok"] else JSONResponse(status_code=result["status"], content=result)
+        except (OSError, ValueError, sqlite3.Error):
+            return _scene_storage_error()
 
 @app.delete("/api/production/scenes/{scene_id}")
-async def delete_production_scene(scene_id: str):
+async def delete_production_scene(scene_id: str, http_request: Request,
+        expected_revision: int = Query(ge=0),
+        request_id: str = Query(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")):
     with PRODUCTION_SWITCHER_LOCK:
-        before = len(PRODUCTION_SCENES)
-        PRODUCTION_SCENES[:] = [scene for scene in PRODUCTION_SCENES if scene.get("id") != scene_id]
-        if len(PRODUCTION_SCENES) == before: return JSONResponse(status_code=404, content={"ok": False, "reason": "scene_not_found"})
-        _save_production_scenes(PRODUCTION_SCENES)
-        return {"ok": True, "scenes": list(PRODUCTION_SCENES)}
+        try:
+            result = production_scene_store.edit(action="delete", target=scene_id, scene=None,
+                expected_revision=expected_revision, request_id=request_id, actor_kind=_scene_actor(http_request))
+            PRODUCTION_SCENES[:] = production_scene_store.snapshot()["scenes"]
+            return result if result["ok"] else JSONResponse(status_code=result["status"], content=result)
+        except (OSError, ValueError, sqlite3.Error):
+            return _scene_storage_error()
 
 @app.post("/api/production/scenes/{scene_id}/take")
 async def take_production_scene(scene_id: str):

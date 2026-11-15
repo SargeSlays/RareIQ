@@ -415,6 +415,12 @@ html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[
 }
 /* Content-sized production workspace. Docked tools grow with the page;
    floating windows keep their saved dimensions and independent scrolling. */
+.scene-activity { margin-top:16px; padding-top:12px; border-top:1px solid var(--pp-border); color:var(--pp-text); }
+.scene-activity summary { cursor:pointer; font-weight:600; padding:8px 0; }
+.scene-activity p,.scene-activity li span { color:var(--pp-text-muted); font-size:12px; }
+.scene-activity ol { list-style:none; padding:0; margin:12px 0; }
+.scene-activity li { display:grid; gap:5px; padding:10px 0; border-bottom:1px solid var(--pp-border); overflow-wrap:anywhere; }
+.scene-activity button { margin:4px 8px 4px 0; }
 html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-frame { height:auto!important; min-height:0!important; gap:18px!important; }
 html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-grid { flex:none!important; grid-template-rows:auto auto minmax(0,1fr)!important; align-items:start!important; gap:16px!important; }
 html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-region:not(.studio-dock-float) { height:auto!important; max-height:none!important; overflow:visible!important; align-self:start!important; gap:16px!important; }
@@ -454,3 +460,21 @@ html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[
 @media (max-width:1100px) {
 html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-bottom > .studio-dock-tool { flex:0 0 auto!important; }
 }
+
+/* Populated scene forms and history must fit narrow side docks. */
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scenes { min-width:0!important; width:100%!important; max-width:100%!important; box-sizing:border-box!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scenes > header { display:block!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scenes > header > div:last-child > button { min-width:0!important; padding:8px!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scene-grid { display:grid!important; grid-template-columns:minmax(0,1fr)!important; min-width:0!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scene-card { min-width:0!important; max-width:100%!important; box-sizing:border-box!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scene-card strong { overflow-wrap:anywhere!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scene-actions { display:flex!important; flex-wrap:wrap!important; min-width:0!important; gap:6px!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scene-editor:not([hidden]) { display:grid!important; grid-template-columns:repeat(2,minmax(0,1fr))!important; gap:10px!important; width:100%!important; min-width:0!important; padding:12px!important; box-sizing:border-box!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scene-editor label { display:grid!important; min-width:0!important; gap:5px!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scene-editor label:first-of-type { grid-column:1/-1!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scene-editor :is(input,select,button) { min-width:0!important; width:100%!important; max-width:100%!important; box-sizing:border-box!important; font-size:12px!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .scene-activity { min-width:0!important; width:100%!important; max-width:100%!important; box-sizing:border-box!important; overflow-wrap:anywhere!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .scene-activity button { width:auto!important; font-size:12px!important; padding:8px!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scene-editor label:nth-of-type(4) { grid-column:1/-1!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scene-editor label > span { font-size:11px!important; line-height:1.4!important; color:var(--pp-text-muted)!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scene-editor { background:var(--pp-surface-sunken)!important; border-color:var(--pp-border)!important; }
