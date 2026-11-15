@@ -1,5 +1,28 @@
 # RareIQ: streaming-first product direction
 
+## November 15, 2026 - Studio presentation and shared production
+
+The owner requests content-sized production tools: docked panels grow downward and
+use the workspace scroll surface, including panels with previously saved heights.
+Floating windows retain independent sizing. The production console now uses more
+consistent spacing, compact headings and controls, and grouped health cards in the
+existing semantic themes. This is a presentation change, not a broadcasting upgrade.
+
+The owner also requests several people collaborating on one live production.
+Plan browser clients joining an authenticated shared production workspace, with
+one authoritative host for production state and device/output ownership. Define
+member permissions, presence, reconnect recovery, revision/conflict handling and
+exclusive ownership of critical live actions before enabling shared control.
+An installed companion is optional for device capabilities requiring native access;
+it is not a prerequisite for the shared control interface. Existing local/LAN
+pairing and WebSocket updates do not establish individual customer accounts or
+safe concurrent editing. Shared login/collaboration is not implemented by this pass.
+Use the existing identity integration direction once its actual contract is available.
+
+For this requested studio direction, Producer, Please is the separate production
+brand and RareIQ is an optional paid card add-on. This does not invent prices,
+activate billing, or retire existing standalone card workflows.
+
 ## Single-source OBS handoff - September 8, 2026
 
 New OBS setups use `/output/studio` as the primary 1920x1080 Browser Source. It

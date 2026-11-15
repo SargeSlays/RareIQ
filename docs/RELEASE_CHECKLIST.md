@@ -1,5 +1,20 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 - Content-sized production console
+
+Served-page layout checks pass in Ignite and Daylight at 1920x1080, 3840x2160 and
+960x900. Checked full-height docked tools, saved short-height overrides, monitor
+aspect ratio, bottom-panel spacing and horizontal overflow. Visual evidence includes
+top and lower panels. Existing floating/pop-out ownership was not changed.
+
+Evidence: F:/Temp/jonat/ProducerPlease-theme-20261115 (layout-results.json,
+studio-*.png, studio-bottom-*.png and release-check.log). The QA browser blocks API
+mutations and device capture/playback, which can produce connection notices.
+No stream, recording, OBS playback, remote login or multiplayer session was exercised.
+The canonical release gate passed, including 2,639 Python tests; details are recorded
+in release-check.log. This evidence applies to the current working build, which also
+contains pre-existing uncommitted RareIQ work preserved separately from this checkpoint.
+
 ## Single-source OBS handoff - September 8, 2026
 
 Focused source/catalog/bootstrap tests pass. After confirming the show and recording

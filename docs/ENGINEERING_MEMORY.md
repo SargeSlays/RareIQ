@@ -1,5 +1,21 @@
 # RareIQ engineering memory
 
+## November 15, 2026 - Natural-height production tools
+
+Viewport-sized dock frames, fixed bottom rows and independently scrolling tool wrappers
+clipped populated Session Control and Production Health cards. Saved inline tool heights
+could reintroduce the problem. Docked regions and tools now size to their content; saved
+dimensions remain available for floating windows. Keep the right checklist spanning the
+main and bottom rows, with the flexible track last, so it does not create a large gap
+above the bottom tools. When removing fixed monitor parents, explicitly preserve image
+aspect ratio: the previous flex/zero-height image rule otherwise collapses the preview.
+
+Guard: tools/qa_studio_flow.cjs runs against the served page, blocks API mutations and
+device capture/playback, checks six theme/viewport combinations and saved short heights,
+and asserts no clipped/scrolling tools, horizontal overflow, collapsed preview or excess
+gap above the bottom dock. API blocking can show connection notices in QA screenshots;
+these checks do not verify hardware, live output or successful production mutations.
+
 ## Keep one primary OBS composition - September 8, 2026
 
 Mirroring every operator panel as a separate OBS input duplicates rendering and setup.

@@ -1,5 +1,17 @@
 # RareIQ Roadmap
 
+## November 15, 2026 - Studio flow and shared production
+
+- Implemented locally: content-sized docked tools, one workspace scrolling surface,
+  compact console controls, and semantic theme polish. Browser checks cover dark/light
+  at 1920x1080, 3840x2160 and 960x900, including previously saved short tool heights.
+- Next requested capability: authenticated members joining one production workspace
+  through browsers. Confirm local-only versus internet access and the existing
+  identity provider contract. Implement permissions, shared state/revisions, presence,
+  reconnection and critical-action ownership with two-client conflict/recovery checks.
+  Keep personal dock layouts separate from shared production state. This remains planned;
+  no hosted service, public exposure, shared login or native client ships in the UI pass.
+
 ## OBS-equivalent production foundation - September 8, 2026
 
 Land one composed Studio Program source first. Next checkpoints add the complete
