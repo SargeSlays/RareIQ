@@ -2,6 +2,11 @@
 
 ## November 15, 2026 — Audience adapter verification and cleanup
 
+- Fixed desktop readiness notices can cover a tall tool's final control. Reserve
+  bottom scroll clearance while the notice is visible. UI acceptance scrolls to
+  every visible control and checks its hit target, including the last summary.
+  Capture tall tools in actual viewport slices: full-element screenshots inside
+  a clipped workspace can misleadingly show unrelated panels and blank space.
 - A failed public-key refresh must not advance successful verification time.
   Kick advances its cache timestamp only after a valid key is parsed; failed
   expired-key refresh disables receiving. A valid old signature cannot bypass

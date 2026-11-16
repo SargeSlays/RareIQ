@@ -478,3 +478,8 @@ html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[
 html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scene-editor label:nth-of-type(4) { grid-column:1/-1!important; }
 html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scene-editor label > span { font-size:11px!important; line-height:1.4!important; color:var(--pp-text-muted)!important; }
 html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scene-editor { background:var(--pp-surface-sunken)!important; border-color:var(--pp-border)!important; }
+
+/* Keep the last tool's controls scrollable above the fixed desktop readiness banner. */
+@media (min-width:960px) {
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-studio-docks="ready"]:has(> .workspace-readiness:not([hidden])) > .studio-dock-frame { padding-bottom:96px!important; }
+}

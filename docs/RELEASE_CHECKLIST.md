@@ -17,6 +17,16 @@ The guest production evidence below remains applicable. Follow/subscription
 events, public guest hosting, physical devices and verified producer login still
 require their separate acceptance steps.
 
+The restarted actual studio reports all three audience connections disconnected,
+alerts paused and zero browser errors. A desktop readiness-notice overlap was
+reproduced on the actual app and fixed with bottom scroll clearance; the final
+audience disclosure is now directly reachable. Tall-tool evidence uses viewport
+slices with the correct desktop/mobile scroll owner, rather than misleading
+full-element captures. Final acceptance logs live under
+`F:\Temp\jonat\ProducerPlease-greenroom-20261115`.
+The final `ui-final-viewport` run passes all eight dark/light viewport baselines,
+including 21 reachable audience controls in each, with no overlap exceptions.
+
 ## November 15, 2026 — Guest production acceptance
 
 Verified with isolated generated media: two separate guest browser sessions,
