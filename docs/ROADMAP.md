@@ -1,5 +1,20 @@
 # RareIQ Roadmap
 
+## November 15, 2026 - Video/text checkpoint and remaining sources
+
+Implemented: persistent MP4/WebM imports, immutable text definitions, duplicate-safe
+creation, source picker, silent Preview, guarded Take, video playback/replay/cleanup,
+text overlays and existing cut/fade/slide/zoom transitions. Generated-media browser
+rehearsal covers these flows, reload persistence and responsive controls in both
+skins at 390/960/1920/3840. Corrupt video is blocked from Take.
+
+Next source work: browser URL sources with truthful per-output visual approval
+(iframe load alone cannot prove cross-origin content is visible), producer
+screen/window capture and free-position layer transforms. Browser sources were
+explicitly deferred to respect the owner's below-100% usage ceiling. Remote
+producer sign-in still needs StackThis registration/callback agreement. Physical
+second-PC microphone, speaker echo and subjective voice checks remain pending.
+
 ## November 15, 2026 - Room interaction and image-source checkpoint
 
 Implemented and locally exercised: admitted-guest camera gallery, waiting roster,

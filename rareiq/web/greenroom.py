@@ -98,11 +98,13 @@ class GreenroomHub:
                  public_origin: Callable[[], str] = lambda: "",
                  actor_kind: Callable = lambda request: "local_operator",
                  removed: Callable[[str], None] = lambda participant: None,
-                 image_source_available: Callable[[str], bool] = lambda source: False):
+                 image_source_available: Callable[[str], bool] = lambda source: False,
+                 source_available: Callable[[str], bool] | None = None):
         self.service, self.authorize_operator, self.switcher = service, authorize_operator, switcher
         self.static_dir, self.ice_servers, self.public_origin = static_dir, ice_servers, public_origin
         self.actor_kind, self.removed = actor_kind, removed
         self.image_source_available = image_source_available
+        self.source_available = source_available or image_source_available
         self.peers: dict[str, Peer] = {}
         self._pump_task: asyncio.Task | None = None
         self._join_attempts: dict[str, deque] = {}
@@ -154,11 +156,11 @@ class GreenroomHub:
                 "audio_blocked": any(p.audio_blocked for p in fresh)}
 
     def source_ready(self, source):
-        available = self.image_source_available(source) if source.startswith("image:") else self.service.source_available(source)
+        available = self.source_available(source) if source.startswith(("image:", "video:", "text:")) else self.service.source_available(source)
         return available and source in self.output_status()["ready_sources"]
 
     def composition_ready(self, sources):
-        received = {source for source in sources if source.startswith(("guest:", "image:"))}
+        received = {source for source in sources if source.startswith(("guest:", "image:", "video:", "text:"))}
         return not received or any(received.issubset(group) for group in self.output_status()["ready_groups"])
 
     def _snapshot(self):
@@ -512,7 +514,7 @@ class GreenroomHub:
         state = snapshot["switcher"]
         sources = state.get("program_sources", [f"camera:{state.get('program_slot', 1)}"]) + state.get("preview_sources", [f"camera:{state.get('preview_slot', 2)}"])
         return tuple(sorted({s for s in sources if (s.startswith("guest:") and self.service.source_available(s))
-                             or (s.startswith("image:") and self.image_source_available(s))}))
+                             or (s.startswith(("image:", "video:", "text:")) and self.source_available(s))}))
 
     async def _pump(self):
         while self.peers:
@@ -625,7 +627,7 @@ class GreenroomHub:
                     peer.audio_blocked = playback["audio_blocked"]
                     peer.playback_rendered = playback["rendered"]
             peer.ready = {s: time.monotonic() for s in sources if s in peer.subscriptions and
-                          (self.image_source_available(s) if s.startswith("image:") else self.service.source_available(s))}
+                          (self.source_available(s) if s.startswith(("image:", "video:", "text:")) else self.service.source_available(s))}
             return
         if kind == "rendered" and peer.role == "output":
             generation = message.get("generation")

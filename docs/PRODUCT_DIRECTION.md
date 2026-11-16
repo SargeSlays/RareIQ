@@ -1,5 +1,22 @@
 # RareIQ: streaming-first product direction
 
+## November 15, 2026 - Video files and text sources
+
+The production room now imports local MP4/WebM video files up to 64 MiB and saves
+immutable text sources (1,000 characters, eight lines; lower third, center or top).
+Both use the existing Preview selection, same-output readiness and guarded Take.
+Text overlays the selected pictures without consuming a picture grid cell. Video
+Preview stays paused and silent; Take starts playback from the beginning, holds
+the final frame, and owns audio only in Studio Output. Removal stops playback.
+Autoplay restrictions retain the existing Enable output sound recovery control.
+Saving a source never changes Program. Browser codec support is still required.
+
+This is locally browser-tested with generated WebM video/audio; no physical guest
+listening or external encoder/platform receipt is claimed. Browser URL sources,
+producer screen/window capture and free-position layer editing remain planned.
+Remote producer login remains disabled pending the StackThis identity registration
+and callback agreement; this checkpoint makes no account or networking change.
+
 ## November 15, 2026 - Visible guest room and production images
 
 Admitted guests now see one another's camera pictures in a responsive room gallery,

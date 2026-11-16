@@ -30,7 +30,7 @@ function fixture(options={}){
     addEventListener(type,fn){if(!this.listeners.has(type))this.listeners.set(type,new Set());this.listeners.get(type).add(fn);}
     removeEventListener(type,fn){this.listeners.get(type)?.delete(fn);}
     emit(type){for(const fn of [...this.listeners.get(type)||[]])fn();}
-    play(){this.paused=false;return this.tagName==='AUDIO'&&settings.rejectAudio?Promise.reject(Error('blocked')):Promise.resolve();}
+    play(){this.paused=false;this.plays=(this.plays||0)+1;return (this.tagName==='AUDIO'||this.tagName==='VIDEO'&&!this.srcObject)&&settings.rejectAudio?Promise.reject(Error('blocked')):Promise.resolve();}
     pause(){this.paused=true;}
     requestVideoFrameCallback(fn){this.frames.set(++next,fn);return next;}
     cancelVideoFrameCallback(id){this.frames.delete(id);}
@@ -40,7 +40,7 @@ function fixture(options={}){
   const container=document.createElement('main');
   const soundButton=document.createElement('button');soundButton.hidden=true;
   const receiver={tracks:id=>tracks.get(id)||{},sendReady:(ids,playback)=>{receiver.lastReady=ids;receiver.lastPlayback=playback;},rendered:value=>acks.push(value),connect:()=>Promise.resolve(),close:()=>{receiver.closed=true;}};
-  const config={container,document,mediaReceiver:receiver,muted:!!settings.muted,bus:settings.bus||'program',onStatus:s=>statuses.push(s),onRendered:g=>acks.push(g),now:()=>clock,setTimeout:later,clearTimeout:cancel,setInterval:repeat,clearInterval:id=>intervals.delete(id),requestAnimationFrame:fn=>later(fn,16),cancelAnimationFrame:cancel,makeStream:list=>({getTracks:()=>list})};
+  const config={container,document,mediaReceiver:receiver,muted:!!settings.muted,bus:settings.bus||'program',onStatus:s=>statuses.push(s),onRendered:g=>acks.push(g),now:()=>clock,setTimeout:later,clearTimeout:cancel,setInterval:repeat,clearInterval:id=>intervals.delete(id),requestAnimationFrame:fn=>later(fn,16),cancelAnimationFrame:cancel,makeStream:list=>({getTracks:()=>list}),fetch:settings.fetch};
   const output={container,soundButton,document,receiver,config,timers,intervals,nodes,statuses,acks,tracks,settings,events,advance:amount=>clock+=amount};
   output.run=async delay=>{const entry=[...timers].find(([,item])=>item.delay===delay);assert.ok(entry,`Expected ${delay}ms timer`);timers.delete(entry[0]);clock+=delay;await entry[1].fn();await settle();};
   output.close=()=>output.view?.close();
@@ -81,6 +81,41 @@ test('imported images preload at their fixed local URL and require decoded dimen
   assert.equal(f.statuses.at(-1).rendered,true);assert.equal(f.view.audio.size,0);
   image.emit('error');assert.deepEqual(f.view.readySources(),[]);assert.equal(f.statuses.at(-1).rendered,false);
   f.close();assert.equal(image.src,'');image.emit('load');assert.equal(f.view.current,null);
+});
+
+test('video preload is silent and paused; Take starts at zero and retires outgoing audio immediately',async()=>{
+  const id='video:12345678-1234-1234-1234-123456789abc',f=fixture();
+  assert.equal(model.parseSource(id).kind,'video');assert.equal(model.parseSource('video:https://example.test'),null);
+  assert.equal(model.audioPlan([id],room(),()=>{throw Error('File video is not guest audio');}).size,0);
+  f.view.render(state({preview_sources:[id]}),room());const tile=f.view.preloads.get(id),video=tile.video;
+  assert.equal(video.src,'/api/creator/assets/12345678-1234-1234-1234-123456789abc');assert.equal(video.autoplay,false);assert.equal(video.muted,true);assert.equal(video.plays,undefined);assert.deepEqual(f.view.readySources(),[]);
+  video.paint();video.emit('loadeddata');assert.deepEqual(f.view.readySources(),[id]);video.currentTime=9;
+  f.view.render(state({generation:1,program_sources:[id],preview_sources:[]}));await f.run(16);
+  assert.equal(f.view.current.tiles[0],tile);assert.equal(video.currentTime,0);assert.equal(video.muted,false);assert.equal(video.plays,1);assert.equal(f.statuses.at(-1).rendered,true);
+  video.emit('waiting');assert.equal(f.statuses.at(-1).rendered,false);video.emit('playing');assert.equal(f.statuses.at(-1).rendered,true);
+  f.view.render(state({generation:2,program_sources:[],preview_sources:[],transition:'fade',duration_ms:500}));assert.equal(video.paused,true);assert.equal(video.muted,true);await f.run(500);assert.equal(video.src,'');f.close();
+});
+
+test('file playback blockage uses output sound recovery and codec errors fail readiness closed',async()=>{
+  const id='video:12345678-1234-1234-1234-123456789abc',f=fixture({rejectAudio:true});
+  f.view.render(state({program_sources:[id],preview_sources:[]}));const tile=f.view.current.tiles[0];tile.video.paint();await f.run(16);
+  assert.equal(f.statuses.at(-1).audioBlocked,true);assert.equal(f.statuses.at(-1).rendered,false);f.settings.rejectAudio=false;f.view.resumeAudio();await settle();assert.equal(f.statuses.at(-1).rendered,true);
+  tile.video.emit('error');assert.deepEqual(f.view.readySources(),[]);assert.equal(f.statuses.at(-1).rendered,false);f.close();
+  const preview=fixture({bus:'preview'});preview.view.render(state({preview_sources:[id]}));const silent=preview.view.current.tiles[0].video;silent.paint();await preview.run(16);assert.equal(silent.muted,true);assert.equal(silent.plays,undefined);assert.equal(preview.statuses.at(-1).rendered,true);preview.close();
+});
+
+test('text layers load literal definitions over the base grid and support text-only shots',async()=>{
+  const id='text:12345678-1234-1234-1234-123456789abc',requests=[],f=fixture({fetch:async(url,options)=>{requests.push({url,options});return {ok:true,json:async()=>({source:{id,text:'<img src=x onerror=alert(1)>\nWelcome',position:'lower-third'}})};}});
+  f.view.render(state({program_sources:[id,'camera:1'],preview_sources:[]}));assert.deepEqual(f.view.readySources(),[]);await settle();await f.run(16);
+  const tile=f.view.current.tiles[0];assert.equal(tile.text.textContent,'<img src=x onerror=alert(1)>\nWelcome');assert.equal(tile.node.dataset.position,'lower-third');assert.equal(f.view.current.node.dataset.count,'1');assert.equal(f.view.current.node.children[0].dataset.kind,'local');assert.deepEqual(f.view.readySources(),[id]);assert.equal(f.statuses.at(-1).rendered,true);
+  assert.equal(requests[0].url,'/api/production/sources/text/12345678-1234-1234-1234-123456789abc');f.view.render(state({generation:1,program_sources:[id],preview_sources:[]}));await settle();await f.run(16);assert.equal(f.view.current.node.dataset.count,'0');assert.equal(f.statuses.at(-1).rendered,true);f.close();assert.equal(requests.at(-1).options.signal.aborted,true);
+});
+
+test('late or malformed text definitions cannot revive removed sources',async()=>{
+  const id='text:12345678-1234-1234-1234-123456789abc';let resolve;const f=fixture({fetch:()=>new Promise(done=>resolve=done)});
+  f.view.render(state({program_sources:[id],preview_sources:[]}));await settle();const tile=f.view.current.tiles[0];f.close();resolve({ok:true,json:async()=>({source:{id,text:'Late',position:'top'}})});await settle();assert.equal(tile.textLoaded,undefined);assert.equal(tile.text.textContent,undefined);
+  const invalid=fixture({fetch:async()=>({ok:true,json:async()=>({source:{id,text:'Valid',position:'outside'}})})});invalid.view.render(state({program_sources:[id],preview_sources:[]}));await settle();await invalid.run(16);assert.deepEqual(invalid.view.readySources(),[]);assert.equal(invalid.statuses.at(-1).rendered,false);invalid.close();
+  const multiline=fixture({fetch:async()=>({ok:true,json:async()=>({source:{id,text:Array(9).fill('Line').join('\r\n'),position:'top'}})})});multiline.view.render(state({program_sources:[id],preview_sources:[]}));await settle();await multiline.run(16);assert.deepEqual(multiline.view.readySources(),[]);assert.equal(multiline.statuses.at(-1).rendered,false);multiline.close();
 });
 
 test('microphone is deduplicated across camera/screen/audio and screen sound requires selected screen',()=>{

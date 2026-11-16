@@ -5,7 +5,8 @@ import re
 
 
 IMAGE_SOURCE = re.compile(r"^image:([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$")
-SOURCE = re.compile(r"^(?:camera:[1-4]|guest:[a-f0-9]{32}:(?:camera|screen|audio)|image:[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$")
+LOCAL_SOURCE = re.compile(r"^(image|video|text):([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$")
+SOURCE = re.compile(r"^(?:camera:[1-4]|guest:[a-f0-9]{32}:(?:camera|screen|audio)|(?:image|video|text):[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$")
 LAYOUTS = frozenset({"auto", "grid", "spotlight"})
 
 

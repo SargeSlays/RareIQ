@@ -1,5 +1,28 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 - Video/text source acceptance
+
+Canonical gate passed: **3346 Python tests and 501 JavaScript tests**.
+
+Local Edge rehearsal imported generated VP8/Opus WebM through the real picker,
+created a lower-third title through the form, verified no Program mutation on save,
+blocked Take without output readiness, then exercised silent Preview, output video
+playback, text overlay, held end frame, replay from zero and retired-media cleanup.
+Cut/fade/slide/zoom, persistent catalog reload and malformed-video Take rejection
+passed. Dark/light source controls passed 390/960/1920/3840 overflow checks and
+visual inspection. A bounded read-only review found the multiline clipping case;
+eight-line guards and focused regressions address it.
+
+Evidence: F:/Temp/jonat/ProducerPlease-media-20261115/browser-final/results.json,
+video-text-program.png and eight layout captures; release-gate-final.log contains
+the canonical gate result. The idle 8765 studio was restarted and its Add video /
+Add text controls checked in a browser. Temporary guest ingress remains off.
+
+No physical capture, real streaming, recording or remote-hosting change occurred.
+WebM decoding was exercised; MP4 signature validation is covered by tests, but
+an MP4 codec matrix was not exercised. Speaker/headphone perception and second-PC
+echo remain untested. Browser URL sources and remote producer login remain pending.
+
 ## November 15, 2026 - Guest room gallery, moderation and images
 
 Canonical gate passed: **3330 Python tests and 495 JavaScript tests**. Coverage

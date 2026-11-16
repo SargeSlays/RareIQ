@@ -18,6 +18,7 @@ from rareiq.services.greenroom_service import GreenroomService
 from rareiq.services.production_scene_store import ProductionSceneStore
 from rareiq.services.voice_rule_store import VoiceRuleStore
 from rareiq.services.reaction_asset_service import ReactionAssetService
+from rareiq.services.production_source_store import ProductionSourceStore
 
 
 def main():
@@ -32,6 +33,8 @@ def main():
     server.greenroom_service = service
     server.greenroom_hub.service = service
     server.orchestrator.reaction_assets = ReactionAssetService(root / "creator_assets", root / "reaction_assets.json")
+    server.production_source_store = ProductionSourceStore(root / "production_sources.sqlite3")
+    server.greenroom_hub.source_available = server._production_source_available
     server.PRODUCTION_SWITCHER_STATE = {"program_slot": 1, "preview_slot": 2, "transition": "fade", "duration_ms": 500, "generation": 0, "updated_at": time.time()}
     server.production_scene_store = ProductionSceneStore(root / "scenes.sqlite3", root / "absent.json", [])
     server.PRODUCTION_SCENES = []
@@ -55,9 +58,9 @@ def main():
         yield
     server.app.router.lifespan_context = no_hardware
 
-    allowed_read = ("/api/creator/assets", "/api/production/greenroom", "/api/production/scenes", "/api/production/audience",
+    allowed_read = ("/api/creator/assets", "/api/production/sources/", "/api/production/greenroom", "/api/production/scenes", "/api/production/audience",
                     "/api/production/switcher", "/api/production/voice/rules", "/api/production/vision", "/api/production/actions")
-    allowed_write = ("/api/creator/assets", "/api/production/greenroom/", "/api/production/switcher/", "/api/production/scenes",
+    allowed_write = ("/api/creator/assets", "/api/production/sources/", "/api/production/greenroom/", "/api/production/switcher/", "/api/production/scenes",
                      "/api/production/audience/", "/api/production/voice/rules", "/api/production/vision/")
 
     @server.app.middleware("http")

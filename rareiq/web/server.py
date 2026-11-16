@@ -37,7 +37,8 @@ from rareiq.services.instant_replay_service import InstantReplayService
 from rareiq.services.auto_clip_service import AutoClipService
 from rareiq.services.production_action_service import ActionSpec, ProductionActions
 from rareiq.services.production_scene_store import ProductionSceneStore
-from rareiq.services.production_composition import composition_state, validate_sources, IMAGE_SOURCE, LAYOUTS
+from rareiq.services.production_composition import composition_state, validate_sources, IMAGE_SOURCE, LOCAL_SOURCE, LAYOUTS
+from rareiq.services.production_source_store import ProductionSourceStore, ProductionSourceError
 from rareiq.services.greenroom_service import GreenroomService, GreenroomError
 from rareiq.services.greenroom_network import GreenroomNetwork
 from rareiq.web.greenroom import GreenroomHub, PUBLIC_GUEST_PATHS
@@ -369,6 +370,8 @@ sarge_advisor = SargeAdvisorService.from_environment()
 
 def _request_body_limit(request: Request) -> int | None:
     path = request.url.path
+    if request.method == "POST" and path.startswith("/api/production/sources/"):
+        return 16384
     if request.method == "POST" and (path in {"/guest/join", "/guest/leave"} or path.startswith("/api/production/greenroom/")):
         return 4096
     if request.method == "POST" and path.startswith("/api/production/audience/"):
@@ -968,6 +971,7 @@ production_scene_store = ProductionSceneStore(
 )
 
 greenroom_service = GreenroomService(storage.get_path("config_path") / "greenroom.sqlite3", reset_runtime=False)
+production_source_store = ProductionSourceStore(storage.get_path("config_path") / "production_sources.sqlite3")
 try:
     greenroom_network = GreenroomNetwork.from_environment()
 except (ValueError, TypeError):
@@ -983,6 +987,23 @@ def _production_image_sources():
     return [{"id": f"image:{asset['id']}", "name": asset["name"], "url": asset["url"]}
             for asset in orchestrator.reaction_assets.snapshot()["assets"]
             if asset.get("kind") == "visual" and IMAGE_SOURCE.fullmatch(f"image:{asset['id']}")]
+
+def _production_source_available(source):
+    match = LOCAL_SOURCE.fullmatch(source) if isinstance(source, str) else None
+    if not match:
+        return False
+    kind, source_id = match.groups()
+    if kind == "text":
+        return production_source_store.get(kind, source_id) is not None
+    resolved = orchestrator.reaction_assets.get_path(source_id)
+    return bool(resolved and resolved[1].startswith(kind + "/"))
+
+def _production_sources():
+    assets = [{"id": ("image" if asset["kind"] == "visual" else "video") + ":" + asset["id"],
+               "kind": "image" if asset["kind"] == "visual" else "video", "name": asset["name"], "url": asset["url"]}
+              for asset in orchestrator.reaction_assets.snapshot()["assets"]
+              if asset.get("kind") in {"visual", "video"}]
+    return [asset for asset in assets if LOCAL_SOURCE.fullmatch(asset["id"])] + production_source_store.catalog()
 
 def _greenroom_switcher():
     with PRODUCTION_SWITCHER_LOCK:
@@ -1010,7 +1031,7 @@ greenroom_hub = GreenroomHub(greenroom_service, authorize_operator=_greenroom_op
     switcher=_greenroom_switcher, static_dir=STATIC_DIR, ice_servers=greenroom_network.ice_servers,
     public_origin=lambda: greenroom_network.public_origin,
     actor_kind=lambda request: "local_operator" if is_loopback_client(request.client.host if request.client else None) else "paired_lan_operator",
-    removed=_greenroom_removed, image_source_available=_production_image_available)
+    removed=_greenroom_removed, source_available=_production_source_available)
 app.include_router(greenroom_hub.router)
 audience_service = AudienceService(storage.get_path("config_path") / "audience.sqlite3")
 
@@ -2146,6 +2167,8 @@ async def upload_creator_asset(request: Request):
             request.headers.get("X-RareIQ-Filename") or "asset",
             mime,
             body,
+            **({"request_id": request.headers["X-RareIQ-Request-Id"]} if "X-RareIQ-Request-Id" in request.headers else {}),
+            **({"actor_kind": "local_operator" if is_loopback_client(request.client.host if request.client else None) else "paired_lan_operator"} if mime.startswith("video/") else {}),
         )
     except OSError:
         return _asset_storage_failure("created")
@@ -2253,12 +2276,43 @@ async def spotify_player(request: SpotifyPlaybackRequest):
     except (ValueError, httpx.HTTPError) as exc:
         return JSONResponse(status_code=502, content={"ok": False, "reason": str(exc)})
 
+class ProductionTextSourceRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    text: str = Field(min_length=1, max_length=1000)
+    position: Literal["lower-third", "center", "top"] = "lower-third"
+    request_id: str = Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+@app.get("/api/production/sources/text")
+async def production_text_sources():
+    return JSONResponse({"ok": True, "sources": production_source_store.catalog("text")}, headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/production/sources/text")
+async def create_production_text_source(payload: ProductionTextSourceRequest, request: Request):
+    try:
+        result = production_source_store.create_text(**payload.model_dump(), actor_kind="local_operator" if is_loopback_client(request.client.host if request.client else None) else "paired_lan_operator")
+    except ProductionSourceError as exc:
+        return JSONResponse({"ok": False, "reason": exc.reason}, status_code=exc.status)
+    except (OSError, sqlite3.Error):
+        return JSONResponse({"ok": False, "reason": "source_storage_unavailable"}, status_code=503)
+    return JSONResponse(result, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/production/sources/text/{source_id}")
+async def production_text_source(source_id: str):
+    source = production_source_store.get("text", source_id)
+    if source is None:
+        return JSONResponse({"ok": False, "reason": "source_not_found"}, status_code=404)
+    return JSONResponse({"ok": True, "source": source}, headers={"Cache-Control": "private, max-age=3600"})
+
+
 @app.get("/api/production/switcher")
 async def production_switcher_status():
     with PRODUCTION_SWITCHER_LOCK:
         slots = orchestrator.camera_manager.camera_slots()
         checked_at = time.time()
-        return {"ok": True, **composition_state(PRODUCTION_SWITCHER_STATE), "image_sources": _production_image_sources(), "guest_output": greenroom_hub.output_status(), "slots": [
+        return {"ok": True, **composition_state(PRODUCTION_SWITCHER_STATE), "image_sources": _production_image_sources(), "production_sources": _production_sources(), "guest_output": greenroom_hub.output_status(), "slots": [
             {**slot, "production_readiness": _program_camera_readiness(
                 slots, slot["slot_id"], now=checked_at)} for slot in slots
         ]}
@@ -2283,19 +2337,20 @@ def _production_source_problem(sources, *, require_output=False, slots=None):
             slot = int(source.rsplit(":", 1)[1])
             if not _production_slot_is_ready(slot, slots):
                 return {"ok": False, "reason": "camera_slot_unavailable", "slot_id": slot, "source_id": source}
-        elif source.startswith("image:"):
-            if not _production_image_available(source):
-                return {"ok": False, "reason": "image_source_unavailable", "source_id": source}
+        elif source.startswith(("image:", "video:", "text:")):
+            kind = source.split(":", 1)[0]
+            if not _production_source_available(source):
+                return {"ok": False, "reason": kind + "_source_unavailable", "source_id": source}
             if require_output and not greenroom_hub.source_ready(source):
-                return {"ok": False, "reason": "image_output_not_ready", "source_id": source,
-                        "message": "Open Studio Output and wait for the image to load before taking it to Program."}
+                return {"ok": False, "reason": kind + "_output_not_ready", "source_id": source,
+                        "message": "Open Studio Output and wait for the source to load before taking it to Program."}
         elif not greenroom_service.source_available(source):
             return {"ok": False, "reason": "guest_source_unavailable", "source_id": source}
         elif require_output and not greenroom_hub.source_ready(source):
             return {"ok": False, "reason": "guest_output_not_ready", "source_id": source,
                     "message": "Open Studio Output and wait for the guest feed before taking it to Program."}
     if require_output and not greenroom_hub.composition_ready(sources):
-        return {"ok": False, "reason": "image_output_not_ready" if any(s.startswith("image:") for s in sources) else "guest_output_not_ready",
+        return {"ok": False, "reason": next((s.split(":", 1)[0] + "_output_not_ready" for s in sources if LOCAL_SOURCE.fullmatch(s)), "guest_output_not_ready"),
                 "message": "Wait for one Studio Output window to receive the entire Preview mix."}
     return None
 
@@ -2309,7 +2364,7 @@ def _program_composition_readiness(slots, program_slot):
         return _program_camera_readiness(slots, program_slot)
     problem = _production_source_problem(sources, require_output=True, slots=slots)
     ready = bool(sources) and not problem
-    if ready and any(source.startswith(("guest:", "image:")) for source in sources):
+    if ready and any(source.startswith(("guest:", "image:", "video:", "text:")) for source in sources):
         ready = greenroom_hub.output_status()["rendered_generation"] == state["generation"]
     return {"ready": ready, "state": "pass" if ready else "fail",
             "reason": "composition_ready" if ready else (problem or {}).get("reason", "composition_not_rendered"),

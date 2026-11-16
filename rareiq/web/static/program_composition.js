@@ -1,11 +1,11 @@
 /* Clean Program composition. Receiver tracks are borrowed, never captured or stopped here. */
 (function(host){
   'use strict';
-  const SOURCE=/^(?:camera:([1-4])|guest:([a-f0-9]{32}):(camera|screen|audio)|image:([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}))$/;
+  const SOURCE=/^(?:camera:([1-4])|guest:([a-f0-9]{32}):(camera|screen|audio)|(image|video|text):([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}))$/;
   const FRAME_TTL=2500,STATE_TTL=4500;
   function parseSource(value){
     const match=typeof value==='string'&&SOURCE.exec(value);
-    return match?{id:value,kind:match[1]?'local':match[4]?'image':match[3],slot:match[1]?Number(match[1]):null,participantId:match[2]||null,...(match[4]?{assetId:match[4]}:{})}:null;
+    return match?{id:value,kind:match[1]?'local':match[4]||match[3],slot:match[1]?Number(match[1]):null,participantId:match[2]||null,...(match[4]?{assetId:match[5]}:{})}:null;
   }
   function sourceList(state,bus){
     const key=bus+'_sources';
@@ -25,7 +25,7 @@
   const liveTrack=track=>Boolean(track&&track.readyState==='live'&&track.enabled!==false&&track.muted!==true);
   function participantFor(room,id){return room?.participants?.find(p=>p.id===id&&p.state==='admitted'&&p.connected===true&&!p.expired)||null;}
   function permitted(source,room){
-    if(source.kind==='local'||source.kind==='image')return true;
+    if(['local','image','video','text'].includes(source.kind))return true;
     const participant=participantFor(room,source.participantId);
     return Boolean(participant&&participant.media?.[source.kind==='audio'?'microphone':source.kind]===true);
   }
@@ -33,7 +33,7 @@
     const result=new Map();
     for(const id of sources){
       const source=parseSource(id);
-      if(!source||source.kind==='local'||source.kind==='image'||!permitted(source,room))continue;
+      if(!source||['local','image','video','text'].includes(source.kind)||!permitted(source,room))continue;
       const participant=participantFor(room,source.participantId),media=tracks(source.participantId)||{};
       if(participant.program_audio?.microphone_muted!==true&&participant.media.microphone===true&&liveTrack(media.microphone))result.set(source.participantId+':microphone',media.microphone);
       if(participant.program_audio?.screen_muted!==true&&source.kind==='screen'&&participant.media.screen_audio===true&&liveTrack(media.screen_audio))result.set(source.participantId+':screen_audio',media.screen_audio);
@@ -47,10 +47,10 @@
       setInterval:repeat=host.setInterval.bind(host),clearInterval:cancelRepeat=host.clearInterval.bind(host),
       requestAnimationFrame:frame=host.requestAnimationFrame?.bind(host)||((fn)=>later(fn,0)),
       cancelAnimationFrame:cancelFrame=host.cancelAnimationFrame?.bind(host)||cancel,
-      makeStream=tracks=>new host.MediaStream(tracks)}={}){
+      makeStream=tracks=>new host.MediaStream(tracks),fetch:request=(...args)=>host.fetch(...args)}={}){
       if(!container||!document||!['program','preview'].includes(bus))throw Error('invalid_composition_view');
       Object.assign(this,{container,mediaReceiver,muted:muted||bus==='preview',bus,onStatus,onRendered,document,
-        now,later,cancel,repeat,cancelRepeat,frame,cancelFrame,makeStream});
+        now,later,cancel,repeat,cancelRepeat,frame,cancelFrame,makeStream,request});
       this.current=null;this.outgoing=null;this.preloads=new Map();this.audio=new Map();this.room=null;this.roomRevision=-1;
       this.state=null;this.lastReceived=0;this.epoch=0;this.timer=null;this.frameTimer=null;this.lastStatus='';this.lastRendered=null;this.closed=false;
       container.classList.add('producer-composition');
@@ -81,21 +81,27 @@
       const epoch=++this.epoch;this.cancel(this.timer);this.cancelFrame(this.frameTimer);
       if(this.outgoing)this._disposeLayer(this.outgoing);
       this.outgoing=this.current;this.lastRendered=null;this._clearAudio();
+      // Retired pictures may fade, but their file audio must stop at the Take.
+      for(const tile of this.outgoing?.tiles||[])if(tile.source.kind==='video'){tile.video.muted=true;tile.video.pause();tile.playing=false;tile.playVersion=(tile.playVersion||0)+1;}
       const node=this.document.createElement('div');node.className='composition-layer composition-incoming';
-      node.dataset.layout=state.layout;node.dataset.count=String(state.sources.length);node.style.setProperty('--composition-duration',state.duration+'ms');
-      node.style.setProperty('--composition-sides',String(Math.max(1,state.sources.length-1)));
-      node.style.setProperty('--composition-portrait-rows',String(Math.max(1,Math.ceil((state.sources.length-1)/2))));
+      const baseCount=state.sources.filter(id=>parseSource(id).kind!=='text').length;
+      node.dataset.layout=state.layout;node.dataset.count=String(baseCount);node.style.setProperty('--composition-duration',state.duration+'ms');
+      node.style.setProperty('--composition-sides',String(Math.max(1,baseCount-1)));
+      node.style.setProperty('--composition-portrait-rows',String(Math.max(1,Math.ceil((baseCount-1)/2))));
       const tiles=state.sources.map(id=>{
         let tile=this.preloads.get(id);if(tile)this.preloads.delete(id);else tile=this._tile(id);
-        node.append(tile.node);return tile;
+        return tile;
       });
+      for(const tile of [...tiles.filter(tile=>tile.source.kind!=='text'),...tiles.filter(tile=>tile.source.kind==='text')])node.append(tile.node);
       this.current={node,tiles,generation:state.generation,visible:false};this.container.append(node);
       this.container.dataset.transition=state.transition;
       if(this.outgoing){this.outgoing.node.style.setProperty('--composition-duration',state.duration+'ms');this.outgoing.node.classList.add('composition-outgoing');}
       const incoming=this.current;
       this.frameTimer=this.frame(()=>{
         if(this.closed||epoch!==this.epoch||this.current!==incoming)return;
-        incoming.visible=true;incoming.node.classList.remove('composition-incoming');this.refresh();
+        incoming.visible=true;incoming.node.classList.remove('composition-incoming');
+        if(this.bus==='program')for(const tile of incoming.tiles)if(tile.source.kind==='video'){try{tile.video.currentTime=0;}catch(_){}this._playFile(tile);}
+        this.refresh();
       });
       const outgoing=this.outgoing;
       if(!state.duration){if(outgoing)this._disposeLayer(outgoing);this.outgoing=null;}
@@ -120,6 +126,23 @@
         this._listen(image,'load',()=>{if(!tile.disposed)this.refresh();},tile.cleanups);
         this._listen(image,'error',()=>{tile.imageFailed=true;tile.ready=false;node.dataset.ready='false';this.refresh();},tile.cleanups);
         image.src='/api/creator/assets/'+source.assetId;node.append(image);
+      }else if(source.kind==='text'){
+        const label=this.document.createElement('div');label.className='composition-text-content';node.append(label);tile.text=label;
+        tile.requestController=new host.AbortController();
+        Promise.resolve().then(()=>this.request('/api/production/sources/text/'+source.assetId,{credentials:'same-origin',cache:'no-store',signal:tile.requestController.signal})).then(async response=>{
+          if(!response.ok)throw Error('text_unavailable');const value=(await response.json()).source;
+          if(!value||value.id!==id||typeof value.text!=='string'||!value.text.trim()||value.text.length>1000||value.text.split(/\r\n|\r|\n/).length>8||!['lower-third','center','top'].includes(value.position))throw Error('invalid_text');
+          if(tile.disposed)return;label.textContent=value.text;label.style.setProperty('--composition-text-size',Math.min(3.5,Math.max(1.2,35/Math.sqrt(value.text.length)))+'cqw');node.dataset.position=value.position;tile.textLoaded=true;this.refresh();
+        }).catch(()=>{if(!tile.disposed){tile.textLoaded=false;this.refresh();}});
+      }else if(source.kind==='video'){
+        const video=this.document.createElement('video');video.preload='auto';video.autoplay=false;video.muted=true;video.playsInline=true;video.setAttribute('playsinline','');video.setAttribute('aria-label','Imported production video');tile.video=video;node.append(video);
+        this._listen(video,'loadeddata',()=>this.refresh(),tile.cleanups);
+        this._listen(video,'canplay',()=>this.refresh(),tile.cleanups);
+        this._listen(video,'waiting',()=>{tile.buffering=true;this._status();},tile.cleanups);
+        this._listen(video,'playing',()=>{tile.buffering=false;this._status();},tile.cleanups);
+        this._listen(video,'ended',()=>{tile.buffering=false;this._status();},tile.cleanups);
+        this._listen(video,'error',()=>{tile.videoFailed=true;tile.playing=false;this.refresh();},tile.cleanups);
+        video.src='/api/creator/assets/'+source.assetId;
       }else if(source.kind==='audio'){
         const avatar=this.document.createElement('span');avatar.className='composition-avatar';avatar.textContent='●';
         const label=this.document.createElement('figcaption');label.className='composition-speaker';label.textContent='Guest';node.append(avatar,label);tile.label=label;
@@ -159,6 +182,10 @@
         try{const image=tile.iframe.contentDocument?.querySelector('img.live');tile.ready=Boolean(image?.complete&&image.naturalWidth>0);}catch(_){tile.ready=false;}
       }else if(source.kind==='image'){
         tile.ready=Boolean(!tile.imageFailed&&tile.image?.complete&&tile.image.naturalWidth>0&&tile.image.naturalHeight>0);
+      }else if(source.kind==='text'){
+        tile.ready=tile.textLoaded===true;
+      }else if(source.kind==='video'){
+        tile.ready=Boolean(!tile.videoFailed&&tile.video.readyState>=2&&tile.video.videoWidth>0);
       }else{
         const allowed=permitted(source,this.room),tracks=this._tracks(source.participantId);
         const track=allowed?tracks[source.kind==='audio'?'microphone':source.kind]:null;
@@ -196,10 +223,19 @@
         if(this.audio.get(key)!==entry||entry.disposed)return;entry.playing=true;this._status();
       },()=>{if(this.audio.get(key)!==entry||entry.disposed)return;entry.blocked=true;this._status();});
     }
-    resumeAudio(){for(const [key,entry] of this.audio)if(!entry.playing)this._playAudio(key,entry,true);}
+    _playFile(tile){
+      if(tile.disposed||tile.videoFailed||this.bus!=='program'||!this.current?.tiles.includes(tile))return;
+      const version=tile.playVersion=(tile.playVersion||0)+1;tile.playing=false;tile.blocked=false;tile.video.muted=this.muted;
+      let started;try{started=tile.video.play();}catch(error){started=Promise.reject(error);}
+      Promise.resolve(started).then(()=>{if(!tile.disposed&&version===tile.playVersion){tile.playing=true;tile.buffering=false;this._status();}},()=>{
+        if(!tile.disposed&&version===tile.playVersion){tile.playing=false;tile.blocked=!tile.video.error;tile.videoFailed=Boolean(tile.video.error);this.refresh();}
+      });
+    }
+    resumeAudio(){for(const [key,entry] of this.audio)if(!entry.playing)this._playAudio(key,entry,true);for(const tile of this.current?.tiles||[])if(tile.source.kind==='video'&&tile.blocked)this._playFile(tile);}
     _status(){
-      const audioBlocked=[...this.audio.values()].some(entry=>entry.blocked);
-      const rendered=Boolean(this.current?.visible&&this.current.tiles.every(tile=>tile.ready)&&[...this.audio.values()].every(entry=>entry.playing));
+      const files=(this.current?.tiles||[]).filter(tile=>tile.source.kind==='video');
+      const audioBlocked=[...this.audio.values()].some(entry=>entry.blocked)||files.some(tile=>tile.blocked);
+      const rendered=Boolean(this.current?.visible&&this.current.tiles.every(tile=>tile.ready)&&[...this.audio.values()].every(entry=>entry.playing)&&(this.bus==='preview'||files.every(tile=>tile.playing&&!tile.buffering)));
       const status={generation:this.state?.generation??-1,rendered,audioBlocked,readySources:this.readySources(),muted:this.muted};
       this.container.dataset.audioBlocked=String(audioBlocked);this.container.dataset.rendered=String(rendered);
       const serialized=JSON.stringify(status);if(serialized!==this.lastStatus){this.lastStatus=serialized;this._emit(this.onStatus,status);}
@@ -220,6 +256,8 @@
       for(const remove of [...tile.cleanups,...tile.trackCleanups])remove();
       if(tile.frameRequest!==null)tile.video?.cancelVideoFrameCallback?.(tile.frameRequest);
       if(tile.video){tile.video.pause?.();tile.video.srcObject=null;}
+      if(tile.source.kind==='video'){tile.video.muted=true;tile.video.removeAttribute('src');tile.video.load?.();}
+      tile.requestController?.abort();
       if(tile.iframe)tile.iframe.removeAttribute('src');
       if(tile.image)tile.image.removeAttribute('src');
       tile.node.remove();tile.track=null;tile.stream=null;

@@ -20,6 +20,8 @@ class ReactionAssetService:
         "image/jpeg": ("visual", ".jpg", 8 * 1024 * 1024),
         "image/webp": ("visual", ".webp", 8 * 1024 * 1024),
         "image/gif": ("visual", ".gif", 8 * 1024 * 1024),
+        "video/mp4": ("video", ".mp4", 64 * 1024 * 1024),
+        "video/webm": ("video", ".webm", 64 * 1024 * 1024),
     }
     TIERS = ("standard", "low", "medium", "grail")
 
@@ -76,9 +78,12 @@ class ReactionAssetService:
             "image/jpeg": data.startswith(b"\xff\xd8\xff"),
             "image/webp": data.startswith(b"RIFF") and data[8:12] == b"WEBP",
             "image/gif": data.startswith((b"GIF87a", b"GIF89a")),
+            "video/mp4": len(data) >= 24 and data[4:8] == b"ftyp" and 16 <= int.from_bytes(data[:4], "big") <= min(len(data), 4096)
+                         and any(data[n:n + 4] in {b"isom", b"iso2", b"mp41", b"mp42", b"avc1", b"M4V ", b"dash"} for n in [8, *range(16, min(len(data), int.from_bytes(data[:4], "big"), 4096), 4)]),
+            "video/webm": data.startswith(b"\x1a\x45\xdf\xa3") and b"\x42\x82\x84webm" in data[:4096],
         }.get(mime, False)
 
-    def add(self, name: str, mime: str, data: bytes) -> dict[str, Any]:
+    def add(self, name: str, mime: str, data: bytes, *, request_id: str | None = None, actor_kind: str | None = None) -> dict[str, Any]:
         mime = str(mime or "").split(";", 1)[0].lower()
         rule = self.ALLOWED.get(mime)
         if not rule:
@@ -88,12 +93,27 @@ class ReactionAssetService:
             return {"created": False, "reason": "asset_empty" if not data else "asset_too_large", "max_bytes": limit}
         if not self._signature_ok(mime, data):
             return {"created": False, "reason": "file_signature_mismatch"}
+        if request_id is not None and (not isinstance(request_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", request_id)):
+            return {"created": False, "reason": "invalid_asset_request_id"}
+        if actor_kind is not None and actor_kind not in {"local_operator", "paired_lan_operator"}:
+            return {"created": False, "reason": "invalid_asset_actor"}
         asset_id = str(uuid.uuid4())
         safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(name or f"asset{extension}").stem).strip("._")[:60] or "asset"
         path = self.root / kind / f"{asset_id}_{safe_name}{extension}"
         path.parent.mkdir(parents=True, exist_ok=True)
         asset = {"id": asset_id, "name": safe_name, "kind": kind, "mime": mime, "size_bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "path": str(path), "created_at": time.time()}
+        if actor_kind:
+            asset["import_actor_kind"] = actor_kind
         with self._lock:
+            if request_id:
+                previous = next((item for item in self._assets.values() if item.get("request_id") == request_id and item.get("import_actor_kind") == actor_kind), None)
+                if previous:
+                    if any(previous.get(key) != asset[key] for key in ("name", "mime", "sha256")):
+                        return {"created": False, "reason": "asset_request_conflict"}
+                    if not self.get_path(previous["id"]):
+                        return {"created": False, "reason": "asset_not_found"}
+                    return {"created": True, "replayed": True, "asset": self._public(previous)}
+                asset["request_id"] = request_id
             try:
                 if path.write_bytes(data) != len(data):
                     raise OSError("incomplete_asset_write")
@@ -110,7 +130,7 @@ class ReactionAssetService:
 
     @staticmethod
     def _public(asset: dict[str, Any]) -> dict[str, Any]:
-        return {key: value for key, value in asset.items() if key != "path"} | {"url": f"/api/creator/assets/{asset['id']}"}
+        return {key: value for key, value in asset.items() if key not in {"path", "request_id", "import_actor_kind"}} | {"url": f"/api/creator/assets/{asset['id']}"}
 
     def get_path(self, asset_id: str) -> tuple[Path, str] | None:
         with self._lock:

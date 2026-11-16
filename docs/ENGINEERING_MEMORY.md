@@ -1,5 +1,19 @@
 # RareIQ engineering memory
 
+## November 15, 2026 - File playback and bounded text layers
+
+- Video preload readiness means a decoded frame, not upload success. Keep Preview
+  paused/muted, reset playback at Take, stop retired video sound immediately even
+  while the old picture transitions, and dispose its media source on removal.
+  Generated-media browser QA guards output receipts, replay and corrupt files.
+- Text character count alone cannot bound preserved multiline height. Review caught
+  a valid 100-line payload clipping while marked ready. The store and renderer now
+  reject more than eight lines; UI explains the limit and regressions cover it.
+- Source creation uses stable request receipts; immutable definitions prevent an
+  edit to a saved title from silently changing an already-on-air composition.
+- Studio Output embeds Program in iframe.program. Browser assertions must inspect
+  that frame, not assume composition nodes live in the wrapper document.
+
 ## November 15, 2026 - Independent room viewing and terminal cleanup
 
 - A gallery viewer is not a publishing guest. Authenticate its invitation separately,
