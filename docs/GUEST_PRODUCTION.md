@@ -46,6 +46,26 @@ from Preview and Program. Reconnection needs another explicit selection/take.
 Leaving stops the guest's camera, mic and screen, including permission requests
 that finish after Leave. Invitation revocation also removes its connected guest.
 
+## Guest controls and connection recovery
+
+The guest page keeps preview and joining together, with a full-width voice and
+soundboard panel below. Panels expand with content; smaller screens use a single
+column and larger sound pads. Camera and microphone settings can be collapsed.
+
+Device permission and file errors remain visible while the room updates. If
+device choices cannot refresh after capture starts, the current capture continues
+and the page explains the limitation. File selection supports recognized audio
+extensions when the browser supplies no file type, but decoding and size limits
+still apply. Playing a pad or clip preserves keyboard focus.
+
+After automatic connection recovery is exhausted, **Retry connection** can retry
+the same guest session. The server still checks its permission; removed or revoked
+guests need a new invitation. A retry does not select sources or take them to
+Program. Camera, microphone and screen can be turned off while connection setup is
+pending, and **Leave the room** cancels the guest session. Microphone-off/Leave also
+clear local clips. Recovery tests use deliberate failures and generated media;
+they do not establish physical-device or internet reliability.
+
 ## Audio and output
 
 Preview monitors are muted. Program includes the microphone of each selected

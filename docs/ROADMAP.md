@@ -1,5 +1,15 @@
 # RareIQ Roadmap
 
+## November 15, 2026 - Guest polish without second-PC attendance
+
+Completed software scope: responsive guest audio layout, persistent device/file
+feedback, audio-file type compatibility, keyboard focus and slider units, guarded
+join/retry, actual-device selection, and capture controls during connection setup.
+Generated audio and deliberate browser failures exercise these paths locally.
+The owner-presence listening checklist remains unchanged in GUEST_PRODUCTION.md.
+No second-PC capture, temporary network exposure, public stream or recording is
+part of this polish checkpoint.
+
 ## November 15, 2026 - Guest audio checkpoint; listening deferred
 
 Implemented and browser-tested: guest voice styles, four built-in cues, six local

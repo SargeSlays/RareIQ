@@ -232,7 +232,7 @@ class GreenroomHub:
                 result = self.service.moderate(participant_id, **body.model_dump(exclude_unset=True), **self._actor(request))
                 if body.action == "remove":
                     self.removed(participant_id)
-                    await self._disconnect_participant(participant_id)
+                    await self._disconnect_participant(participant_id, code=1008)
                 return JSONResponse(result, headers={"Cache-Control": "no-store"})
             except GreenroomError as exc:
                 return self._error(exc.reason, exc.status)
@@ -245,7 +245,7 @@ class GreenroomHub:
                 result = self.service.revoke_invite(invite_id, **body.model_dump(), **self._actor(request))
                 if result.get("removed_participant_id"):
                     self.removed(result["removed_participant_id"])
-                    await self._disconnect_participant(result["removed_participant_id"])
+                    await self._disconnect_participant(result["removed_participant_id"], code=1008)
                 return JSONResponse(result, headers={"Cache-Control": "no-store"})
             except GreenroomError as exc:
                 return self._error(exc.reason, exc.status)
@@ -267,7 +267,7 @@ class GreenroomHub:
                                     if isinstance(source, str) and source.startswith("guest:") and len(source.split(":")) == 3}
                     for participant in participants:
                         self.removed(participant)
-                    await asyncio.gather(*(self._close_peer(key, peer, code=1000)
+                    await asyncio.gather(*(self._close_peer(key, peer, code=1008)
                                            for key, peer in list(self.peers.items()) if peer.role == "guest"))
                 return JSONResponse(result, headers={"Cache-Control": "no-store"})
             except GreenroomError as exc:
@@ -318,8 +318,8 @@ class GreenroomHub:
         except (RuntimeError, WebSocketDisconnect, OSError, asyncio.TimeoutError):
             pass
 
-    async def _disconnect_participant(self, participant):
-        await asyncio.gather(*(self._close_peer(key, peer, code=1000)
+    async def _disconnect_participant(self, participant, *, code=1000):
+        await asyncio.gather(*(self._close_peer(key, peer, code=code)
                                for key, peer in list(self.peers.items()) if peer.participant_id == participant))
 
     async def _read(self, socket):

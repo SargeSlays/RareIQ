@@ -1,5 +1,32 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 - Guest flow, accessibility and retry polish
+
+Canonical gate: **3240 Python tests and 443 JavaScript tests passed**. Guest
+layout, sound-pad/clip keyboard focus, readable slider units, independent error
+feedback and blank audio-file type handling have focused regressions. Capture-off
+remains available during slow joining/retry; stale connection callbacks cannot
+restore old audio or overwrite a newer capture operation.
+
+Real local browser checks used generated media and injected permission/transport
+failures. They passed missing-invite gating, mic-off during a held handshake,
+persistent permission feedback across room updates, same-session explicit retry,
+and server revocation denial both immediately and after reload/rejoin. Remove,
+revoke and room-close use terminal access-ended signaling; voluntary Leave stays
+distinct. No new authority or invitation is created by retry.
+
+Generated audio peers again passed voice styles, cues after a closed gate, clip
+play/removal, zero sound volume, stable outgoing tracks and cleanup. Built-in and
+local sound controls preserve keyboard focus; file errors survive playback updates.
+Program mute, conversation mix-minus and removal regressions passed. Dark/light
+390/960/1920/3840 layouts have no horizontal overflow and were visually reviewed.
+
+The idle local studio was refreshed; private guest ingress stayed closed. Test
+fixtures were stopped. Evidence: F:/Temp/jonat/ProducerPlease-guest-polish-20261115,
+including release-gate-final.log, audio/layout results and recovery/transport runs.
+No physical devices, second-PC session, public stream or recording were exercised
+in this polish phase. Presence-dependent checks remain in GUEST_PRODUCTION.md.
+
 ## November 15, 2026 - Guest audio controls and bounded recipient recovery
 
 Canonical gate: **3237 Python tests and 422 JavaScript tests passed**. Added guards

@@ -91,7 +91,12 @@
       if(loading)throw Error('sound_import_busy');
       if(sounds.size>=MAX_SOUNDS)throw Error('sound_slot_limit');
       if(!file||!Number.isInteger(file.size)||file.size<=0||file.size>MAX_FILE)throw Error('sound_file_too_large');
-      if(typeof file.arrayBuffer!=='function'||!/^(?:audio\/(?:mpeg|mp3|wav|x-wav|wave|ogg|webm|mp4|x-m4a|flac)|application\/ogg)$/.test(file.type||''))throw Error('sound_file_type');
+      const mime=typeof file.type==='string'?file.type.toLowerCase():null;
+      const knownMime=/^(?:audio\/(?:mpeg|mp3|x-mp3|wav|x-wav|wave|vnd\.wave|x-pn-wav|ogg|webm|mp4|m4a|x-m4a|flac|x-flac)|application\/ogg)$/.test(mime||'');
+      // Some file pickers omit MIME. A narrow extension only admits decoding;
+      // the decoder and all decoded-audio bounds still decide whether it is usable.
+      const unnamedMime=mime===''&&typeof file.name==='string'&&!/[\u0000-\u001f\u007f]/.test(file.name)&&/\.(?:wav|mp3|ogg|m4a|flac|webm)$/i.test(file.name);
+      if(typeof file.arrayBuffer!=='function'||(!knownMime&&!unnamedMime))throw Error('sound_file_type');
       loading=true;emit();
       try{
         await ensureGraph();const owner=context;let bytes;

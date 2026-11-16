@@ -1,5 +1,27 @@
 # RareIQ engineering memory
 
+## November 15, 2026 - Separate guest operation and feedback ownership
+
+- Periodic room/audio snapshots must not erase device or file-operation errors.
+  Give actionable feedback independent live regions, cleared by a subsequent
+  relevant action. Keep local sound rows keyed; rebuilding or disabling a focused
+  control during an asynchronous action must not lose keyboard position.
+- A successful capture followed by failed enumeration is still successful capture.
+  Preserve the track and show its actual device selection, with a refresh warning.
+  Empty browser MIME metadata is not proof of an invalid audio file: allow only
+  recognized picker extensions, then enforce actual decoding and all bounds.
+- Joining and retrying have independent connection state; awaiting signaling must
+  not trap already-running capture behind disabled Off controls. Expose Leave as
+  soon as a session exists and reject stale connection/permission completions.
+- Voluntary Leave and producer removal/revocation need distinct socket close
+  semantics. Sending normal-close for both made a revoked session display Retry,
+  although backend access was correctly blocked. Use terminal access-ended close
+  for remove/revoke/room-close; regress both UI feedback and server denial.
+- Terminal retry reuses the authenticated session and must not renew revoked
+  access. Ignore callbacks from the retired publisher and retire return audio
+  before a new connection. Exercise failures with generated tracks and an isolated
+  server; never equate injected browser recovery with internet or acoustic proof.
+
 ## November 15, 2026 - Isolate guest audio processing and recipient failures
 
 - A Voice Mod gate does not filter a separate guest capture pipeline. Reuse shared

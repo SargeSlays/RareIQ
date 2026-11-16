@@ -1,5 +1,16 @@
 # RareIQ: streaming-first product direction
 
+## November 15, 2026 - Guest flow and recovery polish
+
+Guest preview and joining now share a compact first row, with a full-width voice
+and soundboard area that stacks on phones. Expanded content uses page scrolling.
+Device/connection/file feedback has independent ownership so room updates cannot
+hide actionable errors. Keyboard focus survives pad/clip playback. Recoverable
+terminal connection failures offer an explicit authenticated retry; revoked access
+still requires a new invitation. Media-off and Leave remain available during
+connection setup. These are local browser improvements; physical speech/echo,
+mobile hardware and internet acceptance remain deferred.
+
 ## November 15, 2026 - Guest voice, soundboard and noise gate
 
 Guests have Natural, Warm & deep, Radio, Robot and Megaphone voice styles, four

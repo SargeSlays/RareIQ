@@ -4,12 +4,21 @@
   const STORE="producer.guest.session.v1";
   let invite=new URLSearchParams(location.hash.slice(1)).get("invite"),token="",publisher=null,joined=false,busy=false,leaving=false,mediaEpoch=0,microphone=null;
   let gateSettings={enabled:false,thresholdDb:-45};
-  let voiceSettings={preset:"natural",soundVolume:.5},audioBusy=false,soundListStamp="",returnEpoch=0;
+  let voiceSettings={preset:"natural",soundVolume:.5},audioBusy=false,returnEpoch=0;
   const cueButtons={guestCueChime:"chime",guestCueSuccess:"success",guestCueBuzzer:"buzzer",guestCueDrumroll:"drumroll"};
-  const peerWarnings=new Map();
+  const peerWarnings=new Map(),soundRows=new Map(),deviceSelection={camera:"",microphone:""};
+  let connectionEpoch=0,connecting=false,joining=false,retryAvailable=false,accessEnded=false,lastConnectionCode="",pendingSoundFocus=null;
   try{const saved=JSON.parse(localStorage.getItem("producer.guest.gate.v1")||"null");if(saved)gateSettings={enabled:saved.enabled===true,thresholdDb:Math.max(-70,Math.min(-10,Number.isFinite(saved.thresholdDb)?saved.thresholdDb:-45))};}catch{}
   history.replaceState(null,"",location.pathname);
   if(!invite){try{token=sessionStorage.getItem(STORE)||"";}catch{}}
+  const validSession=()=>/^[a-f0-9]{64}$/.test(token);
+  function feedback(id,message){$(id).textContent=message;$(id).hidden=!message;}
+  const audioFeedback=message=>feedback("guestAudioError",message);
+  function deviceError(error,kind){
+    const name=kind==="camera"?"Camera":kind==="screen"?"Screen sharing":"Microphone";
+    const messages={NotAllowedError:"permission was not granted. Allow access in your browser, then try again.",NotFoundError:"was not found. Connect a device or choose another input.",NotReadableError:"could not start. Close another app using the device, then try again.",OverconstrainedError:"selection is unavailable. Choose another device.",SecurityError:"access was blocked by this browser. Use a secure supported browser."};
+    return name+" "+(messages[error?.name]||"is unavailable. Choose another device or try a supported browser.");
+  }
   function status(title,message){$("guestStatusTitle").textContent=title;$("guestStatus").textContent=message;}
   function playReturn(manual=false){
     const audio=$("guestReturnAudio"),stream=audio.srcObject,epoch=returnEpoch;if(!stream||leaving)return;
@@ -30,10 +39,14 @@
     const state=value||microphone?.snapshot?.(),available=Boolean(microphone)&&!leaving;
     for(const id of Object.keys(cueButtons)){$(id).disabled=!available||audioBusy||busy;$(id).title=available?"Send this sound with your microphone.":"Turn on your microphone first.";}
     $("guestSoundFile").disabled=!available||audioBusy||busy;$("guestSoundsStop").disabled=!available||(!state?.playing&&!audioBusy);
-    const sounds=state?.sounds||[],stamp=JSON.stringify([available,audioBusy,sounds]);
-    if(stamp!==soundListStamp){soundListStamp=stamp;const list=$("guestSoundList");list.replaceChildren();
-      for(const sound of sounds){const row=document.createElement("div"),label=document.createElement("span"),play=document.createElement("button"),remove=document.createElement("button");row.className="guest-sound-row";label.textContent=sound.label;play.type=remove.type="button";play.textContent="Play";remove.textContent="Remove";play.setAttribute("aria-label","Play "+sound.label);remove.setAttribute("aria-label","Remove "+sound.label);play.disabled=remove.disabled=!available||audioBusy;play.addEventListener("click",()=>audioAction(owner=>owner.playSound(sound.id)));remove.addEventListener("click",()=>audioAction(owner=>owner.removeSound(sound.id)));row.append(label,play,remove);list.append(row);}
+    const sounds=state?.sounds||[],wanted=new Set(sounds.map(sound=>sound.id)),list=$("guestSoundList");
+    for(const [id,row] of soundRows)if(!wanted.has(id)){const focused=row.node.contains?.(document.activeElement);row.node.remove();soundRows.delete(id);if(focused)pendingSoundFocus=soundRows.values().next().value?.play||$("guestSoundFile");}
+    for(const sound of sounds){
+      let row=soundRows.get(sound.id);
+      if(!row){const node=document.createElement("div"),label=document.createElement("span"),play=document.createElement("button"),remove=document.createElement("button");node.className="guest-sound-row";play.type=remove.type="button";play.textContent="Play";remove.textContent="Remove";play.addEventListener("click",()=>audioAction(owner=>owner.playSound(sound.id)));remove.addEventListener("click",()=>audioAction(owner=>owner.removeSound(sound.id)));node.append(label,play,remove);list.append(node);row={node,label,play,remove};soundRows.set(sound.id,row);}
+      row.label.textContent=sound.label;row.play.setAttribute("aria-label","Play "+sound.label);row.remove.setAttribute("aria-label","Remove "+sound.label);row.play.disabled=row.remove.disabled=!available||audioBusy||busy;
     }
+    if(pendingSoundFocus&&!audioBusy&&!busy&&!pendingSoundFocus.disabled){if(!document.activeElement||document.activeElement===document.body)pendingSoundFocus.focus?.();pendingSoundFocus=null;}
     if(!available)$("guestAudioStatus").textContent="Turn on your microphone to use voice effects and sounds.";
     else if(state?.error)$("guestAudioStatus").textContent=audioErrors[state.error]||"Voice processing is unavailable. Your microphone is unfiltered.";
     else if(state?.loading)$("guestAudioStatus").textContent="Loading your sound on this device…";
@@ -41,17 +54,17 @@
     else if($("guestAudioStatus").getAttribute("data-playing")==="true"){$("guestAudioStatus").setAttribute("data-playing","false");$("guestAudioStatus").textContent="Sound finished. Ready for the next cue.";}
   }
   async function audioAction(action,message="Ready. Sounds follow your microphone into the room."){
-    const owner=microphone;if(!owner||audioBusy||leaving)return;audioBusy=true;audioState();
-    try{await action(owner);if(microphone===owner&&!leaving){audioState();if(!owner.snapshot?.().playing)$("guestAudioStatus").textContent=message;}}
-    catch(error){if(microphone===owner&&!leaving)$("guestAudioStatus").textContent=audioErrors[error?.message]||"This sound could not play. Try a supported audio file or restart your microphone.";}
-    finally{if(microphone===owner&&!leaving){audioBusy=false;audioState();}}
+    const owner=microphone;if(!owner||audioBusy||leaving)return;const focused=document.activeElement,restoreFocus=Object.keys(cueButtons).some(id=>$(id)===focused)||Array.from(soundRows.values()).some(row=>row.play===focused||row.remove===focused);audioBusy=true;audioState();
+    try{await action(owner);if(microphone===owner&&!leaving){audioFeedback("");audioState();if(!owner.snapshot?.().playing)$("guestAudioStatus").textContent=message;}}
+    catch(error){if(microphone===owner&&!leaving)audioFeedback(audioErrors[error?.message]||"This sound could not play. Try a supported audio file or restart your microphone.");}
+    finally{if(microphone===owner&&!leaving){audioBusy=false;audioState();if(restoreFocus&&focused?.isConnected&&!focused.disabled&&document.activeElement===document.body)focused.focus();}}
   }
   function audioSettings(){return {...gateSettings,...voiceSettings};}
   function configureVoice(){
     const preset=$("guestVoicePreset").value;voiceSettings={preset:["natural","deep","radio","robot","megaphone"].includes(preset)?preset:"natural",soundVolume:Math.max(0,Math.min(1,Number($("guestSoundVolume").value)/100||0))};
-    $("guestSoundVolumeValue").textContent=Math.round(voiceSettings.soundVolume*100)+"%";
+    $("guestSoundVolumeValue").textContent=Math.round(voiceSettings.soundVolume*100)+"%";$("guestSoundVolume").setAttribute("aria-valuetext",Math.round(voiceSettings.soundVolume*100)+" percent");
     const owner=microphone,selected=voiceSettings.preset;
-    if(owner)Promise.resolve(owner.configure(audioSettings())).then(()=>{if(microphone!==owner||leaving||voiceSettings.preset!==selected)return;const result=owner.snapshot?.();if(result?.error){audioState(result);return;}if(!result?.playing)$("guestAudioStatus").textContent=selected==="natural"?"Natural voice selected.":"Voice style applied to your microphone.";}).catch(()=>{if(microphone===owner&&!leaving)$("guestAudioStatus").textContent="Voice processing could not start. Try restarting your microphone.";});
+    if(owner)Promise.resolve(owner.configure(audioSettings())).then(()=>{if(microphone!==owner||leaving||voiceSettings.preset!==selected)return;const result=owner.snapshot?.();if(result?.error){audioState(result);return;}audioFeedback("");if(!result?.playing)$("guestAudioStatus").textContent=selected==="natural"?"Natural voice selected.":"Voice style applied to your microphone.";}).catch(()=>{if(microphone===owner&&!leaving)$("guestAudioStatus").textContent="Voice processing could not start. Try restarting your microphone.";});
   }
   const connectionReasons={
     invalid_signaling_response:"The studio sent a connection update this browser could not accept. Ask the producer to check the connection before rejoining.",
@@ -69,7 +82,7 @@
   };
   let lastConnectionReason="";
   function connectionMessage(reason){
-    if(Object.prototype.hasOwnProperty.call(connectionReasons,reason)){lastConnectionReason=connectionReasons[reason];$("guestBadge").setAttribute("data-connection-reason",reason);}
+    if(Object.prototype.hasOwnProperty.call(connectionReasons,reason)){lastConnectionReason=connectionReasons[reason];lastConnectionCode=reason;$("guestBadge").setAttribute("data-connection-reason",reason);}
     return lastConnectionReason||"Your media is not reaching the room. Reconnecting; if this persists, ask the producer for a new invitation.";
   }
   function programAudioNotice(participant){
@@ -80,7 +93,14 @@
     notice.hidden=!sources;
   }
   function secret(){const bytes=new Uint8Array(32);crypto.getRandomValues(bytes);return Array.from(bytes,x=>x.toString(16).padStart(2,"0")).join("");}
-  function setBusy(value){busy=value;$("guestJoin").disabled=value;for(const id of ["guestCamera","guestMicrophone"])$(id).disabled=value||!root.isSecureContext;$("guestScreen").disabled=value||!navigator.mediaDevices?.getDisplayMedia;audioState();}
+  function setBusy(value){
+    busy=value;const secure=root.isSecureContext===true,captureSupported=typeof navigator.mediaDevices?.getUserMedia==="function";
+    $("guestJoin").disabled=busy||joining||connecting||leaving||!secure||accessEnded||!invite&&!validSession();
+    $("guestJoin").title=!secure?"Open a secure guest link.":accessEnded?"Ask the producer for a new invitation.":!invite&&!validSession()?"Open your private invitation first.":"";
+    for(const id of ["guestCamera","guestMicrophone","guestCameraDevice","guestMicDevice"]){$(id).disabled=busy||leaving||!secure||!captureSupported;$(id).title=!secure?"Camera and microphone need a secure link.":!captureSupported?"Camera and microphone capture are unavailable in this browser.":"";}
+    $("guestScreen").disabled=busy||leaving||!secure||typeof navigator.mediaDevices?.getDisplayMedia!=="function";
+    $("guestReconnect").hidden=!retryAvailable||accessEnded||!validSession()||leaving;$("guestReconnect").disabled=busy||joining||connecting||!secure||accessEnded||!validSession();audioState();
+  }
   function synchronize(publish=true){
     if(publish)publisher?.setTracks({...media});
     const camera=Boolean(media.camera),mic=Boolean(media.microphone),screen=Boolean(media.screen);
@@ -89,30 +109,33 @@
     $("guestScreenPreviewPanel").hidden=!screen;if($("guestScreenPreview").srcObject?.getVideoTracks()[0]!==media.screen)$("guestScreenPreview").srcObject=screen?new MediaStream([media.screen]):null;
     $("guestMediaHint").textContent=leaving?"Your camera, microphone and screen are off.":screen?(media.screen_audio?"Your selected screen and its audio are shared.":"Your screen is shared. This selection has no screen audio."):(joined?"Enabled sources are shared with the producer. Only selected sources reach Program.":"Your preview stays on this device until you join.");
   }
-  function stop(kind){const track=media[kind];media[kind]=null;if(kind==="microphone"&&microphone){const owner=microphone;microphone=null;owner.close();audioBusy=false;$("guestGateStatus").textContent="Microphone off";audioState();}else if(track){track.onended=null;track.stop();}}
+  function stop(kind){const track=media[kind];media[kind]=null;if(kind==="microphone"&&microphone){const owner=microphone;microphone=null;owner.close();audioBusy=false;audioFeedback("");$("guestGateStatus").textContent="Microphone off";audioState();}else if(track){track.onended=null;track.stop();}}
   function configureGate(){
     gateSettings={enabled:$("guestNoiseGate").getAttribute("aria-pressed")==="true",thresholdDb:Number($("guestGateThreshold").value)};
-    $("guestGateValue").textContent=gateSettings.thresholdDb+" dB";
+    $("guestGateValue").textContent=gateSettings.thresholdDb+" dB";$("guestGateThreshold").setAttribute("aria-valuetext",gateSettings.thresholdDb+" decibels");
     try{localStorage.setItem("producer.guest.gate.v1",JSON.stringify(gateSettings));}catch{}
     const owner=microphone;if(owner)Promise.resolve(owner.configure(audioSettings())).catch(()=>{if(microphone===owner&&!leaving)$("guestGateStatus").textContent="Unavailable · audio unfiltered";});else $("guestGateStatus").textContent="Microphone off";
   }
-  async function devices(){
-    if(!navigator.mediaDevices?.enumerateDevices)return;
-    const values=await navigator.mediaDevices.enumerateDevices();
-    for(const [id,kind,label] of [["guestCameraDevice","videoinput","Camera"],["guestMicDevice","audioinput","Microphone"]]){
-      const select=$(id),current=select.value;select.replaceChildren(new Option("Default "+label.toLowerCase(),""));
-      values.filter(d=>d.kind===kind).forEach((d,i)=>select.add(new Option(d.label||`${label} ${i+1}`,d.deviceId)));select.value=current;
-    }
+  async function devices(epoch,kind){
+    try{
+      const values=navigator.mediaDevices?.enumerateDevices?await navigator.mediaDevices.enumerateDevices():[];
+      if(epoch!==mediaEpoch||leaving)return;
+      for(const [id,type,label,key] of [["guestCameraDevice","videoinput","Camera","camera"],["guestMicDevice","audioinput","Microphone","microphone"]]){
+        const select=$(id),current=deviceSelection[key]||select.value;select.replaceChildren(new Option("Default "+label.toLowerCase(),""));
+        values.filter(d=>d.kind===type).forEach((d,i)=>select.add(new Option(d.label||`${label} ${i+1}`,d.deviceId)));
+        if(current&&!values.some(d=>d.kind===type&&d.deviceId===current))select.add(new Option("Current "+label.toLowerCase(),current));select.value=current;
+      }
+    }catch(_){if(epoch===mediaEpoch&&!leaving){const select=$(kind==="camera"?"guestCameraDevice":"guestMicDevice"),selected=deviceSelection[kind];if(selected){if(!Array.from(select.options||[]).some(option=>option.value===selected))select.add(new Option("Current "+(kind==="camera"?"camera":"microphone"),selected));select.value=selected;}feedback("guestDeviceStatus",(kind==="camera"?"Camera":"Microphone")+" is on. Device choices could not refresh; your current capture continues.");}}
   }
   async function capture(kind,reselect=false){
-    if(busy||leaving)return;const epoch=mediaEpoch;setBusy(true);
+    if(busy||leaving)return;if(!root.isSecureContext||typeof navigator.mediaDevices?.getUserMedia!=="function"){feedback("guestDeviceStatus","Camera and microphone capture need a secure link and a supported browser.");setBusy(false);return;}const epoch=mediaEpoch;setBusy(true);feedback("guestDeviceStatus","");
     try{
-      if(media[kind]&&!reselect){stop(kind);synchronize();return;}
+      if(media[kind]&&!reselect){stop(kind);synchronize();feedback("guestDeviceStatus",(kind==="camera"?"Camera":"Microphone")+" is off.");return;}
       const device=$(kind==="camera"?"guestCameraDevice":"guestMicDevice").value;
       const options=kind==="camera"?{video:{width:{ideal:1280},height:{ideal:720},...(device?{deviceId:{exact:device}}:{})},audio:false}:{video:false,audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,...(device?{deviceId:{exact:device}}:{})}};
       const stream=await navigator.mediaDevices.getUserMedia(options);
       if(epoch!==mediaEpoch||leaving){stream.getTracks().forEach(track=>track.stop());return;}
-      const track=stream.getTracks()[0];stop(kind);media[kind]=track;
+      const track=stream.getTracks()[0];if(!track)throw {name:"NotFoundError"};stop(kind);media[kind]=track;deviceSelection[kind]=track.getSettings?.().deviceId||device;
       if(kind==="microphone"&&root.ProducerGuestMicrophone){
         const owner=root.ProducerGuestMicrophone.create(track,processed=>{if(microphone===owner&&!leaving){media.microphone=processed;synchronize();}},value=>{if(microphone===owner)$("guestGateStatus").textContent=value;},value=>{if(microphone===owner&&!leaving)audioState(value);});
         microphone=owner;track.onended=()=>{if(microphone===owner){stop("microphone");synchronize();}};
@@ -120,19 +143,19 @@
         if(epoch!==mediaEpoch||leaving)return;
         $("guestAudioStatus").textContent="Your microphone is ready for voice effects and sounds.";audioState();
       }else track.onended=()=>{if(media[kind]===track){media[kind]=null;synchronize();}};
-      synchronize();await devices();
-    }catch(error){if(epoch===mediaEpoch&&!leaving)status("Check your device",error.name==="NotAllowedError"?"Permission was not granted. Allow this device in your browser, then try again.":"This device is unavailable. Choose another device or close the app using it.");}
+      synchronize();feedback("guestDeviceStatus",(kind==="camera"?"Camera":"Microphone")+" is on.");await devices(epoch,kind);
+    }catch(error){if(epoch===mediaEpoch&&!leaving){feedback("guestDeviceStatus",deviceError(error,kind));$(kind==="camera"?"guestCameraDevice":"guestMicDevice").value=deviceSelection[kind];}}
     finally{if(epoch===mediaEpoch&&!leaving)setBusy(false);}
   }
   async function screen(){
-    if(busy||leaving)return;const epoch=mediaEpoch;setBusy(true);
+    if(busy||leaving)return;if(!root.isSecureContext||typeof navigator.mediaDevices?.getDisplayMedia!=="function"){feedback("guestDeviceStatus","Screen sharing is unavailable in this browser. Use a supported desktop browser.");return;}const epoch=mediaEpoch;setBusy(true);feedback("guestDeviceStatus","");
     try{
       if(media.screen){stop("screen");stop("screen_audio");synchronize();return;}
       const stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:{ideal:30,max:30}},audio:true});
       if(epoch!==mediaEpoch||leaving){stream.getTracks().forEach(track=>track.stop());return;}
       media.screen=stream.getVideoTracks()[0]||null;media.screen_audio=stream.getAudioTracks()[0]||null;
       if(media.screen)media.screen.onended=()=>{stop("screen");stop("screen_audio");synchronize();};synchronize();
-    }catch(error){if(epoch===mediaEpoch&&!leaving)status("Screen sharing stopped",error.name==="NotAllowedError"?"No screen was shared. You can try again when ready.":"This browser could not share that screen. Try a different window or browser.");}
+    }catch(error){if(epoch===mediaEpoch&&!leaving)feedback("guestDeviceStatus",error.name==="NotAllowedError"?"No screen was shared. You can try again when ready.":deviceError(error,"screen"));}
     finally{if(epoch===mediaEpoch&&!leaving)setBusy(false);}
   }
   function roomState(value){
@@ -144,43 +167,71 @@
     programAudioNotice(participant);
     synchronize(false);
   }
-  function connect(){
-    publisher?.close();peerWarnings.clear();peerNotice();publisher=root.ProducerGuestMedia.createPublisher({token,onState:roomState,
-      onReturnAudio:stream=>{returnEpoch++;const audio=$("guestReturnAudio");audio.srcObject=leaving?null:stream;$("guestRoomAudio").hidden=true;if(stream&&!leaving)playReturn();else audio.pause();},
-      onConnection:event=>{if(leaving)return;if(event.scope==="peer"){peerNotice(event);return;}if(event.state==="connected"){lastConnectionReason="";$("guestBadge").setAttribute("data-connection-reason","");}if(["disconnected","reconnecting","failed","closed"].includes(event.state)){peerWarnings.clear();peerNotice();programAudioNotice();status("Room connection paused",connectionMessage(event.reason));$("guestBadge").textContent="DISCONNECTED";$("guestBadge").classList.remove("on-air");}},
-      onError:event=>{programAudioNotice();if(!leaving)status("Could not connect",connectionMessage(event?.reason));}});
-    publisher.setTracks({...media});publisher.connect();
+  function connectionFailure(reason,terminal=false){
+    const recoverable=["production_state_stalled","signaling_unavailable","signaling_disconnected","media_connection_failed","media_negotiation_failed"].includes(reason);
+    if(reason==="guest_access_ended")accessEnded=true;
+    retryAvailable=terminal&&recoverable&&validSession()&&!accessEnded;
+    let message=connectionMessage(reason);if(retryAvailable)message=message.split(".")[0]+". Choose Retry connection to try again.";
+    feedback("guestConnectionStatus",message);status(accessEnded?"Invitation ended":"Room connection paused",accessEnded?"This session can no longer join the production.":"Your sources are not reaching the room.");setBusy(busy);
+  }
+  async function connect(){
+    if(leaving||accessEnded||!root.isSecureContext||!validSession())return false;
+    const epoch=++connectionEpoch,previous=publisher;publisher=null;previous?.close();returnEpoch++;$("guestReturnAudio").srcObject=null;$("guestReturnAudio").pause();$("guestRoomAudio").hidden=true;peerWarnings.clear();peerNotice();retryAvailable=false;connecting=true;lastConnectionCode="";lastConnectionReason="";feedback("guestConnectionStatus","Connecting to the production PC…");setBusy(busy);
+    let owner=null,terminal=false;const owned=()=>!leaving&&connectionEpoch===epoch&&publisher===owner,current=()=>owned()&&!terminal;
+    try{
+      if(typeof root.ProducerGuestMedia?.createPublisher!=="function")throw Error("browser_media_unavailable");
+      owner=root.ProducerGuestMedia.createPublisher({token,
+        onState:message=>{if(current()){if(message.participant&&["waiting","admitted"].includes(message.participant.state))feedback("guestConnectionStatus","");roomState(message);}},
+        onReturnAudio:stream=>{if(!current())return;returnEpoch++;const audio=$("guestReturnAudio");audio.srcObject=stream;$("guestRoomAudio").hidden=true;if(stream)playReturn();else audio.pause();},
+        onConnection:event=>{if(!current())return;if(event.scope==="peer"){peerNotice(event);return;}if(event.state==="connected"){lastConnectionReason=lastConnectionCode="";retryAvailable=false;$("guestBadge").setAttribute("data-connection-reason","");feedback("guestConnectionStatus","");}if(["disconnected","reconnecting","failed","closed"].includes(event.state)){terminal=event.state==="closed";peerWarnings.clear();peerNotice();programAudioNotice();connectionFailure(event.reason||lastConnectionCode,terminal);$("guestBadge").textContent="DISCONNECTED";$("guestBadge").classList.remove("on-air");}},
+        onError:event=>{if(current()){programAudioNotice();connectionFailure(event?.reason);}}
+      });
+      publisher=owner;owner.setTracks({...media});await owner.connect();return current();
+    }catch(error){if(owned()){terminal=true;connectionFailure(error?.message||lastConnectionCode,true);}return false;}
+    finally{if(owned()){connecting=false;setBusy(busy);}}
+  }
+  async function retryConnection(){
+    if(busy||joining||connecting||leaving||!retryAvailable||accessEnded||!validSession())return;
+    await connect();
   }
   async function join(event){
-    event.preventDefault();if(busy)return;const epoch=mediaEpoch;setBusy(true);leaving=false;status("Joining…","Your sources stay backstage until selected by the producer.");
+    event.preventDefault();if(busy||joining||connecting||leaving||accessEnded||!root.isSecureContext||!invite&&!validSession()){setBusy(busy);return;}
+    const epoch=mediaEpoch;joining=true;setBusy(busy);status("Joining…","Your sources stay backstage until selected by the producer.");
     try{
-      if(invite){token=token||secret();const response=await fetch("/guest/join",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({invite_token:invite,name:$("guestName").value.trim(),session_token:token})});if(!response.ok)throw Error("join_failed");invite=null;}
+      if(invite){
+        token=validSession()?token:secret();const attemptToken=token;
+        const response=await fetch("/guest/join",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({invite_token:invite,name:$("guestName").value.trim(),session_token:token})});
+        if(epoch!==mediaEpoch||leaving){if(response.ok)try{await fetch("/guest/leave",{method:"POST",headers:{Authorization:"Bearer "+attemptToken}});}catch{}return;}
+        if(!response.ok){if([401,403,410].includes(response.status))accessEnded=true;throw Error("join_failed");}invite=null;
+      }
       if(epoch!==mediaEpoch||leaving)return;
-      if(!token)throw Error("missing_invite");try{sessionStorage.setItem(STORE,token);}catch{}connect();
-    }catch{if(epoch===mediaEpoch&&!leaving)status("Unable to join","Check that you have a current invitation and a display name. Ask the producer for a new link if needed.");}
-    finally{if(epoch===mediaEpoch&&!leaving)setBusy(false);}
+      if(!validSession())throw Error("missing_invite");try{sessionStorage.setItem(STORE,token);}catch{}$("guestLeave").hidden=false;await connect();
+    }catch{if(epoch===mediaEpoch&&!leaving){feedback("guestConnectionStatus","Check your display name and invitation. Ask the producer for a new link if needed.");status("Unable to join","Your preview is still private on this device.");}}
+    finally{if(epoch===mediaEpoch&&!leaving){joining=false;setBusy(busy);}}
   }
   async function leave(){
-    leaving=true;mediaEpoch++;peerWarnings.clear();peerNotice();programAudioNotice();setBusy(true);publisher?.close();publisher=null;for(const key of Object.keys(media))stop(key);synchronize();$("guestReturnAudio").srcObject=null;$("guestReturnAudio").pause();
+    leaving=true;mediaEpoch++;connectionEpoch++;connecting=joining=false;retryAvailable=false;feedback("guestConnectionStatus","");feedback("guestDeviceStatus","");peerWarnings.clear();peerNotice();programAudioNotice();setBusy(true);publisher?.close();publisher=null;for(const key of Object.keys(media))stop(key);synchronize();$("guestReturnAudio").srcObject=null;$("guestReturnAudio").pause();
     const prior=token;token="";joined=false;try{sessionStorage.removeItem(STORE);}catch{}
     $("guestLeave").hidden=true;$("guestRoomAudio").hidden=true;$("guestBadge").textContent="LEFT THE ROOM";$("guestBadge").classList.remove("on-air");status("You’ve left the room","Your camera, microphone and screen are off.");
     if(prior){try{await fetch("/guest/leave",{method:"POST",headers:{Authorization:"Bearer "+prior}});}catch{}}
   }
-  $("guestNoiseGate").setAttribute("aria-pressed",String(gateSettings.enabled));$("guestGateThreshold").value=String(gateSettings.thresholdDb);$("guestGateValue").textContent=gateSettings.thresholdDb+" dB";
+  $("guestNoiseGate").setAttribute("aria-pressed",String(gateSettings.enabled));$("guestGateThreshold").value=String(gateSettings.thresholdDb);$("guestGateValue").textContent=gateSettings.thresholdDb+" dB";$("guestGateThreshold").setAttribute("aria-valuetext",gateSettings.thresholdDb+" decibels");
   $("guestNoiseGate").addEventListener("click",()=>{$("guestNoiseGate").setAttribute("aria-pressed",String($("guestNoiseGate").getAttribute("aria-pressed")!=="true"));configureGate();});
   $("guestGateThreshold").addEventListener("input",configureGate);
-  $("guestVoicePreset").value=voiceSettings.preset;$("guestSoundVolume").value=String(voiceSettings.soundVolume*100);
+  $("guestVoicePreset").value=voiceSettings.preset;$("guestSoundVolume").value=String(voiceSettings.soundVolume*100);$("guestSoundVolume").setAttribute("aria-valuetext",Math.round(voiceSettings.soundVolume*100)+" percent");
   $("guestVoicePreset").addEventListener("change",configureVoice);$("guestSoundVolume").addEventListener("input",configureVoice);
   for(const [id,cue] of Object.entries(cueButtons))$(id).addEventListener("click",()=>audioAction(owner=>owner.playCue(cue)));
-  $("guestSoundsStop").addEventListener("click",()=>{microphone?.stopSounds();audioState();$("guestAudioStatus").textContent="Sounds stopped. Your voice is unchanged.";});
+  $("guestSoundsStop").addEventListener("click",()=>{microphone?.stopSounds();audioFeedback("");audioState();$("guestAudioStatus").textContent="Sounds stopped. Your voice is unchanged.";});
   $("guestSoundFile").addEventListener("change",()=>{const file=$("guestSoundFile").files?.[0];$("guestSoundFile").value="";if(file)audioAction(owner=>owner.addSound(file),"Sound added. Choose Play when you’re ready.");});
+  $("guestReconnect").addEventListener("click",retryConnection);
   $("guestJoinForm").addEventListener("submit",join);$("guestCamera").addEventListener("click",()=>capture("camera"));$("guestMicrophone").addEventListener("click",()=>capture("microphone"));$("guestScreen").addEventListener("click",screen);
   $("guestCameraDevice").addEventListener("change",()=>{if(media.camera)capture("camera",true);});$("guestMicDevice").addEventListener("change",()=>{if(media.microphone)capture("microphone",true);});
   $("guestLeave").addEventListener("click",leave);$("guestRoomAudio").addEventListener("click",()=>playReturn(true));
-  root.addEventListener("pagehide",()=>{leaving=true;mediaEpoch++;programAudioNotice();publisher?.close();for(const key of Object.keys(media))stop(key);});
+  root.addEventListener("pagehide",()=>{leaving=true;mediaEpoch++;connectionEpoch++;programAudioNotice();publisher?.close();for(const key of Object.keys(media))stop(key);});
   if(!root.isSecureContext){status("A secure link is needed","Camera and microphone access need a secure HTTPS guest link. Ask the producer for one.");}
-  else if(!invite&&!token){status("Invitation needed","Open the guest link provided by your producer to join this room.");$("guestJoin").disabled=true;}
-  else if(token){$("guestJoin").textContent="Rejoin backstage";$("guestName").required=false;status("Resume your guest session","Choose your media, then rejoin the room.");}
+  else if(!invite&&!validSession()){status("Invitation needed","Open the guest link provided by your producer to join this room.");$("guestJoin").disabled=true;}
+  else if(validSession()){$("guestJoin").textContent="Rejoin backstage";$("guestName").required=false;status("Resume your guest session","Choose your media, then rejoin the room.");}
   if(!navigator.mediaDevices?.getDisplayMedia){$("guestScreen").title="Screen sharing is not supported in this browser. Camera and mic can still be used.";$("guestMediaHint").textContent="This browser supports camera and mic; use a supported desktop browser to share your screen.";}
-  setBusy(false);if(!invite&&!token)$("guestJoin").disabled=true;
+  if(typeof navigator.mediaDevices?.getUserMedia!=="function")feedback("guestDeviceStatus","Camera and microphone capture are unavailable in this browser. Use a supported browser with your secure guest link.");
+  setBusy(false);
 })(window);

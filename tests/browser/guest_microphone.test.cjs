@@ -70,12 +70,33 @@ test('local files remain private buffers, use six slots, and removal stops only 
 test('malformed, oversized and unsupported local files are rejected before decoding',async()=>{
   let decodes=0;const f=fixture({decode:()=>{decodes++;throw Error('should not decode');}});
   for(const size of [0,-1,1.5,NaN,Infinity,10*1024*1024+1])await assert.rejects(f.controller.addSound(file({size})),/sound_file_too_large/);
-  for(const type of ['text/html','image/png','', 'audio/wav; executable=true'])await assert.rejects(f.controller.addSound(file({type})),/sound_file_type/);
+  for(const type of ['text/html','image/png',null,undefined,'application/octet-stream','audio/wav; executable=true'])await assert.rejects(f.controller.addSound(file({type})),/sound_file_type/);
   await assert.rejects(f.controller.addSound(file({arrayBuffer:null})),/sound_file_type/);
   await assert.rejects(f.controller.addSound(file({arrayBuffer:async()=>new ArrayBuffer(10*1024*1024+1)})),/sound_file_too_large/);
   await assert.rejects(f.controller.addSound(file({arrayBuffer:async()=>({byteLength:100})})),/sound_file_too_large/);
   await assert.rejects(f.controller.addSound(file({arrayBuffer:async()=>{throw Error('private filesystem path');}})),/^Error: sound_read_failed$/);
   assert.equal(decodes,0);f.controller.close();
+});
+
+test('blank MIME accepts only picker audio extensions and still requires valid decoded audio',async()=>{
+  const f=fixture();
+  for(const extension of ['wav','MP3','ogg','m4a','flac','webm']){
+    const added=await f.controller.addSound(file({type:'',name:'Local cue.'+extension}));assert.equal(added.duration,1);f.controller.removeSound(added.id);
+  }
+  for(const name of ['cue.html','cue.exe','cue','cue.wav.exe','cue.wav\n','cue.mp4'])await assert.rejects(f.controller.addSound(file({type:'',name})),/sound_file_type/);
+  await assert.rejects(f.controller.addSound(file({type:'text/html',name:'cue.wav'})),/sound_file_type/);f.controller.close();
+  const invalid=fixture({decode:async()=>{throw Error('invalid audio bytes');}});
+  await assert.rejects(invalid.controller.addSound(file({type:'',name:'disguised.wav'})),/^Error: sound_decode_failed$/);assert.equal(invalid.controller.snapshot().sounds.length,0);invalid.controller.close();
+  const long=fixture({decode:async()=>({duration:31,length:1488000,numberOfChannels:1})});
+  await assert.rejects(long.controller.addSound(file({type:'',name:'long.wav'})),/sound_duration_limit/);long.controller.close();
+});
+
+test('recognized audio MIME aliases normalize without accepting unrelated types',async()=>{
+  const f=fixture();
+  for(const type of ['audio/x-flac','audio/vnd.wave','audio/x-pn-wav','audio/m4a','audio/x-mp3','AUDIO/WAV']){
+    const added=await f.controller.addSound(file({type}));f.controller.removeSound(added.id);
+  }
+  assert.equal(f.controller.snapshot().sounds.length,0);f.controller.close();
 });
 
 test('decoded duration, channel and memory limits are enforced, with recoverable decode errors',async()=>{

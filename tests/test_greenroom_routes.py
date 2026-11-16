@@ -258,9 +258,35 @@ def test_consumed_invite_revocation_closes_guest_and_clears_selected_sources(fix
                                json={"expected_revision": revision, "request_id": "revoke"})
         assert response.status_code == 200
         assert participant["id"] in removed
-        assert_closed(guest, 1000)
+        assert_closed(guest, 1008)
         with pytest.raises(GreenroomError):
             service.authenticate(token)
+
+
+@pytest.mark.parametrize("action,expected_code", [("leave", 1000), ("remove", 1008), ("close_room", 1008)])
+def test_guest_close_code_distinguishes_voluntary_leave_from_ended_access(fixture, action, expected_code):
+    service, hub, _, removed, client = fixture
+    _, participant, token = join(fixture)
+    with socket(client, "producer") as (producer, _), socket(client, "guest", token) as (guest, _):
+        if action == "leave":
+            response = client.post("/guest/leave", headers=ORIGIN | {"authorization": "Bearer " + token})
+        else:
+            body = {"expected_revision": service.snapshot()["revision"], "request_id": action}
+            if action == "remove":
+                path = f"/api/production/greenroom/participants/{participant['id']}"
+                body["action"] = "remove"
+            else:
+                path = "/api/production/greenroom/room/close"
+            response = client.post(path, headers=OPERATOR, json=body)
+        assert response.status_code == 200
+        assert_closed(guest, expected_code)
+        assert not any(peer.participant_id == participant["id"] for peer in hub.peers.values())
+        assert participant["id"] in removed
+        with pytest.raises(GreenroomError):
+            service.authenticate(token)
+        # Revoking a guest never ends the producer's control connection.
+        producer.send_json({"type": "heartbeat"})
+        assert next_type(producer, "state")["type"] == "state"
 
 
 def test_oversized_socket_message_is_closed(fixture):
