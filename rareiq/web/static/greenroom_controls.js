@@ -259,7 +259,7 @@
       one('[data-room-take]').disabled=busy||!ready.ready||selected.some(source=>source.startsWith('guest:'))&&!mediaConnected;one('[data-room-take]').title=ready.message;
       one('[data-preview-clear]').disabled=busy||!selected.length;one('[data-room-layout]').disabled=busy;
       const output=room.output||switcher.guest_output||{},generation=Number(switcher.generation)||0;
-      one('[data-output-state]').textContent=!output.connected?'No Studio Output connected':output.rendered_generation>=generation?'Studio Output reports this Program shot':`Program requested · waiting for output confirmation`;
+      one('[data-output-state]').textContent=outputStatusLabel(output,generation);
     }
     function render(){
       one('[data-room-count]').textContent=!loaded?'Loading your room…':room.active?`${room.participants.filter(p=>p.state!=='removed'&&!p.expired).length} / ${room.max_guests} guest spaces`:'Room closed · guests cannot join';
@@ -347,7 +347,10 @@
     refresh();pollTimer=host.setInterval(()=>{if(!doc.hidden){refresh();refreshActivity();}},4000);render();
     return result;
   }
-  const exported={mount,receiver:()=>instance?.media||null,renderSwitcher:state=>{pendingSwitcher=state;instance?.renderSwitcher(state);},sourceAvailable,togglePreview,takeReadiness,createRequests,activityEntry,invitationLink,programAudioChange};
+  function outputStatusLabel(output,generation){
+    return !output.connected?'No Studio Output connected':output.audio_blocked===true?'Output sound is blocked · open Studio Output and choose Enable output sound':output.rendered_generation===generation?'Studio Output reports this Program shot':'Program requested · waiting for output confirmation';
+  }
+  const exported={mount,receiver:()=>instance?.media||null,renderSwitcher:state=>{pendingSwitcher=state;instance?.renderSwitcher(state);},sourceAvailable,togglePreview,takeReadiness,createRequests,activityEntry,invitationLink,programAudioChange,outputStatusLabel};
   if(typeof module==='object'&&module.exports)module.exports=exported;
   else host.ProducerGreenroomControls=exported;
 })(typeof window==='undefined'?globalThis:window);

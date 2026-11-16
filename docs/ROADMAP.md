@@ -1,5 +1,19 @@
 # RareIQ Roadmap
 
+## November 15, 2026 - Two-device rehearsal checkpoint
+
+Private guest invitation, admission, camera and tab-screen transport, camera/screen
+compositions and independent Program mute notices have been exercised between two
+Windows PCs, including a physical MX Brio picture received on Program. The rehearsal uncovered blocked browser autoplay; explicit sound
+recovery is implemented and was exercised on the actual receiving output.
+
+Next acceptance remains sustained physical camera and spoken audio quality, real microphone
+mix-minus listening, mobile capture, sustained/recoverable internet transport, and
+an explicitly authorized OBS/platform rehearsal. Named producer accountability
+still requires the actual StackThis sign-in integration; invitation labels are
+unverified guest sessions. Do not treat private Tailscale reachability as public
+hosting readiness or a requirement that future guests install a desktop client.
+
 ## November 15, 2026 — Local guest audio checkpoint
 
 - Implemented and locally tested: independent guest microphone/screen Program

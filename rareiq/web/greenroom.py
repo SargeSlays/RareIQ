@@ -66,6 +66,10 @@ class Peer:
     subscriptions: tuple[str, ...] = ()
     ready: dict[str, float] = field(default_factory=dict)
     rendered_generation: int = -1
+    playback_generation: int = -1
+    playback_reported_at: float = 0
+    audio_blocked: bool = False
+    playback_rendered: bool = False
     send_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
@@ -122,8 +126,12 @@ class GreenroomHub:
         outputs = [p for p in list(self.peers.values()) if p.role == "output"]
         now = time.monotonic()
         groups = [sorted(s for s, stamp in dict(p.ready).items() if now - stamp < 6) for p in outputs]
+        generation = self.switcher()["generation"]
+        fresh = [p for p in outputs if p.playback_generation == generation and now - p.playback_reported_at < 6]
+        confirmed = [p.rendered_generation for p in fresh if not p.audio_blocked and p.playback_rendered and p.rendered_generation == generation]
         return {"connected": len(outputs), "ready_sources": sorted({s for group in groups for s in group}), "ready_groups": groups,
-                "rendered_generation": max((p.rendered_generation for p in outputs), default=-1)}
+                "rendered_generation": max(confirmed, default=-1),
+                "audio_blocked": any(p.audio_blocked for p in fresh)}
 
     def source_ready(self, source):
         return self.service.source_available(source) and source in self.output_status()["ready_sources"]
@@ -477,12 +485,28 @@ class GreenroomHub:
             sources = message.get("sources")
             if not isinstance(sources, list) or len(sources) > 12 or any(not isinstance(s, str) for s in sources):
                 raise ValueError("invalid_ready_sources")
+            if "playback" in message:
+                playback = message["playback"]
+                if (not isinstance(playback, dict) or set(playback) != {"generation", "audio_blocked", "rendered"}
+                        or type(playback["generation"]) is not int or not 0 <= playback["generation"] <= 2**53 - 1
+                        or type(playback["audio_blocked"]) is not bool or type(playback["rendered"]) is not bool
+                        or playback["audio_blocked"] and playback["rendered"]):
+                    raise ValueError("invalid_playback_state")
+                if playback["generation"] == self.switcher()["generation"]:
+                    peer.playback_generation = playback["generation"]
+                    peer.playback_reported_at = time.monotonic()
+                    peer.audio_blocked = playback["audio_blocked"]
+                    peer.playback_rendered = playback["rendered"]
             peer.ready = {s: time.monotonic() for s in sources if s in peer.subscriptions and self.service.source_available(s)}
             return
         if kind == "rendered" and peer.role == "output":
             generation = message.get("generation")
             state = self.switcher()
-            if type(generation) is int and generation == state["generation"] and generation != peer.rendered_generation:
+            if (type(generation) is not int or generation != state["generation"]
+                    or peer.playback_generation != generation or time.monotonic() - peer.playback_reported_at >= 6
+                    or peer.audio_blocked or not peer.playback_rendered):
+                return
+            if generation != peer.rendered_generation:
                 peer.rendered_generation = generation
                 self.service.record_production_event("program.rendered", str(generation), "confirmed",
                                                      actor_kind="program_renderer", details={"generation": generation})

@@ -290,9 +290,11 @@
         for(const track of Object.values(localTracks))if(track&&!endedHandlers.has(track)){const handler=()=>{localVersion++;announceMedia();for(const record of peers.values())queue(record,()=>syncPublisher(record));};track.addEventListener?.('ended',handler);endedHandlers.set(track,handler);}
         announceMedia();for(const record of peers.values())queue(record,()=>syncPublisher(record));
       },
-      sendReady(sources){
+      sendReady(sources,playback){
         if(role!=='output'||!Array.isArray(sources))return false;
-        return send({type:'ready',sources:[...new Set(sources)].filter(source=>typeof source==='string'&&state?.subscriptions?.includes(source)).slice(0,12)});
+        const message={type:'ready',sources:[...new Set(sources)].filter(source=>typeof source==='string'&&state?.subscriptions?.includes(source)).slice(0,12)};
+        if(playback&&Number.isSafeInteger(playback.generation)&&playback.generation>=0&&playback.generation===state?.room?.switcher?.generation&&typeof playback.audioBlocked==='boolean'&&typeof playback.rendered==='boolean')message.playback={generation:playback.generation,audio_blocked:playback.audioBlocked,rendered:playback.rendered};
+        return send(message);
       },
       rendered(value){return role==='output'&&Number.isInteger(value)&&value===state?.room?.switcher?.generation&&send({type:'rendered',generation:value});},
       setReturnStream(id,stream){

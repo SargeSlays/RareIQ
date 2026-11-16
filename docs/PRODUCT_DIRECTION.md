@@ -1,5 +1,19 @@
 # RareIQ: streaming-first product direction
 
+## November 15, 2026 - Two-PC guest rehearsal and output sound recovery
+
+An individually invited guest on a second Windows PC reached the private guest
+studio and supplied camera video, microphone and tab-sharing tracks. An MX Brio
+physical camera was subsequently selected and its picture reached local Program.
+Camera, screen and combined compositions reached the production PC's local
+Program output. This is private two-device transport acceptance, not public
+hosting, sustained camera/voice quality, OBS encoding or platform delivery.
+
+When a browser blocks Program sound, Studio Output now offers an explicit Enable
+output sound action and the producer sees the reason. A historical picture receipt
+alone cannot establish current audio playback readiness. Confirmation requires
+fresh playback state and a matching receipt from the same output and generation.
+
 ## November 15, 2026 — Local guest audio polish
 
 Producer, Please now has separate producer-owned microphone and screen-audio

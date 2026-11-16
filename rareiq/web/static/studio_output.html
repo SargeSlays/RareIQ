@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Producer, Please — Studio Output</title>
   <link rel="icon" type="image/svg+xml" href="/static/brand/producer-please-v2/favicon.svg?v=2.0">
+  <link rel="stylesheet" href="/static/program_composition.css?v=20261115-3">
   <style>
     html,body,main{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
     main{position:relative;isolation:isolate}
@@ -20,5 +21,7 @@
     <iframe class="audience" src="/overlay/audience?embedded=1" title="Audience welcomes"></iframe>
     <iframe class="audio" src="/output/soundboard" allow="autoplay" title="Routed production audio" aria-hidden="true"></iframe>
   </main>
+  <button type="button" class="output-audio-enable" data-output-audio-enable hidden>Enable output sound</button>
+  <script src="/static/studio_output_audio.js?v=20261115-3"></script>
 </body>
 </html>

@@ -1,5 +1,39 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 - Two-PC physical-camera rehearsal and sound recovery
+
+Canonical gate passed: **3225 Python tests and 385 JavaScript tests**. Focused
+regressions reject bare, stale, blocked, pending, wrong-generation and other-output
+playback receipts; preserve sound recovery across iframe load ordering; and
+re-send playback health before confirmation when signaling catches up.
+
+An individually invited second Windows PC joined over temporary private HTTPS.
+Waiting/admission, camera and tab-screen Preview/Program, combined Grid composition,
+Fade/Cut, independent microphone and screen-audio mute notices, removal and invite
+revocation were exercised. A physical MX Brio supplied a real picture to Program;
+received video advanced with 960x540 decoded frames during the bounded check.
+Microphone and screen-audio tracks were present in the earlier rehearsal; spoken
+quality and mix-minus were not listened to. No public stream or recording started.
+
+The receiving browser exposed an autoplay rejection. Enable output sound cleared
+it and produced matching Program confirmation. A bounded read-only review found
+two confirmation/load ordering gaps; both now have fixes and passing regressions.
+Activity distinguishes producer requests from renderer confirmation and marks
+invitation/local identities unverified. Personal accountability needs StackThis.
+
+All three guests were removed, invitations revoked, and remote capture stopped.
+The temporary HTTPS mapping was removed and prior network configuration matched
+exactly. The idle studio restarted with the final backend and was refreshed;
+it is local-only and its guest listener is closed. Redacted results and gate logs
+are under `F:/Temp/jonat/ProducerPlease-two-pc-20261115`. Runtime configuration,
+invitation secrets and private camera images are not committed.
+
+Automatic rejoin after a server restart did not recover within the bounded test;
+a new invitation restored access. Mobile capture, sustained internet transport,
+spoken-audio/mix-minus quality, OBS encoding and platform delivery still need
+acceptance. Private Tailscale testing does not establish public hosting readiness
+or require future guests to install a desktop client.
+
 ## November 15, 2026 — Local guest Program audio acceptance
 
 Canonical gate passed: **3211 Python tests and 379 JavaScript tests**. Added

@@ -2,6 +2,12 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const controls=require('../../rareiq/web/static/greenroom_controls.js');
 const {sourceAvailable,togglePreview,takeReadiness,createRequests}=controls;
+test('current audio blockage overrides a previous renderer receipt with a concrete recovery action',()=>{
+  assert.match(controls.outputStatusLabel({connected:1,rendered_generation:3,audio_blocked:true},3),/open Studio Output and choose Enable output sound/);
+  assert.match(controls.outputStatusLabel({connected:1,rendered_generation:3,audio_blocked:false},3),/reports this Program shot/);
+  assert.match(controls.outputStatusLabel({connected:1,rendered_generation:2,audio_blocked:false},3),/waiting/);
+  assert.match(controls.outputStatusLabel({connected:0,rendered_generation:3,audio_blocked:true},3),/No Studio Output/);
+});
 function fixture(){
   const participants=Array.from({length:3},(_,i)=>{const id=String(i+1).repeat(32);return {id,state:'admitted',connected:true,media:{camera:true,screen:true,microphone:true},sources:{camera:`guest:${id}:camera`,screen:`guest:${id}:screen`,audio:`guest:${id}:audio`}};});
   return {room:{participants,output:{connected:1,ready_sources:participants.flatMap(p=>Object.values(p.sources))}},switcher:{program_sources:['camera:1'],preview_sources:['camera:2'],program_layout:'auto',preview_layout:'auto',slots:[{slot_id:1,source_id:'local-1',connected:true,production_readiness:{ready:true}},{slot_id:2,source_id:null,connected:false,production_readiness:{ready:false}}]}};

@@ -1,5 +1,27 @@
 # RareIQ engineering memory
 
+## November 15, 2026 - A visible guest picture does not prove output sound
+
+- A real second-PC rehearsal displayed camera/screen frames while audio.play()
+  was rejected by browser autoplay policy. The clean composite's noninteractive
+  iframe prevented the child recovery gesture, and the operator only saw a
+  pending receipt. Preserve the truthful audio gate and expose a sound-enable
+  control only while blocked. Invoke the embedded compositor synchronously from
+  the real click; postMessage does not reliably carry transient user activation.
+- Treat renderer receipts as historical evidence. Track fresh playback health per
+  output and generation; a blocked, pending or stale output cannot borrow another
+  output's receipt. Playback reports expire after six seconds. Unit and route
+  regressions cover stale generations, blocked playback, distinct outputs and
+  recovery. The actual browser click cleared audioBlocked and confirmed Program.
+- Gate confirmed activity history with the same fresh, matching playback evidence
+  used by operator status. Bare receipts must not create a confirmed audit event.
+  Re-send health before the receipt when HTTP rendering precedes signaling.
+- Iframe load can follow a blocked-audio status message. Re-read the child state on
+  load rather than hiding recovery unconditionally; regressions cover that order.
+- Driver standby video and silent audio tracks verify transport only. The later
+  MX Brio check established physical camera video on Program; spoken audio and
+  mix-minus listening still require separate acceptance.
+
 ## November 15, 2026 — Program audio ownership and local invitation scope
 
 - Program mute policy belongs to the producer and must not toggle or stop a

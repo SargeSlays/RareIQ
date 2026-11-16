@@ -298,11 +298,80 @@ def test_renderer_receipt_is_distinct_and_matches_current_generation(fixture):
     asyncio.run(hub._message("fixture", output, {"type": "rendered", "generation": 2}))
     assert service.history()["events"] == []
     asyncio.run(hub._message("fixture", output, {"type": "rendered", "generation": 3}))
+    assert service.history()["events"] == [], "a bare receipt has no fresh playback evidence"
+    asyncio.run(hub._message("fixture", output, {"type": "ready", "sources": [], "playback": {
+        "generation": 3, "audio_blocked": False, "rendered": True}}))
+    asyncio.run(hub._message("fixture", output, {"type": "rendered", "generation": 3}))
     asyncio.run(hub._message("fixture", output, {"type": "rendered", "generation": 3}))
     events = service.history()["events"]
     assert len(events) == 1 and events[0]["outcome"] == "confirmed"
     assert events[0]["actor_kind"] == "program_renderer" and not events[0]["identity_verified"]
     assert output.rendered_generation == 3
+
+
+@pytest.mark.parametrize("condition", ["expired", "other_generation", "blocked", "pending", "other_peer"])
+def test_renderer_receipt_cannot_create_confirmed_history_without_current_peer_health(fixture, condition):
+    service, hub, state, _, _ = fixture
+    state["generation"] = 3
+    output = Peer(None, "output")
+    asyncio.run(hub._message("fixture", output, {"type": "ready", "sources": [], "playback": {
+        "generation": 3, "audio_blocked": condition == "blocked", "rendered": condition not in {"blocked", "pending"}}}))
+    if condition == "expired":
+        output.playback_reported_at -= 7
+    elif condition == "other_generation":
+        output.playback_generation = 2
+    elif condition == "other_peer":
+        output = Peer(None, "output")
+    asyncio.run(hub._message("fixture", output, {"type": "rendered", "generation": 3}))
+    assert service.history()["events"] == []
+    assert output.rendered_generation == -1
+
+
+def test_output_confirmation_requires_fresh_same_peer_generation_playback(fixture):
+    _, hub, state, _, _ = fixture
+    state["generation"] = 3
+    first, second = Peer(None, "output"), Peer(None, "output")
+    hub.peers.update({"first": first, "second": second})
+    def playback(peer, *, generation=3, blocked=False, rendered=True):
+        asyncio.run(hub._message("fixture", peer, {"type": "ready", "sources": [], "playback": {
+            "generation": generation, "audio_blocked": blocked, "rendered": rendered}}))
+    def receipt(peer):
+        asyncio.run(hub._message("fixture", peer, {"type": "rendered", "generation": 3}))
+    try:
+        playback(first, blocked=True, rendered=False)
+        receipt(first)
+        assert first.rendered_generation == -1
+        assert hub.output_status()["audio_blocked"]
+        playback(first)
+        receipt(first)
+        assert hub.output_status()["rendered_generation"] == 3
+        playback(first, blocked=True, rendered=False)
+        playback(second)
+        assert hub.output_status()["rendered_generation"] == -1, "another peer cannot borrow the earlier receipt"
+        receipt(second)
+        assert hub.output_status()["rendered_generation"] == 3
+        assert hub.output_status()["audio_blocked"], "one healthy renderer cannot conceal another blocked output"
+        second.playback_reported_at -= 7
+        assert hub.output_status()["rendered_generation"] == -1
+        playback(first, generation=2)
+        assert first.audio_blocked, "stale-generation health cannot clear the current blocker"
+        state["generation"] = 4
+        assert not hub.output_status()["audio_blocked"]
+        assert hub.output_status()["rendered_generation"] == -1
+    finally:
+        hub.peers.clear()
+
+
+@pytest.mark.parametrize("playback", [None, {}, {"generation": True, "audio_blocked": False, "rendered": True},
+    {"generation": -1, "audio_blocked": False, "rendered": True},
+    {"generation": 0, "audio_blocked": "false", "rendered": True},
+    {"generation": 0, "audio_blocked": True, "rendered": True},
+    {"generation": 0, "audio_blocked": False, "rendered": 1},
+    {"generation": 0, "audio_blocked": False, "rendered": True, "extra": "untrusted"}])
+def test_output_playback_reports_are_strict_and_bounded(fixture, playback):
+    _, hub, _, _, _ = fixture
+    with pytest.raises(ValueError, match="invalid_playback_state"):
+        asyncio.run(hub._message("fixture", Peer(None, "output"), {"type": "ready", "sources": [], "playback": playback}))
 
 
 @pytest.mark.parametrize("description", [None, {}, {"type": "offer", "sdp": ""}, {"type": "offer", "sdp": "not SDP"},

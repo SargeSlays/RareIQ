@@ -36,11 +36,12 @@ function fixture(options={}){
     cancelVideoFrameCallback(id){this.frames.delete(id);}
     paint(){this.readyState=4;this.videoWidth=640;this.currentTime+=.04;const callbacks=[...this.frames.values()];this.frames.clear();for(const fn of callbacks)fn();}
   }
-  const document={readyState:'complete',createElement:tag=>new Element(tag),querySelector:selector=>selector==='[data-producer-program-output]'&&settings.boot?container:null};
+  const document={readyState:'complete',createElement:tag=>new Element(tag),querySelector:selector=>selector==='[data-output-audio-enable]'?soundButton:selector==='[data-producer-program-output]'&&settings.boot?container:null};
   const container=document.createElement('main');
-  const receiver={tracks:id=>tracks.get(id)||{},sendReady:ids=>{receiver.lastReady=ids;},rendered:value=>acks.push(value),connect:()=>Promise.resolve(),close:()=>{receiver.closed=true;}};
+  const soundButton=document.createElement('button');soundButton.hidden=true;
+  const receiver={tracks:id=>tracks.get(id)||{},sendReady:(ids,playback)=>{receiver.lastReady=ids;receiver.lastPlayback=playback;},rendered:value=>acks.push(value),connect:()=>Promise.resolve(),close:()=>{receiver.closed=true;}};
   const config={container,document,mediaReceiver:receiver,muted:!!settings.muted,bus:settings.bus||'program',onStatus:s=>statuses.push(s),onRendered:g=>acks.push(g),now:()=>clock,setTimeout:later,clearTimeout:cancel,setInterval:repeat,clearInterval:id=>intervals.delete(id),requestAnimationFrame:fn=>later(fn,16),cancelAnimationFrame:cancel,makeStream:list=>({getTracks:()=>list})};
-  const output={container,document,receiver,config,timers,intervals,nodes,statuses,acks,tracks,settings,events,advance:amount=>clock+=amount};
+  const output={container,soundButton,document,receiver,config,timers,intervals,nodes,statuses,acks,tracks,settings,events,advance:amount=>clock+=amount};
   output.run=async delay=>{const entry=[...timers].find(([,item])=>item.delay===delay);assert.ok(entry,`Expected ${delay}ms timer`);timers.delete(entry[0]);clock+=delay;await entry[1].fn();await settle();};
   output.close=()=>output.view?.close();
   if(settings.boot){
@@ -201,4 +202,34 @@ test('render receipt retries when HTTP state arrives before signaling generation
   f.view.render(state());await f.run(16);assert.ok(attempts>0);assert.equal(f.view.lastRendered,null);
   accepted=true;f.view.refresh();const acknowledged=attempts;
   assert.equal(f.view.lastRendered,'0:["camera:1"]');f.view.refresh();assert.equal(attempts,acknowledged);f.close();
+});
+
+test('standalone output exposes sound recovery only while blocked and acknowledges after the explicit click',async()=>{
+  const f=fixture({boot:true,rejectAudio:true});guestTracks(f);await settle();
+  f.current.value=state({generation:1,program_sources:[AUDIO],preview_sources:[]});
+  f.mediaOptions.onState({room:{...room(),switcher:f.current.value}});await f.run(16);await settle();
+  assert.equal(f.soundButton.hidden,false);assert.equal(f.receiver.lastPlayback.audioBlocked,true);assert.equal(f.receiver.lastPlayback.rendered,false);assert.equal(f.acks.length,0);
+  const audio=f.nodes.find(n=>n.tagName==='AUDIO');let duringClick=false,playedDuringClick=false;
+  audio.play=()=>{playedDuringClick=duringClick;return Promise.resolve();};
+  duringClick=true;f.soundButton.emit('click');duringClick=false;await settle();
+  assert.equal(playedDuringClick,true,'audio.play stays inside the trusted gesture call stack');
+  assert.equal(f.soundButton.hidden,true);assert.equal(f.receiver.lastPlayback.audioBlocked,false);assert.equal(f.receiver.lastPlayback.rendered,true);assert.deepEqual(f.acks,[1]);
+  f.hide();assert.equal(f.soundButton.listeners.get('click').size,0);
+});
+
+test('an earlier receipt does not hide a new same-generation audio block',async()=>{
+  const f=fixture();guestTracks(f);const snapshot=room();snapshot.participants[0].program_audio={microphone_muted:true,screen_muted:false};
+  f.view.render(state({program_sources:[AUDIO]}),snapshot);await f.run(16);assert.deepEqual(f.acks,[0]);
+  f.settings.rejectAudio=true;const unmuted=room();unmuted.revision=2;f.view.setRoom(unmuted);await settle();
+  assert.equal(f.statuses.at(-1).audioBlocked,true);assert.equal(f.statuses.at(-1).rendered,false);assert.equal(f.statuses.at(-1).generation,0);
+  f.settings.rejectAudio=false;f.view.resumeAudio();await settle();assert.equal(f.statuses.at(-1).rendered,true);f.close();
+});
+
+test('signaling catching up to an already-rendered HTTP state sends fresh health before the receipt',async()=>{
+  const f=fixture({boot:true});let signalingReady=false;const messages=[];
+  f.receiver.sendReady=(_sources,status)=>{if(signalingReady)messages.push({type:'health',generation:status?.generation,rendered:status?.rendered});};
+  f.receiver.rendered=generation=>{if(!signalingReady)return false;messages.push({type:'receipt',generation});return true;};
+  await settle();await f.run(16);assert.deepEqual(messages,[]);
+  signalingReady=true;f.mediaOptions.onState({room:{...room(),switcher:state()}});
+  assert.deepEqual(messages.slice(0,2),[{type:'health',generation:0,rendered:true},{type:'receipt',generation:0}]);f.hide();
 });

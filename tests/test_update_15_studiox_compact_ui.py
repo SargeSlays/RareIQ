@@ -105,7 +105,7 @@ def test_update15_stylesheet_is_last_and_cache_busted() -> None:
         "/static/studio_shell.css?v=20261115-3&amp;refinish=20260907-2&amp;session-tools=20260908-2&amp;sarge=20260908-2&amp;studio-refinish=20260908-2&amp;noise-gate=20260908-1",
         "/static/producer-please.motion.css?v=20260908-1",
         "/static/studio_voice_rules.css?v=20261115-1",
-        "/static/program_composition.css?v=20261115-1",
+        "/static/program_composition.css?v=20261115-3",
         "/static/greenroom_controls.css?v=20261115-2",
         "/static/audience_controls.css?v=20261115-1",
         "/static/production_vision.css?v=20261115-1",

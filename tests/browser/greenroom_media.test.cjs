@@ -57,6 +57,17 @@ function guestState(sources=['camera','screen','audio'],returnAudio=false,state=
 async function connect(f,engine,role){const ready=engine.connect();const ws=f.sockets.at(-1);ws.open();ws.message({type:'hello',peer_id:'self',role,ice_servers:[]});await ready;return ws;}
 function offer(ws,from='publisher',id='guest-one'){ws.message({type:'signal',from,participant_id:id,role:'guest',kind:'offer',data:{type:'offer',sdp:'v=0\nm=audio 9 UDP/TLS/RTP/SAVPF 111\n'}});}
 
+test('output playback health is typed and bound to the current signaling generation',async()=>{
+  const f=fixture(),receiver=f.api.createReceiver({role:'output'}),ws=await connect(f,receiver,'output');
+  ws.message(receiverState());
+  receiver.sendReady([], {generation:3,audioBlocked:true,rendered:false});
+  assert.deepEqual(ws.sent.at(-1).playback,{generation:3,audio_blocked:true,rendered:false});
+  for(const invalid of [{generation:2,audioBlocked:false,rendered:true},{generation:3,audioBlocked:'false',rendered:true},{generation:3,audioBlocked:false}]){
+    receiver.sendReady([],invalid);assert.equal('playback' in ws.sent.at(-1),false);
+  }
+  receiver.close();
+});
+
 test('publisher requires explicit connection/caller tracks and fixed transceiver order',async()=>{
   const f=fixture(),publisher=f.api.createPublisher({token:'a'.repeat(64)});
   const mic=new f.Track('audio'),camera=new f.Track('video'),screen=new f.Track('video'),game=new f.Track('audio');

@@ -180,13 +180,16 @@
         const entry={node,track,playing:false,blocked:false,disposed:false};this.audio.set(key,entry);this._playAudio(key,entry);
       }
     }
-    _playAudio(key,entry){
+    _playAudio(key,entry,immediate=false){
       entry.blocked=false;entry.playing=false;
-      Promise.resolve().then(()=>{if(this.audio.get(key)===entry&&!entry.disposed)return entry.node.play();}).then(()=>{
+      const play=()=>{if(this.audio.get(key)===entry&&!entry.disposed)return entry.node.play();};
+      let started;
+      try{started=immediate?play():Promise.resolve().then(play);}catch(error){started=Promise.reject(error);}
+      Promise.resolve(started).then(()=>{
         if(this.audio.get(key)!==entry||entry.disposed)return;entry.playing=true;this._status();
       },()=>{if(this.audio.get(key)!==entry||entry.disposed)return;entry.blocked=true;this._status();});
     }
-    resumeAudio(){for(const [key,entry] of this.audio)if(!entry.playing)this._playAudio(key,entry);}
+    resumeAudio(){for(const [key,entry] of this.audio)if(!entry.playing)this._playAudio(key,entry,true);}
     _status(){
       const audioBlocked=[...this.audio.values()].some(entry=>entry.blocked);
       const rendered=Boolean(this.current?.visible&&this.current.tiles.every(tile=>tile.ready)&&[...this.audio.values()].every(entry=>entry.playing));
@@ -226,17 +229,34 @@
   function boot(){
     const container=host.document?.querySelector('[data-producer-program-output]');
     if(!container||container.dataset.compositionStarted==='true'||!host.RareIQOverlay||!host.ProducerGuestMedia)return;
-    container.dataset.compositionStarted='true';let view,receiver,stopped=false;
+    container.dataset.compositionStarted='true';let view,receiver,stopped=false,playback=null;
+    const soundButton=host.document.querySelector('[data-output-audio-enable]');
+    let embedded=false;
+    try{embedded=host.parent!==host&&host.parent.document.querySelector('iframe.program')?.contentWindow===host;}catch(_){/* Standalone recovery stays available. */}
+    const report=status=>{
+      playback=status;
+      if(soundButton)soundButton.hidden=embedded||!status.audioBlocked;
+      if(embedded)host.parent.postMessage({type:'producer-output-audio',blocked:status.audioBlocked},host.location.origin);
+      receiver?.sendReady(status.readySources,status);
+    };
     receiver=host.ProducerGuestMedia.createReceiver({role:'output',
       onState:message=>{if(!stopped&&message.room){view.setRoom(message.room);view.render(message.room.switcher);}},
       onTracks:()=>view?.refresh(),
       onConnection:event=>{if(!event.participant_id&&['disconnected','closed'].includes(event.state))view?.clear();},
       onError:()=>view?.refresh()});
-    view=new ProducerCompositionView({container,mediaReceiver:receiver,onRendered:generation=>receiver.rendered(generation)});
+    view=new ProducerCompositionView({container,mediaReceiver:receiver,onStatus:report,onRendered:generation=>{
+      // HTTP rendering may precede signaling. Re-send current health before its
+      // receipt even when the visual status itself has not changed.
+      receiver.sendReady(view.readySources(),playback);return receiver.rendered(generation);
+    }});
     const stopPoll=host.RareIQOverlay.start({interval:300,load:signal=>host.RareIQOverlay.json('/api/production/switcher',signal),render:state=>view.render(state),clear:()=>view.clear()});
-    const ready=host.setInterval(()=>receiver.sendReady(view.readySources()),1000);
+    const ready=host.setInterval(()=>receiver.sendReady(view.readySources(),playback),1000);
     const resume=()=>view.resumeAudio();host.addEventListener('pointerdown',resume);host.addEventListener('keydown',resume);
-    host.addEventListener('pagehide',()=>{stopped=true;host.clearInterval(ready);stopPoll();view.close();receiver.close();host.removeEventListener('pointerdown',resume);host.removeEventListener('keydown',resume);},{once:true});
+    soundButton?.addEventListener('click',resume);
+    // The containing Studio Output calls this synchronously from a real click.
+    // postMessage cannot carry the browser's transient user activation reliably.
+    host.ProducerProgramOutput={resumeAudio:resume};
+    host.addEventListener('pagehide',()=>{stopped=true;host.clearInterval(ready);stopPoll();view.close();receiver.close();host.removeEventListener('pointerdown',resume);host.removeEventListener('keydown',resume);soundButton?.removeEventListener('click',resume);delete host.ProducerProgramOutput;},{once:true});
     Promise.resolve(receiver.connect()).catch(()=>view.clear());return {view,receiver};
   }
   const exported={ProducerCompositionView,parseSource,sourceList,normalizeState,liveTrack,participantFor,permitted,audioPlan,boot};
