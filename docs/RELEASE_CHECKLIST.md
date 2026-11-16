@@ -1,5 +1,32 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 - Account boundary and membership foundation
+
+Canonical release gate passed: 2797 Python and 304 JavaScript tests. The focused
+account/store/provider suite exercises 158 checks, including real application HTTP routes and
+both WebSocket routes using an isolated database and fixture identities. App lifespan,
+camera acquisition, streaming, recording and external authentication are not started.
+
+Verified at this layer: viewer/uninvited denial, owner-only role changes, last-owner
+protection, atomic membership history, current membership before receipt replay,
+principal-scoped receipts, concurrent edit conflicts, legacy history migration,
+provider failure, no loopback/cookie shortcut, and retained identity during policy change.
+An integrated simulated StackThis response passes through the real adapter, middleware,
+membership service, scene route and attributed history. A purchase source never upgrades
+a viewer; provider revocation blocks a previously successful request before replay.
+Account mode remains disabled and cannot be enabled through environment settings.
+
+The exact deployed StackThis v249 authentication source was retrieved and inspected
+with owner-approved temporary access. The local server was found stopped, then started
+healthy on loopback; live scene/history reads still show revision zero, zero scenes,
+zero events and no individual identity. No test identities or edits entered live storage.
+
+Not verified or enabled: app registration, real login, member-management UI, internet
+access, critical live controls or hardware. Provider verification is tested with
+simulated responses only and is not connected to the running server.
+Existing local studio behavior remains covered by the full gate; this checkpoint
+does not add a visible login screen or claim collaborative live production is ready.
+
 ## November 15, 2026 - Scene activity and concurrent editing
 
 Focused service/HTTP and browser-model checks pass. An isolated server with production

@@ -37,6 +37,7 @@ from rareiq.services.instant_replay_service import InstantReplayService
 from rareiq.services.auto_clip_service import AutoClipService
 from rareiq.services.production_action_service import ActionSpec, ProductionActions
 from rareiq.services.production_scene_store import ProductionSceneStore
+from rareiq.web.shared_scene_access import SharedSceneAccessMiddleware, SharedScenePolicy, VerifiedPrincipal
 from rareiq.services.voice_command_service import VoiceCommandService, MAX_VOICE_BYTES
 from rareiq.services.windows_speech_recognizer import WindowsSpeechRecognizer
 from rareiq.services.inventory_service import MAX_RECEIPT_DATA_URL_CHARS
@@ -177,6 +178,8 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title=f"RareIQ v{VERSION}", lifespan=lifespan)
+# API-only integration seam. No environment toggle or live provider is configured.
+SHARED_SCENE_ACCESS = SharedScenePolicy()
 
 
 def _remote_access_page(
@@ -208,6 +211,8 @@ main{{width:min(100%,420px);padding:28px;border:1px solid #1d5267;border-radius:
 
 @app.middleware("http")
 async def enforce_remote_access(request: Request, call_next):
+    if isinstance(request.scope.get("studio_principal"), VerifiedPrincipal):
+        return await call_next(request)
     client_host = request.client.host if request.client else None
     if REMOTE_ACCESS.authorizes(
         client_host,
@@ -377,6 +382,9 @@ async def enforce_bounded_request_bodies(request: Request, call_next):
         body.extend(chunk)
     request._body = bytes(body)
     return await call_next(request)
+
+
+app.add_middleware(SharedSceneAccessMiddleware, policy=lambda: SHARED_SCENE_ACCESS)
 
 
 def _active_camera_provenance_context() -> dict[str, Any]:
@@ -927,6 +935,17 @@ def _scene_actor(request: Request) -> str:
 
 def _scene_storage_error() -> JSONResponse:
     return JSONResponse(status_code=503, content={"ok": False, "reason": "scene_storage_unavailable", "message": "Scene storage is unavailable. No change was confirmed; keep your draft and retry."})
+
+def _scene_principal(request: Request) -> VerifiedPrincipal | None:
+    principal = request.scope.get("studio_principal")
+    if isinstance(principal, VerifiedPrincipal):
+        return principal
+    if SHARED_SCENE_ACCESS.enabled and not isinstance(principal, VerifiedPrincipal):
+        raise PermissionError("verified_identity_required")
+    return None
+
+def _scene_permission_error() -> JSONResponse:
+    return JSONResponse(status_code=403, content={"ok": False, "reason": "studio_permission_denied"}, headers={"Cache-Control": "no-store"})
 PRODUCTION_SESSION_LOCK = threading.RLock()
 PRODUCTION_SESSION_PATH = BASE_DIR.parent.parent / "production_session.json"
 PRODUCTION_HISTORY_PATH = BASE_DIR.parent.parent / "production_history.json"
@@ -2185,19 +2204,23 @@ async def production_switcher_take(request: ProductionSwitcherRequest):
     return await _dispatch_manual_action("program.take", request, 409)
 
 @app.get("/api/production/scenes")
-async def production_scenes_status():
+async def production_scenes_status(http_request: Request):
     with PRODUCTION_SWITCHER_LOCK:
         try:
-            state = production_scene_store.snapshot()
+            state = production_scene_store.snapshot(principal=_scene_principal(http_request))
             PRODUCTION_SCENES[:] = state["scenes"]
             return state
+        except PermissionError:
+            return _scene_permission_error()
         except (OSError, ValueError, sqlite3.Error):
             return _scene_storage_error()
 
 @app.get("/api/production/scenes/activity")
-async def production_scene_activity(before_id: int | None = None, limit: int = 50):
+async def production_scene_activity(http_request: Request, before_id: int | None = None, limit: int = 50):
     try:
-        return production_scene_store.history(before_id=before_id, limit=limit)
+        return production_scene_store.history(before_id=before_id, limit=limit, principal=_scene_principal(http_request))
+    except PermissionError:
+        return _scene_permission_error()
     except ValueError:
         return JSONResponse(status_code=400, content={"ok": False, "reason": "invalid_history_page"})
     except (OSError, sqlite3.Error):
@@ -3579,9 +3602,11 @@ async def save_production_scene(request: ProductionSceneRequest, http_request: R
         try:
             result = production_scene_store.edit(action="save", target=request.id, scene=scene,
                 expected_revision=request.expected_revision, request_id=request.request_id,
-                actor_kind=_scene_actor(http_request))
+                actor_kind=_scene_actor(http_request), principal=_scene_principal(http_request))
             PRODUCTION_SCENES[:] = production_scene_store.snapshot()["scenes"]
             return result if result["ok"] else JSONResponse(status_code=result["status"], content=result)
+        except PermissionError:
+            return _scene_permission_error()
         except (OSError, ValueError, sqlite3.Error):
             return _scene_storage_error()
 
@@ -3592,9 +3617,12 @@ async def delete_production_scene(scene_id: str, http_request: Request,
     with PRODUCTION_SWITCHER_LOCK:
         try:
             result = production_scene_store.edit(action="delete", target=scene_id, scene=None,
-                expected_revision=expected_revision, request_id=request_id, actor_kind=_scene_actor(http_request))
+                expected_revision=expected_revision, request_id=request_id, actor_kind=_scene_actor(http_request),
+                principal=_scene_principal(http_request))
             PRODUCTION_SCENES[:] = production_scene_store.snapshot()["scenes"]
             return result if result["ok"] else JSONResponse(status_code=result["status"], content=result)
+        except PermissionError:
+            return _scene_permission_error()
         except (OSError, ValueError, sqlite3.Error):
             return _scene_storage_error()
 

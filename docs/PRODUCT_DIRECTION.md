@@ -1,5 +1,37 @@
 # RareIQ: streaming-first product direction
 
+## November 15, 2026 - Account permission foundation (disabled)
+
+The scene service now supports server-verified subjects with owner/editor/viewer
+membership for this one production instance. Owner-only membership changes, scene
+edits and their attributed history are transactional. Revocation/downgrade is checked
+before returning a previous edit receipt. Host bootstrap is explicit and never grants
+ownership to a first visitor or localhost request. Historical device events remain
+unverified; host bootstrap is labeled separately from authenticated account actions.
+
+An API-only account boundary defaults off and has no deployment/environment switch.
+A StackThis verification adapter is tested with simulated responses and remains unused.
+When the boundary is enabled in isolated tests it allows only
+scene read/save/delete/history routes, requires a server-verified bearer session,
+checks current membership and rejects every legacy control route and WebSocket.
+The regular studio remains in its existing local/LAN mode. There is no account login,
+member-management UI, internet transport or verified multi-person live production yet.
+
+With the owner's approved temporary repository access, the exact deployed StackThis
+version 249 source was retrieved read-only: commit
+`7de1788d08547876e7717d320df30d743b05abbb`. Its server-only session-check contract is
+verified in source, including active Clerk/account checks. Producer, Please has a
+development catalog listing but no login registration in the free-tool, membership
+or paid-app policies. Registration, callback and access-policy approval remain required;
+a listing does not authorize login and does not decide base-studio pricing. No StackThis
+settings, deployments, billing or public access changed. No real user session was tested.
+
+Stackthis Dev recommends a dedicated identity-only registration because its current
+app-session endpoint couples identity to product access policy. Do not add Producer to
+the free-tools or subscription policies merely to pass those checks. Exact permitted
+origins/callbacks and the identity-only contract/registration/deployment need approval
+before real login. Studio membership and RareIQ entitlement remain separate decisions.
+
 ## November 15, 2026 - Scene collaboration foundation
 
 Scene saves and deletions now use durable SQLite transactions containing the scene

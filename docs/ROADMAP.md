@@ -1,5 +1,25 @@
 # RareIQ Roadmap
 
+## November 15, 2026 - Disabled account access checkpoint
+
+Implemented and locally tested: explicit host owner setup, revisioned owner/editor/
+viewer membership, verified actor subjects, principal-scoped retry receipts, and an
+account-mode boundary denying all non-scene HTTP routes and every WebSocket. Account
+authorization is checked inside the same transaction as a write or receipt replay.
+These are service/API foundations exercised with fixture identities; no personal login
+or shared production control is enabled in the running product.
+
+The exact deployed StackThis v249 sign-in source is now inspected and the unused
+studio verifier is covered with simulated provider responses. Producer, Please is
+listed in the catalog but absent from login policies. Next dependency: approve its
+callback and identity/access registration without inventing base-studio pricing or
+granting RareIQ entitlement. Then connect real session verification,
+build browser sign-in and member administration, and test revocation end to end.
+The Stackthis Dev recommendation is a dedicated identity-only app registration and
+contract, separately approved and tested; no free-tool or subscription-policy shortcut.
+Later slices: presence/reconnect, authenticated remote transport and exclusive control
+of critical live actions, with accountability extended to each integrated control.
+
 ## November 15, 2026 - First shared-editing implementation checkpoint
 
 Implemented locally: transactional scene save/delete, revision conflicts, durable

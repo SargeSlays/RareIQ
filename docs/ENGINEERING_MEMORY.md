@@ -1,5 +1,34 @@
 # RareIQ engineering memory
 
+## November 15, 2026 - Shared identities must not inherit legacy control access
+
+A role check on scene handlers alone leaves older control endpoints, static entry
+points and camera WebSockets accessible through legacy loopback/shared-cookie rules.
+Put a deny-by-default ASGI boundary ahead of those paths. The disabled account pilot
+allows only scene APIs; no cookie, forwarded header, localhost or first-visitor shortcut
+substitutes for verified identity and persisted production membership.
+
+Check membership inside BEGIN IMMEDIATE before idempotency lookup. Otherwise a revoked
+editor can replay a successful receipt. Scope receipts to provider/app/subject within
+the production store. Membership mutations and their activity must roll back together;
+protect the last owner and preserve legacy history as unverified. Member-role events
+use membership revisions; scene events use scene revisions.
+
+Review found a request race when the global account-mode flag changed after verification:
+dropping the captured principal would enter permission-free legacy behavior. Preserve
+the typed request principal regardless of later global mode changes. Regression tests
+exercise that race, real HTTP/socket routes, provider failures, denied viewers, revocation,
+principal collisions, concurrent edits and migration without application lifespan or
+hardware. The fake verifier proves the boundary, not real StackThis authentication.
+
+Do not infer app-login registration from marketplace catalog entries. In deployed
+StackThis v249 (`7de1788d08547876e7717d320df30d743b05abbb`), Producer, Please is listed
+but omitted from all callback/login policy registries. Session verification is
+server-only GET `/api/apps/session/check?appId=producer-please`, using a 64-lowercase-hex
+Bearer token. Require allowed=true, exact appId, nonempty subject and fresh checkedAt;
+recheck every request and deny unavailable/redirect/malformed responses. The provider's
+source/access classification is neither a studio role nor RareIQ entitlement.
+
 ## November 15, 2026 - Shared scene writes and honest attribution
 
 The previous scene path changed the in-memory list before JSON persistence and allowed
