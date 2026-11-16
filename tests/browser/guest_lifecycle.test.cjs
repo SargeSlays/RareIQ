@@ -59,7 +59,7 @@ for(const ending of ['leave','pagehide','disconnected','reconnecting','failed','
 test('Guest notice is an accessible hidden status and the changed script has a new cache key',()=>{
   const html=fs.readFileSync(require.resolve('../../rareiq/web/static/guest.html'),'utf8');
   assert.match(html,/<p[^>]*id="guestProgramAudioNotice"[^>]*role="status"[^>]*aria-live="polite"[^>]*hidden/);
-  assert.match(html,/guest\/assets\/guest\.js\?v=20261115-8/);
+  assert.match(html,/guest\/assets\/guest\.js\?v=20261115-9/);
 });
 
 
@@ -258,5 +258,62 @@ for(const failed of [false,true])test(`built-in cue restores keyboard focus afte
   // Browsers can blur a focused control when its disabled state changes.
   f.context.document.activeElement=f.context.document.body;finish();await playing;
   assert.equal(cue.disabled,false);assert.equal(f.context.document.activeElement,cue);
+  await f.element('guestLeave').listeners.click();
+});
+
+const mediaStreamFixture=class{constructor(tracks){this.tracks=tracks;}getVideoTracks(){return this.tracks.filter(track=>track.kind==='video');}};
+const mediaButton=kind=>kind==='camera'?'guestCamera':kind==='microphone'?'guestMicrophone':'guestScreen';
+const mediaTracks=kind=>(kind==='screen'?['video','audio']:[kind==='camera'?'video':'audio']).map(type=>({kind:type,stops:0,stop(){this.stops++;}}));
+
+for(const active of ['camera','microphone','screen'])test(`${active} OFF remains available while another device permission is pending`,async()=>{
+  const f=fixture({MediaStream:mediaStreamFixture});await f.element('guestJoinForm').listeners.submit({preventDefault(){}});
+  const button=f.element(mediaButton(active)),tracks=mediaTracks(active);button.listeners.click();f.resolve(tracks);await settle();
+  const pendingKind=active==='camera'?'microphone':'camera',pending=f.element(mediaButton(pendingKind)).listeners.click();
+  assert.equal(button.disabled,false);await button.listeners.click();assert.ok(tracks.every(track=>track.stops===1));assert.equal(f.publications.at(-1)[active],null);
+  assert.equal(f.element(mediaButton(pendingKind)).disabled,true,'OFF must not release another request busy state');
+  f.resolve(mediaTracks(pendingKind));await pending;assert.equal(button.attributes['aria-pressed'],'false');assert.equal(f.publications.at(-1)[active],null);
+  await f.element('guestLeave').listeners.click();
+});
+
+for(const kind of ['camera','microphone'])for(const failed of [false,true])test(`${kind} OFF during enumeration ignores its late ${failed?'failure':'success'}`,async()=>{
+  const f=fixture({MediaStream:mediaStreamFixture});let finish;
+  f.context.navigator.mediaDevices.enumerateDevices=()=>new Promise((resolve,reject)=>finish=()=>failed?reject(Error('late enumeration')):resolve([]));
+  const button=f.element(mediaButton(kind)),tracks=mediaTracks(kind),capture=button.listeners.click();f.resolve(tracks);await settle();
+  assert.equal(button.disabled,false);await button.listeners.click();assert.ok(tracks.every(track=>track.stops===1));const notice=f.element('guestDeviceStatus').textContent;
+  finish();await capture;assert.equal(button.attributes['aria-pressed'],'false');assert.equal(f.element('guestDeviceStatus').textContent,notice);assert.match(notice,/is off/);
+});
+
+for(const kind of ['camera','microphone'])test(`${kind} OFF cancels a pending replacement and stops the late stream`,async()=>{
+  const f=fixture({MediaStream:mediaStreamFixture});await f.element('guestJoinForm').listeners.submit({preventDefault(){}});
+  const button=f.element(mediaButton(kind)),original=mediaTracks(kind);button.listeners.click();f.resolve(original);await settle();const obsoleteEnded=original[0].onended;
+  const select=f.element(kind==='camera'?'guestCameraDevice':'guestMicDevice');select.value='replacement';select.listeners.change();assert.equal(button.disabled,false);
+  await button.listeners.click();const before=f.publications.length,late=mediaTracks(kind);f.resolve(late);await settle();
+  assert.equal(original[0].stops,1);assert.equal(late[0].stops,1);assert.equal(button.attributes['aria-pressed'],'false');assert.equal(f.publications.length,before);
+  const fresh=mediaTracks(kind);button.listeners.click();f.resolve(fresh);await settle();obsoleteEnded();assert.equal(fresh[0].stops,0);assert.equal(button.attributes['aria-pressed'],'true');
+  await f.element('guestLeave').listeners.click();
+});
+
+test('microphone OFF cancels pending processing without publishing a late processed track',async()=>{
+  let finish;const processed={kind:'audio',stop(){}},f=fixture({ProducerGuestMicrophone:{create(raw,onTrack){return {configure:()=>new Promise(resolve=>finish=()=>{onTrack(processed);resolve();}),close(){raw.stop();},snapshot:()=>({sounds:[],playing:0})};}}});
+  await f.element('guestJoinForm').listeners.submit({preventDefault(){}});const button=f.element('guestMicrophone'),tracks=mediaTracks('microphone'),capture=button.listeners.click();f.resolve(tracks);await settle();
+  assert.equal(button.disabled,false);await button.listeners.click();const before=f.publications.length;finish();await capture;
+  assert.equal(tracks[0].stops,1);assert.equal(button.attributes['aria-pressed'],'false');assert.equal(f.publications.length,before);assert.equal(f.publications.at(-1).microphone,null);
+});
+
+for(const kind of ['camera','microphone','screen'])test(`unexpected ${kind} end reports capture loss and an obsolete callback cannot stop replacement`,async()=>{
+  const f=fixture({MediaStream:mediaStreamFixture});const button=f.element(mediaButton(kind)),tracks=mediaTracks(kind);button.listeners.click();f.resolve(tracks);await settle();const ended=tracks[0].onended;
+  ended();assert.equal(button.attributes['aria-pressed'],'false');assert.match(f.element('guestDeviceStatus').textContent,/disconnected or stopped|capture ended/);
+  const fresh=mediaTracks(kind);button.listeners.click();f.resolve(fresh);await settle();ended();assert.equal(fresh[0].stops,0);assert.equal(button.attributes['aria-pressed'],'true');
+  await button.listeners.click();
+});
+
+test('screen hint distinguishes private preview, sharing permission and paused connection; audio ending preserves video',async()=>{
+  const f=fixture({MediaStream:mediaStreamFixture}),tracks=mediaTracks('screen');f.element('guestScreen').listeners.click();f.resolve(tracks);await settle();
+  assert.match(f.element('guestMediaHint').textContent,/screen preview stays on this device until you join/);
+  await f.element('guestJoinForm').listeners.submit({preventDefault(){}});assert.match(f.element('guestMediaHint').textContent,/screen and its audio are enabled for sharing/);
+  tracks[1].onended();assert.equal(tracks[0].stops,0);assert.equal(f.element('guestScreen').attributes['aria-pressed'],'true');assert.match(f.element('guestDeviceStatus').textContent,/Screen audio stopped/);assert.match(f.element('guestMediaHint').textContent,/no screen audio/);
+  f.callbacks().onConnection({state:'disconnected',reason:'signaling_disconnected'});assert.match(f.element('guestMediaHint').textContent,/paused or pending/);assert.match(f.element('guestMediaHint').textContent,/Delivery is not confirmed/);assert.match(f.element('guestMediaHint').textContent,/remain on until you turn them off/);
+  f.callbacks().onState(roomState('admitted',{}));assert.match(f.element('guestMediaHint').textContent,/enabled for sharing/);
+  f.callbacks().onConnection({scope:'peer',state:'peer_disconnected',peer_id:'fixture'});assert.match(f.element('guestMediaHint').textContent,/Some enabled sources may not reach/);
   await f.element('guestLeave').listeners.click();
 });

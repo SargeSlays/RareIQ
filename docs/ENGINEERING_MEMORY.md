@@ -1,5 +1,16 @@
 # RareIQ engineering memory
 
+## November 15, 2026 - Capture-off must not wait for permissions
+
+- A global capture-busy flag blocked Off while another device permission was
+  pending. Keep active source shutdown synchronous and available independently.
+- Invalidate pending capture/replacement and enumeration callbacks per source,
+  while preserving the shared request lock until the outstanding operation settles.
+  Late streams must be stopped; they must not reopen a source the guest stopped.
+- Distinguish private prejoin screen preview from connected availability and
+  unconfirmed delivery during connection failures. Signaling state is not media
+  receipt. Unexpected track-ended callbacks must belong to the current source.
+
 ## November 15, 2026 - Separate guest operation and feedback ownership
 
 - Periodic room/audio snapshots must not erase device or file-operation errors.

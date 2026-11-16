@@ -10,6 +10,11 @@ The owner-presence listening checklist remains unchanged in GUEST_PRODUCTION.md.
 No second-PC capture, temporary network exposure, public stream or recording is
 part of this polish checkpoint.
 
+Additional local polish: capture-off during pending permissions, replacement
+cancellation, capture-ended guidance and truthful preview/delivery hints. Browser
+checks use controlled permission delays and synthetic media; owner-presence
+listening and physical device switching remain deferred.
+
 ## November 15, 2026 - Guest audio checkpoint; listening deferred
 
 Implemented and browser-tested: guest voice styles, four built-in cues, six local

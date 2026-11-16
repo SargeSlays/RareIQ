@@ -18,7 +18,7 @@ async function main(){
   async function page(){
     const page=await browser.newPage({viewport:{width:1280,height:1000}});page.on('pageerror',()=>errors.push('Unhandled browser error'));
     await page.addInitScript(()=>{
-      window.qa={mode:'normal',deny:false,states:0,held:[],sockets:[],tracks:[],captures:0};
+      window.qa={mode:'normal',deny:false,states:0,held:[],sockets:[],tracks:[],captures:0,captureHold:false,captureWaiters:[]};
       const Native=window.WebSocket;
       window.WebSocket=class extends Native{
         constructor(...args){if(qa.mode==='fail'&&String(args[0]).endsWith('/guest/ws'))throw Error('Simulated transport failure');super(...args);qa.sockets.push(this);this.addEventListener('message',event=>{try{if(JSON.parse(event.data).type==='state')qa.states++;}catch{}});}
@@ -27,12 +27,14 @@ async function main(){
       };
       navigator.mediaDevices.getUserMedia=async constraints=>{
         qa.captures++;if(qa.deny)throw new DOMException('Simulated denial','NotAllowedError');
+        if(qa.captureHold)await new Promise(resolve=>qa.captureWaiters.push(resolve));
         const tracks=[];
         if(constraints.audio){const context=new AudioContext();qa.contexts??=[];qa.contexts.push(context);const output=context.createMediaStreamDestination();output.channelCount=1;await context.resume();tracks.push(...output.stream.getAudioTracks());}
         if(constraints.video){const canvas=document.createElement('canvas');canvas.width=320;canvas.height=180;canvas.getContext('2d').fillRect(0,0,320,180);tracks.push(...canvas.captureStream(1).getVideoTracks());}
         qa.tracks.push(...tracks);return new MediaStream(tracks);
       };
-      navigator.mediaDevices.enumerateDevices=async()=>[];
+      navigator.mediaDevices.enumerateDevices=async()=>[{kind:'audioinput',deviceId:'fixture-mic',label:'Fixture microphone'}];
+      navigator.mediaDevices.getDisplayMedia=async()=>navigator.mediaDevices.getUserMedia({video:true,audio:false});
     });
     return page;
   }
@@ -44,7 +46,27 @@ async function main(){
     await missing.locator('#guestMicrophone').click();
     assert.equal(await missing.locator('#guestJoin').isDisabled(),true,'capture stop must not enable a missing invite');
     assert.equal(await missing.evaluate(()=>qa.tracks.every(track=>track.readyState==='ended')),true);
-    results.missingInviteStaysDisabled=true;await missing.screenshot({path:path.join(destination,'missing-invitation.png'),fullPage:true});await missing.close();
+    results.missingInviteStaysDisabled=true;
+    await missing.locator('#guestMicrophone').click();await missing.evaluate(()=>qa.captureHold=true);await missing.locator('#guestCamera').click();
+    await until(()=>missing.evaluate(()=>qa.captureWaiters.length===1),'camera permission held');
+    assert.equal(await missing.locator('#guestMicrophone').isDisabled(),false,'mic off available during camera permission');
+    await missing.locator('#guestMicrophone').click();assert.equal(await missing.evaluate(()=>qa.tracks.filter(t=>t.kind==='audio').every(t=>t.readyState==='ended')),true);
+    await missing.evaluate(()=>{qa.captureHold=false;qa.captureWaiters.splice(0).forEach(resolve=>resolve());});
+    await until(async()=>await missing.locator('#guestCamera').getAttribute('aria-pressed')==='true','requested camera settles independently');await missing.locator('#guestCamera').click();
+    await missing.locator('#guestMicrophone').click();await missing.locator('summary').click();await missing.evaluate(()=>qa.captureHold=true);
+    await missing.locator('#guestMicDevice').selectOption('fixture-mic');await until(()=>missing.evaluate(()=>qa.captureWaiters.length===1),'replacement microphone permission held');
+    assert.equal(await missing.locator('#guestMicrophone').isDisabled(),false,'mic off available during replacement');await missing.locator('#guestMicrophone').click();
+    await missing.evaluate(()=>{qa.captureHold=false;qa.captureWaiters.splice(0).forEach(resolve=>resolve());});
+    await until(()=>missing.evaluate(()=>qa.tracks.every(t=>t.readyState==='ended')),'cancelled replacement tracks retired');
+    assert.equal(await missing.locator('#guestMicrophone').getAttribute('aria-pressed'),'false');
+    results.stopCaptureDuringOtherPermission=true;results.cancelReplacementCannotReopen=true;
+    await missing.locator('#guestScreen').click();assert.match(await missing.locator('#guestMediaHint').innerText(),/private|on this device/i,'screen preview clearly stays local before joining');
+    await missing.evaluate(()=>{const track=qa.tracks.filter(t=>t.kind==='video').at(-1);track.stop();track.dispatchEvent(new Event('ended'));});
+    await until(async()=>await missing.locator('#guestScreen').getAttribute('aria-pressed')==='false','screen-ended event clears sharing');
+    assert.match(await missing.locator('#guestDeviceStatus').innerText(),/screen.*(?:stopped|ended)|sharing.*stopped/i);results.privateScreenAndEndedFeedback=true;
+    await missing.screenshot({path:path.join(destination,'missing-invitation.png'),fullPage:true});
+    results.layouts=[];for(const theme of ['ignite','daylight'])for(const width of [390,960,1920,3840]){await missing.setViewportSize({width,height:width===3840?2160:1080});await missing.evaluate(value=>document.documentElement.setAttribute('data-operator-skin',value),theme);assert.equal(await missing.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,theme+' '+width+' feedback fits');await missing.screenshot({path:path.join(destination,`device-${theme}-${width}.png`),fullPage:true});results.layouts.push({theme,width,overflow:false});}
+    await missing.close();
 
     const state=await request('/api/production/greenroom');assert.equal(state.active,true,'parent-owned fixture room must already be open');
     invitation=await mutate('/api/production/greenroom/invites',{label:'Recovery browser fixture',ttl_minutes:10});
@@ -73,6 +95,7 @@ async function main(){
     await guest.evaluate(()=>{qa.mode='fail';for(const socket of qa.sockets)if(socket.readyState===WebSocket.OPEN)socket.close(4000,'Simulated interruption');});
     await until(()=>guest.locator('#guestReconnect').isVisible(),'terminal network recovery control');
     assert.match(await guest.locator('#guestConnectionStatus').innerText(),/Retry connection/);
+    assert.match(await guest.locator('#guestMediaHint').innerText(),/paused|not reaching|not being sent/i,'disconnected media status stays truthful');
     await guest.screenshot({path:path.join(destination,'retry-connection.png'),fullPage:true});
     await guest.evaluate(()=>qa.mode='normal');await guest.locator('#guestReconnect').click();
     await until(async()=>await guest.locator('#guestBadge').innerText()==='BACKSTAGE','reconnect to real fixture');

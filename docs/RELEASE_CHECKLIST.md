@@ -1,5 +1,27 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 - Guest capture cancellation and truthful status
+
+Canonical gate: **3240 Python tests and 457 JavaScript tests passed**. Added
+regressions cover active capture-off during pending permission, replacement,
+enumeration and microphone setup; late cancelled streams cannot reopen or publish.
+Unexpected track endings show recovery guidance and retire only their current owner.
+
+Real Chromium checks with generated tracks and controlled permission delays passed
+mic-off while camera permission waited, cancellation of microphone replacement,
+private screen preview, screen-ended feedback, slow join, explicit reconnect and
+revocation. Audio effect, gate, cue, clip and cleanup checks passed again. Eight
+dark/light phone-to-4K layouts fit without horizontal overflow; feedback was
+visually reviewed at phone and narrow desktop sizes. Paused delivery is explicitly
+unconfirmed, not a promise of private capture.
+
+The local server was found stopped, started through its supported controller and
+the running guest page loaded the new script. The isolated test fixture was stopped;
+private guest ingress remained closed. Evidence and gate log:
+F:/Temp/jonat/ProducerPlease-guest-devices-20261115. No physical device, second-PC,
+acoustic echo, live stream or recording test was performed. Owner-attended checks
+remain deferred in GUEST_PRODUCTION.md.
+
 ## November 15, 2026 - Guest flow, accessibility and retry polish
 
 Canonical gate: **3240 Python tests and 443 JavaScript tests passed**. Guest

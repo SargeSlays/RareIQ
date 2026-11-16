@@ -61,8 +61,13 @@ still apply. Playing a pad or clip preserves keyboard focus.
 After automatic connection recovery is exhausted, **Retry connection** can retry
 the same guest session. The server still checks its permission; removed or revoked
 guests need a new invitation. A retry does not select sources or take them to
-Program. Camera, microphone and screen can be turned off while connection setup is
-pending, and **Leave the room** cancels the guest session. Microphone-off/Leave also
+Program. Camera, microphone and screen can be turned off while connection setup or
+another device's permission request is pending. Turning off a source also cancels
+its pending replacement: a late permission result cannot turn it back on.
+Unexpected device or screen-capture endings show a recovery message. Screen audio
+ending does not stop an otherwise active screen picture. A paused connection does
+not establish private preview; turn off enabled sources to stop their capture.
+**Leave the room** cancels the guest session. Microphone-off/Leave also
 clear local clips. Recovery tests use deliberate failures and generated media;
 they do not establish physical-device or internet reliability.
 

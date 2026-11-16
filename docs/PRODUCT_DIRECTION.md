@@ -11,6 +11,11 @@ still requires a new invitation. Media-off and Leave remain available during
 connection setup. These are local browser improvements; physical speech/echo,
 mobile hardware and internet acceptance remain deferred.
 
+Active capture can be stopped while another device permission is pending. Stopping
+a source cancels its pending replacement; late permission results cannot reopen it.
+Private-preview, paused-delivery and unexpected capture endings have distinct
+feedback. These guards are tested with generated tracks, not physical devices.
+
 ## November 15, 2026 - Guest voice, soundboard and noise gate
 
 Guests have Natural, Warm & deep, Radio, Robot and Megaphone voice styles, four
