@@ -424,3 +424,12 @@ def test_one_output_must_receive_the_entire_guest_composition(fixture):
     assert not hub.composition_ready([camera, screen])
     assert hub.composition_ready(['camera:1'])
     hub.peers.clear()
+
+
+@pytest.mark.parametrize("name", ["guest_microphone.js", "guest_audio_dsp.js", "studio_noise_gate.js", "studio_noise_gate.worklet.js"])
+def test_guest_noise_gate_assets_are_explicitly_served(fixture, name):
+    _, _, _, _, client = fixture
+    response = client.get("/guest/assets/" + name)
+    assert response.status_code == 200
+    assert "javascript" in response.headers["content-type"]
+    assert client.get("/guest/assets/server.py").status_code == 404

@@ -78,6 +78,23 @@
     }
     return {request,mutate,busy:()=>busy};
   }
+  function createPeerWarnings(){
+    const warnings=new Map(),labels={
+      peer_disconnected:'This guest’s connection to this studio is interrupted. Other connections may still be available.',
+      peer_reconnecting:'Reconnecting this guest to this studio. Other guest connections are unchanged.',
+      peer_failed:'This guest could not reconnect to this studio. Ask them to rejoin; check Studio Output before taking the shot.'
+    };
+    return {
+      update(event){
+        if(event?.scope!=='peer'||typeof event.peer_id!=='string')return;
+        if(['connected','peer_removed'].includes(event.state)){warnings.delete(event.peer_id);return;}
+        if(typeof event.participant_id==='string'&&Object.prototype.hasOwnProperty.call(labels,event.state))warnings.set(event.peer_id,{participant:event.participant_id,state:event.state});
+      },
+      prune(participants){const active=new Set(participants.filter(p=>p.state!=='removed'&&!p.expired).map(p=>p.id));for(const [id,warning] of warnings)if(!active.has(warning.participant))warnings.delete(id);},
+      text(participant){const states=Array.from(warnings.values()).filter(w=>w.participant===participant).map(w=>w.state);return labels[['peer_failed','peer_reconnecting','peer_disconnected'].find(s=>states.includes(s))]||'';},
+      clear(){warnings.clear();}
+    };
+  }
   function mount(workspace){
     if(!workspace||workspace._producerGreenroom)return workspace?._producerGreenroom;
     const doc=host.document,panel=doc.createElement('section');panel.className='production-greenroom';panel.dataset.broadcastPanel='live';
@@ -89,6 +106,7 @@
     let room={participants:[],invites:[],output:{}},switcher=pendingSwitcher||{},closed=false,busy=false,loaded=false,confirmClose=false,link='',pollTimer=null,refreshPromise=null,inviteStamp='',mediaConnected=false;
     let activityBusy=false,activityLoaded=false,activityRefreshAt=0,activityStamp='';
     let media=null,conference=null,audioContext=null,listening=false,hostStream=null,hostPublisher=null,hostToken=null,hostId=null,micBusy=false,micGeneration=0;
+    const peerWarnings=createPeerWarnings();
     const tiles=new Map(),views=new Map(),cameraButtons=new Map(),api=createRequests((...args)=>host.fetch(...args),()=>room.revision);
     const one=selector=>panel.querySelector(selector),note=message=>{one('.greenroom-notice').textContent=message;};
     async function refreshActivity(force=false){
@@ -123,7 +141,7 @@
       if(!next||!Number.isInteger(next.revision))return;
       if(loaded&&next.room_id===room.room_id&&next.revision<room.revision)return;
       const changedRoom=room.room_id&&room.room_id!==next.room_id;
-      room=next;loaded=true;if(changedRoom)setLink('');
+      room=next;loaded=true;if(changedRoom){setLink('');peerWarnings.clear();}peerWarnings.prune(room.participants);
       if(room.switcher)forwardSwitcher({...switcher,...room.switcher});
       render();
     }
@@ -196,7 +214,7 @@
     }
     function makeTile(person){
       const tile=doc.createElement('article');tile.className='greenroom-guest';tile.dataset.participantId=person.id;
-      tile.innerHTML='<header><div><strong data-guest-name></strong><span data-guest-status></span></div><span class="greenroom-mic-state"></span></header><div class="greenroom-feeds"><figure><video muted playsinline autoplay></video><div data-empty-camera>Camera off</div><figcaption>Camera</figcaption></figure><figure><video muted playsinline autoplay></video><div data-empty-screen>Screen off</div><figcaption>Screen / game</figcaption></figure></div><div class="greenroom-guest-actions"><button type="button" class="riq-button primary" data-admit>Admit guest</button><button type="button" class="riq-button" data-remove>Remove</button></div><div class="greenroom-source-buttons"><button type="button" class="riq-button" data-source-kind="camera">Camera</button><button type="button" class="riq-button" data-source-kind="screen">Screen</button><button type="button" class="riq-button" data-source-kind="audio">Mic only</button></div><div class="greenroom-program-audio"><strong>Audio on Program</strong><div><button type="button" class="riq-button" data-program-audio="microphone" aria-pressed="false">Mute mic on Program</button><button type="button" class="riq-button" data-program-audio="screen" aria-pressed="false">Mute screen audio on Program</button></div><p>Set before or during a shot. Backstage conversation is unchanged.</p></div>';
+      tile.innerHTML='<header><div><strong data-guest-name></strong><span data-guest-status></span></div><span class="greenroom-mic-state"></span></header><p class="greenroom-notice" data-guest-connection role="status" aria-live="polite" hidden></p><div class="greenroom-feeds"><figure><video muted playsinline autoplay></video><div data-empty-camera>Camera off</div><figcaption>Camera</figcaption></figure><figure><video muted playsinline autoplay></video><div data-empty-screen>Screen off</div><figcaption>Screen / game</figcaption></figure></div><div class="greenroom-guest-actions"><button type="button" class="riq-button primary" data-admit>Admit guest</button><button type="button" class="riq-button" data-remove>Remove</button></div><div class="greenroom-source-buttons"><button type="button" class="riq-button" data-source-kind="camera">Camera</button><button type="button" class="riq-button" data-source-kind="screen">Screen</button><button type="button" class="riq-button" data-source-kind="audio">Mic only</button></div><div class="greenroom-program-audio"><strong>Audio on Program</strong><div><button type="button" class="riq-button" data-program-audio="microphone" aria-pressed="false">Mute mic on Program</button><button type="button" class="riq-button" data-program-audio="screen" aria-pressed="false">Mute screen audio on Program</button></div><p>Set before or during a shot. Backstage conversation is unchanged.</p></div>';
       tile.querySelector('[data-admit]').addEventListener('click',()=>decision(`/api/production/greenroom/participants/${encodeURIComponent(person.id)}`,{action:'admit'},'Guest admitted to the room. Choose their sources for Preview when ready.'));
       tile.querySelector('[data-remove]').addEventListener('click',()=>decision(`/api/production/greenroom/participants/${encodeURIComponent(person.id)}`,{action:'remove'},'Guest removed from the room.'));
       for(const button of tile.querySelectorAll('[data-program-audio]'))button.addEventListener('click',()=>{
@@ -216,6 +234,7 @@
         tile.dataset.state=onAir?'on-air':person.state;
         tile.querySelector('[data-guest-status]').textContent=!person.connected?'Disconnected':person.id===hostId?'This computer · admitted':person.state==='waiting'?'Waiting backstage':onAir?'Selected for Program':'Admitted · backstage';
         tile.querySelector('.greenroom-mic-state').textContent=person.media.microphone?'Mic on':'Mic off';
+        const warning=tile.querySelector('[data-guest-connection]');warning.textContent=peerWarnings.text(person.id);warning.hidden=!warning.textContent;
         const current=media?.tracks(person.id)||emptyTracks(),videos=tile.querySelectorAll('video');
         attachVideo(videos[0],current.camera);attachVideo(videos[1],current.screen);
         tile.querySelector('[data-empty-camera]').hidden=Boolean(current.camera);tile.querySelector('[data-empty-screen]').hidden=Boolean(current.screen);
@@ -338,10 +357,10 @@
     one('[data-room-listen]').addEventListener('click',async()=>{try{await ensureAudio();listening=!listening;conference.setMonitor(listening);note(listening?'Listening to admitted guests. Use headphones to prevent feedback.':'Room monitoring stopped.');render();}catch(_){note('Room audio could not start. Try again from a supported browser.');}});
     one('[data-host-mic]').addEventListener('click',startMic);
     if(host.ProducerGuestMedia){
-      media=host.ProducerGuestMedia.createReceiver({role:'producer',onState:message=>{mediaConnected=true;updateState(message.room);},onTracks:()=>{renderTiles();for(const entry of views.values())entry.composition.refresh();},onConnection:connection=>{if(!connection.participant_id){mediaConnected=connection.state==='connected';one('.greenroom-connection').textContent=mediaConnected?'Room connected':connection.state==='connecting'?'Connecting…':'Room connection interrupted';panel.dataset.connection=connection.state;if(!mediaConnected){room.output={...room.output,ready_sources:[]};render();}}},onError:()=>{}});
+      media=host.ProducerGuestMedia.createReceiver({role:'producer',onState:message=>{mediaConnected=true;updateState(message.room);},onTracks:()=>{renderTiles();for(const entry of views.values())entry.composition.refresh();},onConnection:connection=>{if(connection.scope==='peer'){peerWarnings.update(connection);renderTiles();return;}if(!connection.participant_id){mediaConnected=connection.state==='connected';one('.greenroom-connection').textContent=mediaConnected?'Room connected':connection.state==='connecting'?'Connecting…':'Room connection interrupted';panel.dataset.connection=connection.state;if(!mediaConnected){peerWarnings.clear();room.output={...room.output,ready_sources:[]};render();}}},onError:()=>{}});
       media.connect().catch(()=>{one('.greenroom-connection').textContent='Room unavailable';});
     }else{one('.greenroom-connection').textContent='Guest media unavailable';}
-    const result={panel,media,renderSwitcher,refresh,close(){if(closed)return;closed=true;micGeneration++;host.clearInterval(pollTimer);setLink('');stopMic();media?.close();conference?.close();for(const entry of views.values())entry.composition.close();audioContext?.close();}};
+    const result={panel,media,renderSwitcher,refresh,close(){if(closed)return;closed=true;peerWarnings.clear();micGeneration++;host.clearInterval(pollTimer);setLink('');stopMic();media?.close();conference?.close();for(const entry of views.values())entry.composition.close();audioContext?.close();}};
     workspace._producerGreenroom=result;instance=result;
     host.addEventListener('pagehide',()=>result.close(),{once:true});
     refresh();pollTimer=host.setInterval(()=>{if(!doc.hidden){refresh();refreshActivity();}},4000);render();
@@ -350,7 +369,7 @@
   function outputStatusLabel(output,generation){
     return !output.connected?'No Studio Output connected':output.audio_blocked===true?'Output sound is blocked · open Studio Output and choose Enable output sound':output.rendered_generation===generation?'Studio Output reports this Program shot':'Program requested · waiting for output confirmation';
   }
-  const exported={mount,receiver:()=>instance?.media||null,renderSwitcher:state=>{pendingSwitcher=state;instance?.renderSwitcher(state);},sourceAvailable,togglePreview,takeReadiness,createRequests,activityEntry,invitationLink,programAudioChange,outputStatusLabel};
+  const exported={mount,receiver:()=>instance?.media||null,renderSwitcher:state=>{pendingSwitcher=state;instance?.renderSwitcher(state);},sourceAvailable,togglePreview,takeReadiness,createRequests,activityEntry,invitationLink,programAudioChange,outputStatusLabel,createPeerWarnings};
   if(typeof module==='object'&&module.exports)module.exports=exported;
   else host.ProducerGreenroomControls=exported;
 })(typeof window==='undefined'?globalThis:window);

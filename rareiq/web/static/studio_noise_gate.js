@@ -1,7 +1,7 @@
 /* Optional processing branch: never acquires or closes a physical input. */
 (function(host){
   const modules=new WeakMap();
-  function create(context,input,output,status){
+  function create(context,input,output,status,options={}){
     let node=null,loading=null,closed=false,settings={enabled:false,thresholdDb:-45};
     input.connect(output);
     function bypass(){if(node){try{input.disconnect(node);node.disconnect();node.port.close();}catch(_){}node=null;input.connect(output);}}
@@ -15,7 +15,7 @@
       loading=Promise.resolve().then(async()=>{
         try{
           if(!context.audioWorklet||!host.AudioWorkletNode)throw Error('Unavailable');
-          if(!modules.has(context))modules.set(context,context.audioWorklet.addModule('/static/studio_noise_gate.worklet.js?v=20260908-1').catch(error=>{modules.delete(context);throw error;}));
+          if(!modules.has(context))modules.set(context,context.audioWorklet.addModule(options.workletUrl||'/static/studio_noise_gate.worklet.js?v=20260908-1').catch(error=>{modules.delete(context);throw error;}));
           await modules.get(context);
           if(closed||!settings.enabled)return;
           node=new host.AudioWorkletNode(context,'studio-noise-gate');

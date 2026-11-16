@@ -134,14 +134,14 @@ test('producer return audio requires admission and server return ownership',asyn
   receiver.close();assert.equal(stream.getAudioTracks()[0].stops,0);
 });
 
-test('offer arriving before state waits for source authorization; excessive early ICE closes transport',async()=>{
+test('offer arriving before state waits for source authorization; excessive early ICE closes only that peer',async()=>{
   const f=fixture(),receiver=f.api.createReceiver({role:'output'}),ws=await connect(f,receiver,'output');
   offer(ws);await settle();assert.equal(f.connections.length,0);
   ws.message(receiverState());await settle();assert.equal(f.connections.length,1);assert.ok(ws.sent.some(message=>message.kind==='answer'));
   receiver.close();
   const other=f.api.createReceiver({role:'output'}),second=await connect(f,other,'output');second.message(receiverState());
   for(let n=0;n<65;n++)second.message({type:'signal',from:'publisher',participant_id:'guest-one',role:'guest',kind:'ice',data:{candidate:'fixture-'+n}});
-  await settle();assert.ok(second.closed);other.close();
+  await settle();assert.ok(!second.closed);assert.ok(f.connections.at(-1).closed);other.close();
 });
 
 test('a rejected guest session is terminal and does not consume reconnect attempts',async()=>{
@@ -187,4 +187,66 @@ test('conference mix-minus excludes each guest and waiting guests; monitoring is
   state=null;for(const callback of observers)callback({type:'state',state:null});assert.equal(returns.get('a'),null);assert.equal(returns.get('b'),null);
   assert.ok(consumers.every(audio=>audio.paused&&audio.removed&&audio.srcObject===null));
   helper.close();assert.equal(hostMic.stops,0);assert.equal(tracks.a.microphone.stops,0);
+});
+
+
+test('one failed recipient preserves healthy media and signaling with bounded per-peer retries',async()=>{
+  const f=fixture(),events=[],errors=[],publisher=f.api.createPublisher({token:'a'.repeat(64),onConnection:e=>events.push(e),onError:e=>errors.push(e)});
+  const mic=new f.Track('audio');publisher.setTracks({microphone:mic});const ws=await connect(f,publisher,'guest');
+  const state=guestState(['audio'],false,'admitted');state.subscriptions=[{peer_id:'healthy',role:'output',sources:['audio']},{peer_id:'broken',role:'producer',sources:['audio']}];
+  ws.message(state);await settle();const healthy=f.connections[0],broken=f.connections[1],stale=broken.onconnectionstatechange;
+  healthy.connectionState='connected';healthy.onconnectionstatechange();
+  for(const [index,delay] of [[1,1000],[2,2000],[3,4000]]){
+    const pc=f.connections.at(-1);pc.connectionState='failed';pc.onconnectionstatechange();await settle();
+    assert.equal(events.at(-1).state,'peer_reconnecting');assert.equal(events.at(-1).scope,'peer');assert.equal(events.at(-1).attempt,index);assert.equal(events.at(-1).retry_in_ms,delay);
+    assert.ok(!healthy.closed);assert.ok(!ws.closed);assert.equal(healthy.transceivers[0].sender.track,mic);
+    for(let n=0;n<delay;n+=500){ws.message(state);await f.tick(500);}
+  }
+  const final=f.connections.at(-1);final.connectionState='failed';final.onconnectionstatechange();assert.equal(events.at(-1).state,'peer_failed');assert.equal(events.at(-1).attempt,3);
+  const count=f.connections.length,before=events.length;stale();assert.equal(events.length,before,'old peer callbacks cannot alter current recovery');
+  for(let n=0;n<10;n++){ws.message(state);await f.tick(500);}assert.equal(f.connections.length,count);assert.ok(!ws.closed);assert.ok(!healthy.closed);assert.equal(errors.length,0);
+  publisher.close();assert.equal(f.timers.size,0);assert.equal(mic.stops,0);
+});
+
+test('removing a recipient cancels its recovery and a later subscription may start afresh',async()=>{
+  const f=fixture(),events=[],publisher=f.api.createPublisher({token:'a'.repeat(64),onConnection:e=>events.push(e)}),ws=await connect(f,publisher,'guest');
+  const state=guestState();ws.message(state);await settle();f.connections[0].connectionState='failed';f.connections[0].onconnectionstatechange();
+  ws.message({...state,subscriptions:[]});await f.tick(1000);assert.equal(f.connections.length,1);assert.ok(events.some(e=>e.state==='peer_removed'&&e.peer_id==='receiver'));
+  ws.message(state);await settle();assert.equal(f.connections.length,2);publisher.close();assert.equal(f.timers.size,0);
+});
+
+test('receiver negotiation failure is isolated and a new authorized offer can recover that peer',async()=>{
+  const f=fixture(),events=[],errors=[],receiver=f.api.createReceiver({role:'producer',onConnection:e=>events.push(e),onError:e=>errors.push(e)}),ws=await connect(f,receiver,'producer');
+  const state=receiverState([person('healthy'),person('broken')],['guest:healthy:audio','guest:broken:audio']);ws.message(state);offer(ws,'healthy-publisher','healthy');await settle();
+  const healthy=f.connections[0];healthy.emitTrack(0);offer(ws,'broken-publisher','broken');f.connections[1].createAnswer=async()=>{throw Error('fixture negotiation error');};await settle();
+  assert.ok(!ws.closed);assert.ok(!healthy.closed);assert.equal(events.at(-1).state,'peer_reconnecting');assert.equal(events.at(-1).reason,'media_negotiation_failed');assert.equal(errors.length,0);
+  offer(ws,'broken-publisher','broken');await settle();assert.equal(f.connections.length,3);assert.ok(ws.sent.some(m=>m.kind==='answer'&&m.to==='broken-publisher'));
+  receiver.close();assert.equal(f.timers.size,0);
+});
+
+
+test('new ICE arriving before a replacement offer waits for matching remote credentials',async()=>{
+  const f=fixture(),events=[],receiver=f.api.createReceiver({role:'producer',onConnection:e=>events.push(e)}),ws=await connect(f,receiver,'producer');ws.message(receiverState());
+  const sendOffer=fragment=>ws.message({type:'signal',from:'publisher',participant_id:'guest-one',role:'guest',kind:'offer',data:{type:'offer',sdp:'v=0\na=ice-ufrag:'+fragment+'\nm=audio 9 UDP/TLS/RTP/SAVPF 111\n'}});
+  sendOffer('old');await settle();const pc=f.connections[0];pc.addIceCandidate=async value=>{if(!pc.remoteDescription.sdp.includes('ice-ufrag:'+value.usernameFragment))throw Error('credential mismatch');pc.ice.push(value);};
+  ws.message({type:'signal',from:'publisher',participant_id:'guest-one',role:'guest',kind:'ice',data:{candidate:'fixture-new',usernameFragment:'new',sdpMLineIndex:0}});sendOffer('new');await settle();
+  assert.ok(!pc.closed);assert.equal(pc.ice.length,1);assert.equal(pc.ice[0].usernameFragment,'new');assert.equal(ws.sent.filter(m=>m.kind==='answer').length,2);assert.ok(!events.some(e=>e.state==='peer_reconnecting'));receiver.close();
+});
+
+test('a rejoined publisher replaces its obsolete receiver record and old ICE is not applied to new credentials',async()=>{
+  const f=fixture(),receiver=f.api.createReceiver({role:'producer'}),ws=await connect(f,receiver,'producer');ws.message(receiverState());offer(ws,'old-publisher');await settle();
+  const old=f.connections[0],oldTrack=old.emitTrack(0);assert.equal(receiver.tracks('guest-one').microphone,oldTrack);
+  ws.message({type:'signal',from:'new-publisher',participant_id:'guest-one',role:'guest',kind:'ice',data:{candidate:'stale-fixture',usernameFragment:'old'}});
+  ws.message({type:'signal',from:'new-publisher',participant_id:'guest-one',role:'guest',kind:'offer',data:{type:'offer',sdp:'v=0\na=ice-ufrag:new\nm=audio 9 UDP/TLS/RTP/SAVPF 111\n'}});await settle();
+  const current=f.connections[1],newTrack=current.emitTrack(0);assert.ok(old.closed);assert.equal(oldTrack.readyState,'ended');assert.equal(receiver.tracks('guest-one').microphone,newTrack);assert.equal(current.ice.length,0);receiver.close();
+});
+
+
+test('normal unsubscribe clears a transient peer warning without needing a retry record',async()=>{
+  for(const role of ['guest','producer']){
+    const f=fixture(),events=[],engine=role==='guest'?f.api.createPublisher({token:'a'.repeat(64),onConnection:e=>events.push(e)}):f.api.createReceiver({role,onConnection:e=>events.push(e)}),ws=await connect(f,engine,role);
+    const state=role==='guest'?guestState():receiverState();ws.message(state);if(role!=='guest')offer(ws);await settle();
+    const pc=f.connections[0];pc.connectionState='disconnected';pc.onconnectionstatechange();ws.message({...state,subscriptions:[]});await settle();
+    assert.ok(pc.closed);assert.deepEqual(events.filter(e=>e.scope==='peer').map(e=>e.state),['peer_disconnected','peer_removed']);assert.ok(!ws.closed);engine.close();
+  }
 });

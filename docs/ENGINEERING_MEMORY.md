@@ -1,5 +1,30 @@
 # RareIQ engineering memory
 
+## November 15, 2026 - Isolate guest audio processing and recipient failures
+
+- A Voice Mod gate does not filter a separate guest capture pipeline. Reuse shared
+  DSP at the guest microphone owner. Gate the raw mic before voice effects; mix
+  sound pads afterward so silence detection does not cut them off. A stable output
+  track preserves negotiated media while changing styles, gate and sounds.
+- Mic-off, Leave, device replacement and late initialization must release raw and
+  processed tracks, oscillators, sound players and contexts. Decode only bounded
+  local files, hold a bounded number of decoded buffers, and never expose producer
+  soundboard/catalog APIs to invitations. No automatic local monitoring.
+- Preserve supported raw mono/stereo channel count and prepare enabled processing
+  before initial publication. These are compatibility guards, not a proven cause
+  of the earlier physical guest interruption. Processing fallback is explicit:
+  a resolved configuration promise can still report unavailable/unfiltered.
+- Per-recipient ICE/negotiation failure must not tear down healthy media or the
+  shared signaling session. Bound recovery (1/2/4 seconds), cancel old timers and
+  callbacks, scope warnings per peer, and clear them on normal unsubscribe too.
+- Buffer new-credential ICE until its matching remote description; discard stale
+  candidates. A rejoined publisher replaces obsolete records for that participant
+  so track selection cannot keep finding the old connection. Regressions cover
+  early ICE, partial failure, recipient removal and changed signaling identity.
+- Gate delayed playback success/rejection by the current stream and session. An
+  old play rejection must not restore Enable room audio after Leave. Show only
+  known diagnostic enums, never SDP, tokens or arbitrary error payloads.
+
 ## November 15, 2026 - A visible guest picture does not prove output sound
 
 - A real second-PC rehearsal displayed camera/screen frames while audio.play()

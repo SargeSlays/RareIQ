@@ -21,7 +21,8 @@ from rareiq.services.greenroom_service import GreenroomService, GreenroomError
 
 PUBLIC_GUEST_PATHS = frozenset({"/guest", "/guest/join", "/guest/leave",
                               "/guest/assets/guest.css", "/guest/assets/guest.js",
-                              "/guest/assets/greenroom_media.js", "/guest/assets/theme.css", "/guest/assets/mark.svg"})
+                              "/guest/assets/guest_microphone.js", "/guest/assets/guest_audio_dsp.js", "/guest/assets/studio_noise_gate.js",
+                              "/guest/assets/studio_noise_gate.worklet.js", "/guest/assets/greenroom_media.js", "/guest/assets/theme.css", "/guest/assets/mark.svg"})
 
 
 class JoinRequest(BaseModel):
@@ -162,7 +163,7 @@ class GreenroomHub:
                        "mark.svg": "brand/producer-please-v2/favicon.svg"}
             if name in aliases:
                 return FileResponse(self.static_dir / aliases[name], headers={"Cache-Control": "no-cache"})
-            if name not in {"guest.css", "guest.js", "greenroom_media.js"}:
+            if name not in {"guest.css", "guest.js", "greenroom_media.js", "guest_microphone.js", "guest_audio_dsp.js", "studio_noise_gate.js", "studio_noise_gate.worklet.js"}:
                 return self._error("asset_not_found", 404)
             return FileResponse(self.static_dir / name, headers={"Cache-Control": "no-cache", "Referrer-Policy": "no-referrer"})
 

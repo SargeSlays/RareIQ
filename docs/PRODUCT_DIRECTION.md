@@ -1,5 +1,22 @@
 # RareIQ: streaming-first product direction
 
+## November 15, 2026 - Guest voice, soundboard and noise gate
+
+Guests have Natural, Warm & deep, Radio, Robot and Megaphone voice styles, four
+original synthesized sound pads, and up to six local audio clips. Shared native
+Web Audio processing serves both producer Voice Mod and guests; these are tone
+effects, not pitch shifting or voice cloning. Clips decode on the guest device,
+are not uploaded or saved, and clear with microphone-off or Leave. Voice and
+sounds share the outgoing microphone and its producer Program mute. Screen audio
+and conversation returns are not fed through this processing.
+
+The optional microphone gate defaults off at -45 dB, adjusts from -70 to -10 dB,
+and stores its preference in that browser. It filters the mic before voice effects;
+sound pads mix after the gate. Gate status distinguishes passing, closed and
+unavailable/unfiltered. Echo cancellation/noise suppression remain requested.
+Generated-media browser checks establish routing, cleanup and responsive controls;
+physical speech, acoustic echo and perceived effect quality are deferred by owner.
+
 ## November 15, 2026 - Two-PC guest rehearsal and output sound recovery
 
 An individually invited guest on a second Windows PC reached the private guest

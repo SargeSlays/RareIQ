@@ -54,6 +54,7 @@ function sandbox() {
     mount(id, props = {}) { const node = Object.assign(element(), props); elements.set(id, node); return node; },
     soundboard() { run(section("let soundboardState=", "function addSoundboardImageControls")); },
     voice() {
+      run(fs.readFileSync(path.resolve(__dirname,'../../rareiq/web/static/guest_audio_dsp.js'),'utf8'));
       run(section('const VOICE_MOD_PREFERENCES_KEY=', 'let cameraFxState='));
       run(section('function voiceModPreferences()', 'const CAMERA_FX_PRESETS='));
     },

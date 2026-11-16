@@ -1,5 +1,26 @@
 # RareIQ Roadmap
 
+## November 15, 2026 - Guest audio checkpoint; listening deferred
+
+Implemented and browser-tested: guest voice styles, four built-in cues, six local
+sound slots, volume/Stop sounds, microphone noise gate, private local decoding,
+and microphone-off/Leave cleanup. Two real browser peers carried generated audio;
+existing Program mute and conversation mix-minus regressions also passed.
+
+The physical second-PC MX Brio microphone started with its gate Closed at -45 dB;
+a fresh invitation stayed connected during the latest bounded check and its
+mic-only Preview reached Studio Output readiness. Earlier interruptions were not
+conclusively attributed to one cause. Separately reproduced per-recipient teardown,
+ICE ordering and obsolete-peer recovery faults now have regressions and fixes.
+
+Owner cannot attend the second PC yet. Speech clarity, threshold tuning, two-way
+headphone listening, speaker echo, perceived voice/cue balance and real device
+switch/reconnect checks are explicitly deferred; use the checklist in
+GUEST_PRODUCTION.md. The temporary private HTTPS mapping was removed, prior
+network mappings restored, remote capture stopped and the test invitation revoked.
+No public stream or recording began. Mobile hardware, internet hosting and
+StackThis verified producer sign-in remain separate acceptance work.
+
 ## November 15, 2026 - Two-device rehearsal checkpoint
 
 Private guest invitation, admission, camera and tab-screen transport, camera/screen

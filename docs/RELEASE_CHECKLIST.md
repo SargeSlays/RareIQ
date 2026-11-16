@@ -1,5 +1,33 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 - Guest audio controls and bounded recipient recovery
+
+Canonical gate: **3237 Python tests and 422 JavaScript tests passed**. Added guards
+cover microphone owner lifecycle, quiet gating, shared voice DSP, bounded private
+file decoding, stable output tracks, four-player sound limits, cancellation,
+per-peer recovery, ICE ordering and stale playback callbacks.
+
+Real Chromium peer connections using generated audio exercised all five voice
+styles, four cues after a closed gate, zero-volume mute, a local WAV clip, clip
+removal, stable media identity and microphone-off cleanup. Existing multi-browser
+checks passed independent Program mutes, unchanged video/capture, conversation
+mix-minus and guest removal. Eight dark/light layouts (390/960/1920/3840) have no
+horizontal overflow; inspected controls grow naturally without nested scrolling.
+The running local studio was restarted idle and refreshed with the new controls.
+
+The second-PC physical MX Brio microphone ran the gate at -45 dB and reached
+mic-only Preview readiness in the latest bounded check. This does not establish
+speech quality or acoustic echo performance. The owner explicitly deferred all
+presence-dependent checks; the pending checklist is in GUEST_PRODUCTION.md.
+Earlier disconnects remain incompletely attributed; reproduced transport faults
+were fixed independently. No public stream, recording or platform delivery tested.
+
+Remote capture stopped, test invitation revoked, temporary private HTTPS removed,
+prior mappings restored exactly and guest-only port closed. Generated test evidence
+and gate logs: F:/Temp/jonat/ProducerPlease-guest-effects-20261115. Private runtime
+configuration and invitation material remain untracked. Shared account sign-in,
+mobile hardware and sustained internet transport remain separate acceptance steps.
+
 ## November 15, 2026 - Two-PC physical-camera rehearsal and sound recovery
 
 Canonical gate passed: **3225 Python tests and 385 JavaScript tests**. Focused

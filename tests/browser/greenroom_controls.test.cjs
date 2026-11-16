@@ -108,3 +108,18 @@ test('Program audio toggles use the latest independent flags without changing so
   assert.throws(()=>controls.programAudioChange(person,'camera'),/invalid_audio_kind/);
   const entry=controls.activityEntry({action:'guest.program_audio',outcome:'succeeded'});assert.equal(entry.action,'Program audio setting changed');assert.equal(entry.outcome,'Recorded');
 });
+
+
+test('partial connection warnings stay on the affected guest across room refreshes and clear on recovery',()=>{
+  const warnings=controls.createPeerWarnings(),{room,switcher}=fixture(),a=room.participants[0],b=room.participants[1],output=JSON.stringify(room.output);
+  warnings.update({scope:'peer',state:'peer_reconnecting',peer_id:'a-link',participant_id:a.id,reason:'private signaling details'});
+  assert.match(warnings.text(a.id),/Reconnecting this guest/);assert.equal(warnings.text(b.id),'');
+  warnings.prune(room.participants.map(p=>({...p})));assert.match(warnings.text(a.id),/Reconnecting/);
+  warnings.update({scope:'signaling',state:'connected',peer_id:'control'});assert.match(warnings.text(a.id),/Reconnecting/);
+  warnings.update({scope:'peer',state:'peer_failed',peer_id:'a-link',participant_id:a.id});assert.match(warnings.text(a.id),/could not reconnect/);
+  assert.ok(!warnings.text(a.id).includes('private'));assert.equal(JSON.stringify(room.output),output);
+  switcher.preview_sources=[a.sources.audio];room.output.ready_sources=[];assert.equal(takeReadiness(switcher,room).ready,false,'warnings never grant output readiness');
+  warnings.update({scope:'peer',state:'connected',peer_id:'a-link',participant_id:a.id});assert.equal(warnings.text(a.id),'');
+  warnings.update({scope:'peer',state:'peer_disconnected',peer_id:'b-link',participant_id:b.id});warnings.update({scope:'peer',state:'peer_removed',peer_id:'b-link'});assert.equal(warnings.text(b.id),'');
+  warnings.update({scope:'peer',state:'peer_failed',peer_id:'a-link',participant_id:a.id});warnings.prune(room.participants.filter(p=>p.id!==a.id));assert.equal(warnings.text(a.id),'');
+});

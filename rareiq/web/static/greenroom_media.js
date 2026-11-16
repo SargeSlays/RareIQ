@@ -7,12 +7,20 @@
   const live=track=>Boolean(track&&track.readyState==='live'&&track.enabled!==false);
   const call=(fn,...args)=>{try{fn?.(...args);}catch(_){/* UI failures must not expose signaling data. */}};
   const signalData=value=>typeof value?.toJSON==='function'?value.toJSON():value;
+  function candidateMatchesDescription(candidate,description){
+    if(!description)return false;
+    const fragment=candidate.usernameFragment;
+    if(typeof fragment!=='string'||!fragment)return true;
+    const fragments=Array.from(String(description.sdp||'').matchAll(/^a=ice-ufrag:([^\r\n]+)/gm),match=>match[1]);
+    return !fragments.length||fragments.includes(fragment);
+  }
   function engine(role,options={}){
     if(!['guest','producer','output'].includes(role))throw Error('invalid_media_role');
     if(role==='guest'&&(typeof options.token!=='string'||! /^[a-f0-9]{64}$/.test(options.token)))throw Error('invalid_guest_session');
     let socket=null,generation=0,closed=true,peerId=null,iceServers=[],state=null;
     let heartbeat=null,watchdog=null,reconnectTimer=null,lastState=0,retries=0,hello=false,readyResolve=null,readyReject=null;
     let pending=[],localTracks=EMPTY(),mediaStamp='',localVersion=0,returnedTrack=null,connectPromise=null;
+    const recoveries=new Map();
     const peers=new Map(),subscribers=new Set(),returnStreams=new Map(),endedHandlers=new Map();
     const publisher=role==='guest';
     const notify=event=>{for(const listener of subscribers)call(listener,event);};
@@ -62,16 +70,47 @@
         record.emitted=values;call(options.onTracks,record.participantId,{...values});notify({type:'tracks',participant_id:record.participantId});
       }
     }
-    function closePeer(record){
+    function closePeer(record,removed=false){
       if(record.closed)return;
       record.closed=true;peers.delete(record.id);
+      if(removed){clearRecovery(record.id);connected('peer_removed',{scope:'peer',peer_id:record.id,participant_id:record.participantId});}
       record.pc.onicecandidate=record.pc.ontrack=record.pc.onconnectionstatechange=record.pc.ondatachannel=null;
       record.pc.close();
       for(const track of Object.values(record.remote))if(track){track.onended=track.onmute=track.onunmute=null;track.stop();}
       if(publisher)emitTracks(record);
       else{call(options.onTracks,record.participantId,EMPTY());notify({type:'tracks',participant_id:record.participantId});}
     }
+    function clearRecovery(id,notifyRemoved=false){
+      const recovery=recoveries.get(id);if(!recovery)return;
+      if(recovery.timer!==null)host.clearTimeout(recovery.timer);recoveries.delete(id);
+      if(notifyRemoved)connected('peer_removed',{scope:'peer',peer_id:id,participant_id:recovery.participantId});
+    }
+    function authorizedRecovery(id,participantId){
+      if(publisher)return state?.subscriptions?.some(sub=>sub.peer_id===id)===true;
+      const person=participant(participantId);
+      return Boolean(person?.connected&&person.state!=='removed'&&(role!=='output'||person.state==='admitted')&&Object.values(person.sources||{}).some(source=>state?.subscriptions?.includes(source)));
+    }
+    function recoverPeer(record,reason){
+      if(!current(record))return;
+      let recovery=recoveries.get(record.id);
+      if(!recovery){recovery={attempts:0,timer:null,exhausted:false,participantId:record.participantId};recoveries.set(record.id,recovery);}
+      if(record.connectedAt!==null&&Date.now()-record.connectedAt>=30000)recovery.attempts=0;
+      closePeer(record);
+      if(recovery.timer!==null)host.clearTimeout(recovery.timer);
+      const detail={scope:'peer',peer_id:record.id,participant_id:record.participantId,reason};
+      if(recovery.attempts>=3){recovery.timer=null;recovery.exhausted=true;connected('peer_failed',{...detail,attempt:recovery.attempts,retry_in_ms:0});return;}
+      const delay=1000*2**recovery.attempts++,gen=generation;
+      recovery.timer=host.setTimeout(()=>{
+        if(closed||generation!==gen||recoveries.get(record.id)!==recovery)return;
+        recovery.timer=null;
+        if(!authorizedRecovery(record.id,record.participantId)){clearRecovery(record.id,true);return;}
+        // Guests initiate SDP offers. Receivers wait for that guest's new offer.
+        if(publisher){const next=createPeer(record.id);if(next)queue(next,()=>syncPublisher(next));}
+      },delay);
+      connected('peer_reconnecting',{...detail,attempt:recovery.attempts,retry_in_ms:delay});
+    }
     function disposeSocket(){
+      for(const id of Array.from(recoveries.keys()))clearRecovery(id);
       host.clearInterval(heartbeat);host.clearInterval(watchdog);heartbeat=watchdog=null;
       const old=socket;socket=null;
       if(old){old.onopen=old.onmessage=old.onerror=old.onclose=null;try{old.close();}catch(_){}}
@@ -92,25 +131,26 @@
       finally{host.clearTimeout(timer);}
     }
     function queue(record,operation){
-      if(record.queued>=128){if(current(record))fail('media_queue_limit');return Promise.resolve();}
+      if(record.queued>=128){if(current(record))recoverPeer(record,'media_queue_limit');return Promise.resolve();}
       record.queued++;
-      record.work=record.work.then(async()=>{try{if(current(record))await operation();}finally{record.queued--;}}).catch(()=>{if(current(record))fail('media_negotiation_failed');});
+      record.work=record.work.then(async()=>{try{if(current(record))await operation();}finally{record.queued--;}}).catch(()=>{if(current(record))recoverPeer(record,'media_negotiation_failed');});
       return record.work;
     }
     function createPeer(id,participantId=null){
       if(peers.has(id))return peers.get(id);
+      const recovery=recoveries.get(id);if(recovery&&(recovery.timer!==null||recovery.exhausted))return null;
       if(peers.size>=12)throw Error('media_peer_limit');
       const pc=new host.RTCPeerConnection({iceServers});
-      const record={id,participantId,pc,generation,closed:false,remote:EMPTY(),emitted:EMPTY(),returnTrack:null,ice:[],work:Promise.resolve(),queued:0,offered:false,offer:null,answer:null,appliedVersion:-1};
+      const record={id,participantId,pc,generation,closed:false,remote:EMPTY(),emitted:EMPTY(),returnTrack:null,ice:[],work:Promise.resolve(),queued:0,offered:false,offer:null,answer:null,appliedVersion:-1,connectedAt:null};
       peers.set(id,record);
       pc.onicecandidate=event=>{
         if(current(record)&&event.candidate)send({type:'signal',to:id,kind:'ice',data:signalData(event.candidate)});
       };
       pc.onconnectionstatechange=()=>{
         if(!current(record))return;
-        connected(pc.connectionState,{peer_id:id,participant_id:record.participantId});
-        if(pc.connectionState==='connected')retries=0;
-        if(pc.connectionState==='failed')fail('media_connection_failed');
+        if(pc.connectionState==='failed'){recoverPeer(record,'media_connection_failed');return;}
+        if(pc.connectionState==='connected'){retries=0;record.connectedAt=Date.now();}
+        connected(pc.connectionState==='disconnected'?'peer_disconnected':pc.connectionState,{scope:'peer',peer_id:id,participant_id:record.participantId});
       };
       pc.ondatachannel=event=>{event.channel.close();if(current(record))fail('unsupported_media_channel',{retry:false});};
       pc.ontrack=event=>{
@@ -162,22 +202,23 @@
         for(const sub of message.subscriptions)if(typeof sub.peer_id!=='string'||!['producer','output'].includes(sub.role)||!Array.isArray(sub.sources)||sub.sources.some(source=>!['camera','screen','audio'].includes(source)))throw Error('invalid_media_state');
       }else if(!message.room||!Array.isArray(message.room.participants)||message.room.participants.length>128||!Array.isArray(message.subscriptions)||message.subscriptions.length>36)throw Error('invalid_media_state');
       state=message;lastState=Date.now();
+      for(const [id,recovery] of recoveries)if(!authorizedRecovery(id,recovery.participantId)){const record=peers.get(id);if(record)closePeer(record,true);else clearRecovery(id,true);}
       if(publisher){
         const wanted=new Set(message.subscriptions.map(sub=>sub.peer_id));
-        for(const record of Array.from(peers.values()))if(!wanted.has(record.id))closePeer(record);
+        for(const record of Array.from(peers.values()))if(!wanted.has(record.id))closePeer(record,true);
         for(const sub of message.subscriptions){
-          const record=createPeer(sub.peer_id);
-          record.pc.getTransceivers().forEach((value,index)=>{if(value.sender.track&&!allowedPublisher(record,KEYS[index]))value.sender.replaceTrack(null).catch(()=>{if(current(record))fail('media_detach_failed');});});
+          const record=createPeer(sub.peer_id);if(!record)continue;
+          record.pc.getTransceivers().forEach((value,index)=>{if(value.sender.track&&!allowedPublisher(record,KEYS[index]))value.sender.replaceTrack(null).catch(()=>{if(current(record))recoverPeer(record,'media_detach_failed');});});
           queue(record,()=>syncPublisher(record));emitTracks(record);
         }
         announceMedia();
       }else{
         for(const record of Array.from(peers.values())){
           const person=participant(record.participantId);
-          if(!person||!person.connected||person.state==='removed'||!Object.values(person.sources||{}).some(source=>message.subscriptions.includes(source)))closePeer(record);
+          if(!person||!person.connected||person.state==='removed'||!Object.values(person.sources||{}).some(source=>message.subscriptions.includes(source)))closePeer(record,true);
           else{
             const sender=record.pc.getTransceivers()[0]?.sender;
-            if(sender?.track&&!canReturn(record))sender.replaceTrack(null).catch(()=>{if(current(record))fail('media_detach_failed');});
+            if(sender?.track&&!canReturn(record))sender.replaceTrack(null).catch(()=>{if(current(record))recoverPeer(record,'media_detach_failed');});
             emitTracks(record);queue(record,()=>syncReturn(record));
           }
         }
@@ -187,7 +228,7 @@
     }
     async function flushIce(record){
       const values=record.ice;record.ice=[];
-      for(const value of values){if(!current(record))return;await bounded(record.pc.addIceCandidate(value));}
+      for(const value of values){if(!current(record))return;if(candidateMatchesDescription(value,record.pc.remoteDescription))await bounded(record.pc.addIceCandidate(value));}
     }
     function acceptSignal(message,mayHold=true){
       if(typeof message.from!=='string'||!['offer','answer','ice'].includes(message.kind)||!message.data||typeof message.data!=='object')throw Error('invalid_media_signal');
@@ -205,9 +246,21 @@
         }
         if(message.role!=='guest'||message.kind==='answer')return;
       }
-      const record=createPeer(message.from,publisher?null:message.participant_id);
-      if(message.kind==='ice'&&!record.pc.remoteDescription){
-        if(record.ice.length>=64){fail('media_candidate_limit');return;}
+      if(!publisher&&message.kind==='offer'){
+        // A rejoined guest receives a new signaling ID. Retire its former media
+        // record so tracks() cannot keep selecting an obsolete first match.
+        for(const old of Array.from(peers.values()))if(old.participantId===message.participant_id&&old.id!==message.from)closePeer(old,true);
+        for(const [id,recovery] of recoveries)if(recovery.participantId===message.participant_id&&id!==message.from)clearRecovery(id,true);
+      }
+      const recovery=recoveries.get(message.from);
+      if(recovery?.exhausted)return;
+      if(recovery&&recovery.timer!==null){
+        if(!publisher&&message.kind==='offer'){host.clearTimeout(recovery.timer);recovery.timer=null;}
+        else{if(!publisher&&mayHold&&pending.length<64)pending.push({message,at:Date.now()});return;}
+      }
+      const record=createPeer(message.from,publisher?null:message.participant_id);if(!record)return;
+      if(message.kind==='ice'&&!candidateMatchesDescription(message.data,record.pc.remoteDescription)){
+        if(record.ice.length>=64){recoverPeer(record,'media_candidate_limit');return;}
         record.ice.push(message.data);return;
       }
       queue(record,async()=>{
@@ -251,7 +304,7 @@
           if(message.type==='hello'){
             if(hello||typeof message.peer_id!=='string'||message.role!==role||!Array.isArray(message.ice_servers))throw Error('invalid_media_hello');
             peerId=message.peer_id;iceServers=message.ice_servers;hello=true;lastState=Date.now();
-            connected('connected',{peer_id:peerId});announceMedia();readyResolve?.({peer_id:peerId,role});readyResolve=readyReject=null;
+            connected('connected',{scope:'signaling',peer_id:peerId});announceMedia();readyResolve?.({peer_id:peerId,role});readyResolve=readyReject=null;
           }else if(!hello)throw Error('media_hello_required');
           else if(message.type==='state')acceptState(message);
           else if(message.type==='signal')acceptSignal(message);

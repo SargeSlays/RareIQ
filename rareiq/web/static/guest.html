@@ -7,9 +7,12 @@
   <title>Guest studio · Producer, Please</title>
   <link rel="icon" href="/guest/assets/mark.svg">
   <link rel="stylesheet" href="/guest/assets/theme.css">
-  <link rel="stylesheet" href="/guest/assets/guest.css?v=20261115-1">
-  <script defer src="/guest/assets/greenroom_media.js?v=20261115-1"></script>
-  <script defer src="/guest/assets/guest.js?v=20261115-2"></script>
+  <link rel="stylesheet" href="/guest/assets/guest.css?v=20261115-3">
+  <script defer src="/guest/assets/greenroom_media.js?v=20261115-4"></script>
+  <script defer src="/guest/assets/studio_noise_gate.js?v=20261115-1"></script>
+  <script defer src="/guest/assets/guest_audio_dsp.js?v=20261115-1"></script>
+  <script defer src="/guest/assets/guest_microphone.js?v=20261115-2"></script>
+  <script defer src="/guest/assets/guest.js?v=20261115-5"></script>
 </head>
 <body class="pp-shell">
   <header class="guest-brand"><a href="/guest" aria-label="Guest studio"><img src="/guest/assets/mark.svg" alt=""> <strong>Producer, Please</strong></a><span>GUEST STUDIO</span></header>
@@ -19,17 +22,30 @@
       <div class="guest-preview guest-screen" id="guestScreenPreviewPanel" hidden><video id="guestScreenPreview" autoplay muted playsinline></video><span class="guest-preview-label">Your shared screen</span></div>
       <div class="guest-media-controls"><button id="guestCamera" type="button" aria-pressed="false">Turn camera on</button><button id="guestMicrophone" type="button" aria-pressed="false">Turn mic on</button><button id="guestScreen" type="button" aria-pressed="false">Share screen</button></div>
       <p class="guest-hint" id="guestMediaHint">Your preview stays on this device until you join.</p>
-      <details class="guest-devices"><summary>Camera & microphone settings</summary><label>Camera<select id="guestCameraDevice"><option value="">Default camera</option></select></label><label>Microphone<select id="guestMicDevice"><option value="">Default microphone</option></select></label><p>Use headphones to keep everyone’s audio clear.</p></details>
+
+      <details class="guest-devices"><summary>Camera & microphone settings</summary><label>Camera<select id="guestCameraDevice"><option value="">Default camera</option></select></label><label>Microphone<select id="guestMicDevice"><option value="">Default microphone</option></select></label><div class="guest-gate"><button id="guestNoiseGate" type="button" aria-pressed="false">Noise gate</button><label for="guestGateThreshold">Gate threshold <output id="guestGateValue" for="guestGateThreshold">-45 dB</output></label><input id="guestGateThreshold" type="range" min="-70" max="-10" step="1" value="-45"><p id="guestGateStatus" role="status" aria-live="polite">Microphone off</p><p>Mutes quiet input before it reaches the room and Program. Raise the threshold to block more background sound; lower it if words get cut off.</p></div><p>Echo cancellation is requested. Use headphones to keep everyone’s audio clear.</p></details>
     </section>
     <aside class="guest-card">
       <span class="guest-eyebrow">BE PART OF THE SHOW</span><h1>Your seat is ready.</h1><p>Check your camera and mic, then join the green room. The producer chooses what appears on Program.</p>
       <form id="guestJoinForm"><label>Your display name<input id="guestName" name="name" maxlength="60" autocomplete="nickname" required placeholder="What should we call you?"></label><button class="guest-primary" id="guestJoin" type="submit">Join backstage</button></form>
       <div class="guest-room-status" role="status" aria-live="polite"><strong id="guestStatusTitle">Private preview</strong><p id="guestStatus">No media is being sent.</p></div>
       <p class="guest-hint" id="guestProgramAudioNotice" role="status" aria-live="polite" hidden></p>
+      <p class="guest-hint" id="guestPeerNotice" role="status" aria-live="polite" hidden></p>
       <button id="guestRoomAudio" type="button" hidden>Enable room audio</button>
       <button id="guestLeave" type="button" class="guest-leave" hidden>Leave the room</button>
       <p class="guest-privacy">You control your camera, mic and screen. Turn them off at any time. An invitation identifies this guest session, not a verified personal account.</p>
     </aside>
+      <section class="guest-audio-tools" aria-label="Your voice and soundboard">
+        <header><div><span class="guest-eyebrow">MAKE IT YOURS</span><h2>Voice & soundboard</h2></div><span class="guest-audio-tag">Your microphone mix</span></header>
+        <label for="guestVoicePreset">Voice style</label><select id="guestVoicePreset"><option value="natural">Natural</option><option value="deep">Warm & deep</option><option value="radio">Radio</option><option value="robot">Robot</option><option value="megaphone">Megaphone</option></select>
+        <p class="guest-hint">Voice effects change your tone. Sounds join your microphone in the room and follow the producer’s Program mute. Your own speakers stay quiet.</p>
+        <div class="guest-sound-pads" aria-label="Built-in sounds"><button id="guestCueChime" type="button" disabled>Chime</button><button id="guestCueSuccess" type="button" disabled>Success</button><button id="guestCueBuzzer" type="button" disabled>Buzzer</button><button id="guestCueDrumroll" type="button" disabled>Drum roll</button></div>
+        <div class="guest-sound-volume"><label for="guestSoundVolume">Sound volume <output id="guestSoundVolumeValue" for="guestSoundVolume">50%</output></label><input id="guestSoundVolume" type="range" min="0" max="100" value="50" step="5"></div>
+        <div class="guest-sound-actions"><label class="guest-sound-upload" for="guestSoundFile">Add your own sound<input id="guestSoundFile" type="file" accept="audio/*,.wav,.mp3,.ogg,.m4a,.flac,.webm" disabled></label><button id="guestSoundsStop" type="button" disabled>Stop sounds</button></div>
+        <p class="guest-hint">Up to 6 files, 10 MB and 30 seconds each. Files stay on this device and clear when you turn off the mic or leave.</p>
+        <div id="guestSoundList" class="guest-sound-list"></div>
+        <p id="guestAudioStatus" role="status" aria-live="polite">Turn on your microphone to use voice effects and sounds.</p>
+      </section>
   </main>
   <audio id="guestReturnAudio" autoplay></audio>
   <footer>Made for your next great conversation.</footer>

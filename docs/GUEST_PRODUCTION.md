@@ -66,6 +66,66 @@ OBS remains the external encoder. Browser rendering is not proof of platform
 delivery or recording. The existing local-camera replay cannot capture a guest
 composition; its Save action rejects such a mix instead of exporting the wrong shot.
 
+## Guest microphone noise gate
+
+Open **Camera & microphone settings**, choose your microphone, turn it on, and
+optionally enable **Noise gate**. Start at **-45 dB**. Raise the threshold to mute
+more quiet background sound; lower it if the beginnings or ends of words are lost.
+The live status shows Open when voice passes and Closed when quiet input is muted.
+Unavailable means audio is unfiltered. The gate applies to the guest microphone
+sent backstage and to Program, not screen audio. Settings stay in this browser.
+
+Echo cancellation and noise suppression are requested from the browser. A gate
+cannot remove background noise during speech or guarantee echo cancellation.
+Use headphones first, speak normally with pauses, and listen from the producer
+before testing speakers. Never monitor both room audio and Program simultaneously
+on the same listening output; that can create a doubled sound.
+
+## Guest voice and soundboard
+
+Turn on your microphone, then use **Voice & soundboard**. Natural leaves the voice
+style unchanged; Warm & deep, Radio, Robot and Megaphone reshape its tone. These
+are local audio effects, not voice cloning or true pitch shifting. The four
+built-in pads are Chime, Success, Buzzer and Drum roll. Sound volume affects pads
+and clips only. **Stop sounds** leaves your microphone speaking normally.
+
+**Add your own sound** reads an audio file locally: up to six clips, 10 MB and
+30 seconds each, with bounded decoded memory. Files are never uploaded to a
+producer catalog or persisted. Turning off the microphone, changing its device,
+leaving or closing the page clears them. At most four sounds overlap. A failed
+file/processing operation gives a recoverable message; no raw diagnostic leaks.
+
+Sounds enter the microphone mix after the gate and voice effects. They follow the
+producer's microphone Program mute and are audible backstage according to the
+room's normal admission rules. They do not automatically play on the guest's own
+speakers. Before joining, the mix remains private on that device. Screen audio
+and return audio stay separate. Guest voice/sound actions do not grant production
+controls or verified identity; the activity history still records producer and
+guest media decisions, not every locally played cue.
+
+## Listening checklist - deferred until the owner is at the second PC
+
+The owner explicitly deferred the physical portion on November 15, 2026. Software
+checks use generated audio and must not be described as a successful listening test.
+Use one producer conversation tab to keep the return-audio owner unambiguous.
+
+- [ ] Headphones first: normal speech, quiet speech, pauses and louder speech are
+  clear at the production PC, with no doubled playback or clipped syllables.
+- [ ] Enable the gate at -45 dB, verify it closes during quiet gaps, then tune to
+  the actual room without cutting words. Confirm unfiltered fallback is explained.
+- [ ] Two-way conversation: guest hears the host, host hears the guest, neither
+  hears a delayed copy of their own voice. Listen to room or Program, not both.
+- [ ] Controlled speaker check: confirm browser echo cancellation and volume
+  keep the conversation usable; return to headphones if feedback appears.
+- [ ] Compare all voice styles and pads/clips for perceived quality, loudness,
+  latency and distortion. Confirm Program mute silences their combined mic mix.
+- [ ] Change/unplug/reconnect the real mic; verify capture stops, controls recover,
+  old sounds do not resume, and guest removal/Leave releases physical devices.
+
+A later mobile-device and across-network rehearsal remains separate. The temporary
+private test address is off; the studio currently runs locally. No stream or
+recording is needed for this checklist.
+
 ## Voice, gestures and direction
 
 Custom voice phrases use the studio's existing guarded production actions and
