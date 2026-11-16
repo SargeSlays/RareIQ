@@ -17,7 +17,7 @@
     if(!state||typeof state!=='object'||!Number.isSafeInteger(state.generation)||state.generation<0)return null;
     const sources=sourceList(state,bus),preview=sourceList(state,'preview');
     if(!sources||!preview)return null;
-    const layout=['auto','grid','spotlight'].includes(state[bus+'_layout'])?state[bus+'_layout']:'auto';
+    const layout=['auto','grid','spotlight','pip'].includes(state[bus+'_layout'])?state[bus+'_layout']:'auto';
     const transition=['cut','fade','slide','zoom'].includes(state.transition)?state.transition:'cut';
     return {generation:state.generation,sources,preview,layout,transition,
       duration:transition==='cut'?0:Math.min(5000,Math.max(0,Number(state.duration_ms)||0))};
@@ -84,7 +84,8 @@
       // Retired pictures may fade, but their file audio must stop at the Take.
       for(const tile of this.outgoing?.tiles||[])if(tile.source.kind==='video'){tile.video.muted=true;tile.video.pause();tile.playing=false;tile.playVersion=(tile.playVersion||0)+1;}
       const node=this.document.createElement('div');node.className='composition-layer composition-incoming';
-      const baseCount=state.sources.filter(id=>parseSource(id).kind!=='text').length;
+      const hasPictures=state.sources.some(id=>!['text','audio'].includes(parseSource(id).kind));
+      const baseCount=state.sources.filter(id=>parseSource(id).kind!=='text'&&(!hasPictures||parseSource(id).kind!=='audio')).length;
       node.dataset.layout=state.layout;node.dataset.count=String(baseCount);node.style.setProperty('--composition-duration',state.duration+'ms');
       node.style.setProperty('--composition-sides',String(Math.max(1,baseCount-1)));
       node.style.setProperty('--composition-portrait-rows',String(Math.max(1,Math.ceil((baseCount-1)/2))));
@@ -94,7 +95,10 @@
         if(!tile)tile=this._tile(id);
         return tile;
       });
-      for(const tile of [...tiles.filter(tile=>tile.source.kind!=='text'),...tiles.filter(tile=>tile.source.kind==='text')])this._placeTile(node,tile);
+      for(const tile of tiles)tile.node.hidden=hasPictures&&tile.source.kind==='audio';
+      const pictures=tiles.filter(tile=>tile.source.kind!=='text'&&!tile.node.hidden);
+      for(const [index,tile] of pictures.entries())tile.node.style.setProperty('--composition-inset-index',String(Math.max(0,index-1)));
+      for(const tile of [...pictures,...tiles.filter(tile=>tile.node.hidden),...tiles.filter(tile=>tile.source.kind==='text')])this._placeTile(node,tile);
       this.current={node,tiles,generation:state.generation,visible:false};
       this.container.dataset.transition=state.transition;
       if(this.outgoing){this.outgoing.node.style.setProperty('--composition-duration',state.duration+'ms');this.outgoing.node.classList.add('composition-outgoing');}

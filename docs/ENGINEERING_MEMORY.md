@@ -1,5 +1,24 @@
 # RareIQ engineering memory
 
+## November 15, 2026 - Layout suggestions must remain Preview-only
+
+- Compute suggestions from current selected visual IDs at click time. Never add or
+  drop guests, text or microphones to achieve a preset; reorder existing pictures
+  only. Updating a suggestion during polling must not send a mutation.
+- A microphone-only source should not occupy a picture cell alongside cameras or
+  graphics. Keep its tile/audio readiness internally, hide only its visual avatar,
+  and preserve the prior audio-only shot behavior when there are no pictures.
+- Hidden audio and text overlays are trailing DOM children, not pictures. Portrait
+  two-picture Focus must target the second visual tile rather than :last-child;
+  the real mixed-image/title portrait check guards this shared selector.
+- PiP thumbnails need a width-driven aspect ratio. A percentage of portrait output
+  height creates a tall empty inset; real browser geometry now guards 16:9 insets.
+- Preset cards must fit the dock width, not only the browser viewport. Auto-fitting
+  minimum card widths keep narrow desktop docks readable alongside mobile layouts.
+- Browser QA must wait for the producer's source selection to synchronize before
+  clicking a suggestion; matching recommendation text alone can still represent a
+  previous camera. Wait for the selected IDs and the in-flight operation to finish.
+
 ## November 15, 2026 - Preserve reviewed browser documents through Take
 
 - Conventional DOM append/reparent reloads descendant iframes. Connect the incoming

@@ -1,5 +1,22 @@
 # RareIQ Roadmap
 
+## November 15, 2026 - Smart layout checkpoint
+
+Implemented Preview-only Smart suggestions (Solo/Interview/Panel/Presentation),
+Equal grid, Focus and a two-picture PiP shortcut. Advanced contains lead ordering
+and manual layout/transition/duration, while Take/Clear remain visible. PiP is
+accepted by Preview, Take and persistent saved scenes. Audio-only selections keep
+their audio path without adding a picture when visual sources are present.
+
+Locally tested with synthetic cameras/generated images: explicit preset application,
+content-first presentation, preserved membership, no implicit Take, Advanced lead
+ordering, decoded PiP output, portrait thumbnail proportions and eight responsive
+skin/viewport combinations. Next deeper advanced work: free-position layers,
+source cropping/transforms and reusable show templates, with the same guarded Take.
+Existing remote-login, external widget/OBS verification and physical audio checks
+remain outstanding. Existing credits are owner-authorized if allowance is exhausted;
+no reset, purchase or credit operation was initiated in this checkpoint.
+
 ## November 15, 2026 - Browser sources enabled locally
 
 Implemented the browser catalog/picker, saved definitions, Preview selection,

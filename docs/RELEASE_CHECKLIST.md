@@ -1,5 +1,33 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 - Smart layouts and Advanced controls
+
+Canonical gate passed: **3376 Python tests and 513 JavaScript tests**.
+
+The idle running studio was restarted to load this build. Automatic approval
+review rejected the final combined browser-regression/live-page command without
+a specific reason; that final running-page inspection remains incomplete.
+The isolated browser-acceptance results above passed before that rejection.
+
+Focused backend and JavaScript checks pass; canonical results are recorded in
+F:/Temp/jonat/ProducerPlease-layouts-20261115/release-gate-final.log.
+
+The isolated Edge rehearsal selected Solo/Interview/Panel from synthetic cameras,
+Presentation from a selected generated graphic, and PiP from two generated images.
+Every preset and lead change kept Program generation unchanged until explicit Take.
+Advanced starts collapsed; Take/Clear remain visible. Real decoded PiP output and
+portrait 16:9 thumbnail proportions passed geometry checks. Both skins at
+390/960/1920/3840 passed layout overflow and visual checks. Evidence is under
+browser-acceptance/results.json, pip-program.png, pip-portrait.png,
+focus-portrait-with-title.png and layout captures. The mixed title/focus regression
+checks both portrait pictures retain full width despite the trailing text overlay.
+
+No physical capture, real stream/recording, paid action, account or network change
+was used. The backend tests also exercised PiP saved-scene persistence and Take.
+The Advanced section exposes the implemented controls; it is not a free-position
+layer/crop editor. Remote-login, OBS/widget acceptance and subjective audio remain
+pending and are not implied by these fixture results.
+
 ## November 15, 2026 - Browser picker/Take checkpoint
 
 Canonical gate passed: **3371 Python tests and 508 JavaScript tests**.

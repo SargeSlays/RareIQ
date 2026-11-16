@@ -285,3 +285,10 @@ test('signaling catching up to an already-rendered HTTP state sends fresh health
   signalingReady=true;f.mediaOptions.onState({room:{...room(),switcher:state()}});
   assert.deepEqual(messages.slice(0,2),[{type:'health',generation:0,rendered:true},{type:'receipt',generation:0}]);f.hide();
 });
+
+test('PiP accepts two pictures while text and selected microphone stay out of the picture grid',()=>{
+  const f=fixture();const image='image:12345678-1234-1234-1234-123456789abc';
+  f.view.render(state({program_sources:['camera:1',image,AUDIO],program_layout:'pip'}),room());
+  assert.equal(f.view.current.node.dataset.layout,'pip');assert.equal(f.view.current.node.dataset.count,'2');
+  assert.equal(f.view.current.tiles.find(t=>t.id===AUDIO).node.hidden,true);assert.equal(f.view.current.tiles[1].node.style['--composition-inset-index'],'0');f.close();
+});

@@ -869,7 +869,7 @@ class ProductionSwitcherRequest(BaseModel):
     expires_at: float | None = Field(default=None, allow_inf_nan=False)
     preview_slot: int | None = Field(default=None, ge=1, le=4)
     preview_sources: list[str] | None = Field(default=None, max_length=6)
-    layout: Literal["auto", "grid", "spotlight"] | None = None
+    layout: Literal["auto", "grid", "spotlight", "pip"] | None = None
     transition: str | None = None
     duration_ms: int | None = Field(default=None, ge=0, le=5000)
 
@@ -883,7 +883,7 @@ class ProductionSceneRequest(BaseModel):
     preview_slot: int = Field(default=2, ge=1, le=4)
     program_sources: list[str] | None = Field(default=None, max_length=6)
     preview_sources: list[str] | None = Field(default=None, max_length=6)
-    layout: Literal["auto", "grid", "spotlight"] = "auto"
+    layout: Literal["auto", "grid", "spotlight", "pip"] = "auto"
     transition: str = "fade"
     duration_ms: int = Field(default=500, ge=0, le=5000)
     spotify_action: str = "keep"

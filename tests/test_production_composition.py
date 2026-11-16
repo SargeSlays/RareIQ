@@ -4,9 +4,10 @@ from copy import deepcopy
 from types import SimpleNamespace
 
 import pytest
+from pydantic import ValidationError
 
 from rareiq.services.greenroom_service import GreenroomService
-from rareiq.services.production_composition import composition_state, validate_sources
+from rareiq.services.production_composition import composition_state, validate_sources, LAYOUTS
 from rareiq.services.production_scene_store import ProductionSceneStore
 from rareiq.web import server
 
@@ -119,3 +120,37 @@ def test_safe_revokes_vision_and_clears_guest_mix(rig, monkeypatch):
     monkeypatch.setattr(server.instant_replay, "stop_playback", lambda: None)
     assert asyncio.run(server.production_safe_recovery())["safe"]
     assert controls.overrides == 1 and state["program_sources"] == ["camera:1"]
+
+
+def test_picture_in_picture_preview_take_and_saved_scene(rig, monkeypatch, tmp_path):
+    state, controls, _ = rig
+    assert "pip" in LAYOUTS
+    controls.available = controls.output = True
+    sources = ["camera:1", GUEST]
+    request = server.ProductionSwitcherRequest(preview_sources=sources, layout="pip")
+    result = asyncio.run(server.production_switcher_preview(request))
+    assert result["ok"] and state["preview_layout"] == "pip"
+    assert composition_state(state)["program_sources"] == ["camera:1"]
+    assert server._take_program_action({})["ok"]
+    assert state["program_layout"] == "pip" and state["program_sources"] == sources
+    scene = server.ProductionSceneRequest(name="Picture in picture", id="pip", expected_revision=0,
+        request_id="save-pip", program_sources=sources, layout="pip")
+    store = ProductionSceneStore(tmp_path / "scenes.sqlite3", tmp_path / "missing.json", [])
+    store.edit(action="save", target="pip", scene=scene.model_dump(exclude={"expected_revision", "request_id"}),
+        expected_revision=0, request_id="save-pip", actor_kind="local_operator")
+    monkeypatch.setattr(server, "production_scene_store", ProductionSceneStore(store.path, store.legacy_path, []))
+    assert server._take_scene_action({"scene_id": "pip"})["ok"]
+    assert state["program_layout"] == "pip" and state["program_sources"] == sources
+
+
+@pytest.mark.parametrize("layout", ["unknown", "PIP", "", 1])
+def test_invalid_layout_cannot_enter_preview_take_or_saved_scene(rig, layout):
+    state, _, _ = rig
+    before = deepcopy(state)
+    with pytest.raises(ValidationError):
+        server.ProductionSwitcherRequest(layout=layout)
+    with pytest.raises(ValidationError):
+        server._take_program_action({"layout": layout})
+    with pytest.raises(ValidationError):
+        server.ProductionSceneRequest(name="Invalid", expected_revision=0, request_id="invalid", layout=layout)
+    assert state == before

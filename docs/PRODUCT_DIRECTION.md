@@ -1,5 +1,20 @@
 # RareIQ: streaming-first product direction
 
+## November 15, 2026 - Simple presets with Advanced controls
+
+The room now offers explicit Smart suggestions, Equal grid, Focus/Presentation and
+Picture-in-picture. Smart recommends Solo, Interview, Panel or Presentation using
+only the selected visual sources. Recommendations update as selections change;
+applying one is a deliberate Preview-only click, never an automatic Program change.
+Text and mic-only sources remain selected without consuming picture slots when
+pictures are present. PiP's shortcut requires exactly two pictures; the renderer
+also keeps all stored multi-picture sources visible. Saved scenes support PiP.
+
+Manual layout, lead picture, transition and duration controls are grouped in a
+collapsed Advanced section. Clear Preview and Take stay visible. This establishes
+the simple/default and advanced split; a free-position layer editor, cropping,
+per-source transforms and broader reusable scene templates remain planned.
+
 ## November 15, 2026 - Browser picker and guarded Take
 
 Browser sources are now immutable saved definitions with a public-looking HTTPS

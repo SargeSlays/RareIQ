@@ -124,6 +124,7 @@
     const imageLibrary=host.ProducerImageLibrary?.mount({after:one('.greenroom-camera-sources'),catalog:()=>switcher.image_sources||[],selected:()=>previewSources(switcher),busy:()=>busy,select:source=>toggle(source),refresh,fetch:(...args)=>host.fetch(...args),document:doc});
     const mediaLibrary=host.ProducerMediaLibrary?.mount({after:one('.production-image-library')||one('.greenroom-camera-sources'),catalog:()=>switcher.production_sources||[],selected:()=>previewSources(switcher),busy:()=>busy,select:source=>toggle(source),refresh,fetch:(...args)=>host.fetch(...args),document:doc});
     const browserLibrary=host.ProducerBrowserLibrary?.mount({after:one('.production-media-library')||one('.production-image-library')||one('.greenroom-camera-sources'),catalog:()=>switcher.production_sources||[],selected:()=>previewSources(switcher),busy:()=>busy,select:source=>toggle(source),refresh,fetch:(...args)=>host.fetch(...args),document:doc});
+    const layouts=host.ProducerLayouts?.mount({controls:one('.greenroom-stage-controls'),selected:()=>previewSources(switcher),layout:()=>switcher.preview_layout||'auto',busy:()=>busy,apply:(sources,layout)=>setPreview(sources,layout),name:sourceName,document:doc});
     async function refreshActivity(force=false){
       if(closed||!activity.open||activityBusy||!force&&Date.now()-activityRefreshAt<15000)return;
       activityBusy=true;activityRefreshAt=Date.now();const status=activity.querySelector('[data-activity-status]'),button=activity.querySelector('button');button.disabled=true;
@@ -311,6 +312,7 @@
       imageLibrary?.render();
       mediaLibrary?.render();
       browserLibrary?.render();
+      layouts?.render();
       const selected=previewSources(switcher);one('[data-preview-count]').textContent=`${selected.length} / 6 sources in Preview`;
       one('[data-room-layout]').value=switcher.preview_layout||'auto';
       const cameras=one('.greenroom-camera-sources');
@@ -405,7 +407,7 @@
       media=host.ProducerGuestMedia.createReceiver({role:'producer',onState:message=>{mediaConnected=true;updateState(message.room);},onTracks:()=>{renderTiles();for(const entry of views.values())entry.composition.refresh();},onConnection:connection=>{if(connection.scope==='peer'){peerWarnings.update(connection);renderTiles();return;}if(!connection.participant_id){mediaConnected=connection.state==='connected';one('.greenroom-connection').textContent=mediaConnected?'Room connected':connection.state==='connecting'?'Connecting…':'Room connection interrupted';panel.dataset.connection=connection.state;if(!mediaConnected){peerWarnings.clear();room.output={...room.output,ready_sources:[]};render();}}},onError:()=>{}});
       media.connect().catch(()=>{one('.greenroom-connection').textContent='Room unavailable';});
     }else{one('.greenroom-connection').textContent='Guest media unavailable';}
-    const result={panel,media,renderSwitcher,refresh,close(){if(closed)return;closed=true;chat?.destroy();imageLibrary?.close();mediaLibrary?.close();browserLibrary?.close();peerWarnings.clear();micGeneration++;host.clearInterval(pollTimer);setLink('');stopMic();media?.close();conference?.close();for(const entry of views.values())entry.composition.close();audioContext?.close();}};
+    const result={panel,media,renderSwitcher,refresh,close(){if(closed)return;closed=true;chat?.destroy();imageLibrary?.close();mediaLibrary?.close();browserLibrary?.close();layouts?.close();peerWarnings.clear();micGeneration++;host.clearInterval(pollTimer);setLink('');stopMic();media?.close();conference?.close();for(const entry of views.values())entry.composition.close();audioContext?.close();}};
     workspace._producerGreenroom=result;instance=result;
     host.addEventListener('pagehide',()=>result.close(),{once:true});
     refresh();pollTimer=host.setInterval(()=>{if(!doc.hidden){refresh();refreshActivity();}},4000);render();
