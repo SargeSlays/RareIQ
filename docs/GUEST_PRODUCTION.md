@@ -13,6 +13,13 @@ OBS receipt test, or a live platform broadcast. No stream or recording was start
 
 ## Producer workflow
 
+Owner-confirmed setup: the PC runs production and each guest receives a separate
+private invitation. For now, development and guest testing use localhost on that
+PC. Domain purchase and internet hosting are deferred. Localhost links do not
+reach other computers or phones; multi-device LAN capture needs a separately
+configured secure local address. No network binding or public ingress is enabled
+by this decision.
+
 1. Open the studio and choose **Guests**. The Green room tool also lives in
    **Session tools** and can be moved like other tools. Panels grow with content.
 2. Create an invitation and copy its private link. The secret link is shown only
