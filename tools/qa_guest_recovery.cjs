@@ -49,6 +49,9 @@ async function main(){
     results.missingInviteStaysDisabled=true;
     await missing.locator('#guestMicrophone').click();await missing.evaluate(()=>qa.captureHold=true);await missing.locator('#guestCamera').click();
     await until(()=>missing.evaluate(()=>qa.captureWaiters.length===1),'camera permission held');
+    assert.match(await missing.locator('#guestDeviceStatus').innerText(),/waiting|starting|choose|allow|opening/i,'guest sees pending capture guidance');
+    await missing.screenshot({path:path.join(destination,'device-permission-pending.png'),fullPage:true});
+    await missing.setViewportSize({width:390,height:844});assert.equal(await missing.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'pending controls fit phone width');await missing.screenshot({path:path.join(destination,'device-permission-pending-phone.png'),fullPage:true});await missing.setViewportSize({width:1280,height:1000});
     assert.equal(await missing.locator('#guestMicrophone').isDisabled(),false,'mic off available during camera permission');
     await missing.locator('#guestMicrophone').click();assert.equal(await missing.evaluate(()=>qa.tracks.filter(t=>t.kind==='audio').every(t=>t.readyState==='ended')),true);
     await missing.evaluate(()=>{qa.captureHold=false;qa.captureWaiters.splice(0).forEach(resolve=>resolve());});
@@ -74,6 +77,7 @@ async function main(){
     await guest.goto(invitation.join_url);await guest.locator('#guestName').fill('Recovery browser fixture');
     await guest.locator('#guestMicrophone').click();await guest.evaluate(()=>qa.mode='hold');await guest.locator('#guestJoin').click();
     await until(()=>guest.evaluate(()=>qa.held.length>0),'real socket handshake held');
+    assert.match(await guest.locator('#guestJoin').innerText(),/joining|connecting/i,'join button explains its pending state');
     assert.equal(await guest.locator('#guestMicrophone').isDisabled(),false,'active capture can be stopped while admission connects');
     await guest.locator('#guestMicrophone').click();
     assert.equal(await guest.evaluate(()=>qa.tracks.every(track=>track.readyState==='ended')),true,'mic off stops synthetic capture while connecting');

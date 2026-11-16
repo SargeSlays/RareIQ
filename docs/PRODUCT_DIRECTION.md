@@ -15,6 +15,8 @@ Active capture can be stopped while another device permission is pending. Stoppi
 a source cancels its pending replacement; late permission results cannot reopen it.
 Private-preview, paused-delivery and unexpected capture endings have distinct
 feedback. These guards are tested with generated tracks, not physical devices.
+Pending device requests, joining and reconnecting now have explicit progress
+feedback, without disabling active capture-off controls.
 
 ## November 15, 2026 - Guest voice, soundboard and noise gate
 

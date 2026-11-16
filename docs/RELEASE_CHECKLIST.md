@@ -1,5 +1,17 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 - Visible guest progress states
+
+Canonical gate: **3240 Python tests and 468 JavaScript tests passed**. Capture,
+join and retry controls explain pending work with visible labels and accessible
+busy state. Active capture-off remains available; completion, cancellation and
+failure restore controls without erasing current errors. Generated-media browser
+checks passed held camera permission, held joining, cancellation, reconnect and
+revocation. Pending controls also fit at phone width; existing dark/light layouts
+and failure guidance passed. Evidence: F:/Temp/jonat/ProducerPlease-guest-progress-20261115;
+gate log: F:/Temp/jonat/ProducerPlease-guest-progress-gate.log. The local guest page
+serves the new script. No physical device or second-PC testing was performed.
+
 ## November 15, 2026 - Guest capture cancellation and truthful status
 
 Canonical gate: **3240 Python tests and 457 JavaScript tests passed**. Added

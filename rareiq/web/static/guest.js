@@ -7,7 +7,7 @@
   let voiceSettings={preset:"natural",soundVolume:.5},audioBusy=false,returnEpoch=0;
   const cueButtons={guestCueChime:"chime",guestCueSuccess:"success",guestCueBuzzer:"buzzer",guestCueDrumroll:"drumroll"};
   const peerWarnings=new Map(),soundRows=new Map(),deviceSelection={camera:"",microphone:""},captureGeneration={camera:0,microphone:0,screen:0};
-  let roomConnected=false;
+  let roomConnected=false,pendingCapture=null;
   let connectionEpoch=0,connecting=false,joining=false,retryAvailable=false,accessEnded=false,lastConnectionCode="",pendingSoundFocus=null;
   try{const saved=JSON.parse(localStorage.getItem("producer.guest.gate.v1")||"null");if(saved)gateSettings={enabled:saved.enabled===true,thresholdDb:Math.max(-70,Math.min(-10,Number.isFinite(saved.thresholdDb)?saved.thresholdDb:-45))};}catch{}
   history.replaceState(null,"",location.pathname);
@@ -98,10 +98,17 @@
   function setBusy(value){
     busy=value;const secure=root.isSecureContext===true,captureSupported=typeof navigator.mediaDevices?.getUserMedia==="function";
     $("guestJoin").disabled=busy||joining||connecting||leaving||!secure||accessEnded||!invite&&!validSession();
+    $("guestJoin").textContent=joining?"Joining…":!invite&&validSession()?"Rejoin backstage":"Join backstage";$("guestJoin").setAttribute("aria-busy",String(joining&&!leaving));
     $("guestJoin").title=!secure?"Open a secure guest link.":accessEnded?"Ask the producer for a new invitation.":!invite&&!validSession()?"Open your private invitation first.":"";
     for(const [id,active] of [["guestCamera",media.camera],["guestMicrophone",media.microphone],["guestCameraDevice",null],["guestMicDevice",null]]){$(id).disabled=leaving||!active&&(busy||!secure||!captureSupported);$(id).title=!active&&!secure?"Camera and microphone need a secure link.":!active&&!captureSupported?"Camera and microphone capture are unavailable in this browser.":"";}
     $("guestScreen").disabled=leaving||!media.screen&&(busy||!secure||typeof navigator.mediaDevices?.getDisplayMedia!=="function");
-    $("guestReconnect").hidden=!retryAvailable||accessEnded||!validSession()||leaving;$("guestReconnect").disabled=busy||joining||connecting||!secure||accessEnded||!validSession();audioState();
+    $("guestScreen").title=!media.screen&&typeof navigator.mediaDevices?.getDisplayMedia!=="function"?"Screen sharing is not supported in this browser. Camera and mic can still be used.":"";
+    const retrying=connecting&&!joining&&!leaving;$("guestReconnect").hidden=(!retryAvailable&&!retrying)||accessEnded||!validSession()||leaving;$("guestReconnect").disabled=busy||joining||connecting||!secure||accessEnded||!validSession();$("guestReconnect").textContent=retrying?"Reconnecting…":"Retry connection";$("guestReconnect").setAttribute("aria-busy",String(retrying));
+    for(const [kind,id,onText,offText,pendingText] of [["camera","guestCamera","Turn camera off","Turn camera on","Starting camera…"],["microphone","guestMicrophone","Turn mic off","Turn mic on","Starting mic…"],["screen","guestScreen","Stop sharing","Share screen","Choose a screen…"]]){
+      const pending=!leaving&&pendingCapture?.kind===kind&&pendingCapture.generation===captureGeneration[kind];$(id).textContent=media[kind]?onText:pending?pendingText:offText;$(id).setAttribute("aria-busy",String(pending));
+      if(!media[kind]&&busy&&secure&&captureSupported)$(id).title=pending?"Complete the browser request, or cancel it to try again.":"Wait for the current device request to finish.";
+    }
+    audioState();
   }
   function synchronize(publish=true){
     if(publish)publisher?.setTracks({...media});
@@ -140,12 +147,13 @@
   async function capture(kind,reselect=false){
     if(leaving)return;
     if(media[kind]&&!reselect){stopSource(kind,(kind==="camera"?"Camera":"Microphone")+" is off.");return;}
-    if(busy)return;if(!root.isSecureContext||typeof navigator.mediaDevices?.getUserMedia!=="function"){feedback("guestDeviceStatus","Camera and microphone capture need a secure link and a supported browser.");setBusy(false);return;}const epoch=mediaEpoch,generation=++captureGeneration[kind],current=()=>epoch===mediaEpoch&&!leaving&&captureGeneration[kind]===generation;setBusy(true);feedback("guestDeviceStatus","");
+    if(busy)return;if(!root.isSecureContext||typeof navigator.mediaDevices?.getUserMedia!=="function"){feedback("guestDeviceStatus","Camera and microphone capture need a secure link and a supported browser.");setBusy(false);return;}const epoch=mediaEpoch,generation=++captureGeneration[kind],current=()=>epoch===mediaEpoch&&!leaving&&captureGeneration[kind]===generation;pendingCapture={kind,generation};setBusy(true);feedback("guestDeviceStatus","Waiting for "+(kind==="camera"?"camera":"microphone")+" access… Allow access in your browser if asked.");
     try{
       const device=$(kind==="camera"?"guestCameraDevice":"guestMicDevice").value;
       const options=kind==="camera"?{video:{width:{ideal:1280},height:{ideal:720},...(device?{deviceId:{exact:device}}:{})},audio:false}:{video:false,audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,...(device?{deviceId:{exact:device}}:{})}};
       const stream=await navigator.mediaDevices.getUserMedia(options);
       if(!current()){stream.getTracks().forEach(track=>track.stop());return;}
+      feedback("guestDeviceStatus","Setting up your "+(kind==="camera"?"camera":"microphone")+"…");
       const track=stream.getTracks()[0];if(!track)throw {name:"NotFoundError"};stop(kind);media[kind]=track;deviceSelection[kind]=track.getSettings?.().deviceId||device;
       if(kind==="microphone"&&root.ProducerGuestMicrophone){
         const owner=root.ProducerGuestMicrophone.create(track,processed=>{if(microphone===owner&&!leaving){media.microphone=processed;synchronize();}},value=>{if(microphone===owner)$("guestGateStatus").textContent=value;},value=>{if(microphone===owner&&!leaving)audioState(value);});
@@ -156,20 +164,20 @@
       }else track.onended=()=>{if(media[kind]===track)stopSource(kind,(kind==="camera"?"Camera":"Microphone")+" disconnected or stopped. Turn it on again when the device is ready.");};
       synchronize();feedback("guestDeviceStatus",(kind==="camera"?"Camera":"Microphone")+" is on.");await devices(epoch,kind,generation);
     }catch(error){if(current()){feedback("guestDeviceStatus",deviceError(error,kind));$(kind==="camera"?"guestCameraDevice":"guestMicDevice").value=deviceSelection[kind];}}
-    finally{if(epoch===mediaEpoch&&!leaving)setBusy(false);}
+    finally{if(epoch===mediaEpoch&&!leaving){if(pendingCapture?.kind===kind&&pendingCapture.generation===generation)pendingCapture=null;setBusy(false);}}
   }
   async function screen(){
     if(leaving)return;if(media.screen){stopSource("screen","Screen capture is off.");return;}
-    if(busy)return;if(!root.isSecureContext||typeof navigator.mediaDevices?.getDisplayMedia!=="function"){feedback("guestDeviceStatus","Screen sharing is unavailable in this browser. Use a supported desktop browser.");return;}const epoch=mediaEpoch,generation=++captureGeneration.screen,current=()=>epoch===mediaEpoch&&!leaving&&captureGeneration.screen===generation;setBusy(true);feedback("guestDeviceStatus","");
+    if(busy)return;if(!root.isSecureContext||typeof navigator.mediaDevices?.getDisplayMedia!=="function"){feedback("guestDeviceStatus","Screen sharing is unavailable in this browser. Use a supported desktop browser.");return;}const epoch=mediaEpoch,generation=++captureGeneration.screen,current=()=>epoch===mediaEpoch&&!leaving&&captureGeneration.screen===generation;pendingCapture={kind:"screen",generation};setBusy(true);feedback("guestDeviceStatus","Choose a screen, window or tab in your browser to share.");
     try{
       const stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:{ideal:30,max:30}},audio:true});
       if(!current()){stream.getTracks().forEach(track=>track.stop());return;}
       media.screen=stream.getVideoTracks()[0]||null;media.screen_audio=stream.getAudioTracks()[0]||null;
       const video=media.screen,audio=media.screen_audio;
       if(video)video.onended=()=>{if(media.screen===video)stopSource("screen","Screen capture ended. Choose Share screen to select it again.");};
-      if(audio)audio.onended=()=>{if(media.screen_audio===audio){stop("screen_audio");synchronize();feedback("guestDeviceStatus","Screen audio stopped. Screen video is still on.");}};synchronize();
+      if(audio)audio.onended=()=>{if(media.screen_audio===audio){stop("screen_audio");synchronize();feedback("guestDeviceStatus","Screen audio stopped. Screen video is still on.");}};synchronize();feedback("guestDeviceStatus",video?"Screen capture is on.":"No screen was shared. You can try again when ready.");
     }catch(error){if(current())feedback("guestDeviceStatus",error.name==="NotAllowedError"?"No screen was shared. You can try again when ready.":deviceError(error,"screen"));}
-    finally{if(epoch===mediaEpoch&&!leaving)setBusy(false);}
+    finally{if(epoch===mediaEpoch&&!leaving){if(pendingCapture?.kind==="screen"&&pendingCapture.generation===generation)pendingCapture=null;setBusy(false);}}
   }
   function roomState(value){
     if(leaving)return;const participant=value.participant;roomConnected=Boolean(participant&&["waiting","admitted"].includes(participant.state)&&participant.connected!==false);if(!participant){programAudioNotice();mediaHint();return;}
@@ -190,7 +198,7 @@
   }
   async function connect(){
     if(leaving||accessEnded||!root.isSecureContext||!validSession())return false;
-    const epoch=++connectionEpoch,previous=publisher;publisher=null;roomConnected=false;previous?.close();returnEpoch++;$("guestReturnAudio").srcObject=null;$("guestReturnAudio").pause();$("guestRoomAudio").hidden=true;peerWarnings.clear();peerNotice();retryAvailable=false;connecting=true;lastConnectionCode="";lastConnectionReason="";feedback("guestConnectionStatus","Connecting to the production PC…");mediaHint();setBusy(busy);
+    const epoch=++connectionEpoch,previous=publisher;publisher=null;roomConnected=false;previous?.close();returnEpoch++;$("guestReturnAudio").srcObject=null;$("guestReturnAudio").pause();$("guestRoomAudio").hidden=true;peerWarnings.clear();peerNotice();retryAvailable=false;connecting=true;lastConnectionCode="";lastConnectionReason="";feedback("guestConnectionStatus",joining?"Connecting to the production PC…":"Reconnecting to the production PC…");if(!joining)status("Reconnecting…","Your enabled sources remain on. You can still turn them off.");mediaHint();setBusy(busy);
     let owner=null,terminal=false;const owned=()=>!leaving&&connectionEpoch===epoch&&publisher===owner,current=()=>owned()&&!terminal;
     try{
       if(typeof root.ProducerGuestMedia?.createPublisher!=="function")throw Error("browser_media_unavailable");

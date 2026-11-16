@@ -59,7 +59,7 @@ for(const ending of ['leave','pagehide','disconnected','reconnecting','failed','
 test('Guest notice is an accessible hidden status and the changed script has a new cache key',()=>{
   const html=fs.readFileSync(require.resolve('../../rareiq/web/static/guest.html'),'utf8');
   assert.match(html,/<p[^>]*id="guestProgramAudioNotice"[^>]*role="status"[^>]*aria-live="polite"[^>]*hidden/);
-  assert.match(html,/guest\/assets\/guest\.js\?v=20261115-9/);
+  assert.match(html,/guest\/assets\/guest\.js\?v=20261115-10/);
 });
 
 
@@ -287,7 +287,9 @@ for(const kind of ['camera','microphone'])test(`${kind} OFF cancels a pending re
   const f=fixture({MediaStream:mediaStreamFixture});await f.element('guestJoinForm').listeners.submit({preventDefault(){}});
   const button=f.element(mediaButton(kind)),original=mediaTracks(kind);button.listeners.click();f.resolve(original);await settle();const obsoleteEnded=original[0].onended;
   const select=f.element(kind==='camera'?'guestCameraDevice':'guestMicDevice');select.value='replacement';select.listeners.change();assert.equal(button.disabled,false);
+  assert.equal(button.attributes['aria-busy'],'true');assert.match(button.textContent,/off/);
   await button.listeners.click();const before=f.publications.length,late=mediaTracks(kind);f.resolve(late);await settle();
+  assert.equal(button.attributes['aria-busy'],'false');assert.match(button.textContent,/on/);assert.match(f.element('guestDeviceStatus').textContent,/is off/);
   assert.equal(original[0].stops,1);assert.equal(late[0].stops,1);assert.equal(button.attributes['aria-pressed'],'false');assert.equal(f.publications.length,before);
   const fresh=mediaTracks(kind);button.listeners.click();f.resolve(fresh);await settle();obsoleteEnded();assert.equal(fresh[0].stops,0);assert.equal(button.attributes['aria-pressed'],'true');
   await f.element('guestLeave').listeners.click();
@@ -298,6 +300,45 @@ test('microphone OFF cancels pending processing without publishing a late proces
   await f.element('guestJoinForm').listeners.submit({preventDefault(){}});const button=f.element('guestMicrophone'),tracks=mediaTracks('microphone'),capture=button.listeners.click();f.resolve(tracks);await settle();
   assert.equal(button.disabled,false);await button.listeners.click();const before=f.publications.length;finish();await capture;
   assert.equal(tracks[0].stops,1);assert.equal(button.attributes['aria-pressed'],'false');assert.equal(f.publications.length,before);assert.equal(f.publications.at(-1).microphone,null);
+});
+
+for(const kind of ['camera','microphone','screen'])for(const fails of [false,true])test(`${kind} shows a pending capture state and restores controls after ${fails?'rejection':'success'}`,async()=>{
+  const f=fixture({MediaStream:mediaStreamFixture}),button=f.element(mediaButton(kind)),pending=button.listeners.click();
+  assert.equal(button.disabled,true);assert.equal(button.attributes['aria-busy'],'true');assert.match(button.textContent,/Starting|Choose a screen/);
+  assert.match(f.element('guestDeviceStatus').textContent,/Waiting for|Choose a screen/);assert.doesNotMatch(f.element('guestDeviceStatus').textContent,/is on|ready/);
+  if(fails)f.reject({name:'NotAllowedError'});else f.resolve(mediaTracks(kind));await pending;
+  assert.equal(button.disabled,false);assert.equal(button.attributes['aria-busy'],'false');assert.doesNotMatch(button.title,/current device request|Complete the browser/);
+  assert.match(button.textContent,fails?/on|Share screen/:/off|Stop sharing/);
+  assert.match(f.element('guestDeviceStatus').textContent,fails?/permission was not granted|No screen was shared/:/is on/);
+  const notice=f.element('guestDeviceStatus').textContent;await f.element('guestJoinForm').listeners.submit({preventDefault(){}});assert.equal(f.element('guestDeviceStatus').textContent,notice);
+  await f.element('guestLeave').listeners.click();assert.equal(button.attributes['aria-busy'],'false');
+});
+
+test('microphone setup reports pending processing while keeping its OFF control available',async()=>{
+  let finish;const f=fixture({ProducerGuestMicrophone:{create(raw){return {configure:()=>new Promise(resolve=>finish=resolve),close(){raw.stop();},snapshot:()=>({sounds:[],playing:0})};}}});
+  const button=f.element('guestMicrophone'),pending=button.listeners.click();f.resolve(mediaTracks('microphone'));await settle();
+  assert.equal(button.attributes['aria-busy'],'true');assert.equal(button.disabled,false);assert.equal(button.textContent,'Turn mic off');assert.match(f.element('guestDeviceStatus').textContent,/Setting up your microphone/);
+  finish();await pending;assert.equal(button.attributes['aria-busy'],'false');assert.match(f.element('guestDeviceStatus').textContent,/Microphone is on/);
+  await button.listeners.click();
+});
+
+for(const fails of [false,true])test(`joining stays visibly pending through invitation and signaling then restores after ${fails?'failure':'success'}`,async()=>{
+  let invitation,finish;const f=fixture({fetch:path=>path==='/guest/join'?new Promise(resolve=>invitation=resolve):Promise.resolve({ok:true}),ProducerGuestMedia:{createPublisher(options){return {setTracks(){},close(){},connect:()=>new Promise((resolve,reject)=>finish=()=>{if(fails)reject(Error('signaling_unavailable'));else{options.onState(roomState('waiting',{}));resolve();}})};}}});
+  const button=f.element('guestJoin'),pending=f.element('guestJoinForm').listeners.submit({preventDefault(){}});
+  assert.equal(button.textContent,'Joining…');assert.equal(button.attributes['aria-busy'],'true');assert.equal(button.disabled,true);
+  invitation({ok:true});await settle();assert.equal(button.textContent,'Joining…');assert.equal(f.element('guestLeave').hidden,false);assert.match(f.element('guestConnectionStatus').textContent,/Connecting/);
+  finish();await pending;assert.equal(button.attributes['aria-busy'],'false');assert.doesNotMatch(button.textContent,/Joining/);
+  if(fails){assert.equal(f.element('guestReconnect').hidden,false);assert.match(f.element('guestConnectionStatus').textContent,/Choose Retry/);}else assert.equal(f.element('guestConnectionStatus').hidden,true);
+  await f.element('guestLeave').listeners.click();
+});
+
+for(const fails of [false,true])test(`retry stays visible and busy until ${fails?'failure':'success'} without losing recovery feedback`,async()=>{
+  let count=0,finish;const owners=[],f=fixture({ProducerGuestMedia:{createPublisher(options){owners.push(options);const index=++count;return {setTracks(){},close(){},connect(){if(index===1){options.onState(roomState('waiting',{}));return Promise.resolve();}return new Promise((resolve,reject)=>finish=()=>{if(fails)reject(Error('signaling_unavailable'));else{options.onState(roomState('waiting',{}));resolve();}});}};}}});
+  await f.element('guestJoinForm').listeners.submit({preventDefault(){}});owners[0].onConnection({state:'closed',reason:'signaling_disconnected'});
+  const button=f.element('guestReconnect'),pending=button.listeners.click();assert.equal(button.hidden,false);assert.equal(button.disabled,true);assert.equal(button.textContent,'Reconnecting…');assert.equal(button.attributes['aria-busy'],'true');assert.match(f.element('guestConnectionStatus').textContent,/Reconnecting/);
+  finish();await pending;assert.equal(button.attributes['aria-busy'],'false');assert.equal(button.textContent,'Retry connection');assert.equal(button.hidden,!fails);
+  if(fails){assert.equal(button.disabled,false);assert.match(f.element('guestConnectionStatus').textContent,/Choose Retry/);}
+  await f.element('guestLeave').listeners.click();assert.equal(button.attributes['aria-busy'],'false');
 });
 
 for(const kind of ['camera','microphone','screen'])test(`unexpected ${kind} end reports capture loss and an obsolete callback cannot stop replacement`,async()=>{

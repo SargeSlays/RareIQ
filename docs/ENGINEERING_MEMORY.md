@@ -10,6 +10,9 @@
 - Distinguish private prejoin screen preview from connected availability and
   unconfirmed delivery during connection failures. Signaling state is not media
   receipt. Unexpected track-ended callbacks must belong to the current source.
+- Pending operations need visible progress and matching accessible busy state.
+  Keep progress owned by the current operation; cancellation/error must restore
+  controls without overwriting newer feedback or blocking active capture-off.
 
 ## November 15, 2026 - Separate guest operation and feedback ownership
 

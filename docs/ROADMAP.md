@@ -14,6 +14,8 @@ Additional local polish: capture-off during pending permissions, replacement
 cancellation, capture-ended guidance and truthful preview/delivery hints. Browser
 checks use controlled permission delays and synthetic media; owner-presence
 listening and physical device switching remain deferred.
+Device and connection controls also explain pending operations and restore their
+normal labels after success, cancellation or failure.
 
 ## November 15, 2026 - Guest audio checkpoint; listening deferred
 

@@ -67,6 +67,9 @@ its pending replacement: a late permission result cannot turn it back on.
 Unexpected device or screen-capture endings show a recovery message. Screen audio
 ending does not stop an otherwise active screen picture. A paused connection does
 not establish private preview; turn off enabled sources to stop their capture.
+Pending device requests, joining and reconnecting show progress in the controls.
+Follow the browser's permission or screen-selection prompt; enabling a device is
+confirmed only after capture starts. Failed requests restore controls with guidance.
 **Leave the room** cancels the guest session. Microphone-off/Leave also
 clear local clips. Recovery tests use deliberate failures and generated media;
 they do not establish physical-device or internet reliability.
