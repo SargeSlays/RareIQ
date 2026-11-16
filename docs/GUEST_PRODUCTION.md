@@ -1,5 +1,21 @@
 # Guest productions in Producer, Please
 
+## November 15, 2026 - Backstage text conversations
+
+After joining, choose Shared backstage to message all guests and producers, or
+Private / production team to contact only the production team. Producers choose
+Private / guest + production team, then select a guest. Every authorized producer
+can read those private conversations. Names identify invitation sessions, not
+verified guest accounts. Messages show local timestamps and stay off Program.
+
+Use Enter for a new line, or Ctrl/Command + Enter to send. Messages are limited to
+1,000 characters and 20 new messages per minute per sender across conversations.
+The screen shows the latest 100 messages. Drafts stay separate by conversation;
+if delivery is uncertain, Retry same message safely reuses its original receipt.
+Leaving, removal, invitation expiry/revocation or room closure clears guest chat.
+A new room does not display the preceding room's history. Local history is retained
+in the studio database; export and retention controls are not yet implemented.
+
 ## Current checkpoint — November 15, 2026
 
 The studio can invite guests into one shared room, receive their camera,

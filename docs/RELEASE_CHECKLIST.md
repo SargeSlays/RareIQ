@@ -1,5 +1,30 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 - Shared/private waiting-room chat
+
+Canonical gate passed: **3311 Python tests and 477 JavaScript tests**. New service,
+route, ingress and client tests cover recipient isolation, authorization after
+removal/revocation/expiry, stale-room sends, concurrent duplicate retries, bounded
+history/rates, text-only rendering, separate drafts and stale asynchronous reads.
+The existing stylesheet-order guards now include the shared chat stylesheet;
+those guards also passed against the staged checkpoint without unrelated edits.
+
+Two real Edge guest browsers and the actual producer screen exercised shared
+chat, separate private threads/replies, names/timestamps, keyboard send, literal
+HTML-like text, uncertain delivery retry (one stored message), revocation clearing,
+new-room isolation and unchanged Program generation/room revision. No device
+capture was called. Dark/light guest layouts passed at 390/960/1920/3840 widths;
+producer chat passed at 960/1920/3840. One unrelated control-page read rejected by
+the isolated fixture was accounted for; no unexpected browser errors remained.
+
+The idle local studio was restarted through its normal controller. The running
+guest page and chat API serve this checkpoint; a live browser confirmed private
+conversation guidance and invitation-required controls. No connected guests,
+streams or recordings were present. The isolated fixture was stopped and private
+guest ingress remains off. Physical second-PC listening/echo remains deferred.
+Evidence: F:/Temp/jonat/ProducerPlease-guest-chat-20261115 (results.json, screenshots,
+live-guest-chat.jpg, release-gate-final.log). No public-network verification claimed.
+
 ## November 15, 2026 - Visible guest progress states
 
 Canonical gate: **3240 Python tests and 468 JavaScript tests passed**. Capture,

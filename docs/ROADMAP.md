@@ -1,5 +1,17 @@
 # RareIQ Roadmap
 
+## November 15, 2026 - Waiting-room chat checkpoint
+
+Implemented shared backstage chat and private guest/production-team conversations
+on both guest and producer screens. Added sender labels, timestamps, independent
+drafts, duplicate-safe retry, bounded polling/history, responsive dark/light
+layouts and access-ended cleanup. Server checks derive private guest recipients,
+serialize authorization with writes and preserve local append-only history without
+changing room revisions. Chat-only messages never enter Program or general
+production activity payloads. Named producer profiles, history export/retention
+controls and public-network acceptance are follow-up work; owner-attended speech,
+echo and hardware switching checks remain deferred in GUEST_PRODUCTION.md.
+
 ## November 15, 2026 - Guest polish without second-PC attendance
 
 Completed software scope: responsive guest audio layout, persistent device/file

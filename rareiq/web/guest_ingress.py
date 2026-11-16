@@ -14,7 +14,8 @@ from urllib.parse import urlsplit
 from .greenroom import PUBLIC_GUEST_PATHS
 
 
-HTTP_METHODS = {path: frozenset({"POST"} if path in {"/guest/join", "/guest/leave"} else {"GET", "HEAD"})
+HTTP_METHODS = {path: frozenset({"GET", "POST"} if path == "/guest/chat" else
+                              {"POST"} if path in {"/guest/join", "/guest/leave"} else {"GET", "HEAD"})
                 for path in PUBLIC_GUEST_PATHS}
 MAX_BODY_BYTES = 8192
 MAX_HEADER_BYTES = 16384
@@ -100,19 +101,23 @@ class GuestOnlyIngress:
         elif path not in HTTP_METHODS or scope.get("method") not in HTTP_METHODS[path]:
             return await self._deny(scope, send)
         query = scope.get("query_string", b"")
-        if not isinstance(query, bytes) or query and not (path.startswith("/guest/assets/") and kind == "http"
-                          and isinstance(query, bytes) and re.fullmatch(rb"v=[A-Za-z0-9._-]{1,64}", query)):
+        asset_query = (kind == "http" and path.startswith("/guest/assets/") and isinstance(query, bytes)
+                       and re.fullmatch(rb"v=[A-Za-z0-9._-]{1,64}", query))
+        chat_query = (kind == "http" and path == "/guest/chat" and scope.get("method") == "GET"
+                      and isinstance(query, bytes) and re.fullmatch(
+                          rb"(?:channel=(?:room|private)(?:&room_id=[a-f0-9]{32})?|room_id=[a-f0-9]{32}(?:&channel=(?:room|private))?)", query))
+        if not isinstance(query, bytes) or query and not (asset_query or chat_query):
             return await self._deny(scope, send)
         headers = self._headers(scope)
         if headers is None:
             return await self._deny(scope, send, 403)
         clean_headers = [(k, v) for k, v in headers if k in SAFE_HEADERS]
-        if path == "/guest/leave":
+        if path in {"/guest/leave", "/guest/chat"}:
             authorization = [v for k, v in headers if k == b"authorization"]
             if len(authorization) != 1 or not re.fullmatch(rb"Bearer [a-f0-9]{64}", authorization[0]):
                 return await self._deny(scope, send, 401)
             clean_headers.append((b"authorization", authorization[0]))
-        elif path == "/guest/join":
+        if path == "/guest/join" or path == "/guest/chat" and scope.get("method") == "POST":
             content_type = [v for k, v in headers if k == b"content-type"]
             if not content_type or content_type[0].split(b";", 1)[0].strip().lower() != b"application/json":
                 return await self._deny(scope, send, 415)
@@ -136,7 +141,7 @@ class GuestOnlyIngress:
             return await self.app(forwarded, guest_receive, send)
         forwarded["method"] = scope["method"]
         data = bytearray()
-        limit = MAX_BODY_BYTES if path == "/guest/join" else 0
+        limit = MAX_BODY_BYTES if path in {"/guest/join", "/guest/chat"} and scope["method"] == "POST" else 0
         try:
             async with asyncio.timeout(5):
                 while True:

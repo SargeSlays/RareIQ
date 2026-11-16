@@ -1,5 +1,22 @@
 # RareIQ: streaming-first product direction
 
+## November 15, 2026 - Shared and private backstage chat
+
+Waiting and admitted guests can chat with everyone in the room or privately with
+the production team. Private means that guest plus all authorized producers, not
+a guest-to-guest direct message. The producer selects the guest conversation.
+Messages show sender labels and local timestamps, remain off Program, and do not
+change production state. Guest display names are not verified identities; producer
+messages use the Production team label and only show verified identity when a
+trusted account principal is present.
+
+The local database retains append-only history and sender keys. The UI reads the
+latest 100 messages in the current conversation; a new room starts empty. Removal,
+revocation, expiry and closing the room end guest access. Old records are retained,
+not silently deleted. Retention/export policy and named producer profiles remain
+separate follow-up work. Local browser and access-boundary checks do not establish
+public hosting, internet connectivity or physical second-PC audio acceptance.
+
 ## November 15, 2026 - Guest flow and recovery polish
 
 Guest preview and joining now share a compact first row, with a full-width voice

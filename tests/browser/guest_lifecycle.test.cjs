@@ -59,7 +59,7 @@ for(const ending of ['leave','pagehide','disconnected','reconnecting','failed','
 test('Guest notice is an accessible hidden status and the changed script has a new cache key',()=>{
   const html=fs.readFileSync(require.resolve('../../rareiq/web/static/guest.html'),'utf8');
   assert.match(html,/<p[^>]*id="guestProgramAudioNotice"[^>]*role="status"[^>]*aria-live="polite"[^>]*hidden/);
-  assert.match(html,/guest\/assets\/guest\.js\?v=20261115-10/);
+  assert.match(html,/guest\/assets\/guest\.js\?v=20261115-11/);
 });
 
 

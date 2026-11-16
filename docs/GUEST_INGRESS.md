@@ -1,7 +1,7 @@
 # Guest-only ingress — integrated, disabled by default
 
 `rareiq.web.guest_ingress.GuestOnlyIngress` wraps the existing ASGI application.
-It permits the exact public guest page/assets, POST join/leave, and the guest
+It permits the exact public guest page/assets, POST join/leave, authenticated GET/POST chat, and the guest
 WebSocket. All operator APIs, output sockets, documentation, arbitrary static
 files and other paths are rejected before reaching the studio app.
 
@@ -73,12 +73,16 @@ a reverse proxy, a tunnel, TURN, a firewall rule or an external listener.
   shared app; it does not trust forwarded client IPs. The existing join limiter
   therefore shares its 20-per-minute bucket across this ingress.
 - Guest invitations stay in URL fragments and guest authentication stays in the
-  join body/WebSocket authentication message. Only leave accepts a guest Bearer
+  join body/WebSocket authentication message. Leave and chat accept a guest Bearer
   session token. Cookies and inherited operator principals/session state are
-  removed. Query parameters are denied except a bounded `v=` asset version.
+  removed. Query parameters are denied except a bounded `v=` asset version and chat GET
+  `channel=room|private` with optional 32-hex `room_id`. Guest recipient/author
+  fields are never forwarded from query parameters.
 
-The wrapper buffers at most 8 KiB for join within five seconds and rejects bodies
-on every other HTTP route. Actual invitation validation, admission, revocation,
+The wrapper buffers at most 8 KiB for join or chat POST within five seconds and
+rejects bodies on every other HTTP route. Chat POST requires JSON; chat GET and
+POST are the only supported chat methods. The shared service enforces the
+1,000-character text bound, sender rate limit and current invitation access. Actual invitation validation, admission, revocation,
 media permissions, signaling schemas and source selection remain owned by the
 existing GreenroomHub/service. Model or camera frames do not travel through this
 guest ingress.

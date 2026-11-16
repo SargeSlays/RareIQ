@@ -16,6 +16,7 @@ import sqlite3
 import threading
 import time
 from typing import Callable
+import unicodedata
 import uuid
 
 from rareiq.web.shared_scene_access import VerifiedPrincipal
@@ -67,6 +68,24 @@ class GreenroomService:
                     identity_verified INTEGER NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL,
                     outcome TEXT NOT NULL, before_revision INTEGER NOT NULL,
                     after_revision INTEGER NOT NULL, details TEXT NOT NULL, request_id TEXT);
+                CREATE TABLE IF NOT EXISTS greenroom_chat (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, room_id TEXT NOT NULL,
+                    channel TEXT NOT NULL CHECK(channel IN ('room','private')),
+                    participant_id TEXT, actor_key TEXT NOT NULL,
+                    author_name TEXT NOT NULL, author_kind TEXT NOT NULL,
+                    identity_verified INTEGER NOT NULL, text TEXT NOT NULL,
+                    created_at REAL NOT NULL, request_id TEXT NOT NULL, fingerprint TEXT NOT NULL,
+                    UNIQUE(room_id,actor_key,request_id),
+                    CHECK((channel='room' AND participant_id IS NULL) OR
+                          (channel='private' AND participant_id IS NOT NULL)));
+                CREATE INDEX IF NOT EXISTS greenroom_chat_thread
+                    ON greenroom_chat(room_id,channel,participant_id,id);
+                CREATE INDEX IF NOT EXISTS greenroom_chat_rate
+                    ON greenroom_chat(room_id,actor_key,created_at);
+                CREATE TRIGGER IF NOT EXISTS greenroom_chat_no_update
+                    BEFORE UPDATE ON greenroom_chat BEGIN SELECT RAISE(ABORT,'chat_is_append_only'); END;
+                CREATE TRIGGER IF NOT EXISTS greenroom_chat_no_delete
+                    BEFORE DELETE ON greenroom_chat BEGIN SELECT RAISE(ABORT,'chat_is_append_only'); END;
                 CREATE TRIGGER IF NOT EXISTS greenroom_activity_no_update
                     BEFORE UPDATE ON greenroom_activity BEGIN SELECT RAISE(ABORT,'activity_is_append_only'); END;
                 CREATE TRIGGER IF NOT EXISTS greenroom_activity_no_delete
@@ -270,6 +289,101 @@ class GreenroomService:
             if not room["active"] or not row or row["state"] == "removed" or row["expires_at"] <= self.clock():
                 raise GreenroomError("invalid_guest_session", 401)
             return self._participant(row)
+
+    @staticmethod
+    def _chat_message(row):
+        return {key: row[key] for key in ("id", "channel", "participant_id", "author_name", "author_kind", "text", "created_at")} | {
+            "identity_verified": bool(row["identity_verified"])}
+
+    def _chat(self, channel, *, session_token=None, participant_id=None, room_id=None,
+              text=None, request_id=None, actor_kind="local_operator", principal=None, send=False):
+        """Chat is independent of production revisions and never enters room signaling.
+
+        Authorization, recipient selection, deduplication and insertion share one
+        transaction. A previously authenticated guest cannot race removal/reset.
+        """
+        if not isinstance(channel, str) or channel not in {"room", "private"}:
+            raise GreenroomError("invalid_chat_channel")
+        if room_id is not None and (not isinstance(room_id, str) or re.fullmatch(r"[a-f0-9]{32}", room_id) is None):
+            raise GreenroomError("invalid_chat_room")
+        guest = session_token is not None
+        if guest and participant_id is not None:
+            raise GreenroomError("chat_recipient_forbidden", 403)
+        if not guest and ((channel == "room" and participant_id is not None) or
+                          (channel == "private" and (not isinstance(participant_id, str) or re.fullmatch(r"[a-f0-9]{32}", participant_id) is None))):
+            raise GreenroomError("invalid_chat_recipient")
+        digest = self._token_hash(session_token, "invalid_guest_session") if guest else None
+        actor = None if guest else self._actor(actor_kind, principal)
+        if send:
+            if room_id is None:
+                raise GreenroomError("chat_room_required")
+            if (not isinstance(text, str) or not 1 <= len(text) <= 1000 or not text.strip() or
+                    any(unicodedata.category(char) in {"Cc", "Cs"} and char not in "\n\t" for char in text)):
+                raise GreenroomError("invalid_chat_text")
+            if not isinstance(request_id, str) or re.fullmatch(r"[A-Za-z0-9_-]{1,80}", request_id) is None:
+                raise GreenroomError("invalid_chat_request_id")
+            text = text.strip()
+        with self._lock, closing(self._connect()) as db, db:
+            db.execute("BEGIN IMMEDIATE" if send else "BEGIN")
+            room = self._room(db)
+            if not room["active"]:
+                raise GreenroomError("room_closed", 409)
+            if room_id is not None and room["id"] != room_id:
+                raise GreenroomError("chat_room_conflict", 409)
+            if guest:
+                row = db.execute("SELECT p.* FROM greenroom_participants p JOIN greenroom_invites i ON i.id=p.invite_id WHERE p.session_hash=? AND p.room_id=? AND i.revoked=0",
+                                 (digest, room["id"])).fetchone()
+                if not row or row["state"] == "removed" or row["expires_at"] <= self.clock():
+                    raise GreenroomError("invalid_guest_session", 401)
+                participant_id = row["id"] if channel == "private" else None
+                actor_key, author_name, verified = "guest:" + row["id"], row["name"], False
+            else:
+                actor_key = "producer:" + hashlib.sha256(self._json(actor[:2]).encode()).hexdigest()
+                author_name, verified = "Production team", actor[2]
+                if channel == "private":
+                    row = db.execute("SELECT p.*,i.revoked FROM greenroom_participants p JOIN greenroom_invites i ON i.id=p.invite_id WHERE p.id=? AND p.room_id=?",
+                                     (participant_id, room["id"])).fetchone()
+                    if not row or (send and (row["state"] == "removed" or row["revoked"] or row["expires_at"] <= self.clock())):
+                        raise GreenroomError("guest_unavailable", 404)
+            if not send:
+                rows = db.execute("SELECT * FROM greenroom_chat WHERE room_id=? AND channel=? AND participant_id IS ? ORDER BY id DESC LIMIT 100",
+                                  (room["id"], channel, participant_id)).fetchall()
+                return {"ok": True, "room_id": room["id"], "channel": channel, "participant_id": participant_id,
+                        "messages": [self._chat_message(row) for row in reversed(rows)], "latest_id": rows[0]["id"] if rows else 0}
+            fingerprint = hashlib.sha256(self._json([channel, participant_id, text]).encode()).hexdigest()
+            prior = db.execute("SELECT * FROM greenroom_chat WHERE room_id=? AND actor_key=? AND request_id=?",
+                               (room["id"], actor_key, request_id)).fetchone()
+            if prior:
+                if prior["fingerprint"] != fingerprint:
+                    raise GreenroomError("chat_request_conflict", 409)
+                return {"ok": True, "room_id": room["id"], "message": self._chat_message(prior)}
+            now = self.clock()
+            count = db.execute("SELECT COUNT(*) FROM greenroom_chat WHERE room_id=? AND actor_key=? AND created_at>?",
+                               (room["id"], actor_key, now - 60)).fetchone()[0]
+            if count >= 20:
+                raise GreenroomError("chat_rate_limited", 429)
+            cursor = db.execute("INSERT INTO greenroom_chat(room_id,channel,participant_id,actor_key,author_name,author_kind,identity_verified,text,created_at,request_id,fingerprint) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                                (room["id"], channel, participant_id, actor_key, author_name, "guest" if guest else "producer",
+                                 int(verified), text, now, request_id, fingerprint))
+            message = self._chat_message(db.execute("SELECT * FROM greenroom_chat WHERE id=?", (cursor.lastrowid,)).fetchone())
+            return {"ok": True, "room_id": room["id"], "message": message}
+
+    def guest_chat(self, session_token, channel="room", *, room_id=None):
+        self._token_hash(session_token, "invalid_guest_session")
+        return self._chat(channel, session_token=session_token, room_id=room_id)
+
+    def send_guest_chat(self, session_token, channel, text, request_id, room_id):
+        self._token_hash(session_token, "invalid_guest_session")
+        return self._chat(channel, session_token=session_token, text=text, request_id=request_id, room_id=room_id, send=True)
+
+    def producer_chat(self, channel="room", *, participant_id=None, room_id=None,
+                      actor_kind="local_operator", principal=None):
+        return self._chat(channel, participant_id=participant_id, room_id=room_id, actor_kind=actor_kind, principal=principal)
+
+    def send_producer_chat(self, channel, text, request_id, room_id, *, participant_id=None,
+                           actor_kind="local_operator", principal=None):
+        return self._chat(channel, text=text, request_id=request_id, room_id=room_id,
+                          participant_id=participant_id, actor_kind=actor_kind, principal=principal, send=True)
 
     def _guest_state(self, participant_id, *, connected=None, media=None):
         with self._lock, closing(self._connect()) as db, db:

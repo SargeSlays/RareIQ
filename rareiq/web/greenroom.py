@@ -19,8 +19,9 @@ from pydantic import BaseModel, Field, ConfigDict, model_validator
 from rareiq.services.greenroom_service import GreenroomService, GreenroomError
 
 
-PUBLIC_GUEST_PATHS = frozenset({"/guest", "/guest/join", "/guest/leave",
+PUBLIC_GUEST_PATHS = frozenset({"/guest", "/guest/join", "/guest/leave", "/guest/chat",
                               "/guest/assets/guest.css", "/guest/assets/guest.js",
+                              "/guest/assets/greenroom_chat.js", "/guest/assets/greenroom_chat.css",
                               "/guest/assets/guest_microphone.js", "/guest/assets/guest_audio_dsp.js", "/guest/assets/studio_noise_gate.js",
                               "/guest/assets/studio_noise_gate.worklet.js", "/guest/assets/greenroom_media.js", "/guest/assets/theme.css", "/guest/assets/mark.svg"})
 
@@ -41,6 +42,18 @@ class MutationRequest(BaseModel):
 class InviteRequest(MutationRequest):
     label: str = Field(default="Guest", max_length=60)
     ttl_minutes: int = Field(default=60, ge=1, le=1440, strict=True)
+
+
+class GuestChatRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    room_id: str = Field(pattern=r"^[a-f0-9]{32}$")
+    channel: str = Field(pattern=r"^(room|private)$")
+    text: str = Field(min_length=1, max_length=1000)
+    request_id: str = Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+class ProducerChatRequest(GuestChatRequest):
+    participant_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
 
 
 class ModerateRequest(MutationRequest):
@@ -116,11 +129,14 @@ class GreenroomHub:
         return JSONResponse({"ok": False, "reason": reason}, status_code=status,
                             headers={"Cache-Control": "no-store"})
 
-    def _bearer(self, request):
+    def _bearer_token(self, request):
         values = request.headers.getlist("authorization")
         if len(values) != 1 or not values[0].startswith("Bearer "):
             raise GreenroomError("guest_session_required", 401)
-        return self.service.authenticate(values[0][7:])
+        return values[0][7:]
+
+    def _bearer(self, request):
+        return self.service.authenticate(self._bearer_token(request))
 
     def output_status(self):
         # Action workers read this while the event loop may remove a socket.
@@ -163,7 +179,7 @@ class GreenroomHub:
                        "mark.svg": "brand/producer-please-v2/favicon.svg"}
             if name in aliases:
                 return FileResponse(self.static_dir / aliases[name], headers={"Cache-Control": "no-cache"})
-            if name not in {"guest.css", "guest.js", "greenroom_media.js", "guest_microphone.js", "guest_audio_dsp.js", "studio_noise_gate.js", "studio_noise_gate.worklet.js"}:
+            if name not in {"guest.css", "guest.js", "greenroom_chat.js", "greenroom_chat.css", "greenroom_media.js", "guest_microphone.js", "guest_audio_dsp.js", "studio_noise_gate.js", "studio_noise_gate.worklet.js"}:
                 return self._error("asset_not_found", 404)
             return FileResponse(self.static_dir / name, headers={"Cache-Control": "no-cache", "Referrer-Policy": "no-referrer"})
 
@@ -204,6 +220,59 @@ class GreenroomHub:
             if not self._operator(request):
                 return self._error("producer_access_required", 403)
             return JSONResponse(self._snapshot(), headers={"Cache-Control": "no-store"})
+
+        @router.get("/guest/chat")
+        async def guest_chat(request: Request, channel: str = "room", room_id: str | None = None):
+            if not self._same_origin(request):
+                return self._error("guest_origin_rejected", 403)
+            if set(request.query_params) - {"channel", "room_id"}:
+                return self._error("invalid_chat_query")
+            try:
+                result = self.service.guest_chat(self._bearer_token(request), channel, room_id=room_id)
+                return JSONResponse(result, headers={"Cache-Control": "no-store"})
+            except GreenroomError as exc:
+                return self._error(exc.reason, exc.status)
+            except (sqlite3.Error, OSError):
+                return self._error("chat_unavailable", 503)
+
+        @router.post("/guest/chat")
+        async def guest_chat_send(request: Request, body: GuestChatRequest):
+            if not self._same_origin(request):
+                return self._error("guest_origin_rejected", 403)
+            try:
+                result = self.service.send_guest_chat(self._bearer_token(request), **body.model_dump())
+                return JSONResponse(result, headers={"Cache-Control": "no-store"})
+            except GreenroomError as exc:
+                return self._error(exc.reason, exc.status)
+            except (sqlite3.Error, OSError):
+                return self._error("chat_unavailable", 503)
+
+        @router.get("/api/production/greenroom/chat")
+        async def producer_chat(request: Request, channel: str = "room", participant_id: str | None = None,
+                                room_id: str | None = None):
+            if not self._operator(request):
+                return self._error("producer_access_required", 403)
+            if set(request.query_params) - {"channel", "room_id", "participant_id"}:
+                return self._error("invalid_chat_query")
+            try:
+                result = self.service.producer_chat(channel, participant_id=participant_id, room_id=room_id, **self._actor(request))
+                return JSONResponse(result, headers={"Cache-Control": "no-store"})
+            except GreenroomError as exc:
+                return self._error(exc.reason, exc.status)
+            except (sqlite3.Error, OSError):
+                return self._error("chat_unavailable", 503)
+
+        @router.post("/api/production/greenroom/chat")
+        async def producer_chat_send(request: Request, body: ProducerChatRequest):
+            if not self._operator(request):
+                return self._error("producer_access_required", 403)
+            try:
+                result = self.service.send_producer_chat(**body.model_dump(), **self._actor(request))
+                return JSONResponse(result, headers={"Cache-Control": "no-store"})
+            except GreenroomError as exc:
+                return self._error(exc.reason, exc.status)
+            except (sqlite3.Error, OSError):
+                return self._error("chat_unavailable", 503)
 
         @router.get("/api/production/greenroom/activity")
         async def activity(request: Request):

@@ -66,7 +66,7 @@ def main():
         if path.startswith("/api/camera-slots/") and path.endswith("/stream") and request.method == "GET":
             return Response(jpeg, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
         if request.method not in {"GET", "HEAD"}:
-            if path not in {"/guest/join", "/guest/leave"} and not path.startswith(allowed_write):
+            if path not in {"/guest/join", "/guest/leave", "/guest/chat"} and not path.startswith(allowed_write):
                 return JSONResponse({"ok": False, "reason": "mutation_blocked_in_guest_fixture"}, status_code=403)
         elif path.startswith("/api/") and not path.startswith(allowed_read):
             return JSONResponse({"ok": False, "reason": "read_blocked_in_guest_fixture"}, status_code=503)

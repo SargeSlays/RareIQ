@@ -1,5 +1,25 @@
 # RareIQ engineering memory
 
+## November 15, 2026 - Backstage conversation isolation
+
+- Derive a guest's private recipient from its authenticated invitation session,
+  never from the request body. Revalidate invitation/room/expiry inside the same
+  SQLite transaction as each read or write; retry receipts cannot bypass removal.
+- Require room identity for sends, isolate chat from production revisions, and
+  keep bodies/credentials out of general activity and signaling. Keep sender keys
+  and immutable message receipts in the dedicated local table for accountability.
+- Client requests belong to a session plus conversation generation. Abort and
+  ignore obsolete reads when changing token, room, guest or channel; an initial
+  response must not establish a new session's room. Clear drafts/history on access
+  end. Keep channel/guest drafts separate, and reuse the exact request ID and body
+  after uncertain delivery so a lost HTTP response cannot duplicate a message.
+- Render content as text, announce only new arrivals, preserve keyboard focus, and
+  leave the surrounding tool panel at natural height. Only the message transcript
+  has a bounded scrolling region. Verify theme attributes on the document root
+  using actual skin values (ignite/daylight), not dark/light labels on the body.
+- Guards: chat service/routes and ingress tests; mocked client lifecycle tests;
+  tools/qa_guest_chat.cjs with two guest browsers and the actual producer screen.
+
 ## November 15, 2026 - Capture-off must not wait for permissions
 
 - A global capture-busy flag blocked Off while another device permission was

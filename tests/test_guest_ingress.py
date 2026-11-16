@@ -1,6 +1,7 @@
 """Guest boundary tests use in-memory ASGI only; never bind a listener."""
 import asyncio
 from contextlib import asynccontextmanager
+import json
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -43,7 +44,7 @@ def exercise(incoming, packets=None):
     return calls, sent
 
 
-@pytest.mark.parametrize("path", sorted(PUBLIC_GUEST_PATHS - {"/guest/join", "/guest/leave"}))
+@pytest.mark.parametrize("path", sorted(PUBLIC_GUEST_PATHS - {"/guest/join", "/guest/leave", "/guest/chat"}))
 @pytest.mark.parametrize("method", ["GET", "HEAD"])
 def test_only_exact_guest_documents_and_assets_are_readable(path, method):
     calls, sent = exercise(scope(path, method=method))
@@ -52,7 +53,8 @@ def test_only_exact_guest_documents_and_assets_are_readable(path, method):
 
 
 @pytest.mark.parametrize("path", ["/", "/control", "/docs", "/openapi.json", "/static/guest.js", "/api/production/greenroom",
-    "/api/production/switcher/take", "/guest/", "/guest/join/", "/guest/ws", "/guest/assets/unknown.js", "/guest/../control",
+    "/api/production/switcher/take", "/api/production/greenroom/chat", "/guest/chat/", "/guest/chat/moderate",
+    "/guest/", "/guest/join/", "/guest/ws", "/guest/assets/unknown.js", "/guest/../control",
     "//guest", "/guest%2fjoin", "/guest\\join", "/%67uest"])
 def test_unknown_admin_and_noncanonical_http_paths_never_reach_app(path):
     calls, sent = exercise(scope(path))
@@ -99,7 +101,7 @@ def test_operator_identity_cookies_and_forwarding_headers_are_removed():
     assert dict(forwarded["headers"]).keys() == {b"host", b"origin", b"content-length"}
 
 
-def test_bounded_join_body_and_only_leave_preserves_guest_bearer():
+def test_bounded_join_body_and_leave_preserves_guest_bearer():
     incoming = scope("/guest/join", method="POST")
     calls, _ = exercise(incoming, [{"type": "http.request", "body": b"{", "more_body": True},
                                  {"type": "http.request", "body": b"}", "more_body": False}])
@@ -114,6 +116,88 @@ def test_bounded_join_body_and_only_leave_preserves_guest_bearer():
     leave["headers"].append((b"authorization", b"Bearer " + b"a" * 64))
     calls, _ = exercise(leave)
     assert dict(calls[0][0]["headers"])[b"authorization"] == b"Bearer " + b"a" * 64
+
+
+def chat_scope(*, method="GET", query=b""):
+    incoming = scope("/guest/chat", method=method, query_string=query,
+                     studio_principal=object(), user=object(), session={"admin": True}, state={"operator": True})
+    incoming["headers"] += [(b"authorization", b"Bearer " + b"a" * 64), (b"cookie", b"operator=private"),
+                            (b"x-forwarded-for", b"127.0.0.1"), (b"x-original-url", b"/api/production/greenroom/chat")]
+    return incoming
+
+
+@pytest.mark.parametrize("query", [b"", b"channel=room", b"channel=private", b"room_id=" + b"a" * 32,
+    b"channel=private&room_id=" + b"a" * 32, b"room_id=" + b"a" * 32 + b"&channel=room"])
+def test_chat_get_preserves_only_bounded_thread_query_and_guest_authentication(query):
+    calls, sent = exercise(chat_scope(query=query))
+    assert sent[0]["status"] == 200 and len(calls) == 1
+    forwarded, body = calls[0]
+    assert forwarded["query_string"] == query and forwarded["method"] == "GET"
+    assert body["body"] == b""
+    assert not set(forwarded) & {"studio_principal", "user", "session", "state"}
+    assert dict(forwarded["headers"]) == {b"host": AUTHORITY, b"origin": ORIGIN.encode(),
+        b"authorization": b"Bearer " + b"a" * 64, b"content-length": b"0"}
+
+
+def test_chat_post_forwards_bounded_multiline_json_without_operator_identity():
+    body = json.dumps({"channel": "private", "room_id": "a" * 32, "request_id": "fixture-request",
+                       "text": "First line\n\t" + "é" * 988}, ensure_ascii=False).encode()
+    incoming = chat_scope(method="POST")
+    incoming["headers"].append((b"content-length", str(len(body)).encode()))
+    calls, sent = exercise(incoming, [{"type": "http.request", "body": body[:50], "more_body": True},
+                                     {"type": "http.request", "body": body[50:], "more_body": False}])
+    assert sent[0]["status"] == 200 and calls[0][1]["body"] == body
+    assert len(json.loads(calls[0][1]["body"])["text"]) == 1000
+    headers = dict(calls[0][0]["headers"])
+    assert headers[b"authorization"] == b"Bearer " + b"a" * 64
+    assert headers[b"content-length"] == str(len(body)).encode()
+    assert set(headers) == {b"host", b"origin", b"authorization", b"content-type", b"content-length"}
+
+
+@pytest.mark.parametrize("method", ["HEAD", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE", "CONNECT"])
+def test_chat_does_not_expand_allowed_methods(method):
+    calls, sent = exercise(chat_scope(method=method))
+    assert not calls and sent[0]["status"] == 404
+
+
+@pytest.mark.parametrize("query", [b"token=" + b"a" * 64, b"channel=room&participant_id=" + b"a" * 32,
+    b"channel=room&channel=private", b"channel=room&room_id=" + b"a" * 32 + b"&room_id=" + b"b" * 32,
+    b"channel=operator", b"channel=%72oom", b"channel=room;room_id=" + b"a" * 32,
+    b"channel=room&redirect=/control", b"room_id=", b"room_id=" + b"a" * 33, b"channel=room&"])
+def test_chat_query_cannot_carry_credentials_recipients_aliases_or_extra_parameters(query):
+    calls, sent = exercise(chat_scope(query=query))
+    assert not calls and sent[0]["status"] == 404
+
+
+@pytest.mark.parametrize("method", ["GET", "POST"])
+@pytest.mark.parametrize("authorization", [None, b"Bearer operator-secret", b"Basic " + b"a" * 64])
+def test_chat_requires_exact_guest_bearer_for_read_and_send(method, authorization):
+    incoming = chat_scope(method=method)
+    incoming["headers"] = [(k, v) for k, v in incoming["headers"] if k != b"authorization"]
+    if authorization is not None:
+        incoming["headers"].append((b"authorization", authorization))
+    calls, sent = exercise(incoming)
+    assert not calls and sent[0]["status"] == 401
+
+
+@pytest.mark.parametrize("violation,status", [("body_limit", 413), ("get_body", 413), ("content_type", 415),
+    ("missing_origin", 403), ("wrong_host", 403), ("duplicate_auth", 403), ("post_query", 404)])
+def test_chat_preserves_body_origin_host_and_header_boundaries(violation, status):
+    incoming = chat_scope(method="GET" if violation == "get_body" else "POST",
+                          query=b"channel=room" if violation == "post_query" else b"")
+    body = b"{}"
+    if violation == "body_limit":
+        body = b"x" * (MAX_BODY_BYTES + 1)
+    elif violation == "content_type":
+        incoming["headers"] = [(k, b"text/plain" if k == b"content-type" else v) for k, v in incoming["headers"]]
+    elif violation == "missing_origin":
+        incoming["headers"] = [(k, v) for k, v in incoming["headers"] if k != b"origin"]
+    elif violation == "wrong_host":
+        incoming["headers"] = [(k, b"untrusted.test" if k == b"host" else v) for k, v in incoming["headers"]]
+    elif violation == "duplicate_auth":
+        incoming["headers"].append((b"authorization", b"Bearer " + b"a" * 64))
+    calls, sent = exercise(incoming, [{"type": "http.request", "body": body}])
+    assert not calls and sent[0]["status"] == status
 
 
 @pytest.mark.parametrize("headers", [[(b"content-length", b"9000")], [(b"content-length", b"-1")],
@@ -169,6 +253,19 @@ def test_wrapper_shares_same_hub_without_duplicating_lifespan(tmp_path):
         response = guest.post("/guest/join", json={"invite_token": invitation["token"], "name": "Fixture guest", "session_token": "a" * 64})
         assert response.status_code == 200 and len(service.snapshot()["participants"]) == 1
         assert guest.get("/api/production/greenroom").status_code == 404
+        headers = {"Authorization": "Bearer " + "a" * 64}
+        thread = guest.get("/guest/chat?channel=private", headers=headers)
+        assert thread.status_code == 200 and thread.json()["messages"] == []
+        body = {"channel": "private", "room_id": thread.json()["room_id"],
+                "request_id": "ingress-chat", "text": "First line\n\t" + "é" * 988}
+        message = guest.post("/guest/chat", headers=headers, json=body)
+        assert message.status_code == 200 and message.json()["message"]["text"] == body["text"]
+        assert guest.get("/guest/chat", params={"channel": "private", "room_id": body["room_id"]},
+                         headers=headers).json()["messages"][0]["text"] == body["text"]
+        assert guest.post("/guest/chat", headers=headers, json=body | {"text": "x" * 1001}).status_code == 422
+        assert guest.post("/guest/chat", headers=headers, json=body | {"participant_id": "a" * 32}).status_code == 422
+        assert guest.get("/api/production/greenroom/chat", headers=headers).status_code == 404
+        assert guest.post("/api/production/greenroom/chat", headers=headers, json=body).status_code == 404
         with guest.websocket_connect("wss://guests.example.test/guest/ws") as connection:
             connection.send_json({"type": "authenticate", "token": "a" * 64})
             hello = connection.receive_json()
