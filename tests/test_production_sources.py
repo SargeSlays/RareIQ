@@ -142,3 +142,55 @@ def test_source_routes_are_bounded_retryable_and_keep_text_out_of_catalog(librar
     assert client.post("/api/creator/assets", content=b"x", headers={**upload, "content-length": str(64 * 1024 * 1024 + 1)}).status_code == 413
     assert len(assets.snapshot()["assets"]) == 1
     assert "local_operator" in assets.state_path.read_text()
+
+
+@pytest.mark.parametrize("url", ["http://example.com", "https://user:password@example.com", "https://@example.com", "https://example.com:8443", "https://127.0.0.1", "https://[::1]", "https://2130706433", "https://0x7f000001", "https://127.1", "https://localhost", "https://x.local", "https://x.internal", "https://x.home", "https://x.lan", "https://x.test", "https://x.invalid", "https://x.onion", "https://x.arpa", "https://studio.example.com", "https://example.com\\@evil.com", "https://example.com\n", "https://%65xample.com", "https://example.com."])
+def test_browser_initial_url_rejects_private_ambiguous_or_studio_addresses(library, url):
+    _, store = library
+    with pytest.raises(ProductionSourceError):
+        store.create_browser(name="Page", target_url=url, request_id="browser", actor_kind="local_operator", studio_hostname="studio.example.com")
+    assert store.catalog() == []
+
+
+def test_browser_routes_preserve_definition_retry_and_catalog_privacy(library):
+    _, store = library
+    client = TestClient(server.app, base_url="http://studio.example.com", client=("127.0.0.1", 50000))
+    payload = dict(name="Web page", target_url="https://EXAMPLE.com:443/widget?key=private#panel", request_id="browser")
+    result = client.post("/api/production/sources/browser", json=payload)
+    assert result.status_code == 200
+    source = result.json()["source"]
+    assert source["kind"] == "browser" and validate_sources([source["id"]])
+    assert source["target_url"] == "https://example.com/widget?key=private#panel"
+    assert client.post("/api/production/sources/browser", json=payload).json()["replayed"]
+    assert client.get(source["url"]).json()["source"] == source
+    assert "target_url" not in client.get("/api/production/sources/browser").json()["sources"][0]
+    assert client.post("/api/production/sources/browser", json={**payload, "target_url": "https://other.example.com"}).status_code == 409
+    assert client.post("/api/production/sources/browser", json={**payload, "target_url": "https://studio.example.com"}).json()["reason"] == "browser_studio_url_forbidden"
+    assert ProductionSourceStore(store.path).get("browser", source["id"].split(":")[1]) == source
+    assert server._production_source_available(source["id"])
+
+
+def test_browser_take_requires_fresh_review_on_every_connected_output(library, monkeypatch):
+    _, store = library
+    source = store.create_browser(name="Page", target_url="https://example.com", request_id="browser", actor_kind="local_operator", studio_hostname="localhost")["source"]["id"]
+    state = dict(program_slot=1, preview_slot=2, generation=0, transition="fade", duration_ms=500, program_sources=[], preview_sources=[source])
+    monkeypatch.setattr(server, "PRODUCTION_SWITCHER_STATE", state)
+    monkeypatch.setattr(server.orchestrator.camera_manager, "camera_slots", lambda: [])
+    monkeypatch.setattr(server.vision_controller, "manual_override", lambda: None)
+    service = SimpleNamespace(source_available=lambda source: False, record_production_event=lambda *args, **kwargs: None)
+    monkeypatch.setattr(server, "greenroom_service", service)
+    hub = GreenroomHub(service, authorize_operator=lambda request: True, switcher=lambda: deepcopy(state), static_dir=Path("."), source_available=server._production_source_available)
+    monkeypatch.setattr(server, "greenroom_hub", hub)
+    one, two = Peer(None, "output", subscriptions=(source,)), Peer(None, "output", subscriptions=(source,))
+    hub.peers = {"one": one, "two": two}
+    assert not hub.source_ready(source)
+    asyncio.run(hub._message("one", one, {"type": "ready", "sources": [source]}))
+    assert not hub.source_ready(source) and not hub.composition_ready([source])
+    assert server._take_program_action({})["reason"] == "browser_output_not_ready" and state["program_sources"] == []
+    asyncio.run(hub._message("two", two, {"type": "ready", "sources": [source]}))
+    assert hub.source_ready(source) and hub.composition_ready([source])
+    assert server._take_program_action({})["ok"]
+    two.ready[source] = time.monotonic() - 7
+    assert not hub.source_ready(source) and not hub.composition_ready([source])
+    del hub.peers["two"]
+    assert hub.source_ready(source) and hub.composition_ready([source])

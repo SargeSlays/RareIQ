@@ -10,6 +10,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from urllib.parse import urlsplit, urlunsplit
 
 
 class ProductionSourceError(ValueError):
@@ -50,6 +51,37 @@ class ProductionSourceStore:
         if position not in {"lower-third", "center", "top"}:
             raise ProductionSourceError("invalid_source_position")
         return self._create("text", name.strip(), {"text": text, "position": position}, request_id, actor_kind)
+
+    @staticmethod
+    def browser_url(target_url, studio_hostname):
+        # Initial-address policy only. No DNS, fetch, proxy or redirect inspection.
+        if not isinstance(target_url, str) or not target_url or len(target_url) > 2048 or re.search(r"[\s\x00-\x1f\x7f\\]", target_url):
+            raise ProductionSourceError("invalid_browser_url")
+        try:
+            parsed = urlsplit(target_url)
+            hostname = (parsed.hostname or "").lower()
+            if parsed.scheme != "https" or "@" in parsed.netloc or parsed.port not in {None, 443}:
+                raise ProductionSourceError("browser_url_requires_public_https")
+        except ValueError as exc:
+            if isinstance(exc, ProductionSourceError):
+                raise
+            raise ProductionSourceError("invalid_browser_url") from None
+        labels = hostname.split(".")
+        private = {"localhost", "local", "internal", "lan", "home", "test", "invalid", "onion", "arpa"}
+        if (len(hostname) > 253 or len(labels) < 2 or any(not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label) for label in labels)
+                or not re.search(r"[a-z]", labels[-1]) or labels[-1] in private):
+            raise ProductionSourceError("browser_url_requires_public_hostname")
+        if not isinstance(studio_hostname, str) or not studio_hostname:
+            raise ProductionSourceError("browser_studio_origin_required")
+        if hostname == studio_hostname.lower().rstrip("."):
+            raise ProductionSourceError("browser_studio_url_forbidden")
+        return urlunsplit(("https", hostname, parsed.path or "/", parsed.query, parsed.fragment))
+
+    def create_browser(self, *, name, target_url, request_id, actor_kind, studio_hostname):
+        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or any(ord(c) < 32 for c in name):
+            raise ProductionSourceError("invalid_source_name")
+        target_url = self.browser_url(target_url, studio_hostname)
+        return self._create("browser", name.strip(), {"target_url": target_url}, request_id, actor_kind)
 
     def _create(self, kind, name, definition, request_id, actor_kind):
         if not isinstance(request_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", request_id):

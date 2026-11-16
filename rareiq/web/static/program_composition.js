@@ -1,7 +1,7 @@
 /* Clean Program composition. Receiver tracks are borrowed, never captured or stopped here. */
 (function(host){
   'use strict';
-  const SOURCE=/^(?:camera:([1-4])|guest:([a-f0-9]{32}):(camera|screen|audio)|(image|video|text):([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}))$/;
+  const SOURCE=/^(?:camera:([1-4])|guest:([a-f0-9]{32}):(camera|screen|audio)|(image|video|text|browser):([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}))$/;
   const FRAME_TTL=2500,STATE_TTL=4500;
   function parseSource(value){
     const match=typeof value==='string'&&SOURCE.exec(value);
@@ -25,7 +25,7 @@
   const liveTrack=track=>Boolean(track&&track.readyState==='live'&&track.enabled!==false&&track.muted!==true);
   function participantFor(room,id){return room?.participants?.find(p=>p.id===id&&p.state==='admitted'&&p.connected===true&&!p.expired)||null;}
   function permitted(source,room){
-    if(['local','image','video','text'].includes(source.kind))return true;
+    if(['local','image','video','text','browser'].includes(source.kind))return true;
     const participant=participantFor(room,source.participantId);
     return Boolean(participant&&participant.media?.[source.kind==='audio'?'microphone':source.kind]===true);
   }
@@ -33,7 +33,7 @@
     const result=new Map();
     for(const id of sources){
       const source=parseSource(id);
-      if(!source||['local','image','video','text'].includes(source.kind)||!permitted(source,room))continue;
+      if(!source||['local','image','video','text','browser'].includes(source.kind)||!permitted(source,room))continue;
       const participant=participantFor(room,source.participantId),media=tracks(source.participantId)||{};
       if(participant.program_audio?.microphone_muted!==true&&participant.media.microphone===true&&liveTrack(media.microphone))result.set(source.participantId+':microphone',media.microphone);
       if(participant.program_audio?.screen_muted!==true&&source.kind==='screen'&&participant.media.screen_audio===true&&liveTrack(media.screen_audio))result.set(source.participantId+':screen_audio',media.screen_audio);
@@ -52,8 +52,8 @@
       Object.assign(this,{container,mediaReceiver,muted:muted||bus==='preview',bus,onStatus,onRendered,document,
         now,later,cancel,repeat,cancelRepeat,frame,cancelFrame,makeStream,request});
       this.current=null;this.outgoing=null;this.preloads=new Map();this.audio=new Map();this.room=null;this.roomRevision=-1;
-      this.state=null;this.lastReceived=0;this.epoch=0;this.timer=null;this.frameTimer=null;this.lastStatus='';this.lastRendered=null;this.closed=false;
-      container.classList.add('producer-composition');
+      this.state=null;this.lastReceived=0;this.epoch=0;this.timer=null;this.frameTimer=null;this.lastStatus='';this.lastRendered=null;this.closed=false;this.browserReviewOpen=false;
+      container.classList.add('producer-composition');container.dataset.compositionBus=bus;
       this.preloadHost=document.createElement('div');this.preloadHost.className='composition-preload';this.preloadHost.setAttribute('aria-hidden','true');container.append(this.preloadHost);
       this.audioHost=document.createElement('div');this.audioHost.className='composition-audio';this.audioHost.setAttribute('aria-hidden','true');container.append(this.audioHost);
       this.watchdog=repeat(()=>this.refresh(),200);
@@ -88,12 +88,14 @@
       node.dataset.layout=state.layout;node.dataset.count=String(baseCount);node.style.setProperty('--composition-duration',state.duration+'ms');
       node.style.setProperty('--composition-sides',String(Math.max(1,baseCount-1)));
       node.style.setProperty('--composition-portrait-rows',String(Math.max(1,Math.ceil((baseCount-1)/2))));
+      this.container.append(node);
       const tiles=state.sources.map(id=>{
-        let tile=this.preloads.get(id);if(tile)this.preloads.delete(id);else tile=this._tile(id);
+        let tile=this.preloads.get(id);if(tile)this.preloads.delete(id);else if(id.startsWith('browser:')){tile=this.outgoing?.tiles.find(item=>item.id===id);if(tile)this.outgoing.tiles=this.outgoing.tiles.filter(item=>item!==tile);}
+        if(!tile)tile=this._tile(id);
         return tile;
       });
-      for(const tile of [...tiles.filter(tile=>tile.source.kind!=='text'),...tiles.filter(tile=>tile.source.kind==='text')])node.append(tile.node);
-      this.current={node,tiles,generation:state.generation,visible:false};this.container.append(node);
+      for(const tile of [...tiles.filter(tile=>tile.source.kind!=='text'),...tiles.filter(tile=>tile.source.kind==='text')])this._placeTile(node,tile);
+      this.current={node,tiles,generation:state.generation,visible:false};
       this.container.dataset.transition=state.transition;
       if(this.outgoing){this.outgoing.node.style.setProperty('--composition-duration',state.duration+'ms');this.outgoing.node.classList.add('composition-outgoing');}
       const incoming=this.current;
@@ -103,6 +105,7 @@
         if(this.bus==='program')for(const tile of incoming.tiles)if(tile.source.kind==='video'){try{tile.video.currentTime=0;}catch(_){}this._playFile(tile);}
         this.refresh();
       });
+      this._preload();
       const outgoing=this.outgoing;
       if(!state.duration){if(outgoing)this._disposeLayer(outgoing);this.outgoing=null;}
       else this.timer=this.later(()=>{
@@ -110,10 +113,15 @@
         if(outgoing)this._disposeLayer(outgoing);this.outgoing=null;
       },state.duration);
     }
+    _placeTile(parent,tile){
+      if(tile.source.kind==='browser'&&tile.node.isConnected){
+        try{if(typeof parent.moveBefore!=='function')throw Error('browser_preservation_unavailable');parent.moveBefore(tile.node,null);}catch(_){tile.browserMoveFailed=true;tile.browser?.destroy();tile.ready=false;}
+      }else parent.append(tile.node);
+    }
     _preload(){
       const desired=new Set(this.state.preview.filter(id=>parseSource(id)?.kind!=='local'&&!this.state.sources.includes(id)));
       for(const [id,tile] of this.preloads)if(!desired.has(id)){this._disposeTile(tile);this.preloads.delete(id);}
-      for(const id of desired)if(!this.preloads.has(id)){const tile=this._tile(id);this.preloads.set(id,tile);this.preloadHost.append(tile.node);}
+      for(const id of desired)if(!this.preloads.has(id)){let tile=id.startsWith('browser:')?this.outgoing?.tiles.find(item=>item.id===id):null;if(tile)this.outgoing.tiles=this.outgoing.tiles.filter(item=>item!==tile);else tile=this._tile(id);this.preloads.set(id,tile);this._placeTile(this.preloadHost,tile);}
     }
     _listen(target,type,listener,cleanups){target.addEventListener?.(type,listener);cleanups.push(()=>target.removeEventListener?.(type,listener));}
     _tile(id){
@@ -126,6 +134,14 @@
         this._listen(image,'load',()=>{if(!tile.disposed)this.refresh();},tile.cleanups);
         this._listen(image,'error',()=>{tile.imageFailed=true;tile.ready=false;node.dataset.ready='false';this.refresh();},tile.cleanups);
         image.src='/api/creator/assets/'+source.assetId;node.append(image);
+      }else if(source.kind==='browser'){
+        tile.requestController=new host.AbortController();
+        Promise.resolve().then(()=>this.request('/api/production/sources/browser/'+source.assetId,{credentials:'same-origin',cache:'no-store',signal:tile.requestController.signal})).then(async response=>{
+          if(!response.ok)throw Error('browser_unavailable');const value=(await response.json()).source;
+          if(tile.disposed)return;
+          if(value?.id!==id||typeof node.moveBefore!=='function'||!host.ProducerBrowserSource)throw Error('browser_unavailable');
+          tile.browserName=String(value.name||'Browser source').slice(0,80);tile.browser=host.ProducerBrowserSource.mount({container:node,url:value.target_url,document:this.document,onState:()=>{if(!tile.disposed)this.refresh();}});this.refresh();
+        }).catch(()=>{if(!tile.disposed){tile.browserFailed=true;this.refresh();}});
       }else if(source.kind==='text'){
         const label=this.document.createElement('div');label.className='composition-text-content';node.append(label);tile.text=label;
         tile.requestController=new host.AbortController();
@@ -182,6 +198,8 @@
         try{const image=tile.iframe.contentDocument?.querySelector('img.live');tile.ready=Boolean(image?.complete&&image.naturalWidth>0);}catch(_){tile.ready=false;}
       }else if(source.kind==='image'){
         tile.ready=Boolean(!tile.imageFailed&&tile.image?.complete&&tile.image.naturalWidth>0&&tile.image.naturalHeight>0);
+      }else if(source.kind==='browser'){
+        tile.ready=Boolean(!this.browserReviewOpen&&!tile.browserMoveFailed&&!tile.browserFailed&&tile.browser?.snapshot().phase==='visual_reviewed');
       }else if(source.kind==='text'){
         tile.ready=tile.textLoaded===true;
       }else if(source.kind==='video'){
@@ -257,7 +275,7 @@
       if(tile.frameRequest!==null)tile.video?.cancelVideoFrameCallback?.(tile.frameRequest);
       if(tile.video){tile.video.pause?.();tile.video.srcObject=null;}
       if(tile.source.kind==='video'){tile.video.muted=true;tile.video.removeAttribute('src');tile.video.load?.();}
-      tile.requestController?.abort();
+      tile.requestController?.abort();tile.browser?.destroy();
       if(tile.iframe)tile.iframe.removeAttribute('src');
       if(tile.image)tile.image.removeAttribute('src');
       tile.node.remove();tile.track=null;tile.stream=null;
@@ -301,8 +319,10 @@
     soundButton?.addEventListener('click',resume);
     // The containing Studio Output calls this synchronously from a real click.
     // postMessage cannot carry the browser's transient user activation reliably.
-    host.ProducerProgramOutput={resumeAudio:resume};
-    host.addEventListener('pagehide',()=>{stopped=true;host.clearInterval(ready);stopPoll();view.close();receiver.close();host.removeEventListener('pointerdown',resume);host.removeEventListener('keydown',resume);soundButton?.removeEventListener('click',resume);delete host.ProducerProgramOutput;},{once:true});
+    const browserReview=host.ProducerBrowserReview?.mount({view,document:host.document,fetch:host.fetch.bind(host)});
+    host.ProducerProgramOutput={resumeAudio:resume,reviewBrowserSources:()=>browserReview?.open()};
+    if(browserReview&&host.URLSearchParams&&new host.URLSearchParams(host.location?.search||'').get('browser-review')==='1')browserReview?.open();
+    host.addEventListener('pagehide',()=>{stopped=true;host.clearInterval(ready);stopPoll();browserReview?.close();view.close();receiver.close();host.removeEventListener('pointerdown',resume);host.removeEventListener('keydown',resume);soundButton?.removeEventListener('click',resume);delete host.ProducerProgramOutput;},{once:true});
     Promise.resolve(receiver.connect()).catch(()=>view.clear());return {view,receiver};
   }
   const exported={ProducerCompositionView,parseSource,sourceList,normalizeState,liveTrack,participantFor,permitted,audioPlan,boot};

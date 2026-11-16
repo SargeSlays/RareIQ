@@ -5,6 +5,7 @@
   const emptyTracks=()=>({microphone:null,camera:null,screen:null,screen_audio:null});
   const cameraId=value=>typeof value==='string'&&/^camera:[1-4]$/.test(value)?Number(value.slice(7)):null;
   function sourceAvailable(source,switcher,room){
+    if(typeof source==='string'&&source.startsWith('browser:'))return Boolean(host.ProducerBrowserLibrary?.sourceId(source)&&(switcher.production_sources||[]).some(asset=>asset.id===source));
     if(typeof source==='string'&&/^(video|text):/.test(source))return Boolean(host.ProducerMediaLibrary?.sourceId(source)&&(switcher.production_sources||[]).some(asset=>asset.id===source));
     if(typeof source==='string'&&source.startsWith('image:'))return Boolean(host.ProducerImageLibrary?.imageId(source)&&(switcher.image_sources||[]).some(asset=>asset.id===source));
     const camera=cameraId(source);
@@ -27,8 +28,10 @@
     const sources=previewSources(switcher),program=programSources(switcher),layout=switcher.preview_layout||'auto';
     if(!sources.length)return {ready:false,message:'Add a ready source to Preview first.'};
     if(sources.some(source=>!sourceAvailable(source,switcher,room)))return {ready:false,message:'A Preview source is unavailable. Remove it or reconnect the guest.'};
-    const output=room.output||switcher.guest_output||{},guests=sources.filter(source=>/^(guest|image|video|text):/.test(source));
+    const output=room.output||switcher.guest_output||{},guests=sources.filter(source=>/^(guest|image|video|text|browser):/.test(source));
     const groups=Object.prototype.hasOwnProperty.call(output,'ready_groups')?output.ready_groups:[output.ready_sources||[]];
+    const browsers=sources.filter(source=>source.startsWith('browser:'));
+    if(browsers.length&&(!output.connected||!Array.isArray(groups)||!groups.length||groups.length<Number(output.connected)||!groups.every(group=>Array.isArray(group)&&browsers.every(source=>group.includes(source)))))return {ready:false,message:'Review each Preview browser picture in every connected Studio Output before Take. Use Review in Studio Output below; blocked or blank pages are not ready.'};
     if(guests.length&&(!output.connected||!Array.isArray(groups)||!groups.some(group=>Array.isArray(group)&&guests.every(source=>group.includes(source)))))return {ready:false,message:sources.some(source=>/^(image|video|text):/.test(source))?'Waiting for one Studio Output to load every Preview source. If media cannot load or its codec is unsupported, remove it and import another file.':'Waiting for one Studio Output to receive every Preview guest feed.'};
     if(JSON.stringify(sources)===JSON.stringify(program)&&layout===(switcher.program_layout||'auto'))return {ready:false,message:'This composition is already on Program.'};
     return {ready:true,message:'Preview is ready to take to Program.'};
@@ -120,6 +123,7 @@
     const one=selector=>panel.querySelector(selector),note=message=>{one('.greenroom-notice').textContent=message;};
     const imageLibrary=host.ProducerImageLibrary?.mount({after:one('.greenroom-camera-sources'),catalog:()=>switcher.image_sources||[],selected:()=>previewSources(switcher),busy:()=>busy,select:source=>toggle(source),refresh,fetch:(...args)=>host.fetch(...args),document:doc});
     const mediaLibrary=host.ProducerMediaLibrary?.mount({after:one('.production-image-library')||one('.greenroom-camera-sources'),catalog:()=>switcher.production_sources||[],selected:()=>previewSources(switcher),busy:()=>busy,select:source=>toggle(source),refresh,fetch:(...args)=>host.fetch(...args),document:doc});
+    const browserLibrary=host.ProducerBrowserLibrary?.mount({after:one('.production-media-library')||one('.production-image-library')||one('.greenroom-camera-sources'),catalog:()=>switcher.production_sources||[],selected:()=>previewSources(switcher),busy:()=>busy,select:source=>toggle(source),refresh,fetch:(...args)=>host.fetch(...args),document:doc});
     async function refreshActivity(force=false){
       if(closed||!activity.open||activityBusy||!force&&Date.now()-activityRefreshAt<15000)return;
       activityBusy=true;activityRefreshAt=Date.now();const status=activity.querySelector('[data-activity-status]'),button=activity.querySelector('button');button.disabled=true;
@@ -140,7 +144,7 @@
       }catch(_){if(!closed){status.textContent=activityLoaded?'Activity could not refresh. The previous list is still shown.':'Activity could not load. Try again.';button.textContent='Retry activity';}}
       finally{activityBusy=false;button.disabled=false;}
     }
-    const errorText=error=>({greenroom_revision_conflict:'The room changed in another tab. Your invitation draft is kept; review the current room and try again.',room_revision_conflict:'The room changed in another tab. Review the current room and try again.',source_unavailable:'That source is not ready. Ask the guest to enable it or reconnect.',preview_source_limit:'Preview can contain up to six sources. Remove one before adding another.',connection_unavailable:'The response could not be confirmed. Check the room, then retry the same action.',invitation_capacity_reached:'There are too many unused invitations. Revoke one or wait for it to expire.',guest_capacity_reached:'The room is full. Remove a guest before adding another.',room_closed:'Open the room before creating invitations.',guest_output_not_ready:'Studio Output is still receiving the guest feeds. Keep them in Preview until it is ready.',camera_slot_unavailable:'A selected camera is unavailable. Remove it from Preview or reconnect it.'}[error.message]||'That change could not be confirmed. Refresh the room and try again.');
+    const errorText=error=>({browser_output_not_ready:'Review each Preview browser picture in every connected Studio Output before Take.',browser_source_unavailable:'This browser source is unavailable. Add a replacement or remove it from Preview.',greenroom_revision_conflict:'The room changed in another tab. Your invitation draft is kept; review the current room and try again.',room_revision_conflict:'The room changed in another tab. Review the current room and try again.',source_unavailable:'That source is not ready. Ask the guest to enable it or reconnect.',preview_source_limit:'Preview can contain up to six sources. Remove one before adding another.',connection_unavailable:'The response could not be confirmed. Check the room, then retry the same action.',invitation_capacity_reached:'There are too many unused invitations. Revoke one or wait for it to expire.',guest_capacity_reached:'The room is full. Remove a guest before adding another.',room_closed:'Open the room before creating invitations.',guest_output_not_ready:'Studio Output is still receiving the guest feeds. Keep them in Preview until it is ready.',camera_slot_unavailable:'A selected camera is unavailable. Remove it from Preview or reconnect it.'}[error.message]||'That change could not be confirmed. Refresh the room and try again.');
     function setLink(value){
       const invitation=invitationLink(value);link=invitation?.url||'';
       one('.greenroom-share').hidden=!link;one('.greenroom-share input').value=link;
@@ -180,7 +184,7 @@
       finally{busy=false;render();refreshActivity(true);}
     }
     function sourceName(source){
-      if(/^(video|text):/.test(source))return (switcher.production_sources||[]).find(asset=>asset.id===source)?.name||'Source unavailable';
+      if(/^(video|text|browser):/.test(source))return (switcher.production_sources||[]).find(asset=>asset.id===source)?.name||'Source unavailable';
       if(source.startsWith('image:'))return (switcher.image_sources||[]).find(asset=>asset.id===source)?.name||'Image unavailable';
       const camera=cameraId(source);if(camera)return `Camera ${camera}`;
       const person=room.participants.find(item=>Object.values(item.sources||{}).includes(source));
@@ -217,7 +221,7 @@
     async function setPreview(sources,layout=switcher.preview_layout||'auto'){
       if(busy||closed)return;busy=true;render();
       try{const next=await api.request('/api/production/switcher/preview',{method:'POST',body:JSON.stringify({preview_sources:sources,layout})});forwardSwitcher(next);note('Preview updated. Program is unchanged.');}
-      catch(error){note(['image_source_unavailable','video_source_unavailable','text_source_unavailable'].includes(error.message)?'This source is unavailable. Add a replacement or clear Preview.':errorText(error));}
+      catch(error){note(['image_source_unavailable','video_source_unavailable','text_source_unavailable','browser_source_unavailable'].includes(error.message)?'This source is unavailable. Add a replacement or clear Preview.':errorText(error));}
       finally{busy=false;render();refreshActivity(true);}
     }
     function toggle(source){try{setPreview(togglePreview(source,switcher,room));}catch(error){note(errorText(error));}}
@@ -306,6 +310,7 @@
     function renderStage(){
       imageLibrary?.render();
       mediaLibrary?.render();
+      browserLibrary?.render();
       const selected=previewSources(switcher);one('[data-preview-count]').textContent=`${selected.length} / 6 sources in Preview`;
       one('[data-room-layout]').value=switcher.preview_layout||'auto';
       const cameras=one('.greenroom-camera-sources');
@@ -400,7 +405,7 @@
       media=host.ProducerGuestMedia.createReceiver({role:'producer',onState:message=>{mediaConnected=true;updateState(message.room);},onTracks:()=>{renderTiles();for(const entry of views.values())entry.composition.refresh();},onConnection:connection=>{if(connection.scope==='peer'){peerWarnings.update(connection);renderTiles();return;}if(!connection.participant_id){mediaConnected=connection.state==='connected';one('.greenroom-connection').textContent=mediaConnected?'Room connected':connection.state==='connecting'?'Connecting…':'Room connection interrupted';panel.dataset.connection=connection.state;if(!mediaConnected){peerWarnings.clear();room.output={...room.output,ready_sources:[]};render();}}},onError:()=>{}});
       media.connect().catch(()=>{one('.greenroom-connection').textContent='Room unavailable';});
     }else{one('.greenroom-connection').textContent='Guest media unavailable';}
-    const result={panel,media,renderSwitcher,refresh,close(){if(closed)return;closed=true;chat?.destroy();imageLibrary?.close();mediaLibrary?.close();peerWarnings.clear();micGeneration++;host.clearInterval(pollTimer);setLink('');stopMic();media?.close();conference?.close();for(const entry of views.values())entry.composition.close();audioContext?.close();}};
+    const result={panel,media,renderSwitcher,refresh,close(){if(closed)return;closed=true;chat?.destroy();imageLibrary?.close();mediaLibrary?.close();browserLibrary?.close();peerWarnings.clear();micGeneration++;host.clearInterval(pollTimer);setLink('');stopMic();media?.close();conference?.close();for(const entry of views.values())entry.composition.close();audioContext?.close();}};
     workspace._producerGreenroom=result;instance=result;
     host.addEventListener('pagehide',()=>result.close(),{once:true});
     refresh();pollTimer=host.setInterval(()=>{if(!doc.hidden){refresh();refreshActivity();}},4000);render();

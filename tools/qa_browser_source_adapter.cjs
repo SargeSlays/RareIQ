@@ -9,7 +9,7 @@ async function main(){
     await page.route('**/*',async route=>{
       const request=route.request(),url=new URL(request.url());result.requests++;
       if(url.href==='https://studio.example.com/rehearsal')return route.fulfill({contentType:'text/html',body:'<!doctype html><title>Isolated browser adapter rehearsal</title><div id="preview" style="width:960px;height:540px"></div><script src="/adapter.js"></script>'});
-      if(url.href==='https://studio.example.com/adapter.js')return route.fulfill({contentType:'text/javascript',body:fs.readFileSync(path.resolve(__dirname,'experiments/production_browser_source.js'),'utf8')});
+      if(url.href==='https://studio.example.com/adapter.js')return route.fulfill({contentType:'text/javascript',body:fs.readFileSync(path.resolve(__dirname,'../rareiq/web/static/production_browser_source.js'),'utf8')});
       if(url.hostname==='overlay.example.com'){
         sourceRequests++;referrers.push(request.headers().referer||'');
         return route.fulfill({contentType:'text/html',headers:url.pathname==='/blocked'?{'X-Frame-Options':'DENY'}:{},body:`<!doctype html><body style="background:#16334d;color:white;font:32px sans-serif">Isolated browser fixture<script>

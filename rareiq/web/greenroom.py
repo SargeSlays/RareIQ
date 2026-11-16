@@ -156,12 +156,19 @@ class GreenroomHub:
                 "audio_blocked": any(p.audio_blocked for p in fresh)}
 
     def source_ready(self, source):
-        available = self.source_available(source) if source.startswith(("image:", "video:", "text:")) else self.service.source_available(source)
-        return available and source in self.output_status()["ready_sources"]
+        available = self.source_available(source) if source.startswith(("image:", "video:", "text:", "browser:")) else self.service.source_available(source)
+        status = self.output_status()
+        if source.startswith("browser:"):
+            return bool(available and status["ready_groups"] and all(source in group for group in status["ready_groups"]))
+        return available and source in status["ready_sources"]
 
     def composition_ready(self, sources):
-        received = {source for source in sources if source.startswith(("guest:", "image:", "video:", "text:"))}
-        return not received or any(received.issubset(group) for group in self.output_status()["ready_groups"])
+        received = {source for source in sources if source.startswith(("guest:", "image:", "video:", "text:", "browser:"))}
+        groups = self.output_status()["ready_groups"]
+        browsers = {source for source in received if source.startswith("browser:")}
+        if browsers and (not groups or any(not browsers.issubset(group) for group in groups)):
+            return False
+        return not received or any(received.issubset(group) for group in groups)
 
     def _snapshot(self):
         return {**self.service.snapshot(), "switcher": self.switcher(), "output": self.output_status(),
@@ -514,7 +521,7 @@ class GreenroomHub:
         state = snapshot["switcher"]
         sources = state.get("program_sources", [f"camera:{state.get('program_slot', 1)}"]) + state.get("preview_sources", [f"camera:{state.get('preview_slot', 2)}"])
         return tuple(sorted({s for s in sources if (s.startswith("guest:") and self.service.source_available(s))
-                             or (s.startswith(("image:", "video:", "text:")) and self.source_available(s))}))
+                             or (s.startswith(("image:", "video:", "text:", "browser:")) and self.source_available(s))}))
 
     async def _pump(self):
         while self.peers:
@@ -627,7 +634,7 @@ class GreenroomHub:
                     peer.audio_blocked = playback["audio_blocked"]
                     peer.playback_rendered = playback["rendered"]
             peer.ready = {s: time.monotonic() for s in sources if s in peer.subscriptions and
-                          (self.source_available(s) if s.startswith(("image:", "video:", "text:")) else self.service.source_available(s))}
+                          (self.source_available(s) if s.startswith(("image:", "video:", "text:", "browser:")) else self.service.source_available(s))}
             return
         if kind == "rendered" and peer.role == "output":
             generation = message.get("generation")

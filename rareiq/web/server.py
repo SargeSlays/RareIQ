@@ -993,7 +993,7 @@ def _production_source_available(source):
     if not match:
         return False
     kind, source_id = match.groups()
-    if kind == "text":
+    if kind in {"text", "browser"}:
         return production_source_store.get(kind, source_id) is not None
     resolved = orchestrator.reaction_assets.get_path(source_id)
     return bool(resolved and resolved[1].startswith(kind + "/"))
@@ -2307,6 +2307,37 @@ async def production_text_source(source_id: str):
     return JSONResponse({"ok": True, "source": source}, headers={"Cache-Control": "private, max-age=3600"})
 
 
+class ProductionBrowserSourceRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    target_url: str = Field(min_length=1, max_length=2048)
+    request_id: str = Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+@app.get("/api/production/sources/browser")
+async def production_browser_sources():
+    return JSONResponse({"ok": True, "sources": production_source_store.catalog("browser")}, headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/production/sources/browser")
+async def create_production_browser_source(payload: ProductionBrowserSourceRequest, request: Request):
+    try:
+        result = production_source_store.create_browser(**payload.model_dump(), studio_hostname=request.url.hostname,
+            actor_kind="local_operator" if is_loopback_client(request.client.host if request.client else None) else "paired_lan_operator")
+    except ProductionSourceError as exc:
+        return JSONResponse({"ok": False, "reason": exc.reason}, status_code=exc.status)
+    except (OSError, sqlite3.Error):
+        return JSONResponse({"ok": False, "reason": "source_storage_unavailable"}, status_code=503)
+    return JSONResponse(result, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/production/sources/browser/{source_id}")
+async def production_browser_source(source_id: str):
+    source = production_source_store.get("browser", source_id)
+    if source is None:
+        return JSONResponse({"ok": False, "reason": "source_not_found"}, status_code=404)
+    return JSONResponse({"ok": True, "source": source}, headers={"Cache-Control": "no-store"})
+
+
 @app.get("/api/production/switcher")
 async def production_switcher_status():
     with PRODUCTION_SWITCHER_LOCK:
@@ -2337,7 +2368,7 @@ def _production_source_problem(sources, *, require_output=False, slots=None):
             slot = int(source.rsplit(":", 1)[1])
             if not _production_slot_is_ready(slot, slots):
                 return {"ok": False, "reason": "camera_slot_unavailable", "slot_id": slot, "source_id": source}
-        elif source.startswith(("image:", "video:", "text:")):
+        elif source.startswith(("image:", "video:", "text:", "browser:")):
             kind = source.split(":", 1)[0]
             if not _production_source_available(source):
                 return {"ok": False, "reason": kind + "_source_unavailable", "source_id": source}
@@ -2364,7 +2395,7 @@ def _program_composition_readiness(slots, program_slot):
         return _program_camera_readiness(slots, program_slot)
     problem = _production_source_problem(sources, require_output=True, slots=slots)
     ready = bool(sources) and not problem
-    if ready and any(source.startswith(("guest:", "image:", "video:", "text:")) for source in sources):
+    if ready and any(source.startswith(("guest:", "image:", "video:", "text:", "browser:")) for source in sources):
         ready = greenroom_hub.output_status()["rendered_generation"] == state["generation"]
     return {"ready": ready, "state": "pass" if ready else "fail",
             "reason": "composition_ready" if ready else (problem or {}).get("reason", "composition_not_rendered"),

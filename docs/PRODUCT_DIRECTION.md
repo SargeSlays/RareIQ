@@ -1,5 +1,24 @@
 # RareIQ: streaming-first product direction
 
+## November 15, 2026 - Browser picker and guarded Take
+
+Browser sources are now immutable saved definitions with a public-looking HTTPS
+address, source name, request receipt and operator kind. The picker selects them
+for Preview without changing Program. Each connected Studio Output must review its
+own loaded page before Take; frame load alone never grants readiness. Review is a
+pre-show preparation view that temporarily changes that output's layout, then
+returns to clean output, clearing the preparation flag. Ordinary output never
+automatically displays review controls. Opening review fails closed unless show/stream/recording are
+explicitly idle. A reviewed browser document is preserved through Take using
+state-preserving DOM moves; unsupported browsers keep the source unavailable.
+
+Pages run with restricted sandbox/permissions, without interaction or browser audio.
+Some sites refuse embedding or need unsupported cookies/permissions; replace blank
+or blocked pages rather than approving them. Review records the operator's past
+visual check, not continuing content assurance or DNS/redirect network isolation.
+Reload/new output requires its own review. Local Edge fixture testing is complete;
+external widget compatibility and OBS interaction/receipt are not yet verified.
+
 ## November 15, 2026 - Browser source experiment (not enabled)
 
 An isolated browser-source adapter under tools/experiments now validates initial HTTPS addresses, restricts

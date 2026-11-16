@@ -23,3 +23,8 @@
 @media (prefers-reduced-motion:reduce){.composition-layer{transition:none;transform:none!important}}
 .producer-program-page,.producer-program-page body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
 .output-audio-enable{position:fixed;z-index:20;bottom:24px;left:50%;transform:translateX(-50%);max-width:calc(100% - 32px);min-height:44px;padding:12px 20px;border:1px solid currentColor;border-radius:12px;background:var(--surface-raised,#1f242a);color:var(--text-primary,#fff);font:600 16px/1.4 system-ui,sans-serif;cursor:pointer;box-shadow:0 4px 24px #0008}.output-audio-enable[hidden]{display:none}.output-audio-enable:focus-visible{outline:3px solid currentColor;outline-offset:4px}
+
+.output-browser-review-open,.output-browser-review-note{position:fixed;z-index:22;right:16px;bottom:16px;max-width:calc(100% - 32px);padding:12px;border:1px solid currentColor;border-radius:8px;background:var(--surface-raised,#1f242a);color:var(--text-primary,#fff);font:14px system-ui,sans-serif}.output-browser-review-note{bottom:70px}.output-browser-review-open[hidden],.output-browser-review-note[hidden]{display:none}
+
+/* Operator Preview may display an unreviewed page; it never grants output readiness. */
+.producer-composition[data-composition-bus=preview] .composition-tile[data-kind=browser]>.composition-cover{display:none}

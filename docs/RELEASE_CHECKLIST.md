@@ -1,5 +1,27 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 - Browser picker/Take checkpoint
+
+Canonical gate passed: **3371 Python tests and 508 JavaScript tests**.
+
+Focused Python source/greenroom checks and JavaScript picker/compositor checks pass.
+Canonical results are recorded in release-gate-final.log under
+F:/Temp/jonat/ProducerPlease-browser-take-20261115.
+
+Intercepted Edge fixture browsers exercised the real picker/form, persistence,
+Preview with no Program change, no-output Take rejection, two-output independent
+reviews and Take rejection until both complete. Real iframe document nonces survived
+Take and cut/fade/slide/zoom. Reloading one output revoked review and blocked Take.
+An active-show preflight in browser-final kept review closed; approved review closed back to clean
+output. Eight dark/light 390/960/1920/3840 picker layouts passed overflow and visual
+checks. Evidence: browser-acceptance/results.json, browser-program.png, review-output.png
+and picker captures. All external widget requests were locally intercepted.
+
+No physical capture, real stream/recording or account/network change was used.
+Review mode's idle-status responses were intercepted in the isolated fixture; the
+running studio is checked separately. This does not verify arbitrary external sites,
+OBS Browser Source interaction, platform receipt or the second-PC listening test.
+
 ## November 15, 2026 - Isolated browser adapter checks
 
 Canonical gate passed: **3346 Python tests and 505 JavaScript tests**.

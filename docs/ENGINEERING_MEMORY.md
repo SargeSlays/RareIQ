@@ -1,5 +1,23 @@
 # RareIQ engineering memory
 
+## November 15, 2026 - Preserve reviewed browser documents through Take
+
+- Conventional DOM append/reparent reloads descendant iframes. Connect the incoming
+  layer first, then move the reviewed figure with Element.moveBefore; transfer its
+  ownership out of the outgoing layer before disposal. Feature-check and fail closed
+  without append fallback. A browser fixture nonce guards actual context continuity.
+- Do not append the already-connected destination layer again after preserving its
+  children: moving that ancestor conventionally also destroys the iframe context.
+- Browser approval belongs to one output's loaded frame. Every connected output
+  must report each selected browser ready; other source kinds retain the existing
+  same-output complete-composition rule. Reload/reconnect never inherits approval.
+- Review temporarily changes output layout. Require explicit idle status, warn the
+  operator, withhold readiness while reviewing, and hide all review controls after
+  closing an approved review. Controls are restricted to an explicit preparation
+  URL, whose flag is cleared on close. An unreviewed Preview must never paint
+  controls on normal Studio Output. Preserve outgoing browser tiles into Preview
+  before disposing a zero-duration Cut layer.
+
 ## November 15, 2026 - Iframe loading is not content verification
 
 A browser fires iframe load even when embedding fails, and generally suppresses

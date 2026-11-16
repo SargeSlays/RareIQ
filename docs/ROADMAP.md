@@ -1,5 +1,19 @@
 # RareIQ Roadmap
 
+## November 15, 2026 - Browser sources enabled locally
+
+Implemented the browser catalog/picker, saved definitions, Preview selection,
+per-output visual review, all-connected-output Take guard and iframe preservation
+across cut/fade/slide/zoom. Two isolated output browsers verified that one unreviewed
+output blocks Take, both reviews allow it, and reloading an output revokes approval.
+A persistent document nonce proves Take and repeated transitions did not reload the
+approved page. Picker reload and eight responsive theme/viewport checks passed.
+
+Next validation needs real supported widget pages and OBS Browser Source interaction
+for reviewing that specific encoder instance. Arbitrary browser audio/interaction,
+producer screen/window capture and free-position layer transforms remain pending.
+StackThis producer login and physical second-PC audio/echo remain unchanged.
+
 ## November 15, 2026 - Bounded browser-source foundation
 
 Completed an isolated adapter and intercepted Edge browser rehearsal: opaque
