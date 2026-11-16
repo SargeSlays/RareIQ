@@ -427,7 +427,7 @@ class GreenroomService:
 
     def moderate(self, participant_id, action, actor_kind="local_operator", *, principal=None, expected_revision=None, request_id=None,
                  microphone_muted=None, screen_muted=None):
-        if action not in {"admit", "remove", "program_audio"}:
+        if action not in {"admit", "wait", "remove", "program_audio"}:
             raise GreenroomError("invalid_guest_action")
         payload = {}
         if action == "program_audio":
@@ -449,7 +449,7 @@ class GreenroomService:
                                (int(microphone_muted), int(screen_muted), participant_id))
                 return ({"participant": self._participant(row), "program_audio": dict(payload)},
                         {"before": before, "after": dict(payload)}, changed, participant_id)
-            state = "admitted" if action == "admit" else "removed"
+            state = {"admit": "admitted", "wait": "waiting", "remove": "removed"}[action]
             if state == row["state"]:
                 return {"participant": self._participant(row)}, {}, False, participant_id
             db.execute("UPDATE greenroom_participants SET state=? WHERE id=?", (state, participant_id))

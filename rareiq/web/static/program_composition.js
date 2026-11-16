@@ -1,11 +1,11 @@
 /* Clean Program composition. Receiver tracks are borrowed, never captured or stopped here. */
 (function(host){
   'use strict';
-  const SOURCE=/^(?:camera:([1-4])|guest:([a-f0-9]{32}):(camera|screen|audio))$/;
+  const SOURCE=/^(?:camera:([1-4])|guest:([a-f0-9]{32}):(camera|screen|audio)|image:([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}))$/;
   const FRAME_TTL=2500,STATE_TTL=4500;
   function parseSource(value){
     const match=typeof value==='string'&&SOURCE.exec(value);
-    return match?{id:value,kind:match[1]?'local':match[3],slot:match[1]?Number(match[1]):null,participantId:match[2]||null}:null;
+    return match?{id:value,kind:match[1]?'local':match[4]?'image':match[3],slot:match[1]?Number(match[1]):null,participantId:match[2]||null,...(match[4]?{assetId:match[4]}:{})}:null;
   }
   function sourceList(state,bus){
     const key=bus+'_sources';
@@ -25,7 +25,7 @@
   const liveTrack=track=>Boolean(track&&track.readyState==='live'&&track.enabled!==false&&track.muted!==true);
   function participantFor(room,id){return room?.participants?.find(p=>p.id===id&&p.state==='admitted'&&p.connected===true&&!p.expired)||null;}
   function permitted(source,room){
-    if(source.kind==='local')return true;
+    if(source.kind==='local'||source.kind==='image')return true;
     const participant=participantFor(room,source.participantId);
     return Boolean(participant&&participant.media?.[source.kind==='audio'?'microphone':source.kind]===true);
   }
@@ -33,7 +33,7 @@
     const result=new Map();
     for(const id of sources){
       const source=parseSource(id);
-      if(!source||source.kind==='local'||!permitted(source,room))continue;
+      if(!source||source.kind==='local'||source.kind==='image'||!permitted(source,room))continue;
       const participant=participantFor(room,source.participantId),media=tracks(source.participantId)||{};
       if(participant.program_audio?.microphone_muted!==true&&participant.media.microphone===true&&liveTrack(media.microphone))result.set(source.participantId+':microphone',media.microphone);
       if(participant.program_audio?.screen_muted!==true&&source.kind==='screen'&&participant.media.screen_audio===true&&liveTrack(media.screen_audio))result.set(source.participantId+':screen_audio',media.screen_audio);
@@ -115,6 +115,11 @@
       const tile={id,source,node,track:null,stream:null,frameSeen:false,lastFrame:0,mediaTime:-1,ready:false,version:0,frameRequest:null,cleanups:[],trackCleanups:[],disposed:false};
       if(source.kind==='local'){
         const iframe=this.document.createElement('iframe');iframe.title='Program camera '+source.slot;iframe.src='/output/camera/'+source.slot;iframe.tabIndex=-1;node.append(iframe);tile.iframe=iframe;
+      }else if(source.kind==='image'){
+        const image=this.document.createElement('img');image.alt='Imported production image';image.decoding='async';tile.image=image;
+        this._listen(image,'load',()=>{if(!tile.disposed)this.refresh();},tile.cleanups);
+        this._listen(image,'error',()=>{tile.imageFailed=true;tile.ready=false;node.dataset.ready='false';this.refresh();},tile.cleanups);
+        image.src='/api/creator/assets/'+source.assetId;node.append(image);
       }else if(source.kind==='audio'){
         const avatar=this.document.createElement('span');avatar.className='composition-avatar';avatar.textContent='●';
         const label=this.document.createElement('figcaption');label.className='composition-speaker';label.textContent='Guest';node.append(avatar,label);tile.label=label;
@@ -152,6 +157,8 @@
       const source=tile.source;
       if(source.kind==='local'){
         try{const image=tile.iframe.contentDocument?.querySelector('img.live');tile.ready=Boolean(image?.complete&&image.naturalWidth>0);}catch(_){tile.ready=false;}
+      }else if(source.kind==='image'){
+        tile.ready=Boolean(!tile.imageFailed&&tile.image?.complete&&tile.image.naturalWidth>0&&tile.image.naturalHeight>0);
       }else{
         const allowed=permitted(source,this.room),tracks=this._tracks(source.participantId);
         const track=allowed?tracks[source.kind==='audio'?'microphone':source.kind]:null;
@@ -214,6 +221,7 @@
       if(tile.frameRequest!==null)tile.video?.cancelVideoFrameCallback?.(tile.frameRequest);
       if(tile.video){tile.video.pause?.();tile.video.srcObject=null;}
       if(tile.iframe)tile.iframe.removeAttribute('src');
+      if(tile.image)tile.image.removeAttribute('src');
       tile.node.remove();tile.track=null;tile.stream=null;
     }
     _disposeLayer(layer){for(const tile of layer.tiles)this._disposeTile(tile);layer.node.remove();}

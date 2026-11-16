@@ -1,5 +1,31 @@
 # RareIQ engineering memory
 
+## November 15, 2026 - Independent room viewing and terminal cleanup
+
+- A gallery viewer is not a publishing guest. Authenticate its invitation separately,
+  expose only a safe roster, and permit admitted-other-guest cameras only. Never
+  forward operator snapshots, private chat, screen/audio or return mixes to this
+  view. Closing a viewer must not change publishing presence; losing the publisher
+  must invalidate source availability even while the viewer socket remains open.
+- Reserve the newest role/session peer before awaiting closure of an old socket.
+  Otherwise two reconnects can both register after a delayed close, exceeding the
+  bounded recipient count and interrupting healthy publishers. Recheck reservation
+  ownership before Hello. Delayed-close tests cover publisher and viewer roles.
+- Returning to waiting is reversible; removal is terminal. Keep capture/session for
+  wait, remove guest sources from both buses, and never automatically take a
+  readmitted source. A stale retry receipt for a prior wait must not remove a newly
+  readmitted shot. Ended sessions require fresh invitations.
+- Browser rehearsal exposed that access-denied UI previously left local capture on.
+  Terminal access end must retire the publisher and all capture/audio owners,
+  invalidate pending permissions/replacements, clear credentials and borrowed
+  streams, and prevent late callbacks from re-enabling controls. Ordinary network
+  interruption and return-to-waiting retain capture. Unit and actual browser
+  generated-track regressions verify this distinction.
+- Image import success is not decode/readiness proof. Validate local image IDs,
+  preload/decode in Studio Output and require one output to report the entire
+  intended mix ready. Broken images cannot be taken; import and Preview leave
+  Program unchanged. Keep uploads in the isolated fixture's asset store for QA.
+
 ## November 15, 2026 - Backstage conversation isolation
 
 - Derive a guest's private recipient from its authenticated invitation session,

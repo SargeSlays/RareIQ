@@ -1,5 +1,40 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 - Guest room gallery, moderation and images
+
+Canonical gate passed: **3330 Python tests and 495 JavaScript tests**. Coverage
+includes guest-view authentication, private-ingress boundaries, safe roster fields,
+camera-only admission permissions, viewer/publisher cleanup independence, wait
+retry semantics and delayed-close concurrent reconnect reservation. Terminal
+removal cleanup covers active tracks, late permissions and unverified reconnects.
+A camera-readiness fixture now supplies the newly required asset catalog stub;
+production guards remain unchanged in that correction.
+
+Real Edge browsers with generated cameras verified two admitted guests seeing each
+other, waiting privacy, camera-only gallery streams without duplicate audio, chat,
+producer source selection and Program rendering, independent viewing reconnect,
+return-to-waiting clearing both buses, readmission staying off Program, confirmed
+removal stopping capture, and a fresh reinvitation returning to waiting. Gallery
+layouts passed dark/light at 390/960/1920/3840. The image picker exercised real local
+imports, Preview without Program change, Take blocked before output readiness,
+decoded same-output receipts, image-only and mixed-camera shots, all four existing
+transitions, persistent reload and corrupt-image blocking. Source-library layouts
+passed 960/1920/3840 dark/light checks.
+
+Generated-audio regression also passed voice effects, sound pads/clips, gate routing,
+keyboard/failure feedback and cleanup. Real local WebRTC mixed-media regression
+passed mic/screen Program mute independence, unchanged backstage return, deduplicated
+mix restoration, waiting exclusion and removal cleanup. No new hardware, speech,
+acoustic echo, internet, OBS or platform test was performed.
+
+Idle local studio restarted through the supported controller. Live browser verified
+new image controls; current guest assets and image catalog API are served. Private
+guest ingress remained off and the isolated test fixture was stopped. Evidence:
+F:/Temp/jonat/ProducerPlease-room-20261115 (room-results.json, gallery/producer
+screenshots, images/results.json, audio-regression, media-regression,
+live-source-controls.jpg, release-gate-final.log). Physical acceptance remains in
+GUEST_PRODUCTION.md; personal remote producer sign-in still requires StackThis.
+
 ## November 15, 2026 - Shared/private waiting-room chat
 
 Canonical gate passed: **3311 Python tests and 477 JavaScript tests**. New service,

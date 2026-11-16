@@ -24,6 +24,7 @@ def rig(monkeypatch):
     monkeypatch.setattr(server.greenroom_service, "record_production_event", lambda *args, **kwargs: None)
     monkeypatch.setattr(server, "orchestrator", SimpleNamespace(
         camera_manager=SimpleNamespace(camera_slots=lambda: [slot]),
+        reaction_assets=SimpleNamespace(snapshot=lambda: {"assets": []}),
         overlay_state=SimpleNamespace(get=forbidden, update=forbidden)))
     monkeypatch.setattr(server, "obs", SimpleNamespace(sync_scene=forbidden))
     return slot, state
@@ -73,5 +74,6 @@ def test_switcher_reports_readiness_without_mutating_camera_status(rig):
     slot, _ = rig
     slot["last_frame_at"] = 97.0
     payload = asyncio.run(server.production_switcher_status())
+    assert payload["image_sources"] == []
     assert payload["slots"][0]["production_readiness"]["ready"] is False
     assert "production_readiness" not in slot

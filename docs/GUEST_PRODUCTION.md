@@ -1,5 +1,27 @@
 # Guest productions in Producer, Please
 
+## November 15, 2026 - Room pictures, moderation and image sources
+
+After admission, In the room shows the admitted guests' cameras, including your
+own preview. Use shared/private chat alongside the gallery; conversation sound
+continues through the existing room audio control. Gallery videos stay muted.
+Waiting guests see waiting guidance and can chat, but cannot watch or hear the
+admitted conversation. Retry room pictures reconnects only that viewing connection.
+
+Producer controls distinguish temporary waiting from ending access. Return to
+waiting room takes the guest's sources out of Preview and Program while retaining
+their session/capture. Admit guest brings them back backstage; choose and Take their
+sources separately. Remove & end access asks for confirmation and ends capture.
+Invite again, under Ended guest sessions, creates a new one-hour invitation that
+must be shared individually; the guest returns to waiting with a fresh session.
+
+In the producer's Build Preview area, choose Add image to import PNG/JPEG/WebP/GIF
+up to 8 MB. Select saved images alongside cameras/guest sources, choose layout and
+transition, open Studio Output, then Take when ready. Import and Preview leave
+Program unchanged. Images persist on the host; saved scenes retain their source
+IDs. Missing/undecodable images block Take. This is composition support, not a
+free-position overlay editor. Guests do not upload images through this control.
+
 ## November 15, 2026 - Backstage text conversations
 
 After joining, choose Shared backstage to message all guests and producers, or

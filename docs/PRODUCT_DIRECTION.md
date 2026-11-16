@@ -1,5 +1,35 @@
 # RareIQ: streaming-first product direction
 
+## November 15, 2026 - Visible guest room and production images
+
+Admitted guests now see one another's camera pictures in a responsive room gallery,
+with their own local preview, names, microphone/screen status and a separate waiting
+roster. Invitation-authenticated camera-only viewing is independent of the guest's
+publisher connection. Gallery video is muted; existing producer conversation audio
+remains the sole return path. Waiting guests can chat, but receive no admitted-room
+pictures or conversation audio. A picture retry does not restart local capture.
+
+The producer can Return to waiting room and admit the same session again. Waiting
+removes that guest's sources from Preview and Program; readmission never takes them
+back on air automatically. Remove & end access requires confirmation, revokes the
+session and stops capture. Invite again creates a fresh invitation; it does not
+restore the ended session. Terminal cleanup also rejects late permission results.
+
+Image sources reuse the local asset library (configured F:/RareIQ/creator_assets).
+PNG/JPEG/WebP/GIF imports up to 8 MB can be selected in Build Preview alongside
+cameras and guest sources. Imports and Preview do not change Program. Take requires
+a current decoded-image receipt from the same Studio Output receiving the entire
+composition; cut/fade/slide/zoom, image-only shots and saved scene source IDs use
+the existing composition path. These are image tiles, not a full movable overlay
+layer editor. Local video files, arbitrary browser URLs, text layers and dedicated
+producer screen/window capture remain follow-up source types. Guests currently
+publish camera/microphone/screen, not image uploads.
+
+Real local browser connections used generated cameras/audio; no new physical,
+internet, OBS or platform acceptance is claimed. Named remote producer sign-in is
+still disabled pending StackThis identity-only registration, approved callbacks and
+production membership/control integration. A guest invitation is not producer login.
+
 ## November 15, 2026 - Shared and private backstage chat
 
 Waiting and admitted guests can chat with everyone in the room or privately with

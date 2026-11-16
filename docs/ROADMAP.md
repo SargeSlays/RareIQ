@@ -1,5 +1,23 @@
 # RareIQ Roadmap
 
+## November 15, 2026 - Room interaction and image-source checkpoint
+
+Implemented and locally exercised: admitted-guest camera gallery, waiting roster,
+independent picture reconnect, existing shared/private chat, source selection into
+Preview/Program, reversible return-to-waiting/readmission, confirmed removal and
+fresh reinvitation. Reconnect reservations prevent duplicate role/session peers;
+terminal access end stops capture and pending replacements.
+
+Added persistent local image imports to the production source library, decoded
+output readiness, mixed camera/image compositions and all four existing transitions.
+Image-only shots do not require a camera. Broader OBS-style source types and layer
+transforms remain separate work: video files, browser URLs, text, dedicated producer
+screen/window capture and freely placed image/graphic layers. Next account milestone
+remains StackThis identity-only registration/callback agreement, then verified named
+producer login and permissioned live controls. Current scene membership foundation
+is inactive, and no real user login has been accepted. Physical microphone/echo,
+mobile capture and internet/encoder acceptance remain explicitly deferred.
+
 ## November 15, 2026 - Waiting-room chat checkpoint
 
 Implemented shared backstage chat and private guest/production-team conversations

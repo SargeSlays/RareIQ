@@ -14,10 +14,10 @@ function fixture(options={}){
   Object.assign(context,options);context.window=context;vm.runInNewContext(source,context);
   return {element,handlers,publications,context,callbacks:()=>publisherOptions,captureCalls:()=>captureCalls,reject:error=>rejectCapture(error),resolve:tracks=>resolveCapture({getTracks:()=>tracks,getVideoTracks:()=>tracks.filter(track=>track.kind==='video'),getAudioTracks:()=>tracks.filter(track=>track.kind==='audio')})};
 }
-for(const mode of ['camera','microphone','screen'])for(const ending of ['leave','pagehide'])test(`Late ${mode} permission result after ${ending} stops all new tracks and never republishes`,async()=>{
+for(const mode of ['camera','microphone','screen'])for(const ending of ['leave','pagehide','access-ended'])test(`Late ${mode} permission result after ${ending} stops all new tracks and never republishes`,async()=>{
   const f=fixture();await f.element('guestJoinForm').listeners.submit({preventDefault(){}});await settle();
   const button=mode==='camera'?'guestCamera':mode==='microphone'?'guestMicrophone':'guestScreen';f.element(button).listeners.click();await settle();
-  if(ending==='leave')await f.element('guestLeave').listeners.click();else f.handlers.get('pagehide')();
+  if(ending==='leave')await f.element('guestLeave').listeners.click();else if(ending==='pagehide')f.handlers.get('pagehide')();else f.callbacks().onError({reason:'guest_access_ended'});
   const before=f.publications.length,tracks=(mode==='screen'?['video','audio']:[mode==='camera'?'video':'audio']).map(kind=>({kind,stops:0,stop(){this.stops++;}}));
   f.resolve(tracks);await settle();assert.ok(tracks.every(track=>track.stops===1));assert.equal(f.publications.length,before);
   assert.equal(f.element('guestCameraPreview').srcObject,null);assert.equal(f.element('guestScreenPreview').srcObject,null);
@@ -25,6 +25,58 @@ for(const mode of ['camera','microphone','screen'])for(const ending of ['leave',
 });
 
 const roomState=(state,program_audio)=>({participant:{id:'a'.repeat(32),name:'Private name <script>',state,program_audio},on_air_sources:[]});
+test('ending guest access stops camera, processed microphone and shared screen without a leave request',async()=>{
+  const requests=[],clears=[],track=kind=>({kind,readyState:'live',stops:0,stop(){this.stops++;this.readyState='ended';}});
+  const camera=track('video'),raw=track('audio'),processed=track('audio'),screen=track('video'),screenAudio=track('audio');
+  const f=fixture({fetch:async path=>{requests.push(path);return {ok:true};},MediaStream:class{constructor(tracks){this.tracks=tracks;}getVideoTracks(){return this.tracks.filter(t=>t.kind==='video');}},ProducerGreenroomChat:{mount(){return {update(){},clear:message=>clears.push(message)};}},ProducerGuestMicrophone:{create(input,onTrack){return {configure(){onTrack(processed);},close(){input.stop();processed.stop();},snapshot:()=>({sounds:[]})};}}});
+  await f.element('guestJoinForm').listeners.submit({preventDefault(){}});await settle();
+  for(const [id,tracks] of [['guestCamera',[camera]],['guestMicrophone',[raw]],['guestScreen',[screen,screenAudio]]]){f.element(id).listeners.click();f.resolve(tracks);await settle();}
+  f.callbacks().onConnection({state:'closed',reason:'guest_access_ended'});await settle();
+  for(const value of [camera,raw,processed,screen,screenAudio])assert.equal(value.stops,1,value.kind);
+  assert.equal(f.element('guestCameraPreview').srcObject,null);assert.equal(f.element('guestScreenPreview').srcObject,null);assert.equal(f.element('guestReturnAudio').srcObject,null);
+  assert.equal(f.element('guestBadge').textContent,'INVITATION ENDED');assert.equal(f.element('guestStatusTitle').textContent,'Invitation ended');assert.match(f.element('guestMediaHint').textContent,/camera, microphone and screen are off/);assert.equal(f.element('guestLeave').hidden,true);
+  for(const id of ['guestCamera','guestMicrophone','guestScreen','guestJoin'])assert.equal(f.element(id).disabled,true,id);
+  const captures=f.captureCalls(),publications=f.publications.length;for(const id of ['guestCamera','guestMicrophone','guestScreen'])await f.element(id).listeners.click();await f.element('guestJoinForm').listeners.submit({preventDefault(){}});
+  assert.equal(f.captureCalls(),captures);assert.equal(f.publications.length,publications);assert.deepEqual(requests,['/guest/join']);assert.match(clears.at(-1),/no longer active/);
+  f.callbacks().onState(roomState('admitted',{}));assert.equal(f.element('guestBadge').textContent,'INVITATION ENDED','stale publisher state cannot restore ended access');
+});
+test('waiting and transient connection loss keep guest capture available',async()=>{
+  const camera={kind:'video',readyState:'live',stops:0,stop(){this.stops++;}};
+  const f=fixture({MediaStream:class{constructor(tracks){this.tracks=tracks;}getVideoTracks(){return this.tracks;}}});
+  await f.element('guestJoinForm').listeners.submit({preventDefault(){}});await settle();f.element('guestCamera').listeners.click();f.resolve([camera]);await settle();
+  f.callbacks().onState(roomState('waiting',{}));assert.equal(camera.stops,0);f.callbacks().onConnection({state:'disconnected',reason:'signaling_disconnected'});assert.equal(camera.stops,0);
+  assert.equal(f.element('guestCamera').disabled,false);await f.element('guestCamera').listeners.click();assert.equal(camera.stops,1);
+});
+test('guest room viewer follows the session and isolates picture failures and stale callbacks',async()=>{
+  const updates=[],clears=[],viewers=[];let owner,roomOptions,publisherCloses=0,destroyed=0;
+  const self=state=>({...roomState(state,{}),participant:{...roomState(state,{}).participant,connected:true,media:{}}});
+  const f=fixture({ProducerGuestRoom:{mount(container,options){roomOptions=options;return {update:value=>updates.push(value),clear:message=>clears.push(message),destroy:()=>destroyed++};}},ProducerGuestMedia:{
+    createPublisher(options){owner=options;return {setTracks(){},close(){publisherCloses++;},connect(){options.onState(self('waiting'));return Promise.resolve();}};},
+    createReceiver(options){const viewer={options,closed:0,tracks:()=>({}),close(){this.closed++;},connect(){options.onState({room:{active:true,participants:[]}});return Promise.resolve();}};viewers.push(viewer);return viewer;}
+  }});
+  assert.equal(viewers.length,0);await f.element('guestJoinForm').listeners.submit({preventDefault(){}});await settle();
+  assert.equal(viewers.length,1);assert.equal(viewers[0].options.role,'guest-view');assert.match(viewers[0].options.token,/^[a-f0-9]{64}$/);
+  assert.equal(updates.at(-1).self.state,'waiting');owner.onState(self('admitted'));assert.equal(updates.at(-1).self.state,'admitted');
+  viewers[0].options.onConnection({state:'closed'});assert.equal(updates.at(-1).connected,false);assert.equal(publisherCloses,0);assert.equal(f.captureCalls(),0);
+  roomOptions.onRetry();await settle();assert.equal(viewers.length,2);assert.equal(viewers[0].closed,1);
+  const before=updates.length;viewers[0].options.onState({room:{participants:[{id:'stale'}]}});viewers[0].options.onTracks();assert.equal(updates.length,before);
+  owner.onState(self('waiting'));assert.equal(updates.at(-1).self.state,'waiting','authoritative demotion applies before the viewer roster catches up');
+  await f.element('guestLeave').listeners.click();assert.equal(viewers[1].closed,1);const after=updates.length;
+  viewers[1].options.onState({room:{participants:[{id:'stale'}]}});roomOptions.onRetry();assert.equal(updates.length,after);assert.equal(viewers.length,2);
+  f.handlers.get('pagehide')();assert.equal(destroyed,1);assert.ok(clears.length>0);
+});
+
+test('publisher failure closes room pictures and later session state creates a fresh viewer',async()=>{
+  let owner;const viewers=[];
+  const f=fixture({ProducerGuestRoom:{mount(){return {update(){},clear(){}};}},ProducerGuestMedia:{
+    createPublisher(options){owner=options;return {setTracks(){},close(){},connect(){options.onState(roomState('admitted',{}));return Promise.resolve();}};},
+    createReceiver(options){const value={closed:0,tracks:()=>({}),close(){this.closed++;},connect:async()=>{}};viewers.push(value);return value;}
+  }});
+  await f.element('guestJoinForm').listeners.submit({preventDefault(){}});await settle();assert.equal(viewers.length,1);
+  owner.onConnection({state:'reconnecting',reason:'signaling_disconnected'});assert.equal(viewers[0].closed,1);
+  owner.onState(roomState('admitted',{}));await settle();assert.equal(viewers.length,2);
+  owner.onError({reason:'guest_access_ended'});assert.equal(viewers[1].closed,1);owner.onState(roomState('admitted',{}));assert.equal(viewers.length,2);
+});
 for(const state of ['waiting','admitted'])test(`Program mute notice in ${state} is informational only and clears on unmute`,async()=>{
   const f=fixture();await f.element('guestJoinForm').listeners.submit({preventDefault(){}});await settle();
   const before=f.publications.length,notice=f.element('guestProgramAudioNotice');
@@ -59,7 +111,7 @@ for(const ending of ['leave','pagehide','disconnected','reconnecting','failed','
 test('Guest notice is an accessible hidden status and the changed script has a new cache key',()=>{
   const html=fs.readFileSync(require.resolve('../../rareiq/web/static/guest.html'),'utf8');
   assert.match(html,/<p[^>]*id="guestProgramAudioNotice"[^>]*role="status"[^>]*aria-live="polite"[^>]*hidden/);
-  assert.match(html,/guest\/assets\/guest\.js\?v=20261115-11/);
+  assert.match(html,/guest\/assets\/guest\.js\?v=20261115-13/);
 });
 
 
@@ -110,8 +162,7 @@ test('every media-engine failure has a safe diagnostic without exposing signalin
   const engine=fs.readFileSync(require.resolve('../../rareiq/web/static/greenroom_media.js'),'utf8');
   const reasons=new Set([...engine.matchAll(/fail\('([^']+)'/g)].map(match=>match[1]));
   for(const reason of ['guest_access_ended','signaling_disconnected'])reasons.add(reason);
-  const f=fixture();await f.element('guestJoinForm').listeners.submit({preventDefault(){}});await settle();
-  for(const reason of reasons){f.callbacks().onConnection({state:'connected'});f.callbacks().onConnection({state:'disconnected',reason});assert.equal(f.element('guestBadge').attributes['data-connection-reason'],reason,reason);assert.ok(!f.element('guestConnectionStatus').textContent.includes(reason));}
+  for(const reason of reasons){const f=fixture();await f.element('guestJoinForm').listeners.submit({preventDefault(){}});await settle();f.callbacks().onConnection({state:'connected'});f.callbacks().onConnection({state:'disconnected',reason});assert.equal(f.element('guestBadge').attributes['data-connection-reason'],reason,reason);assert.ok(!f.element('guestConnectionStatus').textContent.includes(reason));}
 });
 
 test('partial media failures persist through room refreshes without claiming whole-room disconnection',async()=>{

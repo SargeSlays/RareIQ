@@ -5,6 +5,7 @@
   const emptyTracks=()=>({microphone:null,camera:null,screen:null,screen_audio:null});
   const cameraId=value=>typeof value==='string'&&/^camera:[1-4]$/.test(value)?Number(value.slice(7)):null;
   function sourceAvailable(source,switcher,room){
+    if(typeof source==='string'&&source.startsWith('image:'))return Boolean(host.ProducerImageLibrary?.imageId(source)&&(switcher.image_sources||[]).some(asset=>asset.id===source));
     const camera=cameraId(source);
     if(camera){const slot=(switcher.slots||[]).find(item=>Number(item.slot_id)===camera);return Boolean(slot?.source_id&&slot.connected&&slot.production_readiness?.ready===true);}
     const person=(room.participants||[]).find(item=>Object.values(item.sources||{}).includes(source));
@@ -25,9 +26,9 @@
     const sources=previewSources(switcher),program=programSources(switcher),layout=switcher.preview_layout||'auto';
     if(!sources.length)return {ready:false,message:'Add a ready source to Preview first.'};
     if(sources.some(source=>!sourceAvailable(source,switcher,room)))return {ready:false,message:'A Preview source is unavailable. Remove it or reconnect the guest.'};
-    const output=room.output||switcher.guest_output||{},guests=sources.filter(source=>source.startsWith('guest:'));
+    const output=room.output||switcher.guest_output||{},guests=sources.filter(source=>source.startsWith('guest:')||source.startsWith('image:'));
     const groups=Object.prototype.hasOwnProperty.call(output,'ready_groups')?output.ready_groups:[output.ready_sources||[]];
-    if(guests.length&&(!output.connected||!Array.isArray(groups)||!groups.some(group=>Array.isArray(group)&&guests.every(source=>group.includes(source)))))return {ready:false,message:'Waiting for one Studio Output to receive every Preview guest feed.'};
+    if(guests.length&&(!output.connected||!Array.isArray(groups)||!groups.some(group=>Array.isArray(group)&&guests.every(source=>group.includes(source)))))return {ready:false,message:sources.some(source=>source.startsWith('image:'))?'Waiting for one Studio Output to load every Preview image and guest feed. If an image does not load, remove it and import another.':'Waiting for one Studio Output to receive every Preview guest feed.'};
     if(JSON.stringify(sources)===JSON.stringify(program)&&layout===(switcher.program_layout||'auto'))return {ready:false,message:'This composition is already on Program.'};
     return {ready:true,message:'Preview is ready to take to Program.'};
   }
@@ -48,6 +49,7 @@
   function activityEntry(event,participants=[]){
     const actors={local_operator:'Local operator',paired_lan_operator:'Paired operator',producer_control:'Producer control',guest_session:'Guest invitation session',host_voice:'Voice',host_gesture:'Gesture',program_renderer:'Output renderer',server:'Studio service',verified_account:'Account operator'};
     const actions={'invite.created':'Invitation created','invite.revoked':'Invitation revoked','guest.joined':'Guest joined backstage','guest.admit':'Guest admitted','guest.remove':'Guest removed','guest.left':'Guest left','guest.connection':'Guest connection changed','guest.media':'Guest media changed','guest.program_audio':'Program audio setting changed','room.opened':'Room opened','room.closed':'Room closed','room.restarted':'Room restarted','program.preview':'Preview changed','program.take':'Program change','program.rendered':'Program rendered','host.microphone':'Host microphone changed'};
+    actions['guest.wait']='Guest returned to waiting room';
     const outcomes={requested:'Requested',confirmed:'Renderer confirmed',succeeded:'Recorded',failed:'Failed',rejected:'Rejected',room_revision_conflict:'Rejected · room changed',room_request_conflict:'Rejected · request conflict'};
     const person=String(event.action||'').startsWith('guest.')?participants.find(item=>item.id===event.target):null;
     return {actor:actors[event.actor_kind]||'Unidentified source',action:actions[event.action]||'Production event',outcome:outcomes[event.outcome]||'Recorded event',verified:event.identity_verified===true,
@@ -102,6 +104,10 @@
     workspace.append(panel);
     const chatContainer=doc.createElement('div');panel.querySelector('.greenroom-guests').after(chatContainer);
     const chat=host.ProducerGreenroomChat?.mount(chatContainer,{role:'producer'});
+    const endedGuests=doc.createElement('details');endedGuests.className='greenroom-ended';endedGuests.hidden=true;
+    endedGuests.innerHTML='<summary>Guests who left or were removed</summary><p>Ended invitations cannot be restored. Create a new invitation to bring someone back.</p><div data-ended-guests></div>';
+    panel.querySelector('.greenroom-guests').after(endedGuests);
+    const endedRows=new Map();
     const activity=doc.createElement('details');activity.className='greenroom-activity';
     activity.innerHTML='<summary>Recent activity</summary><p>Recorded actions and output receipts. Guest names are display names, not verified identities.</p><div class="greenroom-activity-toolbar"><span role="status" aria-live="polite" data-activity-status>Open to load recent activity.</span><button type="button" class="riq-button" data-activity-refresh>Refresh activity</button></div><ol aria-label="Recent production activity"></ol>';
     panel.querySelector('.greenroom-invitations').after(activity);
@@ -111,6 +117,7 @@
     const peerWarnings=createPeerWarnings();
     const tiles=new Map(),views=new Map(),cameraButtons=new Map(),api=createRequests((...args)=>host.fetch(...args),()=>room.revision);
     const one=selector=>panel.querySelector(selector),note=message=>{one('.greenroom-notice').textContent=message;};
+    const imageLibrary=host.ProducerImageLibrary?.mount({after:one('.greenroom-camera-sources'),catalog:()=>switcher.image_sources||[],selected:()=>previewSources(switcher),busy:()=>busy,select:source=>toggle(source),refresh,fetch:(...args)=>host.fetch(...args),document:doc});
     async function refreshActivity(force=false){
       if(closed||!activity.open||activityBusy||!force&&Date.now()-activityRefreshAt<15000)return;
       activityBusy=true;activityRefreshAt=Date.now();const status=activity.querySelector('[data-activity-status]'),button=activity.querySelector('button');button.disabled=true;
@@ -171,6 +178,7 @@
       finally{busy=false;render();refreshActivity(true);}
     }
     function sourceName(source){
+      if(source.startsWith('image:'))return (switcher.image_sources||[]).find(asset=>asset.id===source)?.name||'Image unavailable';
       const camera=cameraId(source);if(camera)return `Camera ${camera}`;
       const person=room.participants.find(item=>Object.values(item.sources||{}).includes(source));
       if(!person)return 'Guest unavailable';
@@ -206,7 +214,7 @@
     async function setPreview(sources,layout=switcher.preview_layout||'auto'){
       if(busy||closed)return;busy=true;render();
       try{const next=await api.request('/api/production/switcher/preview',{method:'POST',body:JSON.stringify({preview_sources:sources,layout})});forwardSwitcher(next);note('Preview updated. Program is unchanged.');}
-      catch(error){note(errorText(error));}
+      catch(error){note(error.message==='image_source_unavailable'?'This image is unavailable. Import another image or clear Preview.':errorText(error));}
       finally{busy=false;render();refreshActivity(true);}
     }
     function toggle(source){try{setPreview(togglePreview(source,switcher,room));}catch(error){note(errorText(error));}}
@@ -219,7 +227,16 @@
       const tile=doc.createElement('article');tile.className='greenroom-guest';tile.dataset.participantId=person.id;
       tile.innerHTML='<header><div><strong data-guest-name></strong><span data-guest-status></span></div><span class="greenroom-mic-state"></span></header><p class="greenroom-notice" data-guest-connection role="status" aria-live="polite" hidden></p><div class="greenroom-feeds"><figure><video muted playsinline autoplay></video><div data-empty-camera>Camera off</div><figcaption>Camera</figcaption></figure><figure><video muted playsinline autoplay></video><div data-empty-screen>Screen off</div><figcaption>Screen / game</figcaption></figure></div><div class="greenroom-guest-actions"><button type="button" class="riq-button primary" data-admit>Admit guest</button><button type="button" class="riq-button" data-remove>Remove</button></div><div class="greenroom-source-buttons"><button type="button" class="riq-button" data-source-kind="camera">Camera</button><button type="button" class="riq-button" data-source-kind="screen">Screen</button><button type="button" class="riq-button" data-source-kind="audio">Mic only</button></div><div class="greenroom-program-audio"><strong>Audio on Program</strong><div><button type="button" class="riq-button" data-program-audio="microphone" aria-pressed="false">Mute mic on Program</button><button type="button" class="riq-button" data-program-audio="screen" aria-pressed="false">Mute screen audio on Program</button></div><p>Set before or during a shot. Backstage conversation is unchanged.</p></div>';
       tile.querySelector('[data-admit]').addEventListener('click',()=>decision(`/api/production/greenroom/participants/${encodeURIComponent(person.id)}`,{action:'admit'},'Guest admitted to the room. Choose their sources for Preview when ready.'));
-      tile.querySelector('[data-remove]').addEventListener('click',()=>decision(`/api/production/greenroom/participants/${encodeURIComponent(person.id)}`,{action:'remove'},'Guest removed from the room.'));
+      const wait=doc.createElement('button');wait.type='button';wait.className='riq-button';wait.dataset.wait='';wait.textContent='Return to waiting room';
+      wait.addEventListener('click',async()=>{const result=await decision(`/api/production/greenroom/participants/${encodeURIComponent(person.id)}`,{action:'wait'},'Guest returned to the waiting room and removed from Preview and Program. Admit them again when ready.');if(result)tile.querySelector('[data-admit]').focus();});
+      tile.querySelector('[data-remove]').before(wait);
+      const confirm=doc.createElement('div');confirm.className='greenroom-remove-confirm';confirm.hidden=true;
+      confirm.innerHTML='<p>End this guest’s access? This removes their sources from Preview and Program. They will need a new invitation.</p><button type="button" class="riq-button" data-remove-confirm>End guest access</button><button type="button" class="riq-button" data-remove-cancel>Keep guest</button>';
+      tile.querySelector('.greenroom-guest-actions').after(confirm);
+      const remove=tile.querySelector('[data-remove]');remove.textContent='Remove & end access';remove.setAttribute('aria-expanded','false');
+      remove.addEventListener('click',()=>{confirm.hidden=false;remove.setAttribute('aria-expanded','true');confirm.querySelector('[data-remove-cancel]').focus();});
+      confirm.querySelector('[data-remove-cancel]').addEventListener('click',()=>{confirm.hidden=true;remove.setAttribute('aria-expanded','false');remove.focus();});
+      confirm.querySelector('[data-remove-confirm]').addEventListener('click',async()=>{const result=await decision(`/api/production/greenroom/participants/${encodeURIComponent(person.id)}`,{action:'remove'},'Guest access ended. Use Invite again below to create a new invitation.');if(result){endedGuests.open=true;endedRows.get(person.id)?.querySelector('button').focus();}});
       for(const button of tile.querySelectorAll('[data-program-audio]'))button.addEventListener('click',()=>{
         const current=room.participants.find(item=>item.id===person.id);if(!current||busy||micBusy||!mediaConnected)return;
         decision(`/api/production/greenroom/participants/${encodeURIComponent(person.id)}`,programAudioChange(current,button.dataset.programAudio),'Program audio setting saved. Backstage conversation is unchanged.');
@@ -242,7 +259,11 @@
         attachVideo(videos[0],current.camera);attachVideo(videos[1],current.screen);
         tile.querySelector('[data-empty-camera]').hidden=Boolean(current.camera);tile.querySelector('[data-empty-screen]').hidden=Boolean(current.screen);
         tile.querySelector('[data-admit]').hidden=person.state!=='waiting';tile.querySelector('[data-admit]').disabled=busy||micBusy||!person.connected;
+        tile.querySelector('[data-admit]').title=!person.connected?'The guest must reconnect before admission.':'Let this guest see and talk with the room. Program is unchanged.';
+        tile.querySelector('[data-wait]').hidden=person.state!=='admitted';tile.querySelector('[data-wait]').disabled=busy||micBusy;
+        tile.querySelector('[data-wait]').title='Remove their sources from Preview and Program, and pause room pictures and conversation. Their invitation stays active so you can admit them again.';
         tile.querySelector('[data-remove]').disabled=busy||micBusy;
+        for(const button of tile.querySelectorAll('.greenroom-remove-confirm button'))button.disabled=busy||micBusy;
         for(const button of tile.querySelectorAll('[data-program-audio]')){
           const muted=person.program_audio?.[button.dataset.programAudio+'_muted']===true;
           button.textContent=`${muted?'Unmute':'Mute'} ${button.dataset.programAudio==='microphone'?'mic':'screen audio'} on Program`;
@@ -256,6 +277,17 @@
         }
       }
       one('.greenroom-empty').hidden=active.length>0;
+      const ended=room.participants.filter(person=>person.state==='removed'||person.expired).slice(-12).reverse(),endedIds=new Set(ended.map(person=>person.id));
+      endedGuests.hidden=!ended.length;
+      for(const [id,row] of endedRows)if(!endedIds.has(id)){row.remove();endedRows.delete(id);}
+      for(const person of ended){
+        let row=endedRows.get(person.id);
+        if(!row){row=doc.createElement('div');row.className='greenroom-ended-row';const label=doc.createElement('strong'),button=doc.createElement('button');button.type='button';button.className='riq-button';button.textContent='Invite again';button.dataset.reinvite=person.id;
+          button.addEventListener('click',async()=>{const result=await decision('/api/production/greenroom/invites',{label:person.name||'Guest',ttl_minutes:60});if(result){setLink(result.join_url);note('New private invitation created. Share this new link with the guest.');one('.greenroom-share input').focus();}});
+          row.append(label,button);endedRows.set(person.id,row);one('[data-ended-guests]').append(row);
+        }
+        row.querySelector('strong').textContent=person.name||'Guest';row.querySelector('button').disabled=busy||micBusy||!room.active;row.querySelector('button').title=room.active?'Create a new one-hour invitation. This does not restore or admit the ended session.':'Open the room before creating an invitation.';
+      }
     }
     function renderInvites(){
       const stamp=JSON.stringify([room.invites,busy,micBusy]);if(stamp===inviteStamp)return;inviteStamp=stamp;
@@ -269,6 +301,7 @@
       }
     }
     function renderStage(){
+      imageLibrary?.render();
       const selected=previewSources(switcher);one('[data-preview-count]').textContent=`${selected.length} / 6 sources in Preview`;
       one('[data-room-layout]').value=switcher.preview_layout||'auto';
       const cameras=one('.greenroom-camera-sources');
@@ -363,7 +396,7 @@
       media=host.ProducerGuestMedia.createReceiver({role:'producer',onState:message=>{mediaConnected=true;updateState(message.room);},onTracks:()=>{renderTiles();for(const entry of views.values())entry.composition.refresh();},onConnection:connection=>{if(connection.scope==='peer'){peerWarnings.update(connection);renderTiles();return;}if(!connection.participant_id){mediaConnected=connection.state==='connected';one('.greenroom-connection').textContent=mediaConnected?'Room connected':connection.state==='connecting'?'Connecting…':'Room connection interrupted';panel.dataset.connection=connection.state;if(!mediaConnected){peerWarnings.clear();room.output={...room.output,ready_sources:[]};render();}}},onError:()=>{}});
       media.connect().catch(()=>{one('.greenroom-connection').textContent='Room unavailable';});
     }else{one('.greenroom-connection').textContent='Guest media unavailable';}
-    const result={panel,media,renderSwitcher,refresh,close(){if(closed)return;closed=true;chat?.destroy();peerWarnings.clear();micGeneration++;host.clearInterval(pollTimer);setLink('');stopMic();media?.close();conference?.close();for(const entry of views.values())entry.composition.close();audioContext?.close();}};
+    const result={panel,media,renderSwitcher,refresh,close(){if(closed)return;closed=true;chat?.destroy();imageLibrary?.close();peerWarnings.clear();micGeneration++;host.clearInterval(pollTimer);setLink('');stopMic();media?.close();conference?.close();for(const entry of views.values())entry.composition.close();audioContext?.close();}};
     workspace._producerGreenroom=result;instance=result;
     host.addEventListener('pagehide',()=>result.close(),{once:true});
     refresh();pollTimer=host.setInterval(()=>{if(!doc.hidden){refresh();refreshActivity();}},4000);render();

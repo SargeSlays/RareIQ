@@ -15,8 +15,9 @@
     return !fragments.length||fragments.includes(fragment);
   }
   function engine(role,options={}){
-    if(!['guest','producer','output'].includes(role))throw Error('invalid_media_role');
-    if(role==='guest'&&(typeof options.token!=='string'||! /^[a-f0-9]{64}$/.test(options.token)))throw Error('invalid_guest_session');
+    if(!['guest','guest-view','producer','output'].includes(role))throw Error('invalid_media_role');
+    const guestView=role==='guest-view',invitation=role==='guest'||guestView;
+    if(invitation&&(typeof options.token!=='string'||! /^[a-f0-9]{64}$/.test(options.token)))throw Error('invalid_guest_session');
     let socket=null,generation=0,closed=true,peerId=null,iceServers=[],state=null;
     let heartbeat=null,watchdog=null,reconnectTimer=null,lastState=0,retries=0,hello=false,readyResolve=null,readyReject=null;
     let pending=[],localTracks=EMPTY(),mediaStamp='',localVersion=0,returnedTrack=null,connectPromise=null;
@@ -34,12 +35,19 @@
     function allowedPublisher(record,key){
       const sub=state?.subscriptions?.find(item=>item.peer_id===record.id);
       if(!sub)return false;
+      if(sub.role==='guest-view')return key==='camera'&&sub.sources.includes('camera')&&state.participant?.state==='admitted'&&state.participant.expired!==true;
       return key==='microphone'?sub.sources.length>0:key==='camera'?sub.sources.includes('camera'):sub.sources.includes('screen');
     }
     function participant(id){return state?.room?.participants?.find(item=>item.id===id);}
+    function receiverSubscribed(id){
+      const person=participant(id);
+      if(!person||!person.connected||person.state==='removed')return false;
+      if(guestView)return state.room.active===true&&person.state==='admitted'&&person.expired!==true&&person.sources?.camera===`guest:${id}:camera`&&state.subscriptions.includes(person.sources.camera);
+      return Object.values(person.sources||{}).some(source=>state.subscriptions.includes(source));
+    }
     function receiverAllowed(id,key){
       const person=participant(id);
-      if(!person||!person.connected||person.state==='removed'||role==='output'&&person.state!=='admitted')return false;
+      if(!receiverSubscribed(id)||role==='output'&&person.state!=='admitted'||guestView&&key!=='camera')return false;
       const sources=new Set(state?.subscriptions||[]);
       const any=Object.values(person.sources||{}).some(source=>sources.has(source));
       if(!any)return false;
@@ -88,7 +96,7 @@
     function authorizedRecovery(id,participantId){
       if(publisher)return state?.subscriptions?.some(sub=>sub.peer_id===id)===true;
       const person=participant(participantId);
-      return Boolean(person?.connected&&person.state!=='removed'&&(role!=='output'||person.state==='admitted')&&Object.values(person.sources||{}).some(source=>state?.subscriptions?.includes(source)));
+      return receiverSubscribed(participantId)&&(role!=='output'||person.state==='admitted');
     }
     function recoverPeer(record,reason){
       if(!current(record))return;
@@ -139,7 +147,7 @@
     function createPeer(id,participantId=null){
       if(peers.has(id))return peers.get(id);
       const recovery=recoveries.get(id);if(recovery&&(recovery.timer!==null||recovery.exhausted))return null;
-      if(peers.size>=12)throw Error('media_peer_limit');
+      if(peers.size>=(publisher?17:12))throw Error('media_peer_limit');
       const pc=new host.RTCPeerConnection({iceServers});
       const record={id,participantId,pc,generation,closed:false,remote:EMPTY(),emitted:EMPTY(),returnTrack:null,ice:[],work:Promise.resolve(),queued:0,offered:false,offer:null,answer:null,appliedVersion:-1,connectedAt:null};
       peers.set(id,record);
@@ -156,7 +164,7 @@
       pc.ontrack=event=>{
         if(!current(record))return;
         const index=pc.getTransceivers().indexOf(event.transceiver);
-        if(index<0||index>3||event.track.kind!==KINDS[index]||publisher&&index!==0){event.track.stop();return;}
+        if(index<0||index>3||event.track.kind!==KINDS[index]||publisher&&(index!==0||state?.subscriptions?.find(sub=>sub.peer_id===id)?.role==='guest-view')||guestView&&index!==1){event.track.stop();return;}
         const key=KEYS[index];
         if(record.remote[key]&&record.remote[key]!==event.track)record.remote[key].stop();
         record.remote[key]=event.track;
@@ -164,7 +172,10 @@
         event.track.onmute=event.track.onunmute=()=>{if(current(record))emitTracks(record);};
         emitTracks(record);
       };
-      if(publisher)KINDS.forEach((kind,index)=>pc.addTransceiver(kind,{direction:index===0?'sendrecv':'sendonly'}));
+      if(publisher){
+        const cameraOnly=state?.subscriptions?.find(sub=>sub.peer_id===id)?.role==='guest-view';
+        KINDS.forEach((kind,index)=>pc.addTransceiver(kind,{direction:cameraOnly?(index===1?'sendonly':'inactive'):index===0?'sendrecv':'sendonly'}));
+      }
       return record;
     }
     async function syncPublisher(record){
@@ -198,9 +209,11 @@
     }
     function acceptState(message){
       if(publisher){
-        if(!message.participant||!['waiting','admitted'].includes(message.participant.state)||message.participant.connected!==true||!Array.isArray(message.subscriptions)||message.subscriptions.length>5)throw Error('invalid_media_state');
-        for(const sub of message.subscriptions)if(typeof sub.peer_id!=='string'||!['producer','output'].includes(sub.role)||!Array.isArray(sub.sources)||sub.sources.some(source=>!['camera','screen','audio'].includes(source)))throw Error('invalid_media_state');
+        if(!message.participant||!['waiting','admitted'].includes(message.participant.state)||message.participant.connected!==true||!Array.isArray(message.subscriptions)||message.subscriptions.length>17)throw Error('invalid_media_state');
+        for(const sub of message.subscriptions)if(typeof sub.peer_id!=='string'||!['producer','output','guest-view'].includes(sub.role)||!Array.isArray(sub.sources)||sub.sources.some(source=>!['camera','screen','audio'].includes(source))||sub.role==='guest-view'&&(sub.sources.length!==1||sub.sources[0]!=='camera'||sub.return_audio===true))throw Error('invalid_media_state');
+        if(message.subscriptions.filter(sub=>sub.role==='guest-view').length>12||message.subscriptions.filter(sub=>sub.role!=='guest-view').length>5)throw Error('invalid_media_state');
       }else if(!message.room||!Array.isArray(message.room.participants)||message.room.participants.length>128||!Array.isArray(message.subscriptions)||message.subscriptions.length>36)throw Error('invalid_media_state');
+      if(guestView&&(message.subscriptions.length>12||message.subscriptions.some(source=>typeof source!=='string'||!/^guest:[^:]+:camera$/.test(source))))throw Error('invalid_media_state');
       state=message;lastState=Date.now();
       for(const [id,recovery] of recoveries)if(!authorizedRecovery(id,recovery.participantId)){const record=peers.get(id);if(record)closePeer(record,true);else clearRecovery(id,true);}
       if(publisher){
@@ -214,8 +227,7 @@
         announceMedia();
       }else{
         for(const record of Array.from(peers.values())){
-          const person=participant(record.participantId);
-          if(!person||!person.connected||person.state==='removed'||!Object.values(person.sources||{}).some(source=>message.subscriptions.includes(source)))closePeer(record,true);
+          if(!receiverSubscribed(record.participantId))closePeer(record,true);
           else{
             const sender=record.pc.getTransceivers()[0]?.sender;
             if(sender?.track&&!canReturn(record))sender.replaceTrack(null).catch(()=>{if(current(record))recoverPeer(record,'media_detach_failed');});
@@ -240,8 +252,7 @@
         }
         if(message.kind==='offer')return;
       }else{
-        const person=participant(message.participant_id);
-        if(!person||!person.connected||person.state==='removed'||!Object.values(person.sources||{}).some(source=>state.subscriptions.includes(source))){
+        if(!receiverSubscribed(message.participant_id)){
           if(mayHold&&pending.length<64)pending.push({message,at:Date.now()});return;
         }
         if(message.role!=='guest'||message.kind==='answer')return;
@@ -278,7 +289,7 @@
         await bounded(record.pc.setRemoteDescription(message.data));if(!current(record))return;
         const transceivers=record.pc.getTransceivers();
         if(transceivers.length!==4||transceivers.some((value,index)=>value.receiver.track.kind!==KINDS[index]))throw Error('unsupported_media_layout');
-        transceivers.forEach((value,index)=>{value.direction=role==='producer'&&index===0?'sendrecv':'recvonly';});
+        transceivers.forEach((value,index)=>{value.direction=guestView?(index===1?'recvonly':'inactive'):role==='producer'&&index===0?'sendrecv':'recvonly';});
         await syncReturn(record);if(!current(record))return;
         const answer=await bounded(record.pc.createAnswer());if(!current(record))return;
         await bounded(record.pc.setLocalDescription(answer));if(!current(record))return;
@@ -290,12 +301,12 @@
       if(closed)return;
       if(!host.WebSocket||!host.RTCPeerConnection||!host.MediaStream){fail('browser_media_unavailable',{retry:false});return;}
       const gen=++generation;lastState=Date.now();hello=false;
-      const path=publisher?'/guest/ws':`/api/production/greenroom/${role}-socket`;
+      const path=publisher?'/guest/ws':guestView?'/guest/view/ws':`/api/production/greenroom/${role}-socket`;
       const url=(host.location.protocol==='https:'?'wss://':'ws://')+host.location.host+path;
       try{socket=new host.WebSocket(url);}catch(_){fail('signaling_unavailable');return;}
       const ws=socket;connected('connecting');
       const valid=()=>!closed&&generation===gen&&socket===ws;
-      ws.onopen=()=>{if(valid()&&publisher)send({type:'authenticate',token:options.token});};
+      ws.onopen=()=>{if(valid()&&invitation)send({type:'authenticate',token:options.token});};
       ws.onmessage=event=>{
         if(!valid())return;
         try{

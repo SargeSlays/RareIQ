@@ -51,6 +51,7 @@ function person(id='guest-one',state='admitted'){
   return {id,state,connected:true,media:{microphone:true,camera:true,screen:true,screen_audio:true},sources:{camera:`guest:${id}:camera`,screen:`guest:${id}:screen`,audio:`guest:${id}:audio`}};
 }
 function receiverState(participants=[person()],sources=['guest:guest-one:camera'],owner=false){return {type:'state',room:{participants,switcher:{generation:3}},subscriptions:sources,return_audio_owner:owner};}
+function viewState(participants=[person()],sources=['guest:guest-one:camera']){return {type:'state',room:{room_id:'room-one',active:true,participants},subscriptions:sources};}
 function guestState(sources=['camera','screen','audio'],returnAudio=false,state='waiting'){
   return {type:'state',participant:person('guest-one',state),subscriptions:[{peer_id:'receiver',role:'producer',sources,return_audio:returnAudio}],on_air_sources:[]};
 }
@@ -91,6 +92,72 @@ test('publisher permission changes detach senders and waiting guests receive no 
   ws.message(guestState(['camera'],false,'waiting'));assert.equal(returns.at(-1),null);await settle();
   assert.equal(pc.transceivers[2].sender.track,null);assert.equal(pc.transceivers[3].sender.track,null);
   publisher.close();
+});
+
+test('guest view authenticates separately and closing it preserves guest publication',async()=>{
+  const f=fixture(),token='a'.repeat(64);
+  assert.throws(()=>f.api.createReceiver({role:'guest-view'}),/invalid_guest_session/);
+  const publisher=f.api.createPublisher({token}),camera=new f.Track('video');publisher.setTracks({camera});
+  const publication=await connect(f,publisher,'guest');publication.message(guestState());await settle();
+  const publisherPeer=f.connections[0],receiver=f.api.createReceiver({role:'guest-view',token});
+  const ws=await connect(f,receiver,'guest-view');assert.equal(ws.url,'wss://fixture.invalid/guest/view/ws');
+  assert.deepEqual(ws.sent[0],{type:'authenticate',token});assert.equal(ws.sent.some(message=>message.type==='media'),false);
+  ws.message(viewState());offer(ws);await settle();const viewerPeer=f.connections.at(-1);viewerPeer.emitTrack(1);
+  assert.equal(receiver.sendReady(['guest:guest-one:camera']),false);assert.equal(receiver.rendered(3),false);
+  assert.equal(await receiver.setReturnStream('guest-one',new f.Stream([new f.Track('audio')])),false);
+  receiver.close();assert.ok(ws.closed);assert.ok(viewerPeer.closed);assert.ok(!publication.closed);assert.ok(!publisherPeer.closed);
+  assert.equal(publisherPeer.transceivers[1].sender.track,camera);assert.equal(camera.stops,0);publisher.close();assert.equal(f.timers.size,0);
+});
+
+test('guest view rejects audio and screen tracks while retaining admitted cameras only',async()=>{
+  const f=fixture(),changes=[],receiver=f.api.createReceiver({role:'guest-view',token:'a'.repeat(64),onTracks:(id,tracks)=>changes.push({id,tracks})});
+  const ws=await connect(f,receiver,'guest-view');ws.message(viewState());offer(ws);await settle();
+  const pc=f.connections[0],mic=pc.emitTrack(0),camera=pc.emitTrack(1),screen=pc.emitTrack(2),game=pc.emitTrack(3);
+  assert.deepEqual(Array.from(pc.transceivers,t=>t.direction),['inactive','recvonly','inactive','inactive']);
+  assert.ok(pc.transceivers.every(t=>t.sender.track===null));assert.equal(receiver.tracks('guest-one').camera,camera);
+  for(const track of [mic,screen,game])assert.equal(track.readyState,'ended');
+  for(const key of ['microphone','screen','screen_audio'])assert.equal(changes.at(-1).tracks[key],null);
+  ws.message(viewState([person('guest-one','waiting')]));assert.ok(pc.closed);assert.equal(camera.readyState,'ended');
+  assert.ok(Object.values(changes.at(-1).tracks).every(track=>track===null));offer(ws);await settle();assert.equal(f.connections.length,1);
+  ws.message(viewState([{...person(),expired:true}]));offer(ws);await settle();assert.equal(f.connections.length,1);
+  ws.message(viewState());offer(ws);await settle();assert.equal(f.connections.length,2);
+  ws.message(viewState([person()],[]));assert.ok(f.connections[1].closed);offer(ws);await settle();assert.equal(f.connections.length,2);
+  receiver.close();
+});
+
+test('guest view closes on invitation expiry and rejects non-camera subscriptions',async()=>{
+  for(const subscriptions of [['guest:guest-one:audio'],['guest:guest-one:screen']]){
+    const f=fixture(),errors=[],receiver=f.api.createReceiver({role:'guest-view',token:'a'.repeat(64),onError:error=>errors.push(error)});
+    const ws=await connect(f,receiver,'guest-view');ws.message(viewState([person()],subscriptions));
+    assert.ok(ws.closed);assert.equal(errors.at(-1).reason,'invalid_signaling_response');receiver.close();
+  }
+  const f=fixture(),receiver=f.api.createReceiver({role:'guest-view',token:'a'.repeat(64)}),pending=receiver.connect();
+  const rejected=assert.rejects(pending,/guest_access_ended/);f.sockets[0].open();f.sockets[0].dropped(1008);await rejected;
+  await f.tick(60000);assert.equal(f.sockets.length,1);receiver.close();assert.equal(f.timers.size,0);
+});
+
+test('publishers send guest views only admitted cameras and preserve producer audio',async()=>{
+  const f=fixture(),publisher=f.api.createPublisher({token:'a'.repeat(64)});
+  const microphone=new f.Track('audio'),camera=new f.Track('video'),screen=new f.Track('video'),screen_audio=new f.Track('audio');
+  publisher.setTracks({microphone,camera,screen,screen_audio});const ws=await connect(f,publisher,'guest');
+  const state=guestState(['camera','screen','audio'],true,'admitted');state.subscriptions.push({peer_id:'viewer',role:'guest-view',sources:['camera']});
+  ws.message(state);await settle();const producer=f.connections[0],viewer=f.connections[1];
+  assert.deepEqual(Array.from(producer.transceivers,t=>t.sender.track),[microphone,camera,screen,screen_audio]);
+  assert.deepEqual(Array.from(viewer.transceivers,t=>t.sender.track),[null,camera,null,null]);
+  assert.deepEqual(Array.from(viewer.transceivers,t=>t.direction),['inactive','sendonly','inactive','inactive']);
+  assert.equal(viewer.emitTrack(0).readyState,'ended');
+  ws.message({...state,participant:person('guest-one','waiting')});await settle();assert.equal(viewer.transceivers[1].sender.track,null);
+  ws.message({...state,subscriptions:[state.subscriptions[0]]});await settle();assert.ok(viewer.closed);assert.ok(!producer.closed);
+  assert.equal(producer.transceivers[0].sender.track,microphone);publisher.close();
+});
+
+test('publisher subscriber limits allow twelve guest views plus five production receivers',async()=>{
+  const f=fixture(),publisher=f.api.createPublisher({token:'a'.repeat(64)}),ws=await connect(f,publisher,'guest');
+  const state=guestState(['camera'],false,'admitted');
+  state.subscriptions=Array.from({length:17},(_,index)=>({peer_id:'recipient-'+index,role:index<12?'guest-view':'producer',sources:['camera']}));
+  ws.message(state);await settle();assert.equal(f.connections.length,17);assert.ok(!ws.closed);
+  ws.message({...state,subscriptions:state.subscriptions.map((sub,index)=>({...sub,role:index<13?'guest-view':'producer'}))});
+  assert.ok(ws.closed);assert.ok(f.connections.every(pc=>pc.closed));publisher.close();
 });
 
 test('receiver filters unrequested tracks and never reports readiness automatically',async()=>{

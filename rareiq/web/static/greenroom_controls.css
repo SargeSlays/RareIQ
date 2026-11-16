@@ -87,3 +87,11 @@ body.pp-shell .greenroom-program-audio > strong { font-size:12px; }
 body.pp-shell .greenroom-program-audio > div { display:flex; flex-wrap:wrap; gap:6px; }
 body.pp-shell .greenroom-program-audio .riq-button { flex:1 1 130px; }
 body.pp-shell .greenroom-program-audio > p { margin:0; color:var(--pp-text-muted); font-size:11px; line-height:1.5; }
+body.pp-shell .greenroom-remove-confirm { display:flex;flex-wrap:wrap;gap:8px;padding:12px;border:1px solid var(--pp-warning);border-radius:8px;background:var(--pp-surface-raised); }
+body.pp-shell .greenroom-remove-confirm p { flex-basis:100%;margin:0;color:var(--pp-text);font-size:12px;line-height:1.5; }
+body.pp-shell .greenroom-ended { border-top:1px solid var(--pp-border);padding-top:14px;font-size:12px; }
+body.pp-shell .greenroom-ended summary { cursor:pointer;min-height:32px; }
+body.pp-shell .greenroom-ended p { color:var(--pp-text-muted);line-height:1.6; }
+body.pp-shell .greenroom-ended-row { display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--pp-border); }
+body.pp-shell .greenroom-ended-row strong { overflow-wrap:anywhere;min-width:0; }
+body.pp-shell .greenroom-ended-row button { flex-shrink:0; }

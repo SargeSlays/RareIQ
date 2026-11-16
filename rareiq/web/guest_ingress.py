@@ -96,7 +96,7 @@ class GuestOnlyIngress:
                 or not path.isascii() or raw != path.encode("ascii") or b"%" in raw or b"\\" in raw):
             return await self._deny(scope, send)
         if kind == "websocket":
-            if path != "/guest/ws" or scope.get("subprotocols"):
+            if path not in {"/guest/ws", "/guest/view/ws"} or scope.get("subprotocols"):
                 return await self._deny(scope, send)
         elif path not in HTTP_METHODS or scope.get("method") not in HTTP_METHODS[path]:
             return await self._deny(scope, send)

@@ -2,7 +2,7 @@
 
 `rareiq.web.guest_ingress.GuestOnlyIngress` wraps the existing ASGI application.
 It permits the exact public guest page/assets, POST join/leave, authenticated GET/POST chat, and the guest
-WebSocket. All operator APIs, output sockets, documentation, arbitrary static
+publishing/viewing WebSockets (`/guest/ws`, `/guest/view/ws`). All operator APIs, output sockets, documentation, arbitrary static
 files and other paths are rejected before reaching the studio app.
 
 The wrapper uses the **same app object and GreenroomHub in the same process**.
@@ -97,3 +97,7 @@ timeout, unexpected exit, bounded shutdown and cleanup of secondary requests.
 No real listener or public service was started by these tests.
 Real proxy/TLS routing, socket upgrades, network traversal, TURN and remote media
 must be tested separately before remote hosting can be advertised as verified.
+
+Room viewing reuses the invitation session in its first WebSocket authentication
+message. It carries only a safe roster and admitted guest camera subscriptions;
+it grants no producer controls. Both sockets share revocation and origin checks.

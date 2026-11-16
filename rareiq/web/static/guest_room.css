@@ -1,0 +1,18 @@
+.guest-room-gallery{grid-column:1/-1;min-width:0;border:1px solid var(--pp-border);border-radius:20px;background:var(--pp-surface);padding:24px}
+.guest-room-gallery>header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.guest-room-gallery h2{font-size:25px;letter-spacing:-.7px;line-height:1.2;margin:5px 0 0}
+.guest-room-gallery [data-room-total]{font-size:12px;color:var(--pp-text-muted)}
+.guest-room-gallery [data-room-guidance]{font-size:13px;color:var(--pp-text-muted);margin:14px 0 18px;line-height:1.6}
+.guest-room-gallery [data-room-retry]{margin:0 0 16px}
+.guest-room-people{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:14px}
+.guest-room-person{min-width:0;border:1px solid var(--pp-border);border-radius:14px;overflow:hidden;background:var(--pp-surface-sunken)}
+.guest-room-picture{position:relative;aspect-ratio:16/9;max-height:310px;overflow:hidden}
+.guest-room-picture video{width:100%;height:100%;object-fit:contain;display:block}
+.guest-room-picture [data-room-placeholder]{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;padding:18px;color:var(--pp-text-muted)}
+.guest-room-picture [data-room-placeholder]>span{width:52px;height:52px;display:grid;place-items:center;border-radius:50%;background:var(--pp-surface-raised);color:var(--pp-primary);font-size:22px;font-weight:700}
+.guest-room-picture p{font-size:12px;margin:0;text-align:center}
+.guest-room-person>footer{display:grid;gap:4px;text-align:left;padding:12px 14px;background:var(--pp-surface-raised);color:var(--pp-text);overflow-wrap:anywhere}
+.guest-room-person>footer strong{font-size:14px}.guest-room-person>footer span{font-size:11px;color:var(--pp-text-muted)}
+.guest-room-waiting{margin-top:18px;border-top:1px solid var(--pp-border);padding-top:14px;font-size:13px}
+.guest-room-waiting p{color:var(--pp-text-muted);margin:7px 0 0;overflow-wrap:anywhere}
+@media(max-width:800px){.guest-room-gallery{padding:18px}.guest-room-people{gap:10px;grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr))}.guest-room-gallery h2{font-size:22px}}

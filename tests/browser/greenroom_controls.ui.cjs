@@ -48,7 +48,7 @@ async function main(){
           if(body.action==='program_audio'){
             if(fixture.holdProgramAudio)await new Promise(resolve=>{fixture.releaseProgramAudio=()=>{fixture.holdProgramAudio=false;fixture.releaseProgramAudio=null;resolve();};});
             guest.program_audio={microphone_muted:body.microphone_muted,screen_muted:body.screen_muted};
-          }else guest.state=body.action==='admit'?'admitted':'removed';
+          }else {guest.state=body.action==='admit'?'admitted':body.action==='wait'?'waiting':'removed';if(body.action==='wait'||body.action==='remove'){const sources=Object.values(guest.sources);switcher.preview_sources=switcher.preview_sources.filter(source=>!sources.includes(source));switcher.program_sources=switcher.program_sources.filter(source=>!sources.includes(source));}}
           push();return response({ok:true,participant:{id:guest.id,state:guest.state},program_audio:guest.program_audio});
         }
         if(url.endsWith('/preview')){switcher.preview_sources=body.preview_sources;switcher.preview_layout=body.layout;switcher.updated_at++;push();return response(switcher);}
@@ -135,6 +135,20 @@ async function main(){
       await page.screenshot({path:path.join(destination,`greenroom-${theme}-${width}.png`),fullPage:true,animations:'disabled'});results.push({theme,width,...dimensions});
     }
     await page.locator('[data-host-mic]').click();await page.waitForFunction(()=>fixture.stops===1);assert.equal(await page.evaluate(()=>fixture.localStream),null);
+    const guest=page.locator('.greenroom-guest[data-participant-id="'+'a'.repeat(32)+'"]');
+    await guest.locator('[data-wait]').click();await page.waitForFunction(()=>fixture.room.participants[0].state==='waiting');
+    assert.equal(await guest.locator('[data-admit]').isVisible(),true);assert.equal(await guest.locator('[data-wait]').isVisible(),false);
+    assert.equal(await page.evaluate(()=>document.activeElement?.hasAttribute('data-admit')),true,'waiting transition focuses its reversible action');
+    assert.equal(await page.evaluate(()=>fixture.room.participants[0].connected),true,'waiting keeps the guest session');
+    await guest.locator('[data-admit]').click();await page.waitForFunction(()=>fixture.room.participants[0].state==='admitted');
+    const removals=await page.evaluate(()=>fixture.requests.filter(r=>r.body?.action==='remove').length);
+    await guest.locator('[data-remove]').click();assert.equal(await guest.locator('.greenroom-remove-confirm').isVisible(),true);
+    assert.equal(await page.evaluate(()=>fixture.requests.filter(r=>r.body?.action==='remove').length),removals,'opening confirmation does not end access');
+    await guest.locator('[data-remove-cancel]').click();assert.equal(await guest.locator('.greenroom-remove-confirm').isVisible(),false);
+    await guest.locator('[data-remove]').click();await guest.locator('[data-remove-confirm]').click();await page.waitForFunction(()=>fixture.room.participants[0].state==='removed');
+    await page.locator('[data-reinvite="'+'a'.repeat(32)+'"]').click();await page.locator('.greenroom-share').waitFor({state:'visible'});
+    assert.equal(await page.evaluate(()=>fixture.room.participants[0].state),'removed','reinvitation does not restore ended access');
+    assert.equal(await page.evaluate(()=>fixture.requests.filter(r=>r.url==='/api/production/greenroom/invites').at(-1).body.label),'Guest <img src=x onerror=alert(1)>');
     await page.evaluate(()=>ProducerGreenroomControls.mount(document.getElementById('workspace')).close());
     const checks=['no capture on mount','safe guest labels','admit does not take','offline camera removed','output receipt gating','conflict draft preserved','invitation dismissed','explicit host microphone','host mix-minus exclusion','host track cleanup','activity lazy load','activity retry preserves rows','activity bounded to 20','literal names and private IDs omitted','offline waiting guest pre-mute','authoritative mute state and duplicate-click guard','independent audio flags and CAS metadata','conflicting audio change preserved','audio settings never capture or take Program','safe invitation target and local-only hint'];
     assert.deepEqual(faults,[]);fs.writeFileSync(path.join(destination,'summary.json'),JSON.stringify({isolated:true,hardware:false,results,checks,faults},null,2));

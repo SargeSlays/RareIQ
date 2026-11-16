@@ -1,6 +1,10 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const controls=require('../../rareiq/web/static/greenroom_controls.js');
+test('returning a guest to waiting has a distinct activity label from ending access',()=>{
+  assert.equal(controls.activityEntry({action:'guest.wait',outcome:'succeeded'}).action,'Guest returned to waiting room');
+  assert.equal(controls.activityEntry({action:'guest.remove',outcome:'succeeded'}).action,'Guest removed');
+});
 const {sourceAvailable,togglePreview,takeReadiness,createRequests}=controls;
 test('current audio blockage overrides a previous renderer receipt with a concrete recovery action',()=>{
   assert.match(controls.outputStatusLabel({connected:1,rendered_generation:3,audio_blocked:true},3),/open Studio Output and choose Enable output sound/);

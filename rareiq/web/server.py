@@ -37,7 +37,7 @@ from rareiq.services.instant_replay_service import InstantReplayService
 from rareiq.services.auto_clip_service import AutoClipService
 from rareiq.services.production_action_service import ActionSpec, ProductionActions
 from rareiq.services.production_scene_store import ProductionSceneStore
-from rareiq.services.production_composition import composition_state, validate_sources, LAYOUTS
+from rareiq.services.production_composition import composition_state, validate_sources, IMAGE_SOURCE, LAYOUTS
 from rareiq.services.greenroom_service import GreenroomService, GreenroomError
 from rareiq.services.greenroom_network import GreenroomNetwork
 from rareiq.web.greenroom import GreenroomHub, PUBLIC_GUEST_PATHS
@@ -974,6 +974,16 @@ except (ValueError, TypeError):
     greenroom_network = GreenroomNetwork()
     LOGGER.warning("Guest network configuration is invalid; using local-only guest access.")
 
+def _production_image_available(source):
+    match = IMAGE_SOURCE.fullmatch(source) if isinstance(source, str) else None
+    resolved = orchestrator.reaction_assets.get_path(match[1]) if match else None
+    return bool(resolved and resolved[1].startswith("image/"))
+
+def _production_image_sources():
+    return [{"id": f"image:{asset['id']}", "name": asset["name"], "url": asset["url"]}
+            for asset in orchestrator.reaction_assets.snapshot()["assets"]
+            if asset.get("kind") == "visual" and IMAGE_SOURCE.fullmatch(f"image:{asset['id']}")]
+
 def _greenroom_switcher():
     with PRODUCTION_SWITCHER_LOCK:
         return composition_state(PRODUCTION_SWITCHER_STATE)
@@ -1000,7 +1010,7 @@ greenroom_hub = GreenroomHub(greenroom_service, authorize_operator=_greenroom_op
     switcher=_greenroom_switcher, static_dir=STATIC_DIR, ice_servers=greenroom_network.ice_servers,
     public_origin=lambda: greenroom_network.public_origin,
     actor_kind=lambda request: "local_operator" if is_loopback_client(request.client.host if request.client else None) else "paired_lan_operator",
-    removed=_greenroom_removed)
+    removed=_greenroom_removed, image_source_available=_production_image_available)
 app.include_router(greenroom_hub.router)
 audience_service = AudienceService(storage.get_path("config_path") / "audience.sqlite3")
 
@@ -2248,7 +2258,7 @@ async def production_switcher_status():
     with PRODUCTION_SWITCHER_LOCK:
         slots = orchestrator.camera_manager.camera_slots()
         checked_at = time.time()
-        return {"ok": True, **composition_state(PRODUCTION_SWITCHER_STATE), "guest_output": greenroom_hub.output_status(), "slots": [
+        return {"ok": True, **composition_state(PRODUCTION_SWITCHER_STATE), "image_sources": _production_image_sources(), "guest_output": greenroom_hub.output_status(), "slots": [
             {**slot, "production_readiness": _program_camera_readiness(
                 slots, slot["slot_id"], now=checked_at)} for slot in slots
         ]}
@@ -2273,13 +2283,19 @@ def _production_source_problem(sources, *, require_output=False, slots=None):
             slot = int(source.rsplit(":", 1)[1])
             if not _production_slot_is_ready(slot, slots):
                 return {"ok": False, "reason": "camera_slot_unavailable", "slot_id": slot, "source_id": source}
+        elif source.startswith("image:"):
+            if not _production_image_available(source):
+                return {"ok": False, "reason": "image_source_unavailable", "source_id": source}
+            if require_output and not greenroom_hub.source_ready(source):
+                return {"ok": False, "reason": "image_output_not_ready", "source_id": source,
+                        "message": "Open Studio Output and wait for the image to load before taking it to Program."}
         elif not greenroom_service.source_available(source):
             return {"ok": False, "reason": "guest_source_unavailable", "source_id": source}
         elif require_output and not greenroom_hub.source_ready(source):
             return {"ok": False, "reason": "guest_output_not_ready", "source_id": source,
                     "message": "Open Studio Output and wait for the guest feed before taking it to Program."}
     if require_output and not greenroom_hub.composition_ready(sources):
-        return {"ok": False, "reason": "guest_output_not_ready",
+        return {"ok": False, "reason": "image_output_not_ready" if any(s.startswith("image:") for s in sources) else "guest_output_not_ready",
                 "message": "Wait for one Studio Output window to receive the entire Preview mix."}
     return None
 
@@ -2293,7 +2309,7 @@ def _program_composition_readiness(slots, program_slot):
         return _program_camera_readiness(slots, program_slot)
     problem = _production_source_problem(sources, require_output=True, slots=slots)
     ready = bool(sources) and not problem
-    if ready and any(source.startswith("guest:") for source in sources):
+    if ready and any(source.startswith(("guest:", "image:")) for source in sources):
         ready = greenroom_hub.output_status()["rendered_generation"] == state["generation"]
     return {"ready": ready, "state": "pass" if ready else "fail",
             "reason": "composition_ready" if ready else (problem or {}).get("reason", "composition_not_rendered"),

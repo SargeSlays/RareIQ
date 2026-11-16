@@ -66,6 +66,23 @@ test('source union preserves explicit blank and rejects arbitrary URLs, duplicat
   assert.equal(model.parseSource(AUDIO).kind,'audio');assert.equal(model.normalizeState(state({generation:-1})),null);
 });
 
+test('imported images preload at their fixed local URL and require decoded dimensions before readiness',async()=>{
+  const id='image:12345678-1234-1234-1234-123456789abc',f=fixture();
+  assert.equal(model.parseSource(id).kind,'image');assert.equal(model.parseSource('image:../../secret'),null);
+  assert.equal(model.audioPlan([id],room(),()=>{throw Error('Images never request guest tracks');}).size,0);
+  f.view.render(state({preview_sources:[id]}),room());
+  const tile=f.view.preloads.get(id),image=tile.image;
+  assert.equal(image.src,'/api/creator/assets/12345678-1234-1234-1234-123456789abc');
+  assert.deepEqual(f.view.readySources(),[]);
+  image.complete=true;image.naturalWidth=1920;image.naturalHeight=1080;image.emit('load');
+  assert.deepEqual(f.view.readySources(),[id]);
+  f.view.render(state({generation:1,program_sources:[id],preview_sources:[],transition:'fade',duration_ms:500}),room());
+  assert.equal(f.view.current.tiles[0],tile,'Take reuses the preloaded image');await f.run(16);
+  assert.equal(f.statuses.at(-1).rendered,true);assert.equal(f.view.audio.size,0);
+  image.emit('error');assert.deepEqual(f.view.readySources(),[]);assert.equal(f.statuses.at(-1).rendered,false);
+  f.close();assert.equal(image.src,'');image.emit('load');assert.equal(f.view.current,null);
+});
+
 test('microphone is deduplicated across camera/screen/audio and screen sound requires selected screen',()=>{
   const media={camera:track(),screen:track(),microphone:track('audio'),screen_audio:track('audio')};
   assert.deepEqual([...model.audioPlan([CAM,SCREEN,AUDIO],room(),()=>media).keys()],[G+':microphone',G+':screen_audio']);

@@ -8,17 +8,20 @@
   <link rel="icon" href="/guest/assets/mark.svg">
   <link rel="stylesheet" href="/guest/assets/theme.css">
   <link rel="stylesheet" href="/guest/assets/guest.css?v=20261115-4">
+  <link rel="stylesheet" href="/guest/assets/guest_room.css?v=20261115-room1">
   <link rel="stylesheet" href="/guest/assets/greenroom_chat.css?v=20261115-chat1">
   <script defer src="/guest/assets/greenroom_chat.js?v=20261115-chat1"></script>
-  <script defer src="/guest/assets/greenroom_media.js?v=20261115-4"></script>
+  <script defer src="/guest/assets/greenroom_media.js?v=20261115-5"></script>
   <script defer src="/guest/assets/studio_noise_gate.js?v=20261115-1"></script>
   <script defer src="/guest/assets/guest_audio_dsp.js?v=20261115-1"></script>
   <script defer src="/guest/assets/guest_microphone.js?v=20261115-3"></script>
-  <script defer src="/guest/assets/guest.js?v=20261115-11"></script>
+  <script defer src="/guest/assets/guest_room.js?v=20261115-room1"></script>
+  <script defer src="/guest/assets/guest.js?v=20261115-13"></script>
 </head>
 <body class="pp-shell">
   <header class="guest-brand"><a href="/guest" aria-label="Guest studio"><img src="/guest/assets/mark.svg" alt=""> <strong>Producer, Please</strong></a><span>GUEST STUDIO</span></header>
   <main class="guest-layout">
+    <section id="guestRoom" aria-label="Your room" hidden></section>
     <section class="guest-stage" aria-label="Your media preview">
       <div class="guest-preview"><video id="guestCameraPreview" autoplay muted playsinline></video><div id="guestCameraEmpty" class="guest-placeholder"><span aria-hidden="true">◉</span><strong>Your camera is off</strong><p>Turn it on when you’re ready.</p></div><span id="guestBadge" class="guest-badge">PRIVATE PREVIEW</span><span class="guest-preview-label">Your camera</span></div>
       <div class="guest-preview guest-screen" id="guestScreenPreviewPanel" hidden><video id="guestScreenPreview" autoplay muted playsinline></video><span class="guest-preview-label">Your shared screen</span></div>
