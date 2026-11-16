@@ -1,5 +1,17 @@
 # RareIQ: streaming-first product direction
 
+## November 15, 2026 — Audience connection follow-up
+
+Twitch and YouTube chat observers now have explicit host-only Connect/Disconnect
+controls. YouTube reuses existing host authorization, verifies channel ownership,
+requires one active chat and discards initial/recovery history. Both support only
+first-chat and featured-participant chat observations, with no silent-viewer joins.
+Kick has a signed-event adapter and local status, but no mounted public receiver,
+approved callback registration or credential-owner integration. Its setup control
+remains disabled. All provider acceptance is simulated; none was activated.
+Follow/subscription adapters remain pending. The guest/voice/vision checkpoint
+below and its hardware, hosting and verified-account limitations still apply.
+
 ## November 15, 2026 — Guest productions and hands-free studio checkpoint
 
 Owner direction: Producer, Please is a general live-production studio for PCs and

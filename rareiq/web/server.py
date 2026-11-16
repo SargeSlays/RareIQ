@@ -50,6 +50,10 @@ from rareiq.services.audience_service import AudienceService
 from rareiq.web.audience import create_audience_router
 from rareiq.services.twitch_audience_connector import TwitchAudienceConnector
 from rareiq.web.twitch_audience import create_twitch_audience_router
+from rareiq.services.youtube_audience_connector import YouTubeAudienceConnector
+from rareiq.web.youtube_audience import create_youtube_audience_router
+from rareiq.services.kick_audience_connector import KickAudienceConnector
+from rareiq.web.kick_audience import create_kick_audience_router
 from rareiq.web.production_vision import create_production_vision_router
 from rareiq.services.windows_speech_recognizer import WindowsSpeechRecognizer
 from rareiq.services.inventory_service import MAX_RECEIPT_DATA_URL_CHARS
@@ -178,6 +182,8 @@ async def lifespan(_app: FastAPI):
     finally:
         await guest_ingress.close()
         await twitch_audience_connector.close()
+        await youtube_audience_connector.close()
+        await kick_audience_connector.close()
         await asyncio.to_thread(voice_commands.close)
         if not boot_task.done():
             boot_task.cancel()
@@ -1005,9 +1011,22 @@ def _twitch_audience_credentials():
             "user_access_token": os.getenv("RAREIQ_TWITCH_USER_ACCESS_TOKEN", "").strip()}
 
 twitch_audience_connector = TwitchAudienceConnector(audience_service, _twitch_audience_credentials)
+
+def _youtube_audience_credentials():
+    # Reuse existing host settings only after an explicit local Connect command.
+    return {name: os.getenv("RAREIQ_YOUTUBE_" + name.upper(), "").strip()
+            for name in ("client_id", "client_secret", "refresh_token", "channel_id")}
+
+youtube_audience_connector = YouTubeAudienceConnector(audience_service, _youtube_audience_credentials)
+# No approved Kick callback registration or credential-owner handoff exists yet.
+# Prepare the controls/status without mounting an event receiver or reading secrets.
+kick_audience_connector = KickAudienceConnector(audience_service, lambda: {})
 app.include_router(create_twitch_audience_router(twitch_audience_connector, _greenroom_operator))
+app.include_router(create_youtube_audience_router(youtube_audience_connector, _greenroom_operator))
+app.include_router(create_kick_audience_router(kick_audience_connector, _greenroom_operator))
 app.include_router(create_audience_router(audience_service, STATIC_DIR,
-    sources_provider=lambda: [twitch_audience_connector.cached_status()]))
+    sources_provider=lambda: [connector.cached_status() for connector in
+        (twitch_audience_connector, youtube_audience_connector, kick_audience_connector)]))
 
 def _scene_actor(request: Request) -> str:
     # Device access does not identify a person. Never trust submitted actor names.

@@ -1,5 +1,22 @@
 # RareIQ engineering memory
 
+## November 15, 2026 — Audience adapter verification and cleanup
+
+- A failed public-key refresh must not advance successful verification time.
+  Kick advances its cache timestamp only after a valid key is parsed; failed
+  expired-key refresh disables receiving. A valid old signature cannot bypass
+  the failure on the next request. Signed delivery and accepted audience intake
+  are distinct: a rejected event must not increment successful intake counters.
+- Provider cleanup can throw or stall. All three audience adapters bound client
+  close operations, drop credential/client references and expose incomplete
+  cleanup. Regression fixtures cover exceptions and never-finishing close calls.
+- YouTube liveBroadcasts.list permits exactly one of broadcastStatus, id or mine.
+  Channel ownership uses a separate channels.list(mine=true) call; provider mocks
+  now reject incompatible filters, including across broadcast pagination.
+- On Windows, Python text edits must specify UTF-8 explicitly. Default encoding
+  can create mixed-encoding JavaScript when adding non-ASCII interface copy.
+  Audience source decoding is checked strictly in the browser regression suite.
+
 ## November 15, 2026 — Guest media, lifecycle and output evidence
 
 - A pending device permission promise can resolve after Leave/pagehide. Capture

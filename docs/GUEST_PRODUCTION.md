@@ -83,8 +83,25 @@ with one click. It does not send chat or treat a silent viewer as a new arrival.
 Twitch was tested with simulated provider responses, not a real account connection.
 It requires the existing host Twitch client/channel settings and a broadcaster-owned
 user token with `user:read:chat`. No token is accepted through the browser panel.
-YouTube, Kick, follows and subscriptions remain pending adapters; their saved rules
-say they are waiting for a supported connection. No purchase or entitlement is inferred.
+YouTube also connects explicitly from the production host, using the existing
+host client ID, client secret, refresh token and channel ID. It verifies channel
+ownership and requires exactly one active live chat. Initial history and recovery
+backlogs are discarded; polling honors the provider interval with a 10-second
+minimum and consumes API quota. A paused rule or disconnected source cannot
+pretend to be ready. No chat messages are sent and no broadcast is created.
+
+Kick has a simulated-provider-tested signed-event receiver, but the main app
+does not mount its public endpoint. Its panel explains that setup is required.
+An approved HTTPS event address, dashboard callback registration, existing owned
+subscription and a credential-owner handoff are prerequisites. No webhook is
+registered or deployed by this implementation. Verification checks raw-body RSA
+signatures, source channel, app/subscription, event age, replay and current scope.
+Failed verification never enters graphics. Public guest ingress does not accept
+Kick event traffic.
+
+All three provider integrations were tested offline, not against real accounts.
+Follows and subscriptions remain pending; their rules wait for a supported
+connection. No purchase or entitlement is inferred.
 
 ## Remote access and accountability
 

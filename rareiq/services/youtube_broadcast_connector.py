@@ -190,7 +190,8 @@ class YouTubeBroadcastConnector:
             self.BROADCASTS_URL,
             params={
                 "part": "id,contentDetails,status",
-                "mine": "true",
+                # liveBroadcasts.list permits exactly one of broadcastStatus, id,
+                # or mine. Ownership is checked separately with channels.list.
                 "broadcastStatus": broadcast_status,
                 "broadcastType": "all",
                 "maxResults": 50,

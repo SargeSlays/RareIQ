@@ -48,6 +48,7 @@ class TwitchAudienceConnector:
     Cached status contains neither credential fragments nor channel/user identity.
     """
 
+    CLOSE_TIMEOUT_SECONDS = 2
     SOCKET_URL = "wss://eventsub.wss.twitch.tv/ws"
     VALIDATE_URL = "https://id.twitch.tv/oauth2/validate"
     SUBSCRIPTIONS_URL = "https://api.twitch.tv/helix/eventsub/subscriptions"
@@ -406,15 +407,18 @@ class TwitchAudienceConnector:
     async def _cleanup(self):
         try:
             if self._http:
-                await self._delete_owned()
+                try:
+                    await asyncio.wait_for(self._delete_owned(), 8)
+                except Exception:
+                    self._cleanup_incomplete = True
             if self._socket:
                 try:
-                    await self._socket.close()
+                    await asyncio.wait_for(self._socket.close(), self.CLOSE_TIMEOUT_SECONDS)
                 except Exception:
                     self._cleanup_incomplete = True
             if self._http:
                 try:
-                    await self._http.aclose()
+                    await asyncio.wait_for(self._http.aclose(), self.CLOSE_TIMEOUT_SECONDS)
                 except Exception:
                     self._cleanup_incomplete = True
         finally:

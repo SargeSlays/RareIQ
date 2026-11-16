@@ -15,6 +15,7 @@ IMPORT_TO_DISTRIBUTION = {
     "PIL": "pillow",
     "cv2": "opencv-python",
     "cv2_enumerate_cameras": "cv2-enumerate-cameras",
+    "cryptography": "cryptography",
     "fastapi": "fastapi",
     "httpx": "httpx",
     "numpy": "numpy",

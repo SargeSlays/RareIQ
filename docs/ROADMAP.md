@@ -1,5 +1,18 @@
 # RareIQ Roadmap
 
+## November 15, 2026 — Audience connection follow-up
+
+- Implemented and simulated-provider tested: explicit host Twitch/YouTube chat
+  observation, platform-specific connection feedback, first/featured-chat rules.
+- Implemented but inactive: Kick raw-signature verification, broadcaster/app/
+  subscription binding, expiring verification evidence and replay protection.
+  Public event routing, approved dashboard registration and shared authorization
+  ownership remain prerequisites. The main app does not mount its event route.
+- Real platform acceptance, follows/subscriptions and silent-viewer arrivals are
+  not claimed. YouTube uses supported quota-consuming polling, not streaming intake.
+- Next external steps remain chosen guest HTTPS/relay hosting, actual PC/phone
+  tests across networks, and StackThis identity-only registration for producers.
+
 ## November 15, 2026 — Guest production checkpoint
 
 - Locally implemented: private invitation room, admission/revocation, camera/mic/

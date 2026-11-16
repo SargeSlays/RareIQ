@@ -1,5 +1,22 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 — Audience connection follow-up acceptance
+
+Canonical gate: **3181 Python tests passed**; the updated complete JavaScript
+suite passes **362 tests**. Provider traffic remains simulated. YouTube tests
+cover ownership/scope, a single active chat, history suppression, pagination,
+quota/retry handling and bounded cleanup. Kick tests use real RSA signatures with
+generated fixture keys and cover raw-body tampering, replay, expiry, source/app/
+subscription binding, rejected intake and key-refresh failure. Throwing/stalled
+client cleanup is exercised across all three audience adapters.
+
+Full-app read-only tests prove status does not load credentials, local commands
+require the same origin, and the Kick event route is absent from both main app
+and guest allowlist. No provider account, subscription or public host was activated.
+The guest production evidence below remains applicable. Follow/subscription
+events, public guest hosting, physical devices and verified producer login still
+require their separate acceptance steps.
+
 ## November 15, 2026 — Guest production acceptance
 
 Verified with isolated generated media: two separate guest browser sessions,

@@ -72,7 +72,7 @@ def youtube_response(
         return httpx.Response(200, json={"items": [{"id": channel_id}]})
 
     if request.url.path == "/youtube/v3/liveBroadcasts":
-        assert request.url.params["mine"] == "true"
+        assert set(request.url.params).intersection({"mine", "id", "broadcastStatus"}) == {"broadcastStatus"}
         status = request.url.params["broadcastStatus"]
         if status == "active":
             return httpx.Response(
@@ -333,3 +333,28 @@ def test_access_token_is_reused_until_expiry() -> None:
         request.url == httpx.URL(YouTubeBroadcastConnector.TOKEN_URL)
         for request in requests
     ) == 1
+
+
+def test_status_filters_remain_exclusive_through_active_and_upcoming_pagination() -> None:
+    """A provider enforcing the documented filter contract must accept every page."""
+    pages = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path != "/youtube/v3/liveBroadcasts":
+            return youtube_response(request)
+        filters = set(request.url.params).intersection({"mine", "id", "broadcastStatus"})
+        if len(filters) != 1:
+            return httpx.Response(400, json={"error": "incompatible_filters"})
+        state, page = request.url.params["broadcastStatus"], request.url.params.get("pageToken")
+        pages.append((state, page))
+        if page:
+            assert page == state + "-next"
+            return httpx.Response(200, json={"items": []})
+        payload = youtube_response(request).json()
+        payload["nextPageToken"] = state + "-next"
+        return httpx.Response(200, json=payload)
+
+    status = connector_with(handler).refresh(obs_route=obs_route())
+    assert status["connected"] is True and status["route_verified"] is True
+    assert pages == [("active", None), ("active", "active-next"),
+                     ("upcoming", None), ("upcoming", "upcoming-next")]
