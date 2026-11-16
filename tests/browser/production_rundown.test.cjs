@@ -92,3 +92,11 @@ test('Stop during already-sent Spotify action suppresses its late success feedba
   assert.equal(ui.calls.saved,0);assert.equal(ui.calls.events.length,0);assert.equal(ui.timers.size,0);
   assert.deepEqual(ui.calls.notices.map(item=>item[0]),['Rundown Stopped']);
 });
+
+test('scene follow-ups use authoritative returned scene rather than a stale local draft',async()=>{
+ const applied={id:'main',name:'Updated',transition:'fade',spotify_action:'pause',soundboard_action:'keep'};
+ const ui=app({api:async()=>({ok:true,program_slot:1,program_sources:['camera:1'],scene:applied})});
+ await ui.context.takeProductionScene({...applied,name:'Old',spotify_action:'play',soundboard_action:'stop'});
+ assert.deepEqual(ui.calls.spotify,['pause']);assert.equal(ui.calls.sounds,0);
+ assert.ok(ui.calls.events[0][1].includes('Updated'));
+});

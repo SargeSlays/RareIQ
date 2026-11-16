@@ -1693,7 +1693,9 @@ def test_reference_features_are_cached_and_invalidated_by_mtime(tmp_path, monkey
     reads = []
 
     def tracked_imread(value):
-        reads.append(value)
+        # Other background readers can share cv2; count this fixture's cache only.
+        if str(value) == str(path):
+            reads.append(value)
         return original_imread(value)
 
     monkeypatch.setattr(cv2, "imread", tracked_imread)

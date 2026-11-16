@@ -1,5 +1,37 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 — Guest production acceptance
+
+Verified with isolated generated media: two separate guest browser sessions,
+camera + shared-screen grid, camera/mic/screen-audio receipt in a separate Program
+window, waiting-guest exclusion, muted Preview, microphone deduplication,
+transition generation receipts, remove/leave cleanup, and an explicit producer
+microphone. Actual audio spectra verify mix-minus: other speakers are present,
+the recipient's own microphone is excluded, and stopping the host removes it.
+
+Full running studio and guest UI: dark/light at 1920x1080, 3840x2160, 960x900 and
+390x844; no horizontal overflow or nested dock scrollbars. Expected blocked legacy
+fixture reads are recorded separately from page failures. Component tests also
+exercise microphone permission cancellation, invitation retries, conflicts,
+activity-history failure/retry, and controls that remain off until clicked.
+
+Canonical release gate passed: **3098 Python tests and 358 JavaScript tests**.
+The restarted running studio passed a browser smoke check with zero page errors,
+working Guests navigation and all new tools mounted. Public ingress is disabled,
+voice is stopped, vision is inactive, alerts are paused and no show is active.
+Checkpoint evidence and command logs are under `F:\Temp\jonat\ProducerPlease-greenroom-20261115`.
+Additional audio and controls evidence is under
+`F:\Temp\jonat\RareIQ-greenroom-host-audio-20261115` and
+`F:\Temp\jonat\RareIQ-greenroom-controls-activity-20261115`.
+Pinned vision inference/UI evidence is under
+`F:\Temp\jonat\ProducerPlease-vision-20261115`.
+
+Not exercised: physical devices, mobile-browser capture, public HTTPS/relay,
+real StackThis login, real Twitch authorization/events, OBS composite receipt,
+stream/recording, or destination delivery. YouTube/Kick/follow/subscription event
+adapters and guest-composition replay remain unavailable. Guest session names
+are unverified. No hosting, credentials, billing or real output was activated.
+
 ## November 15, 2026 - Account boundary and membership foundation
 
 Canonical release gate passed: 2797 Python and 304 JavaScript tests. The focused

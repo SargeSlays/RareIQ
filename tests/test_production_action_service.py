@@ -5,6 +5,26 @@ from concurrent.futures import ThreadPoolExecutor
 from rareiq.services.production_action_service import ActionSpec, ProductionActions
 
 
+def test_trusted_origin_is_scoped_to_one_worker_call_and_does_not_leak():
+    actions = ProductionActions(capacity=1)
+    seen = []
+    def execute(params):
+        seen.append(actions.current_origin())
+        if params.get("fail"):
+            raise RuntimeError("fixture")
+        return {"ok": True}
+    actions.register(ActionSpec("fixture", lambda params: params, execute, "fixture"))
+    try:
+        assert actions.current_origin() is None
+        assert actions.dispatch("fixture", {}, origin="operator")["ok"]
+        assert not actions.dispatch("fixture", {"fail": True}, origin="host_voice")["ok"]
+        assert actions._pool.submit(actions.current_origin).result() is None
+        assert actions.current_origin() is None
+        assert seen == ["operator", "host_voice"]
+    finally:
+        actions.close()
+
+
 def rig(execute, **options):
     actions = ProductionActions(**options)
     def validate(params):
@@ -84,5 +104,21 @@ def test_retry_cannot_extend_expiry_then_escape_deduplication(monkeypatch):
         assert actions.dispatch("program.take", {"slot": 1}, origin="operator", request_id="A", expires_at=1100)["reason"] == "request_id_conflict"
         assert actions.dispatch("program.take", {"slot": 1}, origin="operator", request_id="A", expires_at=1010)["reason"] == "action_expired"
         assert len(calls) == 2
+    finally:
+        actions.close()
+
+
+def test_request_authorization_context_clears_after_worker_failure():
+    actions = ProductionActions(capacity=1)
+    seen = []
+    def execute(params):
+        seen.append(actions.current_request_id())
+        raise RuntimeError("fixture")
+    actions.register(ActionSpec("fixture", lambda params: params, execute, "fixture"))
+    try:
+        result = actions.dispatch("fixture", {}, origin="host_gesture", request_id="vision-fixture", expires_at=time.time()+5)
+        assert not result["ok"] and seen == ["vision-fixture"]
+        assert actions._pool.submit(actions.current_request_id).result() is None
+        assert actions.current_request_id() is None
     finally:
         actions.close()

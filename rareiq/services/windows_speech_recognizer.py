@@ -11,6 +11,7 @@ import time
 import wave
 from pathlib import Path
 from typing import Any
+from rareiq.services.voice_rule_store import MAX_RULES, normalize_phrase
 
 
 class WindowsSpeechRecognizer:
@@ -95,9 +96,22 @@ class WindowsSpeechRecognizer:
             raise ValueError("Speech audio must be mono 16 kHz PCM16 WAV, at most six seconds.") from None
 
     def recognize(self, wav: bytes) -> dict[str, Any]:
+        return self._recognize(wav)
+
+    def recognize_with_phrases(self, wav: bytes, phrases: list[str]) -> dict[str, Any]:
+        if not isinstance(phrases, list) or len(phrases) > MAX_RULES:
+            raise ValueError("Invalid custom voice grammar.")
+        normalized = [normalize_phrase(phrase) for phrase in phrases]
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("Invalid custom voice grammar.")
+        return self._recognize(wav, normalized)
+
+    def _recognize(self, wav: bytes, phrases: list[str] | None = None) -> dict[str, Any]:
         self._validate_wav(wav)
+        encoded = base64.b64encode(wav).decode("ascii")
+        payload = encoded if phrases is None else json.dumps({"audio": encoded, "phrases": phrases}, ensure_ascii=True)
         with self._lock:
-            value = self._invoke("recognize", base64.b64encode(wav).decode("ascii"))
+            value = self._invoke("recognize", payload)
         if value.get("ok") is not True:
             raise RuntimeError("Local speech recognition failed.")
         text, confidence = value.get("text"), value.get("confidence")

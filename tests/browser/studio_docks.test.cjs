@@ -50,3 +50,12 @@ test('old workspace selections migrate to audio docks without overriding an expl
   assert.deepEqual(sets.profiles[0].workspaces,['settings']);
   assert.deepEqual(normalizeSets(sets,ids),sets);
 });
+
+test('new guest tool starts below the switcher and preserves a saved user position',()=>{
+ const ids=['production-greenroom'];
+ assert.equal(normalize(null,ids).tools['production-greenroom'].position,'bottom');
+ assert.equal(normalize(null,ids).tools['production-greenroom'].visible,true);
+ const saved={version:1,tools:{'production-greenroom':{position:'top',visible:false}}};
+ assert.equal(normalize(saved,ids).tools['production-greenroom'].position,'top');
+ assert.equal(normalize(saved,ids).tools['production-greenroom'].visible,false);
+});

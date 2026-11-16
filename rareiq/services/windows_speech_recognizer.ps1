@@ -12,6 +12,18 @@ try {
     }
     if ($installed.Count -eq 0) { throw 'recognizer_unavailable' }
     $encoded = [Console]::In.ReadToEnd()
+    if ($encoded.Length -gt 270000) { throw 'audio_too_large' }
+    $customPhrases = @()
+    if ($encoded.StartsWith('{')) {
+        $request = $encoded | ConvertFrom-Json
+        if (($request.PSObject.Properties.Name | Sort-Object) -join ',' -ne 'audio,phrases') { throw 'invalid_voice_payload' }
+        if ($request.audio -isnot [string] -or $request.phrases -isnot [array] -or $request.phrases.Count -gt 24) { throw 'invalid_voice_payload' }
+        foreach ($phrase in $request.phrases) {
+            if ($phrase -isnot [string] -or $phrase.Length -lt 3 -or $phrase.Length -gt 60 -or $phrase -cnotmatch '^[a-z0-9]+( [a-z0-9]+)*$') { throw 'invalid_voice_phrase' }
+            $customPhrases += $phrase
+        }
+        $encoded = $request.audio
+    }
     if ($encoded.Length -gt 261524) { throw 'audio_too_large' }
     $bytes = [Convert]::FromBase64String($encoded)
     if ($bytes.Length -gt 196096) { throw 'audio_too_large' }
@@ -22,6 +34,9 @@ try {
     # rejection feedback. The session service remains the execution authority.
     foreach ($prefix in @('Producer please', 'Sarge', 'Hey Sarge', '')) {
         foreach ($command in @('camera one', 'camera two', 'camera three', 'camera four', 'camera 1', 'camera 2', 'camera 3', 'camera 4', 'cam one', 'cam two', 'cam three', 'cam four', 'cam 1', 'cam 2', 'cam 3', 'cam 4', 'clip that', 'save the last fifteen seconds', 'save the last thirty seconds', 'save the last sixty seconds', 'save the last one hundred twenty seconds')) {
+            $phrases.Add(($prefix + ' ' + $command).Trim())
+        }
+        foreach ($command in $customPhrases) {
             $phrases.Add(($prefix + ' ' + $command).Trim())
         }
     }

@@ -91,7 +91,7 @@ def test_helper_accepts_only_memory_audio_and_fixed_command_grammar():
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows in-memory speech proof")
-@pytest.mark.parametrize('phrase', ['Producer please save the last thirty seconds', 'camera two', 'Sarge cam one', 'Hey Sarge cam two', 'Hey Sarge camera three'])
+@pytest.mark.parametrize('phrase', ['Producer please save the last thirty seconds', 'camera two', 'Sarge cam one', 'Hey Sarge cam two', 'Hey Sarge camera three', 'Hey Sarge close up'])
 def test_installed_recognizer_understands_real_synthetic_wave_without_playback(phrase):
     recognizer = WindowsSpeechRecognizer()
     if not recognizer.capability()["available"]:
@@ -128,6 +128,8 @@ try {
         output.setsampwidth(2)
         output.setframerate(16000)
         output.writeframes(base64.b64decode(process.stdout.strip(), validate=True))
-    result = recognizer.recognize(memory.getvalue())
-    assert interpret_command(result['text'], 10, allow_bare=True) == interpret_command(phrase, 10, allow_bare=True)
+    rules = [{'phrase': 'close up', 'action_id': 'program.take', 'params': {'preview_slot': 2}}] if phrase == 'Hey Sarge close up' else []
+    result = (recognizer.recognize_with_phrases(memory.getvalue(), ['close up'])
+              if rules else recognizer.recognize(memory.getvalue()))
+    assert interpret_command(result['text'], 10, allow_bare=True, rules=rules) == interpret_command(phrase, 10, allow_bare=True, rules=rules)
     assert result["confidence"] >= 0.8

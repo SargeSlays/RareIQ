@@ -1,5 +1,32 @@
 # RareIQ: streaming-first product direction
 
+## November 15, 2026 — Guest productions and hands-free studio checkpoint
+
+Owner direction: Producer, Please is a general live-production studio for PCs and
+mobile browsers. Invite guests backstage, choose their camera/mic/screen/game
+sources, compose them with local cameras, and take Preview to Program with a
+transition. RareIQ remains a separate premium card add-on. Guest participation,
+producer account access and paid entitlement are distinct boundaries.
+
+Implemented and exercised locally: six-slot invitation room, producer admission,
+six-source compositions, explicit host microphone, conversation mix-minus,
+separate clean output, activity history, custom voice phrases, opt-in local
+gesture/head-direction practice and audience animation rules. Actual Chromium
+WebRTC tests use generated media; responsive checks cover 390/960/1920/3840 widths
+in dark/light. OBS remains the external encoder; no real broadcast was started.
+
+The optional Twitch first-chat/featured-chat observer is wired behind explicit
+local Connect and tested with simulated provider traffic. YouTube/Kick and
+follow/subscription adapters are still pending. A silent viewer arrival is not
+an observable welcome event. The prepared guest-only HTTPS ingress and short-lived
+TURN configuration are inactive. Public hosting, relay and real two-network/device
+acceptance remain required. Head direction is experimental, not eye tracking.
+
+Invitations identify guest sessions, not verified people. Program history labels
+operator/device/voice/gesture/renderer origins honestly; multi-producer personal
+login still requires the StackThis registration described below. No billing or
+premium enforcement was activated. See [Guest production guide](GUEST_PRODUCTION.md).
+
 ## November 15, 2026 - Account permission foundation (disabled)
 
 The scene service now supports server-verified subjects with owner/editor/viewer

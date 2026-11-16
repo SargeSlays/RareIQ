@@ -1,0 +1,82 @@
+body.pp-shell .production-greenroom { color:var(--pp-text); min-width:0; border:1px solid var(--pp-border); border-radius:14px; background:var(--pp-surface); container:greenroom / inline-size; }
+body.pp-shell .greenroom-heading { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:18px 20px; border-bottom:1px solid var(--pp-border); }
+body.pp-shell .greenroom-heading h3 { margin:4px 0; font-size:20px; letter-spacing:-.03em; }
+body.pp-shell .studio-dock-tool .greenroom-heading h3 { display:none; }
+body.pp-shell .greenroom-heading p { margin:0; font-size:12px; color:var(--pp-text-muted); line-height:1.5; }
+body.pp-shell .greenroom-eyebrow { font-size:10px; letter-spacing:.12em; color:var(--pp-primary-ink,var(--pp-primary)); font-weight:750; }
+body.pp-shell .greenroom-connection { padding:7px 10px; border:1px solid var(--pp-border); border-radius:20px; color:var(--pp-text-muted); font-size:11px; white-space:nowrap; }
+body.pp-shell .production-greenroom[data-connection="connected"] .greenroom-connection { color:var(--pp-connected); }
+body.pp-shell .greenroom-body { padding:18px 20px; display:grid; gap:16px; min-width:0; }
+body.pp-shell .production-greenroom [hidden] { display:none!important; }
+body.pp-shell .production-greenroom,body.pp-shell .production-greenroom * { box-sizing:border-box; }
+body.pp-shell .production-greenroom :is(h3,strong) { color:var(--pp-text); }
+body.pp-shell .production-greenroom :is(button,input,select,a) { font:inherit; }
+body.pp-shell .production-greenroom :is(input,select) { width:100%; min-width:0; height:40px; padding:8px 10px; border:1px solid var(--pp-border); border-radius:7px; background:var(--pp-surface); color:var(--pp-text); font-size:12px; }
+body.pp-shell .production-greenroom label { display:grid; gap:6px; min-width:0; color:var(--pp-text-muted); font-size:11px; }
+body.pp-shell .production-greenroom .riq-button { display:inline-flex; align-items:center; justify-content:center; min-height:40px; padding:9px 13px; white-space:normal; font-size:12px; line-height:1.2; border:1px solid var(--pp-control-border,var(--pp-border)); border-radius:7px; background:var(--pp-surface-raised); color:var(--pp-text); text-decoration:none; cursor:pointer; }
+body.pp-shell .production-greenroom .riq-button.primary { background:var(--pp-primary); border-color:var(--pp-primary); color:var(--pp-on-primary); font-weight:650; }
+body.pp-shell .production-greenroom .riq-button:not(:disabled):hover { border-color:var(--pp-primary); }
+body.pp-shell .production-greenroom :is(button,input,select,a,summary):focus-visible { outline:2px solid var(--pp-focus); outline-offset:3px; }
+body.pp-shell .production-greenroom :disabled { opacity:.55; cursor:not-allowed; }
+body.pp-shell .greenroom-room-bar,.greenroom-stage-heading,.greenroom-output { display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; align-items:center; font-size:12px; color:var(--pp-text-muted); }
+body.pp-shell .greenroom-invite { display:grid; grid-template-columns:minmax(150px,1fr) minmax(100px,.45fr) auto; gap:10px; align-items:end; margin:0; }
+body.pp-shell .greenroom-share { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:8px; align-items:end; padding:14px; background:var(--pp-surface-raised,var(--pp-surface)); border:1px solid var(--pp-primary); border-radius:10px; }
+body.pp-shell .greenroom-share input { font-family:ui-monospace,monospace; }
+body.pp-shell .greenroom-notice { margin:0; color:var(--pp-text-muted); font-size:12px; line-height:1.6; }
+body.pp-shell .greenroom-host { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:14px; padding:14px 0; border-block:1px solid var(--pp-border); }
+body.pp-shell .greenroom-host > div:first-child { display:grid; gap:5px; flex:1 1 210px; }
+body.pp-shell .greenroom-host strong { font-size:13px; }
+body.pp-shell .greenroom-host span { color:var(--pp-text-muted); font-size:11px; line-height:1.5; }
+body.pp-shell .greenroom-host > div:last-child { display:flex; gap:8px; flex-wrap:wrap; }
+body.pp-shell .greenroom-empty { padding:30px 22px; text-align:center; border:1px dashed var(--pp-border); border-radius:10px; }
+body.pp-shell .greenroom-empty strong { font-size:16px; }
+body.pp-shell .greenroom-empty p { max-width:440px; margin:8px auto 0; color:var(--pp-text-muted); font-size:12px; line-height:1.6; }
+body.pp-shell .greenroom-guests { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr)); gap:12px; min-width:0; }
+body.pp-shell .greenroom-guest { min-width:0; border:1px solid var(--pp-border); border-radius:11px; padding:12px; display:grid; gap:10px; }
+body.pp-shell .greenroom-guest[data-state="on-air"] { border-color:var(--pp-live); }
+body.pp-shell .greenroom-guest > header { display:flex; align-items:center; justify-content:space-between; gap:8px; min-width:0; }
+body.pp-shell .greenroom-guest > header > div { display:grid; gap:4px; min-width:0; }
+body.pp-shell .greenroom-guest [data-guest-name] { overflow-wrap:anywhere; font-size:14px; }
+body.pp-shell .greenroom-guest [data-guest-status],body.pp-shell .greenroom-mic-state { font-size:10px; color:var(--pp-text-muted); }
+body.pp-shell .greenroom-feeds { display:grid; grid-template-columns:1fr 1fr; gap:8px; min-width:0; }
+body.pp-shell .greenroom-feeds figure { position:relative; margin:0; min-width:0; aspect-ratio:16/10; background:var(--pp-surface-raised,var(--pp-surface)); border:1px solid var(--pp-border); border-radius:7px; overflow:hidden; }
+body.pp-shell .greenroom-feeds video { width:100%; height:100%; display:block; object-fit:contain; }
+body.pp-shell .greenroom-feeds figure > div { position:absolute; inset:0; display:grid; place-content:center; color:var(--pp-text-muted); font-size:11px; padding:10px; text-align:center; }
+body.pp-shell .greenroom-feeds figcaption { position:absolute; bottom:0; inset-inline:0; padding:4px 6px; background:var(--pp-surface); color:var(--pp-text-muted); font-size:9px; }
+body.pp-shell .greenroom-guest-actions,.greenroom-source-buttons { display:flex; gap:6px; flex-wrap:wrap; }
+body.pp-shell .greenroom-source-buttons { padding-top:10px; border-top:1px solid var(--pp-border); }
+body.pp-shell .greenroom-source-buttons .riq-button { flex:1; min-width:64px; min-height:36px; padding:7px; font-size:11px; }
+body.pp-shell .production-greenroom [aria-pressed="true"] { border-color:var(--pp-primary); color:var(--pp-primary); box-shadow:inset 0 0 0 1px var(--pp-primary); }
+body.pp-shell .greenroom-stage { display:grid; gap:12px; border-top:1px solid var(--pp-border); padding-top:18px; }
+body.pp-shell .greenroom-stage-heading strong { color:var(--pp-text); font-size:14px; }
+body.pp-shell .greenroom-camera-sources { display:flex; flex-wrap:wrap; gap:6px; }
+body.pp-shell .greenroom-camera-sources .riq-button { flex:1 1 95px; }
+body.pp-shell .greenroom-stage-controls { display:flex; flex-wrap:wrap; gap:9px; align-items:end; }
+body.pp-shell .greenroom-stage-controls label { flex:1 1 100px; }
+body.pp-shell .greenroom-stage [data-room-ready] { font-size:11px; color:var(--pp-text-muted); line-height:1.6; margin:0; }
+body.pp-shell .greenroom-invitations { padding-top:12px; border-top:1px solid var(--pp-border); }
+body.pp-shell .greenroom-invitations summary { font-size:12px; cursor:pointer; }
+body.pp-shell .greenroom-invitations summary span { margin-left:6px; color:var(--pp-text-muted); }
+body.pp-shell .greenroom-invite-row { display:grid; grid-template-columns:minmax(90px,1fr) minmax(80px,1fr) auto; gap:8px; align-items:center; border-bottom:1px solid var(--pp-border); padding:10px 0; font-size:11px; }
+body.pp-shell .greenroom-invite-row strong { overflow-wrap:anywhere; font-weight:550; }
+body.pp-shell .greenroom-invite-row span { color:var(--pp-text-muted); }
+body.pp-shell .greenroom-access-note { margin:0; font-size:10px; line-height:1.6; color:var(--pp-text-muted); }
+body.pp-shell .greenroom-activity { border-top:1px solid var(--pp-border); padding-top:12px; font-size:12px; min-width:0; }
+body.pp-shell .greenroom-activity summary { cursor:pointer; }
+body.pp-shell .greenroom-activity > p { color:var(--pp-text-muted); font-size:11px; line-height:1.5; }
+body.pp-shell .greenroom-activity-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; color:var(--pp-text-muted); }
+body.pp-shell .greenroom-activity ol { list-style:none; padding:0; margin:12px 0 0; display:grid; }
+body.pp-shell .greenroom-activity li { display:grid; grid-template-columns:minmax(110px,.4fr) minmax(0,1fr) auto; gap:10px; align-items:start; padding:12px 0; border-top:1px solid var(--pp-border); font-size:11px; line-height:1.5; }
+body.pp-shell .greenroom-activity li > div { display:grid; gap:3px; min-width:0; overflow-wrap:anywhere; }
+body.pp-shell .greenroom-activity time,body.pp-shell .greenroom-activity li > div > span { color:var(--pp-text-muted); }
+body.pp-shell .greenroom-activity-outcome { color:var(--pp-text); font-weight:600; }
+@container greenroom (max-width:600px){body.pp-shell .greenroom-activity li { grid-template-columns:minmax(0,1fr) auto; } body.pp-shell .greenroom-activity time { grid-column:1 / -1; }}
+body.pp-shell .greenroom-monitor-composition { flex:1; min-height:0; width:100%; aspect-ratio:16/9; position:relative; }
+body.pp-shell .greenroom-monitor-composition[hidden],body.pp-shell .production-monitor img.greenroom-legacy-hidden { display:none!important; }
+/* Own this component's palette above the legacy shell's broad important rules. */
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .production-greenroom :is(input,select) { background:var(--pp-input-bg)!important; color:var(--pp-input-text)!important; border-color:var(--pp-input-border)!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .production-greenroom .riq-button { background:var(--pp-surface-raised)!important; color:var(--pp-text)!important; border:1px solid var(--pp-control-border)!important; text-decoration:none!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .production-greenroom .riq-button.primary { background:var(--pp-primary)!important; color:var(--pp-on-primary)!important; border-color:var(--pp-primary-border)!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .production-greenroom [aria-pressed="true"] { background:var(--pp-selected)!important; color:var(--pp-selected-text)!important; border-color:var(--pp-selected-border)!important; box-shadow:none; }
+@media(max-width:700px){body.pp-shell .greenroom-invite { grid-template-columns:minmax(0,1fr) minmax(100px,.7fr); } body.pp-shell .greenroom-invite > button { grid-column:1 / -1; } body.pp-shell .greenroom-share { grid-template-columns:1fr 1fr; } body.pp-shell .greenroom-share > label { grid-column:1 / -1; } body.pp-shell .greenroom-heading,body.pp-shell .greenroom-body { padding:14px; } body.pp-shell .greenroom-heading h3 { font-size:18px; }}
+@container greenroom (max-width:600px){body.pp-shell .greenroom-invite { grid-template-columns:minmax(0,1fr) minmax(100px,.7fr); } body.pp-shell .greenroom-invite > button { grid-column:1 / -1; } body.pp-shell .greenroom-share { grid-template-columns:1fr 1fr; } body.pp-shell .greenroom-share > label { grid-column:1 / -1; } body.pp-shell .greenroom-invite-row { grid-template-columns:minmax(0,1fr) auto; } body.pp-shell .greenroom-invite-row span { grid-column:1; } body.pp-shell .greenroom-invite-row button { grid-column:2; grid-row:1 / span 2; }}

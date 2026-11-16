@@ -1,5 +1,31 @@
 # RareIQ Roadmap
 
+## November 15, 2026 — Guest production checkpoint
+
+- Locally implemented: private invitation room, admission/revocation, camera/mic/
+  screen tracks, producer microphone, room mix-minus, bounded shared compositions,
+  output-readiness checks, transitions and readable activity history.
+- Locally exercised: real browser peer connections with synthetic media, two
+  guests plus host, microphone deduplication, screen audio, source removal,
+  stale capture cancellation, and responsive integrated studio/guest pages.
+- Implemented with explicit practice/arm: custom voice phrases and local gesture/
+  calibrated head-direction controls, with manual/SAFE/loss revocation.
+- Audience rules/private previews are implemented. Twitch first/featured chat has
+  an opt-in adapter with simulated provider acceptance; other platforms/events
+  remain unavailable and their rules show that status.
+- Prepared but inactive: same-process guest-only loopback ingress for an approved
+  HTTPS proxy, and short-lived TURN credentials. Next external checkpoint needs
+  chosen hosting/domain/relay, explicit activation approval, and real phone/PC
+  tests across two networks. No unrestricted operator proxy is acceptable.
+- Still separate: StackThis identity-only registration, verified producer login,
+  role administration, and identity-attributed controls. No guest-session shortcut
+  to operator authority. RareIQ billing decisions remain unchanged.
+
+Before a real show: test physical camera/mic ownership and latency, voice/vision
+calibration, browser audio permissions, OBS receipt/recording and destination
+receipt. Local camera replay cannot export the new guest composition. See
+[Guest production](GUEST_PRODUCTION.md) and [Guest ingress](GUEST_INGRESS.md).
+
 ## November 15, 2026 - Disabled account access checkpoint
 
 Implemented and locally tested: explicit host owner setup, revisioned owner/editor/

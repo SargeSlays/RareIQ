@@ -1,0 +1,16 @@
+body.pp-shell .studio-voice-rules { margin-top:16px; padding-top:12px; border-top:1px solid var(--pp-border); color:var(--pp-text); }
+body.pp-shell .studio-voice-rules summary { cursor:pointer; font-weight:650; font-size:14px; }
+body.pp-shell .studio-voice-rules summary span { margin-left:8px; color:var(--pp-text-muted); font-size:11px; font-weight:400; }
+body.pp-shell .studio-voice-rules p { font-size:12px; line-height:1.6; color:var(--pp-text-muted); }
+body.pp-shell .voice-rules-list { display:grid; gap:12px; margin:14px 0; }
+body.pp-shell .voice-rule-row { display:grid; grid-template-columns:minmax(150px,1.2fr) minmax(130px,1fr) minmax(240px,2fr) auto; gap:10px; padding:12px; align-items:end; border:1px solid var(--pp-border); border-radius:8px; background:var(--pp-surface); min-width:0; }
+body.pp-shell .voice-rule-row label { display:grid; gap:5px; min-width:0; font-size:11px; color:var(--pp-text-muted); }
+body.pp-shell .voice-rule-row :is(input,select) { width:100%; min-width:0; height:38px; padding:7px 9px; border:1px solid var(--pp-border); border-radius:6px; background:var(--pp-background,var(--pp-surface)); color:var(--pp-text); font:inherit; font-size:12px; }
+body.pp-shell .voice-rule-settings { display:flex; flex-wrap:wrap; gap:8px; min-width:0; }
+body.pp-shell .voice-rule-settings label { flex:1 1 75px; }
+body.pp-shell .voice-rules-actions { display:flex; flex-wrap:wrap; gap:8px; }
+body.pp-shell .studio-voice-rules .riq-button { min-height:38px; padding:8px 12px; font-size:12px; }
+body.pp-shell .studio-voice-rules :is(input,select,summary,button):focus-visible { outline:2px solid var(--pp-focus); outline-offset:3px; }
+body.pp-shell .studio-voice-rules :disabled { cursor:not-allowed; opacity:.6; }
+@container (max-width:850px) { body.pp-shell .voice-rule-row { grid-template-columns:minmax(120px,1fr) minmax(120px,1fr); } body.pp-shell .voice-rule-settings { grid-column:1 / -1; } body.pp-shell .voice-rule-row > button { justify-self:start; } }
+@container (max-width:380px) { body.pp-shell .voice-rule-row { grid-template-columns:minmax(0,1fr); } }

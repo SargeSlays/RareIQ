@@ -20,6 +20,8 @@ def rig(monkeypatch):
     monkeypatch.setattr(server.time, "time", lambda: 100.0)
     monkeypatch.setattr(server, "PRODUCTION_SWITCHER_STATE", state)
     monkeypatch.setattr(server, "PRODUCTION_SCENES", [{"id": "test", "program_slot": 2, "screen_action": "show"}])
+    monkeypatch.setattr(server, "production_scene_store", SimpleNamespace(snapshot=lambda: {"scenes": server.PRODUCTION_SCENES}))
+    monkeypatch.setattr(server.greenroom_service, "record_production_event", lambda *args, **kwargs: None)
     monkeypatch.setattr(server, "orchestrator", SimpleNamespace(
         camera_manager=SimpleNamespace(camera_slots=lambda: [slot]),
         overlay_state=SimpleNamespace(get=forbidden, update=forbidden)))

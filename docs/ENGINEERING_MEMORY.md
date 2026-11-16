@@ -1,5 +1,47 @@
 # RareIQ engineering memory
 
+## November 15, 2026 — Guest media, lifecycle and output evidence
+
+- A pending device permission promise can resolve after Leave/pagehide. Capture
+  uses a lifecycle generation and stops every track returned to a stale request.
+  Six browser regressions cover late camera, mic and screen results.
+- Chromium exposed live received audio tracks/RTP while a Web Audio-only return
+  graph stayed silent. Always-muted media consumers, created only after explicit
+  conversation start, activate decoding. Real frequency tests prove host/other
+  guest return and self exclusion. Consumers release borrowed tracks without
+  stopping their owner and never enable audible monitoring themselves.
+- HTTP switcher polling can beat the signaling generation. Do not permanently
+  mark a render receipt sent when the receiver rejects that newer generation;
+  retry on refresh. A regression covers the poll/signaling race.
+- Require one output to receive the whole guest mix. A union of two partial output
+  readiness sets is insufficient. Readiness expires, and source availability,
+  browser rendering and platform receipt remain distinct layers.
+- Sequential socket sends let one slow recipient trip every healthy client's
+  watchdog. Isolate sends concurrently; bound send-lock and close waits, revoke
+  failed peers before cleanup, and recheck access on pushes and late messages.
+- Disconnect and room closure clear guest IDs from both composition buses,
+  including stale IDs absent from the current socket/history snapshot. Rejoining
+  cannot silently resume a prior Program selection.
+- SAFE revokes pending vision authorization inside the Program mutation lock.
+  A gesture's short-lived request authorization is rechecked inside that same
+  lock. Dispatch waits never hold the vision controller lock.
+- Scene automation reads the authoritative SQLite store even before a scene-list
+  request after restart. Browser audio follow-ups use the returned scene, not an
+  obsolete local draft. Hands-free scenes containing browser-only audio actions
+  reject before changing Program.
+- Integrated visual QA caught a mount API returning `{element, stop}` where the
+  studio expected an element; isolated component checks missed this boot failure.
+  Keep a full-page mount/interaction check alongside component baselines.
+- Tests observing global cv2 must count their fixture path, not concurrent catalog
+  reads. Main-app switcher tests stub activity writes or use a temporary database;
+  synthetic actions must not become real operator history.
+
+Guest public ingress must share the existing app/hub in one process and permit
+only exact guest routes. A second app process splits signaling; a generic proxy
+to loopback promotes public requests into operator trust. Strip cookies, forwarded
+identity and inherited request state at the dedicated boundary. Its optional
+listener has a separate bounded lifecycle and never implies public reachability.
+
 ## November 15, 2026 - Shared identities must not inherit legacy control access
 
 A role check on scene handlers alone leaves older control endpoints, static entry

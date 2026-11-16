@@ -5,13 +5,14 @@
   function create({borrow,request}){
     let generation=0,session=null,branch=null,pollTimer=null,busy=false,starting=false,sequence=0,audioAbort=null,polling=false,lastPoll=0;
     let state='stopped',message='Start Voice Mod before listening.',outcome='',mode='wake',pttDown=false;
-    let diagnostics=null,resultAt=null,openFlow=false;
+    let diagnostics=null,resultAt=null,openFlow=false,rulesEditor=null;
     const node=id=>host.document.getElementById(id);
     const local=()=>['localhost','127.0.0.1','[::1]','::1'].includes(host.location.hostname);
     const ready=()=>{const input=borrow();return input?.active&&input.context?.state==='running'&&input.source&&input.inputStream?.getAudioTracks().some(track=>track.readyState==='live');};
     const wakeInstruction=()=>openFlow?'Open flow: commands do not need a wake phrase.':'Begin each command with “Sarge” or “Hey Sarge”.';
     const armedMessage=()=>`${mode==='ptt'?`Hold Ctrl+Alt+V while speaking · ${pttDown?'host reports key held':'key not held'}.`:'Listening.'} ${wakeInstruction()} ${node('studioVoicePractice')?.checked?'Practice: no actions will run.':'Accepted commands can control Program and save clips.'}`;
     function refresh(){
+      rulesEditor?.setArmed(starting||Boolean(session));
       const available=local()&&ready(),start=node('studioVoiceStart'),stop=node('studioVoiceStop'),practice=node('studioVoicePractice');
       if(start){start.disabled=!available||starting||Boolean(session);start.title=!local()?'Use the local studio on this computer.':!available?'Start Voice Mod before listening.':'';}
       if(stop)stop.disabled=!starting&&!session;
@@ -110,6 +111,7 @@
     node('studioVoiceStart').addEventListener('click',start);
     node('studioVoiceStop').addEventListener('click',()=>stop());
     host.addEventListener('pagehide',()=>stop('Listening stopped because the studio closed.'));
+    rulesEditor=host.StudioVoiceRulesFactory?.create({container:node('studioVoiceControls'),request});
     refresh();return {start,stop,refresh,status:()=>({state,session_id:session,busy,starting,mode,open_flow:openFlow,ptt_down:pttDown})};
   }
   if(typeof module==='object'&&module.exports)module.exports={create};

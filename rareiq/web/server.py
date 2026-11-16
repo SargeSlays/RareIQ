@@ -37,8 +37,20 @@ from rareiq.services.instant_replay_service import InstantReplayService
 from rareiq.services.auto_clip_service import AutoClipService
 from rareiq.services.production_action_service import ActionSpec, ProductionActions
 from rareiq.services.production_scene_store import ProductionSceneStore
+from rareiq.services.production_composition import composition_state, validate_sources, LAYOUTS
+from rareiq.services.greenroom_service import GreenroomService, GreenroomError
+from rareiq.services.greenroom_network import GreenroomNetwork
+from rareiq.web.greenroom import GreenroomHub, PUBLIC_GUEST_PATHS
+from rareiq.web.guest_ingress_lifecycle import GuestIngressLifecycle
 from rareiq.web.shared_scene_access import SharedSceneAccessMiddleware, SharedScenePolicy, VerifiedPrincipal
 from rareiq.services.voice_command_service import VoiceCommandService, MAX_VOICE_BYTES
+from rareiq.services.voice_rule_store import VoiceRuleStore
+from rareiq.web.voice_rules_api import voice_rules_router
+from rareiq.services.audience_service import AudienceService
+from rareiq.web.audience import create_audience_router
+from rareiq.services.twitch_audience_connector import TwitchAudienceConnector
+from rareiq.web.twitch_audience import create_twitch_audience_router
+from rareiq.web.production_vision import create_production_vision_router
 from rareiq.services.windows_speech_recognizer import WindowsSpeechRecognizer
 from rareiq.services.inventory_service import MAX_RECEIPT_DATA_URL_CHARS
 from rareiq.services.recording_service import RecordingService
@@ -123,6 +135,7 @@ async def _read_bounded_json(request: Request, max_bytes: int = MAX_CONTROL_REQU
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     orchestrator.set_loop(asyncio.get_running_loop())
+    greenroom_service.reset_runtime()
     try:
         PRODUCTION_SCENES[:] = production_scene_store.snapshot()["scenes"]
     except (OSError, ValueError, sqlite3.Error):
@@ -156,9 +169,15 @@ async def lifespan(_app: FastAPI):
     freshness_task = asyncio.create_task(refresh_new_releases())
     instant_replay.start()
     auto_clip.start()
+    guest_ingress = GuestIngressLifecycle(_app, public_origin=greenroom_network.public_origin)
+    _app.state.guest_ingress = guest_ingress
+    greenroom_hub.ingress_status = guest_ingress.snapshot
     try:
+        await guest_ingress.start()
         yield
     finally:
+        await guest_ingress.close()
+        await twitch_audience_connector.close()
         await asyncio.to_thread(voice_commands.close)
         if not boot_task.done():
             boot_task.cancel()
@@ -211,6 +230,9 @@ main{{width:min(100%,420px);padding:28px;border:1px solid #1d5267;border-radius:
 
 @app.middleware("http")
 async def enforce_remote_access(request: Request, call_next):
+    # Guest capabilities are intentionally separate from operator pairing/login.
+    if request.url.path in PUBLIC_GUEST_PATHS:
+        return await call_next(request)
     if isinstance(request.scope.get("studio_principal"), VerifiedPrincipal):
         return await call_next(request)
     client_host = request.client.host if request.client else None
@@ -341,6 +363,12 @@ sarge_advisor = SargeAdvisorService.from_environment()
 
 def _request_body_limit(request: Request) -> int | None:
     path = request.url.path
+    if request.method == "POST" and (path in {"/guest/join", "/guest/leave"} or path.startswith("/api/production/greenroom/")):
+        return 4096
+    if request.method == "POST" and path.startswith("/api/production/audience/"):
+        return 32768
+    if request.method == "POST" and path.startswith("/api/production/vision/"):
+        return 16384
     if request.method == "POST" and path.startswith("/api/production/voice/"):
         return MAX_VOICE_BYTES if path.endswith("/audio") else 4096
     if request.method == "POST" and path == "/api/creator/assets":
@@ -831,6 +859,8 @@ class ProductionSwitcherRequest(BaseModel):
     request_id: str | None = Field(default=None, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
     expires_at: float | None = Field(default=None, allow_inf_nan=False)
     preview_slot: int | None = Field(default=None, ge=1, le=4)
+    preview_sources: list[str] | None = Field(default=None, max_length=6)
+    layout: Literal["auto", "grid", "spotlight"] | None = None
     transition: str | None = None
     duration_ms: int | None = Field(default=None, ge=0, le=5000)
 
@@ -842,6 +872,9 @@ class ProductionSceneRequest(BaseModel):
     name: str = Field(min_length=1, max_length=40)
     program_slot: int = Field(default=1, ge=1, le=4)
     preview_slot: int = Field(default=2, ge=1, le=4)
+    program_sources: list[str] | None = Field(default=None, max_length=6)
+    preview_sources: list[str] | None = Field(default=None, max_length=6)
+    layout: Literal["auto", "grid", "spotlight"] = "auto"
     transition: str = "fade"
     duration_ms: int = Field(default=500, ge=0, le=5000)
     spotify_action: str = "keep"
@@ -927,6 +960,54 @@ production_scene_store = ProductionSceneStore(
     storage.get_path("config_path") / "production_scenes.sqlite3",
     PRODUCTION_SCENE_PATH, DEFAULT_PRODUCTION_SCENES,
 )
+
+greenroom_service = GreenroomService(storage.get_path("config_path") / "greenroom.sqlite3", reset_runtime=False)
+try:
+    greenroom_network = GreenroomNetwork.from_environment()
+except (ValueError, TypeError):
+    greenroom_network = GreenroomNetwork()
+    LOGGER.warning("Guest network configuration is invalid; using local-only guest access.")
+
+def _greenroom_switcher():
+    with PRODUCTION_SWITCHER_LOCK:
+        return composition_state(PRODUCTION_SWITCHER_STATE)
+
+def _greenroom_removed(participant_id):
+    with PRODUCTION_SWITCHER_LOCK:
+        state = composition_state(PRODUCTION_SWITCHER_STATE)
+        changed = False
+        for bus in ("program", "preview"):
+            key = bus + "_sources"
+            remaining = [s for s in state[key] if not s.startswith(f"guest:{participant_id}:")]
+            if remaining != state[key]:
+                PRODUCTION_SWITCHER_STATE[key] = remaining
+                changed = True
+        if changed:
+            PRODUCTION_SWITCHER_STATE["generation"] += 1
+            PRODUCTION_SWITCHER_STATE["updated_at"] = time.time()
+
+def _greenroom_operator(connection):
+    return not SHARED_SCENE_ACCESS.enabled and REMOTE_ACCESS.authorizes(
+        connection.client.host if connection.client else None, connection.cookies.get(REMOTE_ACCESS_COOKIE))
+
+greenroom_hub = GreenroomHub(greenroom_service, authorize_operator=_greenroom_operator,
+    switcher=_greenroom_switcher, static_dir=STATIC_DIR, ice_servers=greenroom_network.ice_servers,
+    public_origin=lambda: greenroom_network.public_origin,
+    actor_kind=lambda request: "local_operator" if is_loopback_client(request.client.host if request.client else None) else "paired_lan_operator",
+    removed=_greenroom_removed)
+app.include_router(greenroom_hub.router)
+audience_service = AudienceService(storage.get_path("config_path") / "audience.sqlite3")
+
+def _twitch_audience_credentials():
+    # Called only after the host explicitly chooses Connect; never sent to a browser.
+    return {"client_id": os.getenv("RAREIQ_TWITCH_CLIENT_ID", "").strip(),
+            "channel_login": os.getenv("RAREIQ_TWITCH_CHANNEL_LOGIN", "").strip().lower(),
+            "user_access_token": os.getenv("RAREIQ_TWITCH_USER_ACCESS_TOKEN", "").strip()}
+
+twitch_audience_connector = TwitchAudienceConnector(audience_service, _twitch_audience_credentials)
+app.include_router(create_twitch_audience_router(twitch_audience_connector, _greenroom_operator))
+app.include_router(create_audience_router(audience_service, STATIC_DIR,
+    sources_provider=lambda: [twitch_audience_connector.cached_status()]))
 
 def _scene_actor(request: Request) -> str:
     # Device access does not identify a person. Never trust submitted actor names.
@@ -1873,7 +1954,9 @@ async def download_replay_clip(highlight_id: str):
     return FileResponse(path, media_type="video/mp4", filename=f"RareIQ-{highlight_id}.mp4", headers={"Cache-Control": "no-store"})
 
 production_actions = ProductionActions()
-voice_commands = VoiceCommandService(WindowsSpeechRecognizer(), production_actions)
+voice_commands = VoiceCommandService(WindowsSpeechRecognizer(), production_actions,
+    rules=VoiceRuleStore(storage.get_path("config_path") / "voice_rules.sqlite3", production_actions.validate_parameters))
+app.include_router(voice_rules_router(voice_commands))
 
 
 class VoiceStartRequest(BaseModel):
@@ -1931,6 +2014,9 @@ def _validate_production_action(model, payload: dict[str, Any]) -> dict[str, Any
 
 
 def _save_clip_action(payload: dict[str, Any]) -> dict[str, Any]:
+    sources = _greenroom_switcher()["program_sources"]
+    if len(sources) != 1 or not sources[0].startswith("camera:"):
+        return {"ok": False, "reason": "composition_replay_unavailable"}
     result = instant_replay.mark(payload["seconds"], payload["name"], export_video=True, ending_at=payload.get("ending_at"))
     return {"ok": result.get("created") is True, **result}
 
@@ -2143,7 +2229,7 @@ async def production_switcher_status():
     with PRODUCTION_SWITCHER_LOCK:
         slots = orchestrator.camera_manager.camera_slots()
         checked_at = time.time()
-        return {"ok": True, **PRODUCTION_SWITCHER_STATE, "slots": [
+        return {"ok": True, **composition_state(PRODUCTION_SWITCHER_STATE), "guest_output": greenroom_hub.output_status(), "slots": [
             {**slot, "production_readiness": _program_camera_readiness(
                 slots, slot["slot_id"], now=checked_at)} for slot in slots
         ]}
@@ -2157,44 +2243,99 @@ def _production_slot_is_ready(
     return bool(_program_camera_readiness(slots, slot_id)["ready"])
 
 
+def _production_source_problem(sources, *, require_output=False, slots=None):
+    try:
+        sources = validate_sources(sources)
+    except ValueError:
+        return {"ok": False, "reason": "invalid_production_sources"}
+    slots = orchestrator.camera_manager.camera_slots() if slots is None else slots
+    for source in sources:
+        if source.startswith("camera:"):
+            slot = int(source.rsplit(":", 1)[1])
+            if not _production_slot_is_ready(slot, slots):
+                return {"ok": False, "reason": "camera_slot_unavailable", "slot_id": slot, "source_id": source}
+        elif not greenroom_service.source_available(source):
+            return {"ok": False, "reason": "guest_source_unavailable", "source_id": source}
+        elif require_output and not greenroom_hub.source_ready(source):
+            return {"ok": False, "reason": "guest_output_not_ready", "source_id": source,
+                    "message": "Open Studio Output and wait for the guest feed before taking it to Program."}
+    if require_output and not greenroom_hub.composition_ready(sources):
+        return {"ok": False, "reason": "guest_output_not_ready",
+                "message": "Wait for one Studio Output window to receive the entire Preview mix."}
+    return None
+
+
+def _program_composition_readiness(slots, program_slot):
+    """General production may contain guests instead of a local camera."""
+    with PRODUCTION_SWITCHER_LOCK:
+        state = composition_state(PRODUCTION_SWITCHER_STATE)
+        sources = state["program_sources"]
+    if sources == [f"camera:{program_slot}"]:
+        return _program_camera_readiness(slots, program_slot)
+    problem = _production_source_problem(sources, require_output=True, slots=slots)
+    ready = bool(sources) and not problem
+    if ready and any(source.startswith("guest:") for source in sources):
+        ready = greenroom_hub.output_status()["rendered_generation"] == state["generation"]
+    return {"ready": ready, "state": "pass" if ready else "fail",
+            "reason": "composition_ready" if ready else (problem or {}).get("reason", "composition_not_rendered"),
+            "detail": f"{len(sources)} selected Program source(s) ready" if ready else "The selected Program mix is not yet rendering all its sources.",
+            "action": "" if ready else "Open Studio Output, check the selected sources, and take a ready Preview to Program.",
+            "slot_id": program_slot, "source_ids": sources, "frame_age_seconds": None}
+
+
 @app.post("/api/production/switcher/preview")
 async def production_switcher_preview(request: ProductionSwitcherRequest):
-    slots = orchestrator.camera_manager.camera_slots()
-    if (
-        request.preview_slot is not None
-        and not _production_slot_is_ready(request.preview_slot, slots)
-    ):
-        return JSONResponse(
-            status_code=409,
-            content={
-                "ok": False,
-                "reason": "camera_slot_unavailable",
-                "slot_id": request.preview_slot,
-            },
-        )
     with PRODUCTION_SWITCHER_LOCK:
-        if request.preview_slot is not None:
-            PRODUCTION_SWITCHER_STATE["preview_slot"] = request.preview_slot
+        vision_controller.manual_override()
+        state = composition_state(PRODUCTION_SWITCHER_STATE)
+        sources = request.preview_sources if request.preview_sources is not None else [f"camera:{request.preview_slot}"] if request.preview_slot else state["preview_sources"]
+        problem = _production_source_problem(sources)
+        if problem:
+            return JSONResponse(status_code=409, content=problem)
+        greenroom_service.record_production_event("program.preview", "preview", "requested", actor_kind="producer_control", details={"source_ids": sources})
+        PRODUCTION_SWITCHER_STATE["preview_sources"] = sources
+        camera = next((int(s.rsplit(":", 1)[1]) for s in sources if s.startswith("camera:")), None)
+        if camera is not None:
+            PRODUCTION_SWITCHER_STATE["preview_slot"] = camera
+        if request.layout:
+            PRODUCTION_SWITCHER_STATE["preview_layout"] = request.layout
         if request.transition in {"cut", "fade", "slide", "zoom"}:
             PRODUCTION_SWITCHER_STATE["transition"] = request.transition
         if request.duration_ms is not None:
             PRODUCTION_SWITCHER_STATE["duration_ms"] = request.duration_ms
         PRODUCTION_SWITCHER_STATE["updated_at"] = time.time()
-        return {"ok": True, **PRODUCTION_SWITCHER_STATE}
+        return {"ok": True, **composition_state(PRODUCTION_SWITCHER_STATE)}
 
 
 def _take_program_action(payload: dict[str, Any]) -> dict[str, Any]:
     request = ProductionSwitcherRequest.model_validate(payload)
     with PRODUCTION_SWITCHER_LOCK:
-        target = int(request.preview_slot or PRODUCTION_SWITCHER_STATE["preview_slot"])
-        slots = orchestrator.camera_manager.camera_slots()
-        if not _production_slot_is_ready(target, slots):
-            return {"ok": False, "reason": "camera_slot_unavailable", "slot_id": target}
+        origin = production_actions.current_origin()
+        if origin == "host_gesture":
+            if not vision_controller.action_authorized(production_actions.current_request_id()):
+                return {"ok": False, "reason": "gesture_action_expired"}
+        else:
+            vision_controller.manual_override()
+        state = composition_state(PRODUCTION_SWITCHER_STATE)
+        sources = request.preview_sources if request.preview_sources is not None else [f"camera:{request.preview_slot}"] if request.preview_slot else state["preview_sources"]
+        problem = _production_source_problem(sources, require_output=True)
+        if problem:
+            return problem
+        target = next((int(s.rsplit(":", 1)[1]) for s in sources if s.startswith("camera:")), int(state["preview_slot"]))
         previous = int(PRODUCTION_SWITCHER_STATE["program_slot"])
         transition = request.transition if request.transition in {"cut", "fade", "slide", "zoom"} else PRODUCTION_SWITCHER_STATE["transition"]
         duration = request.duration_ms if request.duration_ms is not None else PRODUCTION_SWITCHER_STATE["duration_ms"]
-        PRODUCTION_SWITCHER_STATE.update({"program_slot": target, "preview_slot": previous, "transition": transition, "duration_ms": 0 if transition == "cut" else duration, "generation": int(PRODUCTION_SWITCHER_STATE["generation"]) + 1, "updated_at": time.time()})
-        return {"ok": True, **PRODUCTION_SWITCHER_STATE}
+        generation = int(PRODUCTION_SWITCHER_STATE["generation"]) + 1
+        origin = production_actions.current_origin()
+        greenroom_service.record_production_event("program.take", "program", "requested",
+            actor_kind=origin if origin in {"host_voice", "host_gesture"} else "producer_control",
+            details={"generation": generation, "duration_ms": 0 if transition == "cut" else duration, "source_ids": sources})
+        PRODUCTION_SWITCHER_STATE.update({"program_slot": target, "preview_slot": previous,
+            "program_sources": sources, "preview_sources": state["program_sources"],
+            "program_layout": request.layout or state["preview_layout"], "preview_layout": state["program_layout"],
+            "transition": transition, "duration_ms": 0 if transition == "cut" else duration,
+            "generation": generation, "updated_at": time.time()})
+        return {"ok": True, **composition_state(PRODUCTION_SWITCHER_STATE)}
 
 production_actions.register(ActionSpec("program.take", lambda payload: _validate_production_action(ProductionSwitcherRequest, payload), _take_program_action, "program.camera", 8))
 
@@ -2728,7 +2869,7 @@ async def production_operator_health(workflow: Literal["studio", "cards"] = "stu
     overlay = orchestrator.overlay_state.get()
     connected = _connected_production_camera_count(slots)
     program_slot = int(PRODUCTION_SWITCHER_STATE.get("program_slot", 1))
-    program_camera = _program_camera_readiness(slots, program_slot)
+    program_camera = _program_composition_readiness(slots, program_slot)
     with PRODUCTION_SESSION_LOCK:
         session_active = bool(PRODUCTION_SESSION.get("active"))
         output_intent = dict(PRODUCTION_SESSION.get("output_intent") or {})
@@ -2808,7 +2949,7 @@ async def production_preflight(workflow: Literal["studio", "cards"] = "studio"):
     # OBS connection probes can take seconds. Sample the camera afterward so
     # waiting for an offline encoder cannot make a healthy camera look stale.
     slots = orchestrator.camera_manager.camera_slots()
-    program_camera = _program_camera_readiness(
+    program_camera = (_program_camera_readiness if workflow == "cards" else _program_composition_readiness)(
         slots,
         # Card startup deliberately recovers to slot 1; inspect the output that
         # will actually be used, not whichever preview happened to be selected.
@@ -2823,7 +2964,7 @@ async def production_preflight(workflow: Literal["studio", "cards"] = "studio"):
 
     add(
         "camera",
-        "Program camera",
+        "Program camera" if workflow == "cards" else "Program sources",
         "pass" if program_camera["ready"] else "fail",
         program_camera["detail"],
         program_camera["action"],
@@ -3575,8 +3716,12 @@ async def archived_production_session_report(session_id: str):
 @app.post("/api/production/safe")
 async def production_safe_recovery():
     with PRODUCTION_SWITCHER_LOCK:
+        vision_controller.manual_override()
         previous = int(PRODUCTION_SWITCHER_STATE.get("program_slot", 1))
-        PRODUCTION_SWITCHER_STATE.update({"program_slot": 1, "preview_slot": previous if previous != 1 else 2, "transition": "cut", "duration_ms": 0, "generation": int(PRODUCTION_SWITCHER_STATE.get("generation", 0)) + 1, "updated_at": time.time(), "active_scene_id": "main-card"})
+        PRODUCTION_SWITCHER_STATE.update({"program_slot": 1, "preview_slot": previous if previous != 1 else 2,
+            "program_sources": ["camera:1"], "preview_sources": [f"camera:{previous if previous != 1 else 2}"],
+            "program_layout": "auto", "preview_layout": "auto", "transition": "cut", "duration_ms": 0,
+            "generation": int(PRODUCTION_SWITCHER_STATE.get("generation", 0)) + 1, "updated_at": time.time(), "active_scene_id": "main-card"})
     overlay = orchestrator.overlay_state.get()
     screen = dict(overlay.get("production_screen") or {}) | {"visible": False, "generation": int((overlay.get("production_screen") or {}).get("generation", 0)) + 1}
     graphic = dict(overlay.get("broadcast_graphic") or {}) | {"visible": False, "preview": False, "generation": int((overlay.get("broadcast_graphic") or {}).get("generation", 0)) + 1}
@@ -3595,6 +3740,12 @@ async def production_safe_recovery():
 
 @app.post("/api/production/scenes")
 async def save_production_scene(request: ProductionSceneRequest, http_request: Request):
+    try:
+        for sources in (request.program_sources, request.preview_sources):
+            if sources is not None:
+                validate_sources(sources)
+    except ValueError:
+        return JSONResponse(status_code=400, content={"ok": False, "reason": "invalid_production_sources"})
     if request.transition not in {"cut", "fade", "slide", "zoom"} or request.spotify_action not in {"keep", "play", "pause"} or request.soundboard_action not in {"keep", "stop"} or request.screen_action not in {"keep", "show", "hide"} or request.screen_mode not in {"starting-soon", "brb", "ending", "countdown"} or request.screen_accent not in {"cyan", "purple", "gold", "green", "red"}:
         return JSONResponse(status_code=400, content={"ok": False, "reason": "invalid_scene_configuration"})
     scene = request.model_dump(exclude={"expected_revision", "request_id"})
@@ -3626,17 +3777,32 @@ async def delete_production_scene(scene_id: str, http_request: Request,
         except (OSError, ValueError, sqlite3.Error):
             return _scene_storage_error()
 
-@app.post("/api/production/scenes/{scene_id}/take")
-async def take_production_scene(scene_id: str):
+class SceneTakeRequest(BaseModel):
+    scene_id: str = Field(min_length=1, max_length=60)
+    request_id: str | None = Field(default=None, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
+    expires_at: float | None = Field(default=None, allow_inf_nan=False)
+
+
+def _take_scene_action(payload):
+    scene_id = payload["scene_id"]
     with PRODUCTION_SWITCHER_LOCK:
-        scene = next((item for item in PRODUCTION_SCENES if item.get("id") == scene_id), None)
-        if not scene: return JSONResponse(status_code=404, content={"ok": False, "reason": "scene_not_found"})
-        target = int(scene["program_slot"])
-        if not _production_slot_is_ready(target, orchestrator.camera_manager.camera_slots()):
-            return JSONResponse(status_code=409, content={"ok": False, "reason": "camera_slot_unavailable", "slot_id": target})
-        previous = int(PRODUCTION_SWITCHER_STATE["program_slot"])
-        transition = str(scene.get("transition") or "fade")
-        PRODUCTION_SWITCHER_STATE.update({"program_slot": int(scene["program_slot"]), "preview_slot": previous, "transition": transition, "duration_ms": 0 if transition == "cut" else int(scene.get("duration_ms") or 500), "generation": int(PRODUCTION_SWITCHER_STATE["generation"]) + 1, "updated_at": time.time(), "active_scene_id": scene_id})
+        try:
+            scenes = production_scene_store.snapshot()["scenes"]
+        except (OSError, ValueError, sqlite3.Error):
+            return {"ok": False, "reason": "scene_storage_unavailable"}
+        scene = next((item for item in scenes if item.get("id") == scene_id), None)
+        if not scene:
+            return {"ok": False, "reason": "scene_not_found"}
+        if production_actions.current_origin() in {"host_voice", "host_gesture"} and (
+            scene.get("soundboard_action", "keep") != "keep" or scene.get("spotify_action", "keep") != "keep"
+        ):
+            return {"ok": False, "reason": "scene_requires_audio_controls",
+                "detail": "This scene includes browser audio actions. Use its TAKE button, or choose a scene that keeps audio unchanged."}
+        result = _take_program_action({"preview_sources": scene.get("program_sources") if scene.get("program_sources") is not None else [f"camera:{scene['program_slot']}"],
+            "transition": scene.get("transition", "fade"), "duration_ms": scene.get("duration_ms", 500), "layout": scene.get("layout", "auto")})
+        if not result.get("ok"):
+            return result
+        PRODUCTION_SWITCHER_STATE["active_scene_id"] = scene_id
         screen_action = str(scene.get("screen_action") or "keep")
         screen = dict(orchestrator.overlay_state.get().get("production_screen") or {})
         if screen_action == "show":
@@ -3645,10 +3811,26 @@ async def take_production_scene(scene_id: str):
         elif screen_action == "hide":
             screen.update({"visible": False, "generation": int(screen.get("generation", 0)) + 1})
             orchestrator.overlay_state.update({"production_screen": screen})
-        response = {"ok": True, "scene": scene, "screen": screen, **PRODUCTION_SWITCHER_STATE}
-    try: response["obs"] = await asyncio.to_thread(obs.sync_scene, scene_id)
-    except (RuntimeError, ValueError, OSError) as exc: response["obs_warning"] = str(exc)
+        response = {"ok": True, "scene": scene, "screen": screen, **composition_state(PRODUCTION_SWITCHER_STATE)}
+    try:
+        response["obs"] = obs.sync_scene(scene_id)
+    except (RuntimeError, ValueError, OSError):
+        response["obs_warning"] = "OBS did not confirm the mapped scene."
     return response
+
+
+production_actions.register(ActionSpec("scene.take", lambda payload: _validate_production_action(SceneTakeRequest, payload), _take_scene_action, "program.scene", 8))
+
+vision_router, vision_controller = create_production_vision_router(production_actions,
+    production_actions.validate_parameters,
+    lambda slot: _program_camera_readiness(orchestrator.camera_manager.camera_slots(), slot),
+    orchestrator.camera_manager.slot_jpeg, enabled=True)
+app.include_router(vision_router)
+
+
+@app.post("/api/production/scenes/{scene_id}/take")
+async def take_production_scene(scene_id: str):
+    return await _dispatch_manual_action("scene.take", SceneTakeRequest(scene_id=scene_id), 409)
 
 def _rare_intelligence_lookup_context(current: dict[str, Any], multi_card: dict[str, Any]) -> tuple:
     """Identify the card/authority inputs, excluding frame and confidence churn."""

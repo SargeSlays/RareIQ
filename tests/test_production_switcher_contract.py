@@ -8,6 +8,7 @@ CONTROL = Path("rareiq/web/static/control.html").read_text(encoding="utf-8")
 STUDIO = Path("rareiq/web/static/studiox.js").read_text(encoding="utf-8")
 CSS = Path("rareiq/web/static/studiox_update15.css").read_text(encoding="utf-8")
 PROGRAM = Path("rareiq/web/static/program_view.html").read_text(encoding="utf-8")
+COMPOSITION = Path("rareiq/web/static/program_composition.js").read_text(encoding="utf-8")
 
 
 def test_production_switcher_api_tracks_preview_program_and_transitions():
@@ -18,7 +19,8 @@ def test_production_switcher_api_tracks_preview_program_and_transitions():
     assert '"preview_slot": 2' in SERVER
     assert 'transition in {"cut", "fade", "slide", "zoom"}' in SERVER
     assert '"generation"' in SERVER
-    assert SERVER.count('"reason": "camera_slot_unavailable"') == 3
+    assert 'problem = _production_source_problem(sources)' in SERVER
+    assert 'problem = _production_source_problem(sources, require_output=True)' in SERVER
 
 
 def test_production_switching_requires_a_connected_assigned_slot():
@@ -53,8 +55,9 @@ def test_switcher_ui_and_program_output_follow_shared_state():
     assert '.production-monitors' in CSS
     assert '.program-monitor' in CSS
     assert '.preview-monitor' in CSS
-    assert '/api/production/switcher' in PROGRAM
-    assert '/output/camera/${state.program_slot}' in PROGRAM
+    assert 'program_composition.js' in PROGRAM
+    assert '/api/production/switcher' in COMPOSITION
+    assert "iframe.src='/output/camera/'+source.slot" in COMPOSITION
     assert 'button.disabled=slot===program||!ready' in STUDIO
     assert '$("productionCut").disabled=!previewReady||preview===program' in STUDIO
     assert 'monitor.dataset.sourceState=ready?"connected"' in STUDIO

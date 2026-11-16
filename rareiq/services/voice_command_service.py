@@ -6,6 +6,7 @@ import hashlib
 import io
 import math
 import re
+import sqlite3
 import threading
 import time
 import uuid
@@ -15,7 +16,7 @@ from rareiq.services.windows_voice_keys import WindowsVoiceKeys
 MAX_VOICE_BYTES = 192044
 
 
-def interpret_command(text: str, ended_at: float, *, allow_bare=False):
+def interpret_command(text: str, ended_at: float, *, allow_bare=False, rules=()):
     words = re.sub(r'[^a-z0-9 ]', '', str(text).lower())
     words = ' '.join(words.split())
     prefixes = ('hey sarge ', 'sarge ') + (('producer please ',) if allow_bare else ())
@@ -33,6 +34,12 @@ def interpret_command(text: str, ended_at: float, *, allow_bare=False):
     for word, seconds in durations.items():
         if command in (f'save the last {word} seconds', f'save the last {seconds} seconds'):
             return 'clip.save', {'seconds': seconds, 'name': 'Voice highlight', 'ending_at': ended_at}
+    for rule in rules:
+        if command == rule['phrase']:
+            params = deepcopy(rule['params'])
+            if rule['action_id'] == 'clip.save':
+                params['ending_at'] = ended_at
+            return rule['action_id'], params
     return None
 
 
@@ -51,8 +58,10 @@ def validate_voice_wave(data: bytes) -> None:
 
 
 class VoiceCommandService:
-    def __init__(self, recognizer, actions, *, emergency_probe=None, key_monitor=None):
+    def __init__(self, recognizer, actions, *, emergency_probe=None, key_monitor=None, rules=None):
         self.recognizer, self.actions = recognizer, actions
+        self.rules = rules
+        self._session_rules, self._rules_revision = (), 0
         self._lock = threading.RLock()
         self._session = None
         self._cancel = threading.Event()
@@ -98,11 +107,38 @@ class VoiceCommandService:
             return {'ok': True, 'state': self._state, 'practice': self._practice,
                     'reason': self._reason, 'last_result': deepcopy(self._last),
                     'mode': self._mode, 'open_flow': self._open_flow,
+                    'rules_revision': self._rules_revision, 'custom_rule_count': len(self._session_rules),
                     'ptt_down': keys.get('ptt_down', False),
                     'diagnostics': {'shortcut_presses': keys.get('press_count', 0),
                                     'last_shortcut_at': keys.get('last_pressed_at'),
                                     'audio_sequence': max(0, self._sequence)},
                     'background_requirement': 'Existing microphone session must remain active'}
+
+    def rules_status(self):
+        with self._lock:
+            if self.rules is None:
+                return {'ok': False, 'reason': 'voice_rules_unavailable'}
+            try:
+                snapshot = self.rules.snapshot()
+            except (OSError, ValueError, sqlite3.Error):
+                return {'ok': False, 'reason': 'voice_rules_storage_unavailable'}
+            editable = not (self._session or self._busy or self._pending_action)
+            return {**snapshot, 'editable': editable,
+                    'reason': '' if editable else 'stop_voice_before_editing_rules',
+                    'actions': [item for item in self.actions.manifest() if item['id'] in {'program.take', 'scene.take', 'clip.save'}]}
+
+    def replace_rules(self, rules, expected_revision):
+        with self._lock:
+            if self._session or self._busy or self._pending_action:
+                return {'ok': False, 'reason': 'stop_voice_before_editing_rules'}
+            if self.rules is None:
+                return {'ok': False, 'reason': 'voice_rules_unavailable'}
+            try:
+                return self.rules.replace(rules, expected_revision)
+            except (ValueError, TypeError, KeyError):
+                return {'ok': False, 'reason': 'invalid_voice_rules'}
+            except (OSError, sqlite3.Error):
+                return {'ok': False, 'reason': 'voice_rules_storage_unavailable'}
 
     def start(self, *, practice=True, mode='wake', open_flow=False):
         with self._lock:
@@ -112,6 +148,12 @@ class VoiceCommandService:
                 return {'ok': False, 'reason': 'invalid_open_flow'}
             if self._session or self._busy:
                 return {'ok': False, 'reason': 'voice_session_active_or_finishing'}
+            try:
+                snapshot = self.rules.snapshot() if self.rules is not None else {'rules': [], 'revision': 0}
+            except (OSError, ValueError, sqlite3.Error):
+                return {'ok': False, 'reason': 'voice_rules_storage_unavailable'}
+            if snapshot['rules'] and not callable(getattr(self.recognizer, 'recognize_with_phrases', None)):
+                return {'ok': False, 'reason': 'custom_voice_grammar_unavailable'}
             capability = self.recognizer.capability()
             if not capability.get('available'):
                 return {'ok': False, 'reason': capability.get('reason') or 'speech_unavailable'}
@@ -119,6 +161,8 @@ class VoiceCommandService:
             if not key_result.get('ok'):
                 return {'ok': False, 'reason': key_result.get('reason') or 'voice_shortcut_unavailable'}
             self._mode = mode
+            self._session_rules = tuple(deepcopy(snapshot['rules']))
+            self._rules_revision = snapshot['revision']
             self._session = uuid.uuid4().hex
             self._cancel = threading.Event()
             self._practice = bool(practice)
@@ -140,6 +184,7 @@ class VoiceCommandService:
             self._cancel.set()
             self.keys.stop()
             self._session = None
+            self._session_rules = ()
             self._open_flow = False
             self._state, self._reason, self._last = 'stopped', reason, None
             self._pending_action = None
@@ -162,7 +207,7 @@ class VoiceCommandService:
                 if payload.get('shorter_than_requested'):
                     message += ' Less history was available than requested.'
             else:
-                message = f"Program camera {payload.get('program_slot')} selected."
+                message = 'Scene selected for Program.' if result.get('action_id') == 'scene.take' else f"Program camera {payload.get('program_slot')} selected."
         return {key: value for key, value in {'ok': result.get('ok') is True, 'state': state, 'at': time.time(),
                 'action_id': result.get('action_id'), 'reason': result.get('reason') or payload.get('reason'), 'message': message}.items() if value is not None}
 
@@ -194,16 +239,17 @@ class VoiceCommandService:
             self._busy, self._state = True, 'recognizing'
             self._heartbeat_at = time.monotonic()
             self._sequence, self._digest = sequence, digest
-            cancelled, practice, open_flow = self._cancel, self._practice, self._open_flow
+            cancelled, practice, open_flow, rules = self._cancel, self._practice, self._open_flow, self._session_rules
         try:
-            recognized = self.recognizer.recognize(data)
+            recognized = (self.recognizer.recognize_with_phrases(data, [rule['phrase'] for rule in rules])
+                          if rules else self.recognizer.recognize(data))
             text = recognized.get('text', '')
-            command = interpret_command(text, ended_at, allow_bare=open_flow)
+            command = interpret_command(text, ended_at, allow_bare=open_flow, rules=rules)
             confidence = recognized.get('confidence', 0)
             if not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or not math.isfinite(confidence) or not .8 <= confidence <= 1:
                 result = {'ok': False, 'state': 'rejected', 'reason': 'command_not_recognized'}
             elif not command:
-                reason = 'wake_phrase_required' if not open_flow and interpret_command(text, ended_at, allow_bare=True) else 'command_not_recognized'
+                reason = 'wake_phrase_required' if not open_flow and interpret_command(text, ended_at, allow_bare=True, rules=rules) else 'command_not_recognized'
                 result = {'ok': False, 'state': 'rejected', 'reason': reason}
             elif time.time() > ended_at + 15:
                 result = {'ok': False, 'state': 'rejected', 'reason': 'voice_command_expired'}

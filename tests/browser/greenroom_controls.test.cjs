@@ -1,0 +1,84 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const controls=require('../../rareiq/web/static/greenroom_controls.js');
+const {sourceAvailable,togglePreview,takeReadiness,createRequests}=controls;
+function fixture(){
+  const participants=Array.from({length:3},(_,i)=>{const id=String(i+1).repeat(32);return {id,state:'admitted',connected:true,media:{camera:true,screen:true,microphone:true},sources:{camera:`guest:${id}:camera`,screen:`guest:${id}:screen`,audio:`guest:${id}:audio`}};});
+  return {room:{participants,output:{connected:1,ready_sources:participants.flatMap(p=>Object.values(p.sources))}},switcher:{program_sources:['camera:1'],preview_sources:['camera:2'],program_layout:'auto',preview_layout:'auto',slots:[{slot_id:1,source_id:'local-1',connected:true,production_readiness:{ready:true}},{slot_id:2,source_id:null,connected:false,production_readiness:{ready:false}}]}};
+}
+test('Adding a guest replaces unavailable legacy Preview, retaining ready local cameras',()=>{
+  const {room,switcher}=fixture(),source=room.participants[0].sources.camera;
+  assert.deepEqual(togglePreview(source,switcher,room),[source]);
+  switcher.preview_sources=['camera:1','camera:2'];
+  assert.deepEqual(togglePreview(source,switcher,room),['camera:1',source]);
+});
+test('Waiting, disconnected and disabled media never become selectable',()=>{
+  const {room,switcher}=fixture(),person=room.participants[0];
+  for(const state of ['waiting','removed']){person.state=state;assert.equal(sourceAvailable(person.sources.camera,switcher,room),false);}
+  person.state='admitted';person.connected=false;assert.throws(()=>togglePreview(person.sources.audio,switcher,room),/source_unavailable/);
+  person.connected=true;person.media.microphone=false;assert.equal(sourceAvailable(person.sources.audio,switcher,room),false);
+  assert.equal(sourceAvailable(person.sources.screen,switcher,room),true);
+  assert.equal(sourceAvailable('camera:4',switcher,room),false);
+});
+test('Preview supports six sources, toggles off and preserves intentional empty arrays',()=>{
+  const {room,switcher}=fixture(),sources=room.participants.flatMap(p=>Object.values(p.sources));
+  switcher.preview_sources=sources.slice(0,6);
+  assert.throws(()=>togglePreview(sources[6],switcher,room),/preview_source_limit/);
+  assert.equal(togglePreview(sources[0],switcher,room).length,5);
+  switcher.preview_sources=[];assert.deepEqual(togglePreview(sources[0],switcher,room),[sources[0]]);
+  assert.equal(takeReadiness(switcher,room).ready,false);
+});
+test('Guest Take requires received output feeds, source availability and a changed composition',()=>{
+  const {room,switcher}=fixture(),source=room.participants[0].sources.camera;
+  switcher.preview_sources=[source];assert.equal(takeReadiness(switcher,room).ready,true);
+  room.output.ready_sources=[];assert.equal(takeReadiness(switcher,room).ready,false);
+  room.output.ready_sources=[source];switcher.program_sources=[source];assert.equal(takeReadiness(switcher,room).ready,false);
+  switcher.preview_layout='grid';assert.equal(takeReadiness(switcher,room).ready,true);
+  room.participants[0].connected=false;assert.equal(takeReadiness(switcher,room).ready,false);
+});
+test('Local camera readiness needs a connected source and explicit production readiness',()=>{
+  const {room,switcher}=fixture();assert.equal(sourceAvailable('camera:1',switcher,room),true);
+  delete switcher.slots[0].production_readiness;assert.equal(sourceAvailable('camera:1',switcher,room),false);
+});
+test('One output must have the complete guest shot; separate output readiness cannot be combined',()=>{
+  const {room,switcher}=fixture(),a=room.participants[0].sources.camera,b=room.participants[1].sources.camera;
+  switcher.preview_sources=[a,b];room.output.ready_sources=[a,b];room.output.ready_groups=[[a],[b]];
+  assert.equal(takeReadiness(switcher,room).ready,false);
+  room.output.ready_groups=[[a],[a,b]];assert.equal(takeReadiness(switcher,room).ready,true);
+  room.output.ready_groups=[];assert.equal(takeReadiness(switcher,room).ready,false);
+  delete room.output.ready_groups;assert.equal(takeReadiness(switcher,room).ready,true,'older hosts use their readiness union');
+});
+test('Mutation retries reuse their original receipt and revision after an uncertain response',async()=>{
+  let revision=7,serial=0;const calls=[];
+  const api=createRequests(async(path,options)=>{calls.push({path,...JSON.parse(options.body)});if(calls.length===1)throw Error('network');return {ok:true,status:200,json:async()=>({ok:true})};},()=>revision,()=>`receipt-${++serial}`);
+  await assert.rejects(api.mutate('/invites',{label:'Guest'}),/connection_unavailable/);
+  revision=10;await api.mutate('/invites',{label:'Guest'});assert.deepEqual(calls[0],calls[1]);
+  await api.mutate('/invites',{label:'Guest'});assert.equal(calls[2].expected_revision,10);assert.notEqual(calls[2].request_id,calls[1].request_id);
+});
+test('Authoritative conflicts clear the old receipt without dropping the caller draft',async()=>{
+  let serial=0;const calls=[],draft={label:'Unchanged guest'};
+  const api=createRequests(async(path,options)=>{calls.push(JSON.parse(options.body));return calls.length===1?{ok:false,status:409,json:async()=>({ok:false,reason:'room_revision_conflict'})}:{ok:true,status:200,json:async()=>({ok:true})};},()=>calls.length?8:7,()=>`receipt-${++serial}`);
+  await assert.rejects(api.mutate('/invites',draft),/room_revision_conflict/);await api.mutate('/invites',draft);
+  assert.equal(draft.label,'Unchanged guest');assert.equal(calls[1].expected_revision,8);assert.notEqual(calls[0].request_id,calls[1].request_id);
+});
+test('Repeated mutation clicks are serialized and busy clears after completion',async()=>{
+  let finish;const api=createRequests(()=>new Promise(resolve=>{finish=resolve;}),()=>1,()=> 'receipt');
+  const first=api.mutate('/room',{});assert.equal(api.busy(),true);
+  await assert.rejects(api.mutate('/room',{}),/producer_request_busy/);
+  finish({ok:true,status:200,json:async()=>({ok:true})});await first;assert.equal(api.busy(),false);
+});
+test('Unknown server failures never expose response contents in UI errors',async()=>{
+  const api=createRequests(async()=>({ok:false,status:403,json:async()=>({reason:'private / secret <content>'})}),()=>1);
+  await assert.rejects(api.request('/read'),error=>error.message==='request_rejected'&&error.status===403);
+});
+test('Activity labels expose actor type and verified truth without private identifiers or raw details',()=>{
+  const event={actor_kind:'host_voice',actor_id:'private-account-id',identity_verified:false,action:'program.take',outcome:'requested',target:'private-peer-id',timestamp:123,details:{token:'private-token'}};
+  const entry=controls.activityEntry(event);assert.equal(entry.actor,'Voice');assert.equal(entry.outcome,'Requested');assert.equal(entry.verified,false);
+  assert.ok(!JSON.stringify(entry).includes('private-'));
+  assert.equal(controls.activityEntry({...event,actor_kind:'program_renderer',action:'program.rendered',outcome:'confirmed'}).outcome,'Renderer confirmed');
+  assert.equal(controls.activityEntry({...event,actor_kind:'verified_account',identity_verified:true}).verified,true);
+  assert.equal(controls.activityEntry({...event,identity_verified:'true'}).verified,false);
+  const hostile='<img src=x onerror=alert(1)>';
+  assert.equal(controls.activityEntry({...event,action:'guest.admit',target:'guest'},[{id:'guest',name:hostile}]).guest,hostile);
+  assert.equal(controls.activityEntry({...event,actor_kind:hostile}).actor,'Unidentified source');
+});

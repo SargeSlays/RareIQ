@@ -12,3 +12,4 @@ pydantic==2.11.7
 rapidocr==3.9.1
 starlette==0.47.3
 uvicorn==0.35.0
+websockets==16.1

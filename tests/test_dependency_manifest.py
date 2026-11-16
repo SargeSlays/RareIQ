@@ -23,6 +23,7 @@ IMPORT_TO_DISTRIBUTION = {
     "rapidocr": "rapidocr",
     "starlette": "starlette",
     "uvicorn": "uvicorn",
+    "websockets": "websockets",
 }
 
 
@@ -42,7 +43,7 @@ def test_active_runtime_imports_are_declared() -> None:
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 imported.update(alias.name.split(".")[0] for alias in node.names)
-            elif isinstance(node, ast.ImportFrom) and node.module:
+            elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
                 imported.add(node.module.split(".")[0])
 
     external = imported - set(sys.stdlib_module_names) - {"rareiq"}

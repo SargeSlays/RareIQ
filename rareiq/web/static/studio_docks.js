@@ -1,7 +1,7 @@
 (function(root){
   "use strict";
   const KEY="rareiq.studio.docks.v1", POSITIONS=["left","right","top","bottom","float"];
-  const DEFAULTS={"production-scenes":"left","show-preflight":"right","production-session":"bottom","operator-health":"bottom"};
+  const DEFAULTS={"production-scenes":"left","show-preflight":"right","production-session":"bottom","operator-health":"bottom","production-greenroom":"bottom"};
   const SETS_KEY="rareiq.studio.toolsets.v1";
   const WORKSPACES={soundboard:"Soundboard","voice-mod":"Voice studio","camera-fx":"Camera effects",spotify:"Spotify DJ",creator:"Creator studio",live:"RareIQ Card Studio",collection:"Collection",ai:"AI Lab",library:"Reference library",settings:"Studio settings"};
   const PORTABLE={soundboard:".soundboard-app-shell","voice-mod":".voice-mod-shell"};
@@ -102,7 +102,10 @@
       finally{navigating=false;launcher.value="";}
     }
     launcher.setAttribute("aria-label","Open session workspace");launcher.addEventListener("change",()=>openWorkspace(launcher.value));
-    toolbar.append(viewChoice,title,launcher,toolsButton,fullscreen);
+    const guestsButton=button("Guests",()=>workspace._studioDocks?.showTool("production-greenroom"));
+    guestsButton.title="Open the guest green room";
+    guestsButton.hidden=!registry.has("production-greenroom");
+    toolbar.append(viewChoice,title,launcher,guestsButton,toolsButton,fullscreen);
     const drawerHeader=el("header","studio-tool-drawer-heading"),drawerTitle=el("h2","","Session tools"),close=button("Close",()=>library.close());
     drawerHeader.append(drawerTitle,close);
     const help=el("p","","Choose your tools for Live Control. Workspaces are added to Open session workspace. Selection does not start a show, playback, or recording.");
@@ -241,7 +244,7 @@
     if(typeof ResizeObserver!=="undefined")new ResizeObserver(()=>{for(const [id,item] of registry)if(state.tools[id].position==="float")clampFloat(item,state.tools[id]);}).observe(grid);
     workspace.dataset.studioDocks="ready";
     if(typeof ResizeObserver!=="undefined")new ResizeObserver(fitFrame).observe(workspace);
-    workspace._studioDocks={syncWorkspace(name){activeWorkspace=name;render();},setView(next){view=next;render();},snapshot(){return normalize(state,[...registry.keys()]);}};
+    workspace._studioDocks={syncWorkspace(name){activeWorkspace=name;render();},setView(next){view=next;render();},showTool(id){if(!registry.has(id))return false;state.tools[id].visible=true;view=registry.get(id).view;root.setBroadcastWorkspaceView?.(view);render();save();registry.get(id).options.focus({preventScroll:true});registry.get(id).panel.scrollIntoView({block:"start",behavior:root.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});return true;},snapshot(){return normalize(state,[...registry.keys()]);}};
     render();return workspace._studioDocks;
   }
   const api=Object.freeze({init,normalize,normalizeSets,KEY,SETS_KEY,POSITIONS,WORKSPACES,PORTABLE});

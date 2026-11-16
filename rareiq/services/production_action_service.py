@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError
+from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass
 import json
@@ -15,6 +16,9 @@ import threading
 import time
 from typing import Any, Callable
 import uuid
+
+_ACTION_ORIGIN = ContextVar("production_action_origin", default=None)
+_ACTION_REQUEST = ContextVar("production_action_request", default=None)
 
 
 @dataclass(frozen=True)
@@ -44,6 +48,24 @@ class ProductionActions:
                  "risk": "production", "timeout_seconds": item.timeout_seconds}
                 for item in self._specs.values()]
 
+    def validate_parameters(self, action_id: str, params: dict[str, Any]) -> dict[str, Any]:
+        """Validate a configured binding without scheduling or executing it."""
+        spec = self._specs.get(action_id)
+        if spec is None or not isinstance(params, dict):
+            raise ValueError("unknown_action")
+        normalized = spec.validate(deepcopy(params))
+        json.dumps(normalized, allow_nan=False)
+        return deepcopy(normalized)
+
+    @staticmethod
+    def current_origin() -> str | None:
+        """Trusted dispatch origin, scoped only to the executing worker call."""
+        return _ACTION_ORIGIN.get()
+
+    @staticmethod
+    def current_request_id() -> str | None:
+        return _ACTION_REQUEST.get()
+
     @staticmethod
     def _result(state: str, reason: str, **details: Any) -> dict[str, Any]:
         return {"ok": False, "state": state, "reason": reason, **details}
@@ -52,7 +74,7 @@ class ProductionActions:
                  request_id: str | None = None, expires_at: float | None = None,
                  practice: bool = False, cancelled: Callable[[], bool] = lambda: False) -> dict[str, Any]:
         # Origin is supplied by a trusted host adapter, never inferred from text.
-        if origin not in {"operator", "host_voice"}:
+        if origin not in {"operator", "host_voice", "host_gesture"}:
             return self._result("rejected", "untrusted_action_origin")
         spec = self._specs.get(action_id)
         if spec is None:
@@ -85,7 +107,16 @@ class ProductionActions:
                         self._requests.pop(old)
                 if len(self._requests) >= self._retained:
                     return self._result("rejected", "action_capacity_reached")
-                future = self._pool.submit(lambda: {"ok": False, "reason": "action_cancelled"} if cancelled() else spec.execute(normalized))
+                def execute():
+                    token = _ACTION_ORIGIN.set(origin)
+                    request_token = _ACTION_REQUEST.set(key)
+                    try:
+                        return {"ok": False, "reason": "action_cancelled"} if cancelled() else spec.execute(normalized)
+                    finally:
+                        _ACTION_REQUEST.reset(request_token)
+                        _ACTION_ORIGIN.reset(token)
+
+                future = self._pool.submit(execute)
                 self._requests[key] = (fingerprint, future, time.time() + 120)
         try:
             payload = deepcopy(future.result(timeout=spec.timeout_seconds))

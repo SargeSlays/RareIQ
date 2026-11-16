@@ -30,7 +30,7 @@ def test_operator_health_and_safe_recovery_apis_exist():
         SERVER.index("async def production_operator_health") :
         SERVER.index('@app.get("/api/production/preflight")')
     ]
-    assert "program_camera = _program_camera_readiness(slots, program_slot)" in operator_health
+    assert "program_camera = _program_composition_readiness(slots, program_slot)" in operator_health
     assert '"program_camera": program_camera' in operator_health
     assert '"session_active": session_active' in operator_health
     assert '"output_intent": output_intent' in operator_health

@@ -1,62 +1,16 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="producer-program-page">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Producer, Please — Program Output</title>
   <link rel="icon" type="image/svg+xml" href="/static/brand/producer-please-v2/favicon.svg?v=2.0">
-  <style>
-    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
-    .program{position:relative;width:100%;height:100%;overflow:hidden;background:#000}
-    .program-frame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000;transition:opacity var(--duration,0ms) ease,transform var(--duration,0ms) ease}
-    .program-frame.out{opacity:0;pointer-events:none}
-    .program[data-transition="slide"] .program-frame.out{transform:translateX(-12%)}
-    .program[data-transition="zoom"] .program-frame.out{transform:scale(1.08)}
-    .program-bug{position:absolute;inset:auto 20px 18px auto;width:34px;height:34px;object-fit:contain;opacity:.5;pointer-events:none}
-  </style>
+  <link rel="stylesheet" href="/static/program_composition.css?v=20261115-1">
 </head>
 <body>
-  <main class="program" id="program" aria-label="Program output">
-    <iframe id="programA" class="program-frame out" title="Program camera A"></iframe>
-    <iframe id="programB" class="program-frame out" title="Program camera B"></iframe>
-    <img class="program-bug" src="/static/brand/rareiq_icon_transparent.png" alt="" aria-hidden="true">
-  </main>
+  <main id="program" data-producer-program-output aria-label="Clean Program output"></main>
   <script src="/static/overlay_runtime.js?v=1"></script>
-  <script>
-    const stage=document.getElementById('program');
-    const frames=[document.getElementById('programA'),document.getElementById('programB')];
-    let active=0,generation=-1,programSlot=null,transitionTimer;
-    function clearProgram(){
-      clearTimeout(transitionTimer);
-      generation=-1;programSlot=null;
-      for(const frame of frames){frame.classList.add('out');frame.removeAttribute('src');}
-    }
-    RareIQOverlay.start({
-      interval:300,
-      load:signal=>RareIQOverlay.json('/api/production/switcher',signal),
-      clear:clearProgram,
-      render:state=>{
-        if(!Number.isInteger(state.generation)||![1,2,3,4].includes(state.program_slot)){
-          clearProgram();return;
-        }
-        if(state.generation!==generation||state.program_slot!==programSlot){
-          generation=state.generation;
-          programSlot=state.program_slot;
-          clearTimeout(transitionTimer);
-          const incoming=frames[1-active],outgoing=frames[active];
-          const transition=['cut','fade','slide','zoom'].includes(state.transition)?state.transition:'cut';
-          const duration=transition==='cut'?0:Math.max(0,Math.min(2000,Number(state.duration_ms)||0));
-          stage.dataset.transition=transition;
-          stage.style.setProperty('--duration',`${duration}ms`);
-          // Reuse the clean output's reconnect/stale-frame handling and capture owner.
-          incoming.src=`/output/camera/${state.program_slot}`;
-          incoming.classList.remove('out');
-          outgoing.classList.add('out');
-          active=1-active;
-          transitionTimer=setTimeout(()=>outgoing.removeAttribute('src'),duration);
-        }
-      }
-    });
-  </script>
+  <script src="/static/greenroom_media.js?v=20261115-1"></script>
+  <script src="/static/program_composition.js?v=20261115-1"></script>
 </body>
 </html>

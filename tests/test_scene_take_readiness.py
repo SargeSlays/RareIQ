@@ -16,6 +16,7 @@ def test_scene_rejects_unavailable_camera_before_any_effect(monkeypatch, slot):
         pytest.fail('A rejected scene must not change overlays or OBS')
     monkeypatch.setattr(server, 'PRODUCTION_SWITCHER_STATE', state)
     monkeypatch.setattr(server, 'PRODUCTION_SCENES', [{'id': 'fixture', 'program_slot': 2, 'screen_action': 'show'}])
+    monkeypatch.setattr(server, 'production_scene_store', SimpleNamespace(snapshot=lambda: {'scenes': server.PRODUCTION_SCENES}))
     monkeypatch.setattr(server, 'orchestrator', SimpleNamespace(camera_manager=SimpleNamespace(camera_slots=lambda: [slot] if slot else []), overlay_state=SimpleNamespace(get=forbidden, update=forbidden)))
     monkeypatch.setattr(server, 'obs', SimpleNamespace(sync_scene=forbidden))
     # No lifespan: exercise the real route without opening cameras or services.
@@ -36,9 +37,11 @@ def test_ready_scene_still_applies_camera_screen_and_reports_obs_failure(monkeyp
         raise RuntimeError('OBS unavailable')
     monkeypatch.setattr(server, 'PRODUCTION_SWITCHER_STATE', {'program_slot': 1, 'preview_slot': 2, 'generation': 0})
     monkeypatch.setattr(server, 'PRODUCTION_SCENES', [{'id': 'fixture', 'program_slot': 2, 'screen_action': 'show'}])
+    monkeypatch.setattr(server, 'production_scene_store', SimpleNamespace(snapshot=lambda: {'scenes': server.PRODUCTION_SCENES}))
+    monkeypatch.setattr(server.greenroom_service, 'record_production_event', lambda *args, **kwargs: None)
     monkeypatch.setattr(server, 'orchestrator', SimpleNamespace(camera_manager=SimpleNamespace(camera_slots=lambda: [{'slot_id': 2, 'source_id': 'fixture', 'connected': True, 'last_frame_at': time.time()}]), overlay_state=SimpleNamespace(get=lambda: {}, update=updates.append)))
     monkeypatch.setattr(server, 'obs', SimpleNamespace(sync_scene=unavailable))
     response = asyncio.run(server.take_production_scene('fixture'))
     assert response['ok'] and response['program_slot'] == 2 and response['generation'] == 1
     assert updates[0]['production_screen']['visible'] is True
-    assert response['obs_warning'] == 'OBS unavailable'
+    assert response['obs_warning'] == 'OBS did not confirm the mapped scene.'
