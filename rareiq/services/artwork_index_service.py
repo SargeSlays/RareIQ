@@ -104,6 +104,7 @@ class ArtworkIndexService:
         self._disabled_transition_scopes: set[tuple[str, str, str, str]] = set()
         self._last_transition_removal: dict[str, Any] | None = None
         self._transition_persist_lock = threading.Lock()
+        self._transition_write_lock = threading.Lock()
         self._transition_save_running = False
         self._transition_save_dirty = False
         self._transition_persistence_error: str | None = None
@@ -1322,14 +1323,17 @@ class ArtworkIndexService:
 
     def _save_pack_transition_model(self) -> None:
         """Atomically persist a snapshot; callers keep this off the scan thread."""
-        temporary = self.transition_model_path.with_suffix(self.transition_model_path.suffix + ".tmp")
-        try:
-            self.transition_model_path.parent.mkdir(parents=True, exist_ok=True)
-            temporary.write_text(json.dumps(self._transition_model_payload(), separators=(",", ":")), encoding="utf-8")
-            temporary.replace(self.transition_model_path)
-            self._transition_persistence_error = None
-        except Exception as exc:
-            self._transition_persistence_error = str(exc)
+        # Serialize explicit flushes with the background writer, including snapshot
+        # creation, so an older snapshot cannot replace newer learned transitions.
+        with self._transition_write_lock:
+            temporary = self.transition_model_path.with_suffix(self.transition_model_path.suffix + ".tmp")
+            try:
+                self.transition_model_path.parent.mkdir(parents=True, exist_ok=True)
+                temporary.write_text(json.dumps(self._transition_model_payload(), separators=(",", ":")), encoding="utf-8")
+                temporary.replace(self.transition_model_path)
+                self._transition_persistence_error = None
+            except Exception as exc:
+                self._transition_persistence_error = str(exc)
 
     def _schedule_transition_model_save(self) -> None:
         with self._transition_persist_lock:

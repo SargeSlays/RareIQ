@@ -430,3 +430,46 @@ def test_recovery_restore_rejects_path_traversal(tmp_path):
         assert "Invalid recovery backup identifier" in str(exc)
     else:
         raise AssertionError("path traversal should fail closed")
+
+
+def test_concurrent_transition_saves_serialize_snapshot_and_replace(tmp_path, monkeypatch):
+    service = ArtworkIndexService(build_index(tmp_path, count=20))
+    monkeypatch.setattr(service, "_schedule_transition_model_save", lambda: None)
+    service.set_active_filter("Pitch Black", "English", "me05")
+    service.observe_verified_card("010/020")
+    service.observe_verified_card("018/020")
+    entered = threading.Event()
+    release = threading.Event()
+    second_snapshot = threading.Event()
+    original_payload = service._transition_model_payload
+
+    def payload():
+        if threading.current_thread().name == "first-save":
+            snapshot = original_payload()
+            entered.set()
+            assert release.wait(5)
+            return snapshot
+        second_snapshot.set()
+        return original_payload()
+
+    monkeypatch.setattr(service, "_transition_model_payload", payload)
+    first = threading.Thread(target=service._save_pack_transition_model, name="first-save")
+    second = threading.Thread(target=service._save_pack_transition_model, name="second-save")
+    first.start()
+    try:
+        assert entered.wait(5)
+        service.observe_verified_card("010/020")
+        service.observe_verified_card("019/020")
+        second.start()
+        assert not second_snapshot.wait(0.2), "concurrent save took a snapshot before prior write completed"
+    finally:
+        release.set()
+        first.join(5)
+        if second.ident is not None:
+            second.join(5)
+    assert not first.is_alive() and not second.is_alive()
+    assert service._transition_persistence_error is None
+    restored = ArtworkIndexService(service.index_path)
+    restored.set_active_filter("Pitch Black", "English", "me05")
+    entries = restored._transition_model_payload()["entries"]
+    assert {row["to"] for row in entries if row["from"] == 10} == {18, 19}
