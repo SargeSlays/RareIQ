@@ -1,5 +1,25 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 - Isolated browser adapter checks
+
+Canonical gate passed: **3346 Python tests and 505 JavaScript tests**.
+
+Four focused JavaScript regression tests passed. Intercepted Edge browser checks
+passed opaque-origin parent isolation, denied camera/microphone/geolocation/
+autoplay/display-capture/fullscreen permissions, omitted referrer, per-load visual
+review, stale review rejection, cleanup and local/Studio address rejection before
+navigation. An X-Frame-Options DENY fixture still fired load; the adapter correctly
+remained unverified and emitted no ready status.
+
+Evidence: F:/Temp/jonat/ProducerPlease-browser-adapter-20261115/results.json and
+release-gate-final.log. The browser fixture intercepted every request; no external
+network, physical capture, production connection, restart or account change was
+used. This adapter is not linked into product pages or selectable in production.
+The reachability gate caught an unlinked prototype in served static assets; it was
+moved to tools/experiments instead of weakening the guard.
+Browser-source persistence, producer/output controls and Take integration remain
+unimplemented. No remote-login or physical-audio claim changes in this checkpoint.
+
 ## November 15, 2026 - Video/text source acceptance
 
 Canonical gate passed: **3346 Python tests and 501 JavaScript tests**.

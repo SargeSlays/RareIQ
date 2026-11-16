@@ -1,5 +1,17 @@
 # RareIQ: streaming-first product direction
 
+## November 15, 2026 - Browser source experiment (not enabled)
+
+An isolated browser-source adapter under tools/experiments now validates initial HTTPS addresses, restricts
+iframe capabilities and interaction, and keeps frame load separate from visual
+review. It is not included by product pages, persisted in the source catalog or
+accepted by Preview/Program. End-user browser sources remain planned.
+
+The policy checks the initial URL only: it does not provide DNS/redirect network
+isolation or credential-free loading. Review records a past appearance, not a
+continuing content guarantee. The complete producer/output review workflow and
+its connection to guarded Take must be designed and tested before activation.
+
 ## November 15, 2026 - Video files and text sources
 
 The production room now imports local MP4/WebM video files up to 64 MiB and saves

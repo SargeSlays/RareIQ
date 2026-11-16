@@ -1,5 +1,23 @@
 # RareIQ engineering memory
 
+## November 15, 2026 - Iframe loading is not content verification
+
+A browser fires iframe load even when embedding fails, and generally suppresses
+iframe error events. The experimental adapter therefore never turns load into a
+ready receipt. Review tokens are single-use and tied to one frame/load; reload,
+error and disposal invalidate them. All restrictions precede navigation/insertion.
+No iframe message is accepted as operator confirmation.
+
+Sandboxing does not block all outbound requests or make requests credential-free.
+Cross-origin navigation starts and script-driven content changes are not reliably
+observable by the parent, so visual review must not promise continuous assurance.
+See https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe#error_and_load_event_behavior
+and https://html.spec.whatwg.org/multipage/iframe-embed-object.html#attr-iframe-sandbox.
+The asset-reachability gate caught the initially unlinked static file. Keep this
+prototype outside served assets in tools/experiments until integration is ready.
+Unit checks plus intercepted-browser QA guard the experimental contract. Production
+pages do not load this adapter and composition still rejects browser identifiers.
+
 ## November 15, 2026 - File playback and bounded text layers
 
 - Video preload readiness means a decoded frame, not upload success. Keep Preview

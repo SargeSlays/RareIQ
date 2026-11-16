@@ -1,5 +1,19 @@
 # RareIQ Roadmap
 
+## November 15, 2026 - Bounded browser-source foundation
+
+Completed an isolated adapter and intercepted Edge browser rehearsal: opaque
+sandbox, denied media permissions, no referrer, blocked local/Studio addresses,
+load remaining unverified, explicit per-load review, reload invalidation and
+cleanup. This is experimental code, not an enabled source type.
+
+Next: immutable browser definitions and picker; review the actual output frame
+without covering Program; reset approval on replacement/reload and distinguish a
+past visual review from continuing assurance. Cross-origin blocked/blank content
+requires truthful operator guidance. Keep browser sources rejected by composition
+until this complete workflow is verified. Usage was 97% when this bounded step
+started; the owner's below-100% ceiling remains in force.
+
 ## November 15, 2026 - Video/text checkpoint and remaining sources
 
 Implemented: persistent MP4/WebM imports, immutable text definitions, duplicate-safe
