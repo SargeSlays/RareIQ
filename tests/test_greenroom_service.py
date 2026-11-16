@@ -83,6 +83,139 @@ def test_media_validation_never_coerces_booleans_or_unknown_fields(room):
         service.set_connected(participant["id"], "true")
 
 
+def test_program_audio_defaults_and_waiting_guest_can_be_pre_muted(room):
+    service, _ = room
+    _, participant, token = join(service)
+    assert participant["program_audio"] == {"microphone_muted": False, "screen_muted": False}
+    flags = {"microphone_muted": True, "screen_muted": False}
+    result = service.moderate(participant["id"], "program_audio", **flags)
+    current = service.authenticate(token)
+    assert result["program_audio"] == current["program_audio"] == flags
+    assert current["state"] == "waiting" and not current["connected"]
+    assert current["media"] == EMPTY_MEDIA
+    service.set_connected(participant["id"], True)
+    service.update_media(participant["id"], dict.fromkeys(EMPTY_MEDIA, True))
+    service.moderate(participant["id"], "admit")
+    current = service.authenticate(token)
+    assert current["program_audio"] == flags
+    assert all(current["media"].values()) and current["connected"]
+    assert all(service.source_available(source) for source in current["sources"].values())
+
+
+def test_program_audio_migration_preserves_existing_guests_and_is_repeatable(room):
+    service, now = room
+    _, participant, token = join(service)
+    # Reconstruct the pre-mute schema while preserving an existing guest row.
+    with sqlite3.connect(service.path) as db:
+        db.execute("ALTER TABLE greenroom_participants DROP COLUMN microphone_muted")
+        db.execute("ALTER TABLE greenroom_participants DROP COLUMN screen_muted")
+    migrated = GreenroomService(service.path, clock=lambda: now[0], reset_runtime=False)
+    flags = {"microphone_muted": False, "screen_muted": False}
+    assert migrated.authenticate(token)["program_audio"] == flags
+    _, fresh, _ = join(migrated, 2)
+    assert fresh["program_audio"] == flags
+    migrated.moderate(participant["id"], "program_audio", microphone_muted=True, screen_muted=True)
+    reopened = GreenroomService(service.path, clock=lambda: now[0], reset_runtime=False)
+    assert all(reopened.authenticate(token)["program_audio"].values())
+
+
+def test_program_audio_disconnect_and_restart_preserve_policy_but_clear_media(room):
+    service, now = room
+    _, participant, token = join(service)
+    service.moderate(participant["id"], "program_audio", microphone_muted=True, screen_muted=True)
+    service.moderate(participant["id"], "admit")
+    for operation in ("disconnect", "restart"):
+        service.set_connected(participant["id"], True)
+        service.update_media(participant["id"], dict.fromkeys(EMPTY_MEDIA, True))
+        if operation == "disconnect":
+            service.set_connected(participant["id"], False)
+        else:
+            service = GreenroomService(service.path, clock=lambda: now[0])
+        current = service.authenticate(token)
+        assert all(current["program_audio"].values())
+        assert current["media"] == EMPTY_MEDIA and not current["connected"]
+        assert not any(service.source_available(source) for source in current["sources"].values())
+
+
+@pytest.mark.parametrize("flags", [{}, {"microphone_muted": True}, {"screen_muted": False},
+                                     {"microphone_muted": 1, "screen_muted": False},
+                                     {"microphone_muted": False, "screen_muted": "true"}])
+def test_program_audio_requires_exact_boolean_flags(room, flags):
+    service, _ = room
+    _, participant, _ = join(service)
+    with pytest.raises(GreenroomError) as error:
+        service.moderate(participant["id"], "program_audio", **flags)
+    code(error, "invalid_program_audio")
+    assert not any(service.snapshot()["participants"][0]["program_audio"].values())
+
+
+def test_program_audio_cas_receipts_and_private_audit(room):
+    service, _ = room
+    invitation, participant, token = join(service, name="Private display name")
+    flags = {"microphone_muted": True, "screen_muted": False}
+    revision = service.snapshot()["revision"]
+    request = dict(expected_revision=revision, request_id="mute-microphone", **flags)
+    result = service.moderate(participant["id"], "program_audio", actor_kind="paired_lan_operator", **request)
+    assert service.moderate(participant["id"], "program_audio", actor_kind="paired_lan_operator", **request) == result
+    assert result["participant"] == {"id": participant["id"], "state": "waiting"}
+    for request_id, expected in (("mute-microphone", "room_request_conflict"), ("stale", "room_revision_conflict")):
+        with pytest.raises(GreenroomError) as error:
+            service.moderate(participant["id"], "program_audio", actor_kind="paired_lan_operator",
+                             **(request | {"request_id": request_id, "screen_muted": True}))
+        code(error, expected, 409)
+    events = [e for e in service.history()["events"] if e["action"] == "guest.program_audio" and e["outcome"] == "succeeded"]
+    assert len(events) == 1
+    assert events[0]["actor_kind"] == "paired_lan_operator" and not events[0]["identity_verified"]
+    assert events[0]["details"] == {"before": {"microphone_muted": False, "screen_muted": False}, "after": flags}
+    serialized = json.dumps(events)
+    assert all(secret not in serialized for secret in (invitation["token"], token, "Private display name"))
+    unchanged = service.moderate(participant["id"], "program_audio", expected_revision=result["revision"], request_id="same-flags", **flags)
+    assert unchanged["revision"] == result["revision"]
+    service.moderate(participant["id"], "program_audio", microphone_muted=False, screen_muted=True)
+    assert service.authenticate(token)["program_audio"] == {"microphone_muted": False, "screen_muted": True}
+
+
+@pytest.mark.parametrize("operation", ["remove", "revoke", "leave", "close", "expire"])
+def test_program_audio_cannot_resurrect_unavailable_guest(room, operation):
+    service, now = room
+    invitation, participant, _ = join(service)
+    service.moderate(participant["id"], "program_audio", microphone_muted=True, screen_muted=True)
+    if operation == "remove":
+        service.moderate(participant["id"], "remove")
+    elif operation == "revoke":
+        service.revoke_invite(invitation["invite_id"])
+    elif operation == "leave":
+        service.leave(participant["id"])
+    elif operation == "close":
+        service.close_room()
+    else:
+        now[0] += 12 * 3600
+    with pytest.raises(GreenroomError) as error:
+        service.moderate(participant["id"], "program_audio", microphone_muted=False, screen_muted=False)
+    code(error, "guest_unavailable", 404)
+    current = service.snapshot()["participants"][0]
+    assert all(current["program_audio"].values())
+    assert current["state"] == "removed" and current["media"] == EMPTY_MEDIA
+
+
+def test_program_audio_guest_identity_is_forbidden_and_audit_failure_rolls_back(room):
+    service, _ = room
+    _, participant, _ = join(service)
+    flags = {"microphone_muted": True, "screen_muted": True}
+    with pytest.raises(GreenroomError) as error:
+        service.moderate(participant["id"], "program_audio", actor_kind="guest_session", **flags)
+    code(error, "invalid_producer_identity", 403)
+    with pytest.raises(GreenroomError):
+        service.update_media(participant["id"], EMPTY_MEDIA | {"program_audio": flags})
+    with sqlite3.connect(service.path) as db:
+        db.execute("CREATE TRIGGER reject_audio_audit BEFORE INSERT ON greenroom_activity BEGIN SELECT RAISE(ABORT,'fixture'); END")
+    with pytest.raises(sqlite3.IntegrityError):
+        service.moderate(participant["id"], "program_audio", request_id="mute", **flags)
+    assert not any(service.snapshot()["participants"][0]["program_audio"].values())
+    with sqlite3.connect(service.path) as db:
+        assert db.execute("SELECT COUNT(*) FROM greenroom_requests").fetchone()[0] == 0
+
+
 def test_expired_invitation_and_session_do_not_allow_join_or_sources(room):
     service, now = room
     invite = service.create_invite(ttl_minutes=1)

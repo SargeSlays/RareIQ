@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/guest/assets/theme.css">
   <link rel="stylesheet" href="/guest/assets/guest.css?v=20261115-1">
   <script defer src="/guest/assets/greenroom_media.js?v=20261115-1"></script>
-  <script defer src="/guest/assets/guest.js?v=20261115-1"></script>
+  <script defer src="/guest/assets/guest.js?v=20261115-2"></script>
 </head>
 <body class="pp-shell">
   <header class="guest-brand"><a href="/guest" aria-label="Guest studio"><img src="/guest/assets/mark.svg" alt=""> <strong>Producer, Please</strong></a><span>GUEST STUDIO</span></header>
@@ -25,6 +25,7 @@
       <span class="guest-eyebrow">BE PART OF THE SHOW</span><h1>Your seat is ready.</h1><p>Check your camera and mic, then join the green room. The producer chooses what appears on Program.</p>
       <form id="guestJoinForm"><label>Your display name<input id="guestName" name="name" maxlength="60" autocomplete="nickname" required placeholder="What should we call you?"></label><button class="guest-primary" id="guestJoin" type="submit">Join backstage</button></form>
       <div class="guest-room-status" role="status" aria-live="polite"><strong id="guestStatusTitle">Private preview</strong><p id="guestStatus">No media is being sent.</p></div>
+      <p class="guest-hint" id="guestProgramAudioNotice" role="status" aria-live="polite" hidden></p>
       <button id="guestRoomAudio" type="button" hidden>Enable room audio</button>
       <button id="guestLeave" type="button" class="guest-leave" hidden>Leave the room</button>
       <p class="guest-privacy">You control your camera, mic and screen. Turn them off at any time. An invitation identifies this guest session, not a verified personal account.</p>

@@ -167,7 +167,7 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
         "/static/producer-please.motion.css?v=20260908-1",
         "/static/studio_voice_rules.css?v=20261115-1",
         "/static/program_composition.css?v=20261115-1",
-        "/static/greenroom_controls.css?v=20261115-1",
+        "/static/greenroom_controls.css?v=20261115-2",
         "/static/audience_controls.css?v=20261115-1",
         "/static/production_vision.css?v=20261115-1",
     ]

@@ -70,6 +70,36 @@ async function main(){
     assert.equal(await output.locator('audio').count(),3,'two unique microphones plus one shared-screen audio track');
     results.guestGrid={generation:taken.generation,sources:3,audioTracks:3};
     await output.screenshot({path:path.join(destination,'guest-program-grid.png')});
+    // Program mute is a producer mix decision, independent of the guest's capture
+    // and its conference return stream. All tones/media here are generated fixtures.
+    await producer.evaluate(async()=>{window.__conference=ProducerGuestMedia.createConferenceAudio(__receiver);window.__conferenceContext=new AudioContext();await __conference.start(__conferenceContext);});
+    await until(()=>first.page.evaluate(()=>Boolean(document.getElementById('guestReturnAudio').srcObject?.getAudioTracks().length)),'conference return before Program mute');
+    await first.page.evaluate(()=>{window.__returnBeforeMute=document.getElementById('guestReturnAudio').srcObject.getAudioTracks()[0];});
+    await output.evaluate(()=>{window.__videosBeforeMute=[...document.querySelectorAll('.composition-layer:not(.composition-outgoing) video')];window.__audioBeforeMute=[...document.querySelectorAll('audio')];});
+    const audioControl='/api/production/greenroom/participants/'+first.participant.id;
+    await mutate(audioControl,{action:'program_audio',microphone_muted:true,screen_muted:false});
+    await until(()=>output.locator('audio').count().then(n=>n===2),'Program microphone mute keeps shared screen audio');
+    await mutate(audioControl,{action:'program_audio',microphone_muted:true,screen_muted:true});
+    await until(()=>output.locator('audio').count().then(n=>n===1),'Program screen mute leaves other participant mic');
+    assert.equal(await output.evaluate(()=>__videosBeforeMute.every(v=>v.isConnected&&v.readyState>=2)),true,'Program videos survive both audio mute changes');
+    assert.equal(await output.evaluate(()=>__audioBeforeMute.filter(a=>!a.isConnected).every(a=>a.paused&&a.srcObject===null)),true,'muted consumers release playback');
+    assert.equal(await first.page.evaluate(()=>__returnBeforeMute===document.getElementById('guestReturnAudio').srcObject?.getAudioTracks()[0]&&__returnBeforeMute.readyState==='live'),true,'conference return track remains intact');
+    const returnLevels=await second.page.evaluate(async()=>{
+      const stream=document.getElementById('guestReturnAudio').srcObject;if(!stream)return null;
+      const context=new AudioContext(),source=context.createMediaStreamSource(stream),analyser=context.createAnalyser();analyser.fftSize=8192;source.connect(analyser);await context.resume();
+      await new Promise(resolve=>setTimeout(resolve,450));const bins=new Float32Array(analyser.frequencyBinCount);analyser.getFloatFrequencyData(bins);const levels={};
+      for(const hz of [440,660]){let peak=-160;for(let i=0;i<bins.length;i++)if(Math.abs(i*context.sampleRate/analyser.fftSize-hz)<20)peak=Math.max(peak,bins[i]);levels[hz]=Number.isFinite(peak)?Math.round(peak*10)/10:-160;}
+      source.disconnect();await context.close();return levels;
+    });
+    assert.ok(returnLevels&&returnLevels[440]>-75&&returnLevels[660]>-75,'muted participant mic and screen audio remain in conference return');
+    const duringMute=(await room()).participants.find(p=>p.id===first.participant.id);
+    assert.equal(duringMute.media.microphone,true);assert.equal(duringMute.media.screen_audio,true);assert.equal(duringMute.media.camera,true);assert.equal(duringMute.media.screen,true);
+    await mutate(audioControl,{action:'program_audio',microphone_muted:false,screen_muted:true});
+    await until(()=>output.locator('audio').count().then(n=>n===2),'Program mic unmute retains screen silence');
+    await mutate(audioControl,{action:'program_audio',microphone_muted:false,screen_muted:false});
+    await until(()=>output.locator('audio').count().then(n=>n===3),'Program screen audio unmute restores deduplicated mix');
+    assert.equal(await output.evaluate(()=>__videosBeforeMute.every(v=>v.isConnected&&v.readyState>=2)),true);
+    results.programAudioMute={microphoneIndependent:true,screenIndependent:true,videoUnchanged:true,captureUnchanged:true,returnTrackUnchanged:true,returnLevels,consumersReleased:true,unmuteRestoresDeduplicatedMix:true};
     await mutate('/api/production/greenroom/participants/'+first.participant.id,{action:'remove'});
     await until(async()=>{const state=await room();return state.switcher.program_sources.length===1&&state.switcher.program_sources[0]===b;},'removed guest disappears from Program');
     await until(()=>output.locator('audio').count().then(n=>n===1),'removed guest audio stops');

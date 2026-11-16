@@ -6,6 +6,13 @@
   history.replaceState(null,"",location.pathname);
   if(!invite){try{token=sessionStorage.getItem(STORE)||"";}catch{}}
   function status(title,message){$("guestStatusTitle").textContent=title;$("guestStatus").textContent=message;}
+  function programAudioNotice(participant){
+    const notice=$("guestProgramAudioNotice"),flags=participant?.program_audio;
+    const active=participant&&["waiting","admitted"].includes(participant.state),microphone=active&&flags?.microphone_muted===true,screen=active&&flags?.screen_muted===true;
+    const sources=microphone&&screen?"microphone and shared-screen audio":microphone?"microphone":screen?"shared-screen audio":"";
+    notice.textContent=sources?`The producer has muted your ${sources} for Program. Backstage audio is unaffected.`:"";
+    notice.hidden=!sources;
+  }
   function secret(){const bytes=new Uint8Array(32);crypto.getRandomValues(bytes);return Array.from(bytes,x=>x.toString(16).padStart(2,"0")).join("");}
   function setBusy(value){busy=value;$("guestJoin").disabled=value;for(const id of ["guestCamera","guestMicrophone"])$(id).disabled=value||!root.isSecureContext;$("guestScreen").disabled=value||!navigator.mediaDevices?.getDisplayMedia;}
   function synchronize(publish=true){
@@ -51,18 +58,19 @@
     finally{if(epoch===mediaEpoch&&!leaving)setBusy(false);}
   }
   function roomState(value){
-    const participant=value.participant;if(!participant)return;
+    if(leaving)return;const participant=value.participant;if(!participant){programAudioNotice();return;}
     joined=true;$("guestName").value=participant.name;$("guestName").disabled=true;$("guestJoinForm").hidden=true;$("guestLeave").hidden=false;
     const onAir=(value.on_air_sources||[]).some(s=>s.startsWith(`guest:${participant.id}:`));
     $("guestBadge").textContent=onAir?"ON PROGRAM":participant.state==="admitted"?"BACKSTAGE":"WAITING FOR PRODUCER";$("guestBadge").classList.toggle("on-air",onAir);
     status(onAir?"You’re on Program":participant.state==="admitted"?"You’re backstage":"Waiting for the producer",onAir?"The producer selected your source for the production. You can still turn off your media.":participant.state==="admitted"?"You can talk with the room. Your sources stay off Program until the producer selects them.":"The producer can preview your enabled sources. You’re not on Program.");
+    programAudioNotice(participant);
     synchronize(false);
   }
   function connect(){
     publisher?.close();publisher=root.ProducerGuestMedia.createPublisher({token,onState:roomState,
       onReturnAudio:stream=>{const audio=$("guestReturnAudio");audio.srcObject=stream;if(stream)audio.play().then(()=>{$("guestRoomAudio").hidden=true;}).catch(()=>{$("guestRoomAudio").hidden=false;});else{$("guestRoomAudio").hidden=true;audio.pause();}},
-      onConnection:event=>{if(leaving)return;if(["disconnected","reconnecting","failed","closed"].includes(event.state)){status("Room connection paused","Your media is not reaching the room. Reconnecting; if this persists, ask the producer for a new invitation.");$("guestBadge").textContent="DISCONNECTED";$("guestBadge").classList.remove("on-air");}},
-      onError:()=>{if(!leaving)status("Could not connect","The invitation may have expired or been removed. Ask the producer for a new invitation.");}});
+      onConnection:event=>{if(leaving)return;if(["disconnected","reconnecting","failed","closed"].includes(event.state)){programAudioNotice();status("Room connection paused","Your media is not reaching the room. Reconnecting; if this persists, ask the producer for a new invitation.");$("guestBadge").textContent="DISCONNECTED";$("guestBadge").classList.remove("on-air");}},
+      onError:()=>{programAudioNotice();if(!leaving)status("Could not connect","The invitation may have expired or been removed. Ask the producer for a new invitation.");}});
     publisher.setTracks({...media});publisher.connect();
   }
   async function join(event){
@@ -75,7 +83,7 @@
     finally{if(epoch===mediaEpoch&&!leaving)setBusy(false);}
   }
   async function leave(){
-    leaving=true;mediaEpoch++;setBusy(true);publisher?.close();publisher=null;for(const key of Object.keys(media))stop(key);synchronize();$("guestReturnAudio").srcObject=null;$("guestReturnAudio").pause();
+    leaving=true;mediaEpoch++;programAudioNotice();setBusy(true);publisher?.close();publisher=null;for(const key of Object.keys(media))stop(key);synchronize();$("guestReturnAudio").srcObject=null;$("guestReturnAudio").pause();
     const prior=token;token="";joined=false;try{sessionStorage.removeItem(STORE);}catch{}
     $("guestLeave").hidden=true;$("guestRoomAudio").hidden=true;$("guestBadge").textContent="LEFT THE ROOM";$("guestBadge").classList.remove("on-air");status("You’ve left the room","Your camera, microphone and screen are off.");
     if(prior){try{await fetch("/guest/leave",{method:"POST",headers:{Authorization:"Bearer "+prior}});}catch{}}
@@ -83,7 +91,7 @@
   $("guestJoinForm").addEventListener("submit",join);$("guestCamera").addEventListener("click",()=>capture("camera"));$("guestMicrophone").addEventListener("click",()=>capture("microphone"));$("guestScreen").addEventListener("click",screen);
   $("guestCameraDevice").addEventListener("change",()=>{if(media.camera)capture("camera",true);});$("guestMicDevice").addEventListener("change",()=>{if(media.microphone)capture("microphone",true);});
   $("guestLeave").addEventListener("click",leave);$("guestRoomAudio").addEventListener("click",()=>$("guestReturnAudio").play().then(()=>{$("guestRoomAudio").hidden=true;}).catch(()=>status("Audio is paused","Check the browser’s sound permissions and try again.")));
-  root.addEventListener("pagehide",()=>{leaving=true;mediaEpoch++;publisher?.close();for(const key of Object.keys(media))stop(key);});
+  root.addEventListener("pagehide",()=>{leaving=true;mediaEpoch++;programAudioNotice();publisher?.close();for(const key of Object.keys(media))stop(key);});
   if(!root.isSecureContext){status("A secure link is needed","Camera and microphone access need a secure HTTPS guest link. Ask the producer for one.");}
   else if(!invite&&!token){status("Invitation needed","Open the guest link provided by your producer to join this room.");$("guestJoin").disabled=true;}
   else if(token){$("guestJoin").textContent="Rejoin backstage";$("guestName").required=false;status("Resume your guest session","Choose your media, then rejoin the room.");}

@@ -1,5 +1,28 @@
 # RareIQ Release Checklist
 
+## November 15, 2026 — Local guest Program audio acceptance
+
+Canonical gate passed: **3211 Python tests and 379 JavaScript tests**. Added
+backend checks cover schema defaults/migration, strict Boolean flags, producer
+permission, waiting guests, conflict/retry receipts, persistence and activity.
+Producer UI acceptance passes 20 interactions across eight dark/light viewport
+combinations; guest notices pass eight additional layouts with real signaling and
+zero device capture. Integrated studio acceptance also passes all eight baselines,
+with zero page errors, horizontal overflow or nested tool scrollbars.
+
+Real Chromium peer connections with generated audio/video confirm independent
+Program microphone and screen-audio mute/unmute, preserved video and capture,
+unchanged backstage audio and host mix-minus. No physical media or broadcast was
+used by these tests. Mute history records producer settings; it does not claim a
+separate renderer-confirmed audio receipt. A bounded read-only review found no
+concrete defect in this slice.
+
+The actual local studio was checked idle, restarted and refreshed. Its green room
+connects and displays the new local invitation guidance. Cameras remain unavailable
+and OBS is disconnected. Evidence and the canonical log are under
+`F:\Temp\jonat\ProducerPlease-guest-audio-20261115`. Public hosting, real-device
+capture, platform receipt and verified producer identity are not claimed.
+
 ## November 15, 2026 — Audience connection follow-up acceptance
 
 Canonical gate: **3181 Python tests passed**; the updated complete JavaScript

@@ -1,5 +1,19 @@
 # RareIQ: streaming-first product direction
 
+## November 15, 2026 — Local guest audio polish
+
+Producer, Please now has separate producer-owned microphone and screen-audio
+mute settings for each guest's Program output. They can be prepared while a guest
+waits or changed mid-shot, without changing guest capture, video or backstage
+conversation. Guests see the policy and settings changes enter activity history;
+these are recorded settings, not separate renderer-confirmed mute receipts.
+
+Each guest still needs an individual invitation. The owner chose localhost for
+now: the new Open guest tab action supports testing on the production PC. Public
+hosting/domain work remains deferred; other devices cannot use a localhost link.
+Real generated-media browser tests pass; physical devices, OBS receipt and internet
+participation remain separate acceptance steps.
+
 ## November 15, 2026 — Audience connection follow-up
 
 Twitch and YouTube chat observers now have explicit host-only Connect/Disconnect

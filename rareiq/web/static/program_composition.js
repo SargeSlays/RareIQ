@@ -35,8 +35,8 @@
       const source=parseSource(id);
       if(!source||source.kind==='local'||!permitted(source,room))continue;
       const participant=participantFor(room,source.participantId),media=tracks(source.participantId)||{};
-      if(participant.media.microphone===true&&liveTrack(media.microphone))result.set(source.participantId+':microphone',media.microphone);
-      if(source.kind==='screen'&&participant.media.screen_audio===true&&liveTrack(media.screen_audio))result.set(source.participantId+':screen_audio',media.screen_audio);
+      if(participant.program_audio?.microphone_muted!==true&&participant.media.microphone===true&&liveTrack(media.microphone))result.set(source.participantId+':microphone',media.microphone);
+      if(participant.program_audio?.screen_muted!==true&&source.kind==='screen'&&participant.media.screen_audio===true&&liveTrack(media.screen_audio))result.set(source.participantId+':screen_audio',media.screen_audio);
     }
     return result;
   }
@@ -169,7 +169,7 @@
       const allowed=new Set([...(this.state?.sources||[]),...(this.state?.preview||[])]);
       return [...new Set(this._allTiles().filter(tile=>tile.source.kind!=='local'&&tile.ready&&allowed.has(tile.id)).map(tile=>tile.id))].sort();
     }
-    _disposeAudio(entry){entry.node.pause?.();entry.node.srcObject=null;entry.node.remove();}
+    _disposeAudio(entry){entry.disposed=true;entry.playing=false;entry.blocked=false;entry.node.muted=true;entry.node.pause?.();entry.node.srcObject=null;entry.node.remove();}
     _clearAudio(){for(const entry of this.audio.values())this._disposeAudio(entry);this.audio.clear();}
     _syncAudio(){
       const sources=this.current?.tiles.filter(tile=>tile.ready).map(tile=>tile.id)||[];
@@ -177,14 +177,14 @@
       for(const [key,entry] of this.audio)if(plan.get(key)!==entry.track){this._disposeAudio(entry);this.audio.delete(key);}
       for(const [key,track] of plan)if(!this.audio.has(key)){
         const node=this.document.createElement('audio');node.autoplay=true;node.muted=false;node.srcObject=this.makeStream([track]);this.audioHost.append(node);
-        const entry={node,track,playing:false,blocked:false};this.audio.set(key,entry);this._playAudio(key,entry);
+        const entry={node,track,playing:false,blocked:false,disposed:false};this.audio.set(key,entry);this._playAudio(key,entry);
       }
     }
     _playAudio(key,entry){
       entry.blocked=false;entry.playing=false;
-      Promise.resolve().then(()=>entry.node.play()).then(()=>{
-        if(this.audio.get(key)!==entry)return;entry.playing=true;this._status();
-      },()=>{if(this.audio.get(key)!==entry)return;entry.blocked=true;this._status();});
+      Promise.resolve().then(()=>{if(this.audio.get(key)===entry&&!entry.disposed)return entry.node.play();}).then(()=>{
+        if(this.audio.get(key)!==entry||entry.disposed)return;entry.playing=true;this._status();
+      },()=>{if(this.audio.get(key)!==entry||entry.disposed)return;entry.blocked=true;this._status();});
     }
     resumeAudio(){for(const [key,entry] of this.audio)if(!entry.playing)this._playAudio(key,entry);}
     _status(){

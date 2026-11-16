@@ -1,5 +1,18 @@
 # RareIQ Roadmap
 
+## November 15, 2026 — Local guest audio checkpoint
+
+- Implemented and locally tested: independent guest microphone/screen Program
+  mutes, pre-muting waiting guests, durable settings, conflict-safe producer
+  decisions, guest notices, activity labels and a same-PC invitation test action.
+- Verified with real browser peer connections using generated media: muting either
+  channel keeps video/capture/backstage audio intact; unmute restores the mix.
+- Scope remains PC-hosted, individual invitations and localhost development.
+  Domain/public ingress/relay activation is deferred by the owner. Next external
+  acceptance remains physical devices, secure multi-device access and OBS receipt.
+- Verified personal accountability still depends on StackThis producer sign-in;
+  invitation display names do not establish a verified identity.
+
 ## November 15, 2026 — Audience connection follow-up
 
 - Implemented and simulated-provider tested: explicit host Twitch/YouTube chat

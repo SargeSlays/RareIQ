@@ -14,7 +14,7 @@ import uuid
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 from rareiq.services.greenroom_service import GreenroomService, GreenroomError
 
@@ -43,7 +43,18 @@ class InviteRequest(MutationRequest):
 
 
 class ModerateRequest(MutationRequest):
-    action: str = Field(pattern=r"^(admit|remove)$")
+    action: str = Field(pattern=r"^(admit|remove|program_audio)$")
+    microphone_muted: bool | None = Field(default=None, strict=True)
+    screen_muted: bool | None = Field(default=None, strict=True)
+
+    @model_validator(mode="after")
+    def validate_program_audio(self):
+        if self.action == "program_audio":
+            if self.microphone_muted is None or self.screen_muted is None:
+                raise ValueError("program_audio_requires_both_mute_flags")
+        elif {"microphone_muted", "screen_muted"} & self.model_fields_set:
+            raise ValueError("mute_flags_require_program_audio_action")
+        return self
 
 
 @dataclass
@@ -209,7 +220,7 @@ class GreenroomHub:
             if not self._operator(request):
                 return self._error("producer_access_required", 403)
             try:
-                result = self.service.moderate(participant_id, **body.model_dump(), **self._actor(request))
+                result = self.service.moderate(participant_id, **body.model_dump(exclude_unset=True), **self._actor(request))
                 if body.action == "remove":
                     self.removed(participant_id)
                     await self._disconnect_participant(participant_id)

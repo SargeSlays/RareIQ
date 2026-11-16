@@ -1,5 +1,21 @@
 # RareIQ engineering memory
 
+## November 15, 2026 — Program audio ownership and local invitation scope
+
+- Program mute policy belongs to the producer and must not toggle or stop a
+  guest-owned track: that same track also feeds backstage conversation and video
+  readiness. Mute removes only the selected Program playback consumer. Invalidate
+  queued/late play callbacks so a retired consumer cannot resume after mute.
+  Unit regressions and real generated-tone browser checks cover independent
+  microphone/screen mutes, unmute, deduplication and unchanged mix-minus returns.
+- A displayed mute button must follow authoritative room state, including
+  conflicts from another producer tab. Waiting/offline-media guests can be
+  pre-muted; toggling one flag preserves the latest value of the other.
+- Localhost invitation URLs belong to the production computer. Explain that at
+  creation, keep one invitation per person, validate the guest URL before linking,
+  open without opener/referrer, and clear both the input and href on dismissal.
+  Guest mute notices clear on leave/disconnect and never change capture.
+
 ## November 15, 2026 — Audience adapter verification and cleanup
 
 - Fixed desktop readiness notices can cover a tall tool's final control. Reserve

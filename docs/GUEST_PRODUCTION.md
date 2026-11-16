@@ -23,7 +23,8 @@ by this decision.
 1. Open the studio and choose **Guests**. The Green room tool also lives in
    **Session tools** and can be moved like other tools. Panels grow with content.
 2. Create an invitation and copy its private link. The secret link is shown only
-   when created; dismiss it after sharing it with the intended person.
+   when created; dismiss it after sharing it with the intended person. For local
+   testing, choose **Open guest tab** on this PC. Each guest needs a separate link.
 3. Guests choose their devices and explicitly enable camera, mic or screen sharing.
    Their enabled feeds can be previewed by the producer while they wait.
 4. **Admit guest** allows conversation in the room. It does not change Program.
@@ -34,7 +35,10 @@ by this decision.
    **Take Preview** moves that mix to Program. This does not start an encoder stream.
 7. **Add my microphone** explicitly captures the producer mic and adds it as its
    own source. Select and take it if it should be heard on Program.
-8. Review **Recent activity** for invitations, admission/removal and Program events.
+8. Use **Audio on Program** on each guest card to mute their microphone or screen
+   sound independently. You can prepare this while they wait or change it mid-shot.
+   Their capture and backstage conversation stay unchanged; guests see a notice.
+9. Review **Recent activity** for invitations, admission/removal, audio settings and Program events.
    Requested changes and output-render confirmations are separate evidence.
 
 Removing a guest, closing the room or losing their connection clears that guest
@@ -47,6 +51,10 @@ that finish after Leave. Invitation revocation also removes its connected guest.
 Preview monitors are muted. Program includes the microphone of each selected
 guest once, even if both their camera and screen are selected. Screen audio is
 included only with that selected screen and only when the browser supplied it.
+Producer Program mute settings suppress the selected audio channel without stopping
+its borrowed guest track. Unmute restores it when selected and available. Settings
+survive a guest reconnect; a new guest starts unmuted. Activity records the setting,
+not an additional renderer-confirmed mute receipt.
 Conversation returns exclude the recipient's own audio and all waiting guests.
 
 The room currently allows six participant slots and six selected composition

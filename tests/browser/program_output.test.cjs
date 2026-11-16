@@ -72,6 +72,43 @@ test('microphone is deduplicated across camera/screen/audio and screen sound req
   const waiting=room();waiting.participants[0].state='waiting';assert.equal(model.audioPlan([CAM],waiting,()=>media).size,0);
 });
 
+test('Program mute flags separately suppress microphone and screen sound without changing source permission',()=>{
+  const media={microphone:track('audio'),screen_audio:track('audio')},snapshot=room(),person=snapshot.participants[0];
+  person.program_audio={microphone_muted:true,screen_muted:false};
+  assert.deepEqual([...model.audioPlan([CAM,SCREEN,AUDIO],snapshot,()=>media).keys()],[G+':screen_audio']);
+  assert.equal(model.permitted(model.parseSource(CAM),snapshot),true);
+  assert.equal(model.permitted(model.parseSource(SCREEN),snapshot),true);
+  person.program_audio={microphone_muted:false,screen_muted:true};
+  assert.deepEqual([...model.audioPlan([CAM,SCREEN,AUDIO],snapshot,()=>media).keys()],[G+':microphone']);
+  person.program_audio={microphone_muted:true,screen_muted:true};assert.equal(model.audioPlan([CAM,SCREEN,AUDIO],snapshot,()=>media).size,0);
+  delete person.program_audio;assert.equal(model.audioPlan([CAM,SCREEN,AUDIO],snapshot,()=>media).size,2,'legacy room snapshots remain audible');
+});
+
+test('mid-shot Program mute releases consumers and unmute recreates them without changing video or borrowed tracks',async()=>{
+  const f=fixture(),media=guestTracks(f),snapshot=room();f.view.render(state({program_sources:[CAM,SCREEN,AUDIO]}),snapshot);paint(f);await f.run(16);await settle();
+  const video=f.view.current.tiles[0].video,screen=f.view.current.tiles[1].video,oldMic=f.view.audio.get(G+':microphone'),oldScreen=f.view.audio.get(G+':screen_audio');
+  const muted=room();muted.revision=2;muted.participants[0].program_audio={microphone_muted:true,screen_muted:false};f.view.setRoom(muted);
+  assert.equal(f.view.audio.size,1);assert.equal(oldMic.node.srcObject,null);assert.equal(oldMic.node.paused,true);assert.equal(oldMic.node.muted,true);
+  assert.equal(f.view.audio.get(G+':screen_audio'),oldScreen);assert.equal(f.view.current.tiles[0].video,video);assert.equal(f.view.current.tiles[1].video,screen);
+  muted.revision=3;muted.participants[0].program_audio.screen_muted=true;f.view.setRoom(muted);assert.equal(f.view.audio.size,0);assert.equal(oldScreen.node.srcObject,null);
+  assert.deepEqual(f.view.readySources(),[AUDIO,CAM,SCREEN].sort());
+  const resumed=room();resumed.revision=4;resumed.participants[0].program_audio={microphone_muted:false,screen_muted:false};f.view.setRoom(resumed);await settle();
+  assert.equal(f.view.audio.size,2);assert.notEqual(f.view.audio.get(G+':microphone').node,oldMic.node);assert.notEqual(f.view.audio.get(G+':screen_audio').node,oldScreen.node);
+  assert.ok(Object.values(media).every(t=>t.stops===0&&t.enabled===true));f.close();assert.ok(Object.values(media).every(t=>t.stops===0));
+});
+
+test('mute cancels queued or late audio playback and Preview remains silent through mute changes',async()=>{
+  const f=fixture(),media=guestTracks(f);f.view.render(state({program_sources:[AUDIO]}),room());
+  const original=f.view.audio.get(G+':microphone');let plays=0;original.node.play=()=>{plays++;return Promise.resolve();};
+  const snapshot=room();snapshot.revision=2;snapshot.participants[0].program_audio={microphone_muted:true,screen_muted:true};f.view.setRoom(snapshot);await settle();assert.equal(plays,0);
+  snapshot.revision=3;snapshot.participants[0].program_audio.microphone_muted=false;f.view.setRoom(snapshot);
+  const pending=f.view.audio.get(G+':microphone');let resolve;pending.node.play=()=>new Promise(done=>{resolve=done;});await settle();
+  snapshot.revision=4;snapshot.participants[0].program_audio.microphone_muted=true;f.view.setRoom(snapshot);resolve();await settle();assert.equal(pending.playing,false);assert.equal(f.view.audio.size,0);
+  assert.equal(media.microphone.stops,0);f.close();
+  const preview=fixture({bus:'preview'});guestTracks(preview);preview.view.render(state({preview_sources:[CAM,SCREEN,AUDIO]}),snapshot);paint(preview);await preview.run(16);
+  snapshot.revision=5;snapshot.participants[0].program_audio={microphone_muted:false,screen_muted:false};preview.view.setRoom(snapshot);await settle();assert.equal(preview.nodes.filter(n=>n.tagName==='AUDIO').length,0);preview.close();
+});
+
 test('unchanged local Program retains clean camera subscription and waits for real image',async()=>{
   const f=fixture();f.view.render(state());const frame=f.view.current.tiles[0].iframe;frame.cameraOffline=true;await f.run(16);assert.equal(f.acks.length,0);
   frame.cameraOffline=false;f.view.refresh();assert.deepEqual(f.acks,[0]);f.view.render(state());assert.equal(f.view.current.tiles[0].iframe,frame);assert.equal(frame.src,'/output/camera/1');f.close();assert.equal(frame.src,'');

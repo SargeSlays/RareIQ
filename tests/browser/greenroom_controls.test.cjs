@@ -82,3 +82,23 @@ test('Activity labels expose actor type and verified truth without private ident
   assert.equal(controls.activityEntry({...event,action:'guest.admit',target:'guest'},[{id:'guest',name:hostile}]).guest,hostile);
   assert.equal(controls.activityEntry({...event,actor_kind:hostile}).actor,'Unidentified source');
 });
+
+test('Private invitation links reject unsafe and unexpected destinations and explain local scope',()=>{
+  const suffix='/guest#invite='+'b'.repeat(64);
+  for(const origin of ['http://localhost:8765','http://127.0.0.1:8765','http://[::1]:8765']){
+    const result=controls.invitationLink(origin+suffix);assert.equal(result.local,true);assert.match(result.hint,/this computer only/);assert.equal(result.url,origin+suffix);
+  }
+  const remote=controls.invitationLink('https://studio.example'+suffix);assert.equal(remote.local,false);assert.match(remote.hint,/each person/);
+  for(const value of ['',null,'javascript:alert(1)','file:///guest#invite='+'b'.repeat(64),'https://user:password@studio.example'+suffix,'https://studio.example/control#invite='+'b'.repeat(64),'https://studio.example/guest?token=private#invite='+'b'.repeat(64),'https://studio.example'+suffix+'&extra=secret'])assert.equal(controls.invitationLink(value),null);
+});
+
+test('Program audio toggles use the latest independent flags without changing source availability',()=>{
+  const {room,switcher}=fixture(),person=room.participants[0];
+  assert.deepEqual(controls.programAudioChange(person,'microphone'),{action:'program_audio',microphone_muted:true,screen_muted:false});
+  person.program_audio={microphone_muted:true,screen_muted:true};
+  assert.deepEqual(controls.programAudioChange(person,'microphone'),{action:'program_audio',microphone_muted:false,screen_muted:true});
+  assert.deepEqual(controls.programAudioChange(person,'screen'),{action:'program_audio',microphone_muted:true,screen_muted:false});
+  assert.equal(sourceAvailable(person.sources.camera,switcher,room),true);assert.equal(sourceAvailable(person.sources.screen,switcher,room),true);
+  assert.throws(()=>controls.programAudioChange(person,'camera'),/invalid_audio_kind/);
+  const entry=controls.activityEntry({action:'guest.program_audio',outcome:'succeeded'});assert.equal(entry.action,'Program audio setting changed');assert.equal(entry.outcome,'Recorded');
+});

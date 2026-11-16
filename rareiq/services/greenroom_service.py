@@ -23,6 +23,7 @@ from rareiq.web.shared_scene_access import VerifiedPrincipal
 
 MEDIA_KEYS = ("camera", "microphone", "screen", "screen_audio")
 EMPTY_MEDIA = dict.fromkeys(MEDIA_KEYS, False)
+PROGRAM_AUDIO_KEYS = ("microphone_muted", "screen_muted")
 
 
 class GreenroomError(ValueError):
@@ -74,6 +75,10 @@ class GreenroomService:
             db.execute("BEGIN IMMEDIATE")
             if "request_id" not in {row["name"] for row in db.execute("PRAGMA table_info(greenroom_activity)")}:
                 db.execute("ALTER TABLE greenroom_activity ADD COLUMN request_id TEXT")
+            participant_columns = {row["name"] for row in db.execute("PRAGMA table_info(greenroom_participants)")}
+            for name in PROGRAM_AUDIO_KEYS:
+                if name not in participant_columns:
+                    db.execute(f"ALTER TABLE greenroom_participants ADD COLUMN {name} INTEGER NOT NULL DEFAULT 0 CHECK({name} IN (0,1))")
             db.execute("INSERT OR IGNORE INTO greenroom_room VALUES (1,?,0,1)", (uuid.uuid4().hex,))
         if reset_runtime:
             self.reset_runtime()
@@ -144,6 +149,7 @@ class GreenroomService:
         return {"id": row["id"], "name": row["name"],
                 "state": row["state"] if available else "removed", "expired": expired,
                 "connected": connected, "media": media, "joined_at": row["joined_at"],
+                "program_audio": {key: bool(row[key]) for key in PROGRAM_AUDIO_KEYS},
                 "expires_at": row["expires_at"], "identity_verified": False,
                 "sources": {kind: f"guest:{row['id']}:{kind}" for kind in ("camera", "screen", "audio")}}
 
@@ -249,7 +255,7 @@ class GreenroomService:
             if count >= self.max_guests:
                 raise GreenroomError("guest_capacity_reached", 409)
             participant_id = uuid.uuid4().hex
-            db.execute("INSERT INTO greenroom_participants VALUES (?,?,?,?,?,'waiting',0,?,?,?)",
+            db.execute("INSERT INTO greenroom_participants(id,room_id,invite_id,session_hash,name,state,connected,media,joined_at,expires_at) VALUES (?,?,?,?,?,'waiting',0,?,?,?)",
                        (participant_id, room["id"], invite["id"], session_hash, name, self._json(EMPTY_MEDIA), now, now + 12 * 3600))
             db.execute("UPDATE greenroom_invites SET participant_id=? WHERE id=?", (participant_id, invite["id"]))
             self._event(db, "guest_session", participant_id, False, "guest.joined", participant_id, {"state": "waiting"})
@@ -305,12 +311,30 @@ class GreenroomService:
                 self._event(db, "guest_session", participant_id, False, "guest.left", participant_id, {"state": "removed"})
             return {"ok": True, "participant_id": participant_id, "revision": self._room(db)["revision"]}
 
-    def moderate(self, participant_id, action, actor_kind="local_operator", *, principal=None, expected_revision=None, request_id=None):
-        if action not in {"admit", "remove"}:
+    def moderate(self, participant_id, action, actor_kind="local_operator", *, principal=None, expected_revision=None, request_id=None,
+                 microphone_muted=None, screen_muted=None):
+        if action not in {"admit", "remove", "program_audio"}:
+            raise GreenroomError("invalid_guest_action")
+        payload = {}
+        if action == "program_audio":
+            if type(microphone_muted) is not bool or type(screen_muted) is not bool:
+                raise GreenroomError("invalid_program_audio")
+            payload = {"microphone_muted": microphone_muted, "screen_muted": screen_muted}
+        elif microphone_muted is not None or screen_muted is not None:
             raise GreenroomError("invalid_guest_action")
 
         def mutate(db, room):
             row = self._participant_row(db, participant_id)
+            if action == "program_audio":
+                # Output policy only: never change guest capture, admission or
+                # backstage media availability. Waiting guests can be pre-muted.
+                before = {key: bool(row[key]) for key in PROGRAM_AUDIO_KEYS}
+                changed = before != payload
+                if changed:
+                    db.execute("UPDATE greenroom_participants SET microphone_muted=?,screen_muted=? WHERE id=?",
+                               (int(microphone_muted), int(screen_muted), participant_id))
+                return ({"participant": self._participant(row), "program_audio": dict(payload)},
+                        {"before": before, "after": dict(payload)}, changed, participant_id)
             state = "admitted" if action == "admit" else "removed"
             if state == row["state"]:
                 return {"participant": self._participant(row)}, {}, False, participant_id
@@ -321,7 +345,7 @@ class GreenroomService:
             updated = db.execute("SELECT * FROM greenroom_participants WHERE id=?", (participant_id,)).fetchone()
             return {"participant": self._participant(updated)}, {"before": row["state"], "after": state}, True, participant_id
 
-        return self._producer("guest." + action, participant_id, {}, mutate, actor_kind, principal, expected_revision, request_id)
+        return self._producer("guest." + action, participant_id, payload, mutate, actor_kind, principal, expected_revision, request_id)
 
     def revoke_invite(self, invite_id, actor_kind="local_operator", *, principal=None, expected_revision=None, request_id=None):
         def mutate(db, room):

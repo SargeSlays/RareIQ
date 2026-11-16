@@ -101,6 +101,67 @@ def test_http_foreign_origin_cannot_join_or_control(fixture):
     assert client.get("/api/production/greenroom", headers=OPERATOR | {"origin": "https://untrusted.invalid"}).status_code == 403
 
 
+def test_program_audio_is_same_origin_producer_only_and_in_snapshot(fixture):
+    service, _, _, _, client = fixture
+    _, joined, token = join(fixture)
+    participant = service.authenticate(token)
+    path = f"/api/production/greenroom/participants/{participant['id']}"
+    body = {"action": "program_audio", "microphone_muted": True, "screen_muted": False,
+            "expected_revision": service.snapshot()["revision"], "request_id": "mute"}
+    for headers in (ORIGIN | {"authorization": "Bearer " + token}, OPERATOR | {"origin": "https://untrusted.invalid"}):
+        assert client.post(path, headers=headers, json=body).status_code == 403
+    response = client.post(path, headers=OPERATOR, json=body)
+    assert response.status_code == 200
+    assert client.post(path, headers=OPERATOR, json=body).json() == response.json()
+    flags = {"microphone_muted": True, "screen_muted": False}
+    assert response.json()["program_audio"] == flags
+    current = client.get("/api/production/greenroom", headers=OPERATOR).json()["participants"][0]
+    assert current["program_audio"] == flags and current["state"] == "waiting"
+    assert current["media"] == EMPTY_MEDIA
+
+
+@pytest.mark.parametrize("change", [
+    {"microphone_muted": None}, {"screen_muted": 1}, {"screen_muted": "false"},
+    {"extra": True}, {"program_audio": {"microphone_muted": True, "screen_muted": False}},
+    {"action": "admit"}, {"action": "remove"},
+])
+def test_program_audio_http_schema_rejects_coercion_extra_or_wrong_action(fixture, change):
+    service, _, _, _, client = fixture
+    _, _, token = join(fixture)
+    participant = service.authenticate(token)
+    body = {"action": "program_audio", "microphone_muted": True, "screen_muted": False,
+            "expected_revision": service.snapshot()["revision"], "request_id": "invalid"}
+    response = client.post(f"/api/production/greenroom/participants/{participant['id']}", headers=OPERATOR, json=body | change)
+    assert response.status_code == 422
+    assert not any(service.authenticate(token)["program_audio"].values())
+
+
+@pytest.mark.parametrize("missing", ["microphone_muted", "screen_muted", "expected_revision", "request_id"])
+def test_program_audio_http_requires_both_flags_and_preconditions(fixture, missing):
+    service, _, _, _, client = fixture
+    _, _, token = join(fixture)
+    participant = service.authenticate(token)
+    body = {"action": "program_audio", "microphone_muted": True, "screen_muted": False,
+            "expected_revision": service.snapshot()["revision"], "request_id": "invalid"}
+    del body[missing]
+    assert client.post(f"/api/production/greenroom/participants/{participant['id']}", headers=OPERATOR, json=body).status_code == 422
+
+
+@pytest.mark.parametrize("message", [
+    {"type": "program_audio", "microphone_muted": False, "screen_muted": False},
+    {"type": "media", "media": EMPTY_MEDIA | {"program_audio": {"microphone_muted": False, "screen_muted": False}}},
+])
+def test_guest_socket_cannot_override_program_audio(fixture, message):
+    service, _, _, _, client = fixture
+    _, _, token = join(fixture)
+    participant = service.authenticate(token)
+    service.moderate(participant["id"], "program_audio", microphone_muted=True, screen_muted=True)
+    with socket(client, "guest", token) as (guest, _):
+        guest.send_json(message)
+        assert_closed(guest)
+    assert all(service.authenticate(token)["program_audio"].values())
+
+
 @pytest.mark.parametrize("role", ["guest", "producer", "output"])
 def test_websocket_foreign_origin_is_rejected_before_acceptance(fixture, role):
     *_, client = fixture
