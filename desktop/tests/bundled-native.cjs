@@ -13,6 +13,7 @@ async function main(){
   const api=async route=>{const response=await fetch(origin+route);assert.equal(response.ok,true);return response.json();};
   try{
     app=await _electron.launch({executablePath:executable,env,args:['--preview']});
+    app.context().setDefaultTimeout(20000);
     result.guardInstalledBeforeWindow=await app.evaluate(({app,BrowserWindow})=>{
       const install=contents=>{contents.session.webRequest.onBeforeRequest((details,reply)=>{
         const url=new URL(details.url),local=url.origin==='http://127.0.0.1:8770'||url.origin==='ws://127.0.0.1:8770';
@@ -29,6 +30,7 @@ async function main(){
     await studio.screenshot({path:path.join(evidence,'bundled-studio.png')});await studio.locator('[data-studio-open=broadcast][data-studio-view=setup]').click();await settings.screenshot({path:path.join(evidence,'bundled-setup.png')});
     const prefs=await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().map(w=>w.webContents.getLastWebPreferences()));assert.ok(prefs.every(p=>p.sandbox&&p.contextIsolation&&!p.nodeIntegration));
     Object.assign(result,{complete:true,bundledBackendStarted:true,managedRuntimeAvailable:true,sourceNavigation:true,navigationDoesNotTake:true,developmentPythonNotOnPath:true,protectedStorageAvailable:status.secureStorageAvailable});
+    if(process.argv.includes('--destination-edit'))result.destinationEdit=await require('./bundled-destination-edit.cjs').exerciseDestinationEdit(app,{settings,origin,evidence});
     if(process.argv.includes('--view-output')){
       const beforeView=await api('/api/production/switcher');await settings.locator('#prepareOutput').click();
       await settings.locator('#status').filter({hasText:'Output opened'}).waitFor();

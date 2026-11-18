@@ -1352,3 +1352,23 @@ Evidence under `F:/Temp/jonat/ProducerPlease-recovery-20261118`:
 `encoder03/results.json`, and `release-gate.log`. Earlier `encoder02` proof remains
 preserved for the prior build; the final repeat uses the recovery candidate.
 No real platform stream, user recording, credentials or physical capture were used.
+
+## November 18, 2026 — Desktop destination-edit acceptance
+
+- [x] 32 focused store/Settings/mutation-guard tests, including retained retry IDs.
+- [x] Canonical final isolated-source gate: **3533 Python + 621 JavaScript tests**.
+- [x] Actual bundled EXE `0.1.0-20261118110448557`, fresh QA profile/backend 8770:
+  Settings creates synthetic destinations using real Windows encryption; same-ID
+  rename preserves key/server, Cancel restores Add draft, server-only change is
+  blocked and explicit replacement updates key/server. Public status stays redacted.
+- [x] Dark/light 800×900, 1920×1080 and 3840×2160 inspected without horizontal overflow.
+- [x] Main guards save/remove vs Start/Stop/ownership, including reverse pending-save
+  race; one read-only integration review found no concrete blocker.
+- [x] No Program change, encoding, actual credentials or physical capture; owned QA
+  processes closed and existing 8765/8767 studios were preserved.
+- [ ] OAuth/platform sign-in, destination receipt, hardware/listener/endurance and
+  installer/update/public-release gates remain separate.
+
+Evidence: `F:/Temp/jonat/ProducerPlease-destination-edit-20261118/native02/results.json`,
+the six layout captures and `release-gate-final.log`. `native01` is a preserved
+failed harness probe, not passing acceptance evidence.

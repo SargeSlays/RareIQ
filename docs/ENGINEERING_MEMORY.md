@@ -907,3 +907,22 @@ review action while sending or create a replacement implicitly. Its closing and
 restore races are guarded. Local TLS disconnect exercises the real worker; a
 generic safe encoder error is evidence of failure handling, not proof of a
 specific diagnosed transport cause.
+
+## November 18, 2026 — Destination edits need Main-level transaction guards
+
+Symptom: renderer button locks could not prevent destination mutations racing an
+awaited Start or ownership reconciliation. Root cause: the save IPC bridge had no
+broadcast guard, removal only checked the currently selected active destination,
+and Start did not account for an awaited destination write. Main now serializes
+save/remove, rejects mutations while active/ownershipPending, and rejects Start
+until persistence settles. Finally releases the mutation lock on failure. Tests
+exercise both directions with deferred operations and untrusted-frame attempts.
+
+Editing must not expose saved keys or server addresses. Omit blank fields and
+verify preservation through the existing encrypted store. Changing server requires
+a new key. Keep Add draft fields and its ambiguous retry receipt together when
+entering/leaving editing; preserving only the fields could duplicate an earlier
+uncertain Add save. Store, Settings and actual packaged DPAPI regressions cover
+these contracts. Layout help text inside the form grid must span both columns.
+The first native harness attempted to fill Twitch's hidden server field; the
+corrected harness respects preset visibility and has an explicit action timeout.

@@ -264,3 +264,35 @@ Evidence: `F:/Temp/jonat/ProducerPlease-recovery-20261118/`:
 Accepted recovery build: `0.1.0-20261118105522739`. The separate Standalone Preview
 shortcut points there after acceptance. An already-open preview keeps its earlier
 build until closed/reopened; its profile and the primary studio are preserved.
+
+## November 18, 2026 — Edit protected destinations
+
+Use **Edit** beside a saved destination to correct its name, replace its stream
+key, or enter another secure server address. Existing keys and server addresses
+are never filled into the form or returned to Settings. Leave a field blank to
+keep its saved value. Entering a server address requires a replacement key, so a
+saved key cannot silently move to another server. The platform stays fixed during
+editing; add a separate destination to use another platform. Cancel editing
+restores the unfinished Add destination draft. Saving an edit restores that draft
+too, and does not start transmission. Start stays disabled until editing finishes.
+
+During pending/active transmission or uncertain ownership, destination mutations
+are blocked in both Settings and Main. While a save/remove is awaiting persistence,
+Main blocks Start and repeated mutations. The platform dashboard remains available
+while sending. A failed save retains the edit and retry request ID; switching into
+editing and back also preserves an ambiguous Add retry's request ID.
+
+The packaged candidate `0.1.0-20261118110448557` passed real Settings/Windows
+encryption acceptance with synthetic Twitch/YouTube profiles: rename kept the same
+profile/key/server; Cancel restored the Add draft; server replacement without a
+key changed nothing; an explicit replacement updated both. Private values were
+checked only inside Main and never returned as status. Program generation and
+sources did not change, encoding stayed inactive, and owned QA processes closed.
+Dark/light layouts were inspected at 800×900, 1920×1080 and 3840×2160 with no
+horizontal overflow. Existing 8765/8767 studios and real credentials were untouched.
+
+Evidence: `F:/Temp/jonat/ProducerPlease-destination-edit-20261118/native02/results.json`
+and the six `destination-edit-*.png` captures. `native01` is a failed harness attempt
+that tried to fill Twitch's intentionally hidden server field; it closed its owned
+backend and is retained as diagnostic evidence. This does not establish platform
+login or receipt. Reopen the separate Standalone Preview entry to load this build.

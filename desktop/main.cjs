@@ -8,12 +8,19 @@ const profile=process.env.PRODUCER_DESKTOP_QA_PROFILE||process.env.PRODUCER_DESK
 if(!path.isAbsolute(profile))throw Error('Desktop data must use an absolute directory');
 for(const directory of [profile,path.join(profile,'browser'),path.join(profile,'logs'),path.join(profile,'crashes')])fs.mkdirSync(directory,{recursive:true});
 app.setPath('userData',profile);app.setPath('sessionData',path.join(profile,'browser'));app.setPath('logs',path.join(profile,'logs'));app.setPath('crashDumps',path.join(profile,'crashes'));
-let studio,settings,backend,origin,destinations,capturePicker,quit,runtime,broadcast,polling,choosingSources;
+let studio,settings,backend,origin,destinations,capturePicker,quit,runtime,broadcast,polling,choosingSources,destinationMutation=false;
 if(!app.requestSingleInstanceLock())app.exit(0);
 app.on('second-instance',()=>{if(studio){if(studio.isMinimized())studio.restore();studio.show();studio.focus();}});
 function windowOptions(extra={}){return {width:1600,height:1000,minWidth:800,minHeight:600,title:'Producer, Please',icon:path.join(__dirname,'assets','icon-512.png'),backgroundColor:'#101318',autoHideMenuBar:false,...extra,webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true,allowRunningInsecureContent:false,webviewTag:false,backgroundThrottling:false,...extra.webPreferences}};}
 function secureWindow(window,allowed){window.webContents.setWindowOpenHandler(({url})=>{if(policy.sameStudio(url,origin)&&!new URL(url).pathname.startsWith('/guest')){const child=new BrowserWindow(windowOptions({webPreferences:{partition:'persist:producer-studio'}}));secureWindow(child,origin);child.loadURL(url);}else if(policy.allowedExternal(url)||(policy.sameStudio(url,origin)&&new URL(url).pathname.startsWith('/guest')))shell.openExternal(url);return {action:'deny'};});window.webContents.on('will-navigate',(event,url)=>{if(!url.startsWith(allowed+'/')&&url!==allowed)event.preventDefault();});window.webContents.on('will-redirect',(event,url,_inPlace,isMainFrame)=>{if(isMainFrame!==false&&!policy.sameStudio(url,origin))event.preventDefault();});window.webContents.on('will-attach-webview',event=>event.preventDefault());}
 function settingsEvent(event){return settings&&!settings.isDestroyed()&&event.sender===settings.webContents&&event.senderFrame===settings.webContents.mainFrame&&event.senderFrame.url===pathToFileURL(path.join(__dirname,'settings.html')).href;}
+async function changeDestination(event,action){
+  if(!settingsEvent(event))throw Error('Untrusted request');
+  if(destinationMutation)throw Error('destination_change_pending');
+  if(!broadcast||broadcast.active()||broadcast.status().ownershipPending)throw Error('destination_broadcast_busy');
+  destinationMutation=true;
+  try{return await action();}finally{destinationMutation=false;}
+}
 async function openSettings(){if(settings&&!settings.isDestroyed()){settings.show();settings.focus();return;}
   settings=new BrowserWindow(windowOptions({width:860,height:790,parent:studio,webPreferences:{preload:path.join(__dirname,'settings-preload.cjs'),partition:'persist:producer-settings'}}));settings.webContents.setWindowOpenHandler(()=>({action:'deny'}));settings.webContents.on('will-navigate',event=>event.preventDefault());await settings.loadFile(path.join(__dirname,'settings.html'));
 }
@@ -75,10 +82,10 @@ app.whenReady().then(async()=>{
   ipcMain.handle('producer:sources:open',openSources);
   ipcMain.handle('producer:output:view',viewOutput);
   ipcMain.handle('producer:destinations:status',event=>{if(!settingsEvent(event))throw Error('Untrusted request');return destinations.public().then(value=>({...value,broadcast:publicBroadcast()}));});
-  ipcMain.handle('producer:destinations:save',async(event,value)=>{if(!settingsEvent(event))throw Error('Untrusted request');return destinations.save(value);});
-  ipcMain.handle('producer:destinations:remove',async(event,id)=>{if(!settingsEvent(event))throw Error('Untrusted request');if(broadcast?.active()&&broadcast.selected===id)throw Error('Stop the broadcast before removing its destination');return destinations.remove(id);});
+  ipcMain.handle('producer:destinations:save',(event,value)=>changeDestination(event,()=>destinations.save(value)));
+  ipcMain.handle('producer:destinations:remove',(event,id)=>changeDestination(event,()=>destinations.remove(id)));
   ipcMain.handle('producer:broadcast:prepare',async(event,value)=>{if(!settingsEvent(event))throw Error('Untrusted request');await broadcast.prepare(value);return publicBroadcast();});
-  ipcMain.handle('producer:broadcast:start',async(event,value)=>{if(!settingsEvent(event))throw Error('Untrusted request');await broadcast.start(value);return publicBroadcast();});
+  ipcMain.handle('producer:broadcast:start',async(event,value)=>{if(!settingsEvent(event))throw Error('Untrusted request');if(destinationMutation)throw Error('destination_change_pending');await broadcast.start(value);return publicBroadcast();});
   ipcMain.handle('producer:broadcast:stop',async event=>{if(!settingsEvent(event))throw Error('Untrusted request');await broadcast.stop();return publicBroadcast();});
   ipcMain.handle('producer:broadcast:status',event=>{if(!policy.trustedMain(event,studio.webContents,origin)&&!settingsEvent(event))throw Error('Untrusted request');return publicBroadcast();});
   ipcMain.handle('producer:platform',(event,value)=>{if(!settingsEvent(event)||!policy.allowedExternal(value))throw Error('Untrusted address');return shell.openExternal(value);});

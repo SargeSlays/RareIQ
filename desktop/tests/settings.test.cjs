@@ -21,17 +21,18 @@ async function fixture(){
   for(const name of ['name','platform','serverUrl','streamKey']){const element=new Element();form.elements.push(element);form.elements[name]=element;}
   form.elements.name.value='Synthetic';form.elements.platform.value='twitch';form.elements.streamKey.value='synthetic-never-sent';form.reset=()=>{};
   node('#outputFormat').value='hd';
+  node('#destinationFormTitle').textContent='Add a destination';
   const descendants=element=>element.children.flatMap(child=>[child,...descendants(child)]);
   const document={querySelector:node,createElement:()=>new Element(),documentElement:{dataset:{}},querySelectorAll:selector=>{
-    const key=selector==='[data-destination-id]'?'destinationId':'removeDestinationId';return descendants(node('#destinations')).filter(element=>key in element.dataset);
+    const key={'[data-destination-id]':'destinationId','[data-remove-destination-id]':'removeDestinationId','[data-edit-destination-id]':'editDestinationId'}[selector];return descendants(node('#destinations')).filter(element=>key in element.dataset);
   }};
-  const api={status:async()=>({secureStorageAvailable:true,broadcast:state,destinations:[{id:'one',name:'Synthetic',platform:'twitch',configured:true}]}),
+  const api={status:async()=>({secureStorageAvailable:true,broadcast:state,destinations:[{id:'one',name:'Synthetic',platform:'twitch',configured:true,keyConfigured:true}]}),
     startBroadcast:async()=>{calls.start++;return state;},stopBroadcast:async()=>{calls.stop++;return state={...prepared};},
     broadcastStatus:async()=>{calls.poll++;return state;},prepareOutput:async()=>state,
     save:async()=>{calls.save++;},remove:async()=>{calls.remove++;},openPlatform:()=>{},openSources:async()=>{calls.sources++;return {ok:true};},viewOutput:async()=>{calls.view++;return {ok:true};}};
   vm.runInNewContext(source,{document,producerSettings:api,window:{close(){}},localStorage:{getItem(){},setItem(){}},crypto:{randomUUID:()=> 'synthetic-request'},
     setInterval:fn=>{timers.push(fn);return timers.length;},clearInterval(){},addEventListener(){}},{filename:'settings.js'});
-  await settle();return {node,form,api,calls,poll:()=>timers[0](),set state(value){state=value;},get start(){return document.querySelectorAll('[data-destination-id]')[0];},get remove(){return document.querySelectorAll('[data-remove-destination-id]')[0];}};
+  await settle();return {node,form,api,calls,poll:()=>timers[0](),set state(value){state=value;},get start(){return document.querySelectorAll('[data-destination-id]')[0];},get remove(){return document.querySelectorAll('[data-remove-destination-id]')[0];},get edit(){return document.querySelectorAll('[data-edit-destination-id]')[0];}};
 }
 test('stopped encoder failures override readiness and format hints without exposing unknown errors',async()=>{
   const f=await fixture();f.node('#outputFormat').value='portrait';
@@ -109,4 +110,31 @@ test('connection recovery remains explicit, preserves input drafts and hides unk
 
 test('normal startup reservation does not show an unconfirmed-stop recovery warning',async()=>{
   const f=await fixture();f.state={...prepared,phase:'starting',active:true,ready:false,ownershipPending:true};await f.poll();assert.equal(f.node('#recoveryPanel').hidden,true);assert.match(f.node('#broadcastSummary').textContent,/Broadcast starting/);
+});
+
+test('editing never reads saved secrets and keeps Add draft through cancel',async()=>{
+  const f=await fixture(),original={name:f.form.elements.name.value,key:f.form.elements.streamKey.value};await f.edit.fire();
+  assert.equal(f.form.elements.streamKey.value,'');assert.equal(f.form.elements.serverUrl.value,'');assert.equal(f.form.elements.streamKey.required,false);assert.equal(f.form.elements.platform.disabled,true);
+  assert.equal(f.node('#destinationFormTitle').textContent,'Edit destination');assert.equal(f.start.disabled,true);await f.start.fire();assert.equal(f.calls.start,0);
+  f.form.elements.name.value='Unsaved correction';await f.node('#cancelEdit').fire();assert.equal(f.form.elements.name.value,original.name);assert.equal(f.form.elements.streamKey.value,original.key);assert.equal(f.node('#cancelEdit').hidden,true);assert.equal(f.start.disabled,false);
+});
+
+test('rename omits saved server/key, keeps id, and restores Add draft after success',async()=>{
+  const f=await fixture();let payload;f.api.save=async value=>{payload=value;f.calls.save++;};await f.edit.fire();f.form.elements.name.value='Renamed';await f.form.fire('submit');
+  assert.equal(payload.id,'one');assert.equal(payload.name,'Renamed');assert.equal('streamKey' in payload,false);assert.equal('serverUrl' in payload,false);assert.equal(f.calls.start,0);assert.equal(f.node('#destinationFormTitle').textContent,'Add a destination');assert.equal(f.form.elements.streamKey.value,'synthetic-never-sent');
+});
+
+test('editing server requires replacement key and a failed retry keeps draft and request id',async()=>{
+  const f=await fixture();f.api.status=async()=>({secureStorageAvailable:true,broadcast:prepared,destinations:[{id:'other',name:'YouTube',platform:'youtube',configured:true,keyConfigured:true}]});await f.form.fire('submit');await f.edit.fire();
+  f.form.elements.serverUrl.value='rtmps://secure.provider.com/live';await f.form.fire('submit');assert.match(f.node('#status').textContent,/replacement stream key/);assert.equal(f.calls.save,1);
+  const attempts=[];f.api.save=async value=>{attempts.push(value);if(attempts.length===1)throw Error('private raw detail');};f.form.elements.streamKey.value='synthetic-replacement';await f.form.fire('submit');assert.equal(f.form.elements.streamKey.value,'synthetic-replacement');assert.equal(f.node('#cancelEdit').hidden,false);assert.doesNotMatch(f.node('#status').textContent,/private raw/);
+  await f.form.fire('submit');assert.deepEqual(attempts[0],attempts[1]);assert.equal(attempts[1].id,'other');assert.equal(attempts[1].streamKey,'synthetic-replacement');assert.equal(attempts[1].serverUrl,'rtmps://secure.provider.com/live');
+});
+
+test('all destination edits and mutations stop during sending or unconfirmed ownership',async()=>{
+  const f=await fixture();for(const state of [{...prepared,active:true,phase:'sending'},{...prepared,ownershipPending:true,phase:'failed'}]){f.state=state;await f.poll();assert.equal(f.edit.disabled,true);assert.equal(f.remove.disabled,true);assert.equal(f.node('#platformDashboard').disabled,false);await f.edit.fire();await f.remove.fire();await f.form.fire('submit');assert.equal(f.node('#destinationFormTitle').textContent,'Add a destination');assert.equal(f.calls.remove,0);assert.equal(f.calls.save,0);assert.ok(f.form.elements.every(element=>element.disabled));}
+});
+
+test('ambiguous Add retry retains its receipt after an intervening edit and cancel',async()=>{
+  const f=await fixture(),attempts=[];f.api.save=async value=>{attempts.push(value);if(attempts.length===1)throw Error('acknowledgment lost');};await f.form.fire('submit');await f.edit.fire();await f.node('#cancelEdit').fire();await f.form.fire('submit');assert.deepEqual(attempts[0],attempts[1]);
 });

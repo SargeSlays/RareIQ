@@ -770,3 +770,12 @@ requires an explicit Start and destination confirmation; automatic reconnect is
 not implemented. Actual bundled output-loss/explicit-retry and local TLS-failure
 checks passed with synthetic media. Real platform/hardware acceptance remains
 separate; see [desktop recovery evidence](DESKTOP_APP.md).
+
+## November 18, 2026 — Protected destination editing
+
+The desktop setup now supports editing saved destination names, keys and servers
+without displaying saved credentials. Blank edits preserve values; changing server
+requires a replacement key. Cancel restores the Add draft. Destination mutations
+and transmission startup are mutually guarded in Main, including pending ownership.
+Actual packaged Settings/DPAPI acceptance passed with synthetic profiles; real
+platform identity, OAuth and delivery remain separate. See [desktop evidence](DESKTOP_APP.md).

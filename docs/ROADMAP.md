@@ -792,3 +792,11 @@ a new output/peer and encoded another local file. Local TLS disconnect and expli
 new-attempt checks also passed. No automatic network reconnect or platform-live
 verification is claimed. Continue with authorized platform receipt and physical/
 listener checks, then endurance and packaging/update gates already listed above.
+
+## November 18, 2026 — Desktop destination editing checkpoint
+
+Implemented and packaged-tested: Edit saved destination, hidden-secret preservation,
+replacement-key requirement for server changes, Cancel/Add-draft recovery, and
+Main guards in both directions between destination persistence and transmission.
+Six dark/light narrow/1080p/4K layouts passed. No platform login, destination receipt
+or physical acceptance is implied; those earlier gates remain open.
