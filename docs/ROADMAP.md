@@ -748,3 +748,12 @@ The next acceptance gates are bounded separately:
 
 This desktop checkpoint does not clear the earlier hosted multi-user/billing gates
 or authorize a public release, live stream, account change or paid action.
+
+## November 18, 2026 — Desktop setup continuation
+
+Added a three-step readiness guide and direct source-library navigation with draft
+preservation. The installed-package rehearsal verified navigation, unchanged
+Program generation, retained unsaved fields, protected synthetic-key saving and
+six dark/light desktop layouts. The native encoder is unchanged. Remaining gates
+are physical/listener acceptance, authorized platform receipt, endurance, NVENC
+diagnosis and self-contained packaging; this UI pass does not clear those gates.

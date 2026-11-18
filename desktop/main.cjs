@@ -7,7 +7,7 @@ const profile=process.env.PRODUCER_DESKTOP_QA_PROFILE||process.env.PRODUCER_DESK
 if(!path.isAbsolute(profile))throw Error('Desktop data must use an absolute directory');
 for(const directory of [profile,path.join(profile,'browser'),path.join(profile,'logs'),path.join(profile,'crashes')])fs.mkdirSync(directory,{recursive:true});
 app.setPath('userData',profile);app.setPath('sessionData',path.join(profile,'browser'));app.setPath('logs',path.join(profile,'logs'));app.setPath('crashDumps',path.join(profile,'crashes'));
-let studio,settings,backend,origin,destinations,capturePicker,quit,runtime,broadcast,polling;
+let studio,settings,backend,origin,destinations,capturePicker,quit,runtime,broadcast,polling,choosingSources;
 if(!app.requestSingleInstanceLock())app.exit(0);
 app.on('second-instance',()=>{if(studio){if(studio.isMinimized())studio.restore();studio.show();studio.focus();}});
 function windowOptions(extra={}){return {width:1600,height:1000,minWidth:800,minHeight:600,title:'Producer, Please',icon:path.join(__dirname,'assets','icon-512.png'),backgroundColor:'#101318',autoHideMenuBar:false,...extra,webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true,allowRunningInsecureContent:false,webviewTag:false,backgroundThrottling:false,...extra.webPreferences}};}
@@ -15,6 +15,22 @@ function secureWindow(window,allowed){window.webContents.setWindowOpenHandler(({
 function settingsEvent(event){return settings&&!settings.isDestroyed()&&event.sender===settings.webContents&&event.senderFrame===settings.webContents.mainFrame&&event.senderFrame.url===pathToFileURL(path.join(__dirname,'settings.html')).href;}
 async function openSettings(){if(settings&&!settings.isDestroyed()){settings.show();settings.focus();return;}
   settings=new BrowserWindow(windowOptions({width:860,height:790,parent:studio,webPreferences:{preload:path.join(__dirname,'settings-preload.cjs'),partition:'persist:producer-settings'}}));settings.webContents.setWindowOpenHandler(()=>({action:'deny'}));settings.webContents.on('will-navigate',event=>event.preventDefault());await settings.loadFile(path.join(__dirname,'settings.html'));
+}
+async function openSources(event){
+  if(!settingsEvent(event))throw Error('Untrusted request');
+  if(choosingSources)return choosingSources;
+  const owner=settings,target=studio;
+  choosingSources=(async()=>{
+    const available=()=>target&&target===studio&&!target.isDestroyed()&&policy.sameStudio(target.webContents.getURL(),origin)&&new URL(target.webContents.getURL()).pathname==='/control'&&target.webContents.mainFrame.url===target.webContents.getURL();
+    if(!available())throw Error('Studio sources are unavailable. Keep this window open and try again.');
+    const frame=target.webContents.mainFrame;
+    let opened=false;try{opened=await target.webContents.executeJavaScript('window.ProducerDesktopNavigation?.openSources() === true',false);}catch(_){}
+    if(opened!==true||!available()||target.webContents.mainFrame!==frame)throw Error('Studio sources are not ready yet. Keep this window open and try again.');
+    if(target.isMinimized())target.restore();target.show();target.focus();
+    if(settings===owner&&!owner.isDestroyed())owner.hide();
+    return {ok:true};
+  })().finally(()=>{choosingSources=null;});
+  return choosingSources;
 }
 app.whenReady().then(async()=>{
   const fixture=process.env.PRODUCER_DESKTOP_QA_ORIGIN;
@@ -47,6 +63,7 @@ app.whenReady().then(async()=>{
 
   ipcMain.handle('producer:info',event=>{if(!policy.trustedMain(event,studio.webContents,origin))throw Error('Untrusted request');return {name:'Producer, Please',version:app.getVersion(),desktop:true,engine:'standalone'};});
   ipcMain.handle('producer:settings',event=>{if(!policy.trustedMain(event,studio.webContents,origin))throw Error('Untrusted request');return openSettings();});
+  ipcMain.handle('producer:sources:open',openSources);
   ipcMain.handle('producer:destinations:status',event=>{if(!settingsEvent(event))throw Error('Untrusted request');return destinations.public().then(value=>({...value,broadcast:publicBroadcast()}));});
   ipcMain.handle('producer:destinations:save',async(event,value)=>{if(!settingsEvent(event))throw Error('Untrusted request');return destinations.save(value);});
   ipcMain.handle('producer:destinations:remove',async(event,id)=>{if(!settingsEvent(event))throw Error('Untrusted request');if(broadcast?.active()&&broadcast.selected===id)throw Error('Stop the broadcast before removing its destination');return destinations.remove(id);});

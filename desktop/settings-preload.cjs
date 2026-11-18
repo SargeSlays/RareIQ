@@ -1,6 +1,7 @@
 'use strict';
 const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('producerSettings',Object.freeze({
+  openSources:()=>ipcRenderer.invoke('producer:sources:open'),
   prepareOutput:value=>ipcRenderer.invoke('producer:broadcast:prepare',value),
   startBroadcast:value=>ipcRenderer.invoke('producer:broadcast:start',value),
   stopBroadcast:()=>ipcRenderer.invoke('producer:broadcast:stop'),

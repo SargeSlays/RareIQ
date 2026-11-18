@@ -32,6 +32,13 @@ Open **Producer, Please** from the Windows Start Menu. The local app was launche
 and visually inspected against the managed studio with no destination saved and
 no transmission started. Use **Broadcast setup** in the studio header or app menu.
 
+The three-step guide separates Program, clean output and destination readiness.
+**Choose sources** opens the existing studio source library without selecting a
+source, taking Preview or starting capture. Setup is hidden, preserving its draft;
+reopen Broadcast setup to continue. **Add destination** moves to the saved-key form.
+A changed output format requires preparing that format again. A securely saved
+destination is not a verified connected account or proof of platform delivery.
+
 1. Open **Broadcast setup**, choose Twitch, YouTube, Kick or Custom, and enter the
    stream key from that platform's dashboard. Twitch has a secure server preset;
    YouTube, Kick and Custom require the dashboard's server URL as well. The native

@@ -1,8 +1,19 @@
 /* Native capabilities are optional; ordinary browser behavior remains unchanged. */
 (function(host){
   'use strict';
+  function openSources(document=host.document,navigation=host){
+    const workspace=document?.querySelector('.workspace[data-workspace="broadcast"]'),panel=workspace?.querySelector('.production-greenroom'),docks=workspace?._studioDocks;
+    if(!panel||typeof docks?.showTool!=='function'||typeof navigation.switchWorkspace!=='function')return false;
+    if(navigation.switchWorkspace('broadcast')!==true||docks.showTool('production-greenroom')!==true)return false;
+    if(!workspace.classList.contains('active')||!panel.isConnected||panel.hidden||!panel.getClientRects().length)return false;
+    panel.scrollIntoView({block:'start',behavior:'auto'});
+    const addImage=panel.querySelector?.('[data-image-import]');
+    if(addImage&&!addImage.disabled){addImage.scrollIntoView({block:'center',behavior:'auto'});addImage.focus({preventScroll:true});}
+    return true;
+  }
   function install(document=host.document,bridge=host.producerDesktop){
     if(!document||typeof bridge?.openBroadcastSettings!=='function')return false;
+    host.ProducerDesktopNavigation=Object.freeze({openSources:()=>openSources(document)});
     const selector='[data-studio-open="broadcast"][data-studio-view="setup"]';
     const click=event=>{if(!event.target?.closest?.(selector))return;event.preventDefault();event.stopImmediatePropagation();Promise.resolve(bridge.openBroadcastSettings()).catch(()=>{const button=document.querySelector(selector);if(button)button.title='Broadcast setup could not open. Use the desktop app menu to retry.';});};
     document.addEventListener('click',click,true);
@@ -19,6 +30,6 @@
     }).catch(()=>{});
     return true;
   }
-  if(typeof module==='object'&&module.exports)module.exports={install};
+  if(typeof module==='object'&&module.exports)module.exports={install,openSources};
   if(host.document){if(host.document.readyState==='loading')host.document.addEventListener('DOMContentLoaded',()=>install(),{once:true});else install();}
 })(typeof window==='undefined'?globalThis:window);

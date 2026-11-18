@@ -1264,3 +1264,16 @@ Evidence and reproduction paths: [DESKTOP_APP.md](DESKTOP_APP.md). Use
 failed during handshake and is diagnostic history, not passing acceptance.
 No physical capture, external broadcast, public deployment or real account change
 was performed by these native rehearsals.
+
+## November 18, 2026 — Guided desktop setup acceptance
+
+Packaged native-window rehearsal passed source-library navigation, unchanged
+Program generation, hidden/reopened settings with both unsaved fields retained,
+DPAPI round trip, synthetic secure-key save, disabled transmission in the fixture,
+and six dark/light 960/1920/3840 layout captures. Focused IPC/navigation/UI guards
+pass. Evidence: `F:/Temp/jonat/ProducerPlease-desktop-onboarding-20261118/native-02`.
+This pass does not capture devices, connect accounts or start a real broadcast.
+The current production app remains open; the newer package takes effect on reopen.
+
+Canonical gate passed on the isolated checkpoint source: **3474 Python tests and
+586 JavaScript tests**. Log: `ProducerPlease-desktop-onboarding-20261118/release-gate.log`.

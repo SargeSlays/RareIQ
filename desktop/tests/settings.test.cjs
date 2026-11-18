@@ -11,9 +11,11 @@ class Element{
   append(...items){this.children.push(...items);}
   replaceChildren(...items){this.children=items;}
   setAttribute(){}
+  focus(){this.focused=true;}
+  scrollIntoView(){this.scrolled=true;}
 }
 async function fixture(){
-  const nodes=new Map(),timers=[],calls={start:0,stop:0,poll:0,save:0,remove:0};let state={...prepared};
+  const nodes=new Map(),timers=[],calls={start:0,stop:0,poll:0,save:0,remove:0,sources:0};let state={...prepared};
   const node=id=>{if(!nodes.has(id))nodes.set(id,new Element());return nodes.get(id);};
   const form=node('#destinationForm');form.elements=[];
   for(const name of ['name','platform','serverUrl','streamKey']){const element=new Element();form.elements.push(element);form.elements[name]=element;}
@@ -26,7 +28,7 @@ async function fixture(){
   const api={status:async()=>({secureStorageAvailable:true,broadcast:state,destinations:[{id:'one',name:'Synthetic',platform:'twitch',configured:true}]}),
     startBroadcast:async()=>{calls.start++;return state;},stopBroadcast:async()=>{calls.stop++;return state={...prepared};},
     broadcastStatus:async()=>{calls.poll++;return state;},prepareOutput:async()=>state,
-    save:async()=>{calls.save++;},remove:async()=>{calls.remove++;},openPlatform:()=>{}};
+    save:async()=>{calls.save++;},remove:async()=>{calls.remove++;},openPlatform:()=>{},openSources:async()=>{calls.sources++;return {ok:true};}};
   vm.runInNewContext(source,{document,producerSettings:api,window:{close(){}},localStorage:{getItem(){},setItem(){}},crypto:{randomUUID:()=> 'synthetic-request'},
     setInterval:fn=>{timers.push(fn);return timers.length;},clearInterval(){},addEventListener(){}},{filename:'settings.js'});
   await settle();return {node,form,api,calls,poll:()=>timers[0](),set state(value){state=value;},get start(){return document.querySelectorAll('[data-destination-id]')[0];},get remove(){return document.querySelectorAll('[data-remove-destination-id]')[0];}};
@@ -66,4 +68,21 @@ test('browser-mode backend explains the explicit restart without starting or sto
   const f=await fixture();f.state={...prepared,ready:false,reason:'desktop_mode_required'};await f.poll();
   assert.match(f.node('#broadcastSummary').textContent,/started in browser mode\. Close its sessions and restart it from the desktop app/);
   assert.equal(f.start.disabled,true);assert.equal(f.calls.start,0);assert.equal(f.calls.stop,0);
+});
+
+test('broadcast guide distinguishes a checked output, changed format and secure destination',async()=>{
+  const f=await fixture();assert.equal(f.node('#outputStep').textContent,'Ready');assert.equal(f.node('#destinationStep').textContent,'Saved securely');
+  f.node('#outputFormat').value='portrait';f.node('#outputFormat').fire('change');assert.equal(f.node('#outputStep').textContent,'Prepare new format');assert.equal(f.start.disabled,true);
+  f.api.status=async()=>({secureStorageAvailable:true,broadcast:{...prepared,ready:false,prepared:false},destinations:[]});await f.form.fire('submit');
+  assert.equal(f.node('#outputStep').textContent,'Not prepared');assert.equal(f.node('#destinationStep').textContent,'Not saved');assert.equal(f.node('#programStep').textContent,'Check Program');
+});
+
+test('source navigation keeps destination drafts, blocks repeat clicks, and reports a recoverable failure',async()=>{
+  const f=await fixture(),open=deferred();f.api.openSources=()=>{f.calls.sources++;return open.promise;};
+  const name=f.form.elements.name.value,key=f.form.elements.streamKey.value,pending=f.node('#chooseSources').fire();await f.node('#chooseSources').fire();
+  assert.equal(f.calls.sources,1);assert.equal(f.node('#chooseSources').disabled,true);assert.equal(f.calls.start,0);assert.equal(f.calls.save,0);
+  open.reject(Error('private error'));await pending;assert.match(f.node('#status').textContent,/could not open/);assert.equal(f.node('#chooseSources').disabled,false);
+  assert.equal(f.form.elements.name.value,name);assert.equal(f.form.elements.streamKey.value,key);assert.doesNotMatch(f.node('#status').textContent,/private error/);
+  f.api.openSources=async()=>({ok:true});await f.node('#chooseSources').fire();assert.match(f.node('#status').textContent,/draft is kept/);
+  f.node('#addDestination').fire();assert.equal(f.form.scrolled,true);assert.equal(f.form.elements.name.focused,true);
 });

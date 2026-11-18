@@ -828,3 +828,14 @@ See CAMERA_REASSIGNMENT_CHECKPOINT.md for evidence and driver-failure limitation
   alive. Passing evidence is `ProducerPlease-native-full-20261118-05`; failed runs
   remain preserved. A directory named `final` is not proof of success: cite the
   passing RTMPS serialized/repeat results listed in [DESKTOP_APP.md](DESKTOP_APP.md).
+
+## November 18, 2026 — Preserve setup drafts during source navigation
+
+Native setup and the browser studio own different state. Source navigation hides
+the existing settings window only after the trusted studio acknowledges that its
+source panel is mounted and visible; it never destroys the draft. IPC accepts only
+the exact settings main frame and evaluates one fixed navigation command. Recheck
+the target/frame after awaiting and ignore stale ownership before hiding windows.
+Regressions cover missing acknowledgment, duplicate clicks, replaced frames/windows
+and packaged-window unsaved-field persistence. Readiness also belongs to the
+selected output format: changing it must not retain a Ready label from the old one.

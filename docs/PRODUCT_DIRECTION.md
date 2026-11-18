@@ -733,3 +733,11 @@ environment. F: contains app builds, desktop data, caches and evidence; the Wind
 Start Menu shortcut retains its supported C: location. Real platform/hardware
 acceptance, reliable NVENC, portable packaging and public release remain open.
 See [Desktop checkpoint and evidence](DESKTOP_APP.md).
+
+## November 18, 2026 — Guided desktop broadcast setup
+
+Desktop setup now guides Program composition, clean-output preparation and secure
+destination configuration separately. Choose sources navigates to the existing
+production library while retaining the unsaved destination draft. It does not add
+or select sources, Take, start capture or transmit. This is usability polish on the
+local desktop checkpoint; account sign-in and platform acceptance remain separate.
