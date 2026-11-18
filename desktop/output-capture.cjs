@@ -1,0 +1,196 @@
+'use strict';
+const path = require('node:path');
+const { randomUUID } = require('node:crypto');
+const CHANNELS = Object.freeze({ health: 'producer:output:health', pcm: 'producer:output:pcm', sync: 'producer:output:sync', control: 'producer:output:control', ack: 'producer:output:ack' });
+const SIZES = new Set(['1280x720', '1920x1080', '720x1280']);
+const FPS = 30, RATE = 48000, AUDIO_FRAMES = 480;
+const SNAPSHOT = `(()=>{try{const f=document.querySelector('iframe.program');if(!f||f.contentWindow.location.origin!==location.origin||f.contentWindow.location.pathname!=='/program')return null;return f.contentWindow.ProducerProgramOutput?.snapshot()||null;}catch(_){return null;}})()`;
+
+function cleanSnapshot(value) {
+  if (!value || typeof value !== 'object' || typeof value.peerId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value.peerId)
+      || !Number.isSafeInteger(value.generation) || value.generation < 0 || typeof value.rendered !== 'boolean'
+      || typeof value.browserReviewOpen !== 'boolean' || typeof value.audioBlocked !== 'boolean') return null;
+  const readySources = Array.isArray(value.readySources) ? value.readySources.filter(s => typeof s === 'string' && /^(camera:[1-4]|guest:[a-f0-9]{32}:(camera|screen|audio)|(image|video|text|browser):[a-f0-9-]{36})$/.test(s)).slice(0, 6) : [];
+  return { peerId: value.peerId, generation: value.generation, rendered: value.rendered, browserReviewOpen: value.browserReviewOpen, reviewOpen: value.browserReviewOpen, audioBlocked: value.audioBlocked, readySources };
+}
+function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirname, width = 1280, height = 720, partition = 'persist:producer-output', onError = () => {} } = {}) {
+  if (!BrowserWindow || !ipcMain || !SIZES.has(width + 'x' + height) || !path.isAbsolute(baseDir)) throw Error('output_capture_configuration_invalid');
+  const trusted = new URL(origin); if (trusted.origin !== origin || !/^https?:$/.test(trusted.protocol)) throw Error('output_capture_origin_invalid');
+  let window = null, preparing = null, closed = false, active = null, starting = false, captureVersion = 0, captureUi = null, latest = null, polling = null, snapshotPending = null;
+  let snapshot = null, snapshotAt = 0, audioAt = 0, audio = { ready: false, contextState: 'unavailable', sourceCount: 0, unavailableCount: 0 }, fault = null;
+  const now = () => Number(process.hrtime.bigint() / 1000n);
+  const allowed = value => { try { const u = new URL(value); return u.origin === origin && u.pathname === '/output/studio' && !u.username && !u.password; } catch (_) { return false; } };
+  function owned(event) { try { return window && !window.isDestroyed() && event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame && allowed(event.senderFrame.url) && allowed(window.webContents.getURL()); } catch (_) { return false; } }
+  function report(code) { fault = code; try { onError(code); } catch (_) {} }
+  function clearCaptureUi() {
+    const ui = captureUi; captureUi = null;
+    try {
+      if (!ui || ui.target.isDestroyed() || !allowed(ui.target.webContents.getURL())) return Promise.resolve();
+      // A late cleanup from an old run must not reveal controls in a newer run.
+      const script = `(()=>{const root=document.documentElement;if(root.dataset.nativeCaptureOwner===${JSON.stringify(ui.owner)}){delete root.dataset.nativeCapture;delete root.dataset.nativeCaptureOwner;}})()`;
+      return ui.target.webContents.executeJavaScript(script, false).catch(() => {});
+    } catch (_) { return Promise.resolve(); }
+  }
+  function status() {
+    const fresh = window && !window.isDestroyed() && snapshot && now() - snapshotAt < 2000000;
+    return { prepared: Boolean(window && !window.isDestroyed() && audio.ready), capturing: Boolean(active), width, height, fps: FPS, pixelFormat: 'bgra', audioFormat: 'f32le', sampleRate: RATE, channels: 2,
+      ...(fresh ? snapshot : { peerId: null, generation: null, rendered: false, browserReviewOpen: false, reviewOpen: false, audioBlocked: true, readySources: [] }),
+      audioReady: audio.ready && now() - audioAt < 2000000 && audio.contextState === 'running' && audio.unavailableCount === 0, audioSources: audio.sourceCount,
+      locallyMuted: Boolean(window && !window.isDestroyed() && window.webContents.isAudioMuted()), error: fault,
+      capturedFrames: active?.frames || 0, droppedFrames: active?.droppedVideo || 0, audioPackets: active?.audioPackets || 0, droppedAudioPackets: (active?.droppedAudio || 0) + (active?.workletDropped || 0) };
+  }
+  function readSnapshot() {
+    if (snapshotPending) return snapshotPending;
+    if (!window || window.isDestroyed() || !allowed(window.webContents.getURL())) return Promise.resolve();
+    const target = window;
+    snapshotPending = (async () => { try {
+      const value = await target.webContents.executeJavaScript(SNAPSHOT, false);
+      if (target !== window || target.isDestroyed()) return;
+      snapshot = cleanSnapshot(value); snapshotAt = now();
+      if (active && snapshot?.browserReviewOpen) { stopCapture(); report('output_review_open'); }
+      else if (active && (!snapshot || snapshot.peerId !== active.peerId)) { stopCapture(); report('output_receiver_changed'); }
+    } catch (_) { snapshot = null; if (active) { stopCapture(); report('output_receiver_unavailable'); } }
+    finally { snapshotPending = null; } })();
+    return snapshotPending;
+  }
+  function storeFrame(image) {
+    if (!image || image.isEmpty()) return;
+    let frame = image; const size = image.getSize();
+    if (size.width !== width || size.height !== height) {
+      if (Math.abs(size.width / size.height - width / height) > 0.02) { latest = null; if (active) stopCapture(); report('output_capture_size_mismatch'); return; }
+      frame = image.resize({ width, height, quality: 'good' });
+    }
+    const bytes = frame.toBitmap();
+    if (bytes.length === width * height * 4) latest = bytes;
+  }
+  async function prepare() {
+    if (closed) throw Error('output_capture_closed');
+    if (preparing) return preparing;
+    if (window && !window.isDestroyed()) { window.show(); return status(); }
+    preparing = (async () => {
+      fault = null; audio.ready = false;
+      window = new BrowserWindow({ width, height, useContentSize: true, resizable: false, maximizable: false, fullscreenable: false, show: true,
+        title: 'Studio Output — Producer, Please', autoHideMenuBar: true, backgroundColor: '#000000',
+        webPreferences: { preload: path.join(baseDir, 'output-preload.cjs'), additionalArguments: ['--producer-output-origin=' + origin], partition,
+          sandbox: true, contextIsolation: true, nodeIntegration: false, nodeIntegrationInSubFrames: false, webSecurity: true,
+          allowRunningInsecureContent: false, webviewTag: false, backgroundThrottling: false, autoplayPolicy: 'no-user-gesture-required' },
+      });
+      const target = window, contents = target.webContents;
+      target.setMenu(null); contents.setAudioMuted(true);
+      contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+      contents.session.setPermissionCheckHandler(() => false);
+      contents.session.setPermissionRequestHandler((_c, _p, reply) => reply(false));
+      contents.session.setDisplayMediaRequestHandler((_r, reply) => reply(null));
+      contents.on('will-navigate', (event, url) => { if (!allowed(url)) event.preventDefault(); if (active) { stopCapture(); report('output_navigated'); } });
+      contents.on('will-redirect', (event, url, _inPlace, main) => { if (main !== false && !allowed(url)) event.preventDefault(); });
+      contents.on('will-attach-webview', event => event.preventDefault());
+      contents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main !== false) { snapshot = null; audio.ready = false; if (active) { stopCapture(); report('output_navigated'); } } });
+      contents.on('render-process-gone', () => { stopCapture(); audio.ready = false; report('output_renderer_unavailable'); });
+      target.on('closed', () => { const wasActive = Boolean(active); stopCapture(); if (window === target) window = null; audio.ready = false; latest = null; clearInterval(polling); polling = null; if (wasActive) report('output_closed'); });
+      await target.loadURL(origin + '/output/studio?browser-review=1');
+      const deadline = now() + 8000000;
+      while (!audio.ready && !fault && now() < deadline && !target.isDestroyed()) await new Promise(resolve => setTimeout(resolve, 25));
+      if (closed || target.isDestroyed() || target !== window) throw Error('output_capture_closed');
+      if (!audio.ready) throw Error(fault || 'output_audio_not_prepared');
+      await readSnapshot();
+      polling = setInterval(() => { void readSnapshot(); }, 250); polling.unref?.();
+      return status();
+    })().finally(() => { preparing = null; });
+    return preparing;
+  }
+  async function startCapture(onVideo, onAudio) {
+    if (closed || active || starting || typeof onVideo !== 'function' || typeof onAudio !== 'function') throw Error('output_capture_start_invalid');
+    starting = true; const version = captureVersion;
+    try {
+    await prepare(); await readSnapshot();
+    if (closed || version !== captureVersion || !window || window.isDestroyed()) throw Error('output_capture_cancelled');
+    const before = status();
+    if (!before.peerId || !before.rendered || before.reviewOpen || before.audioBlocked || !before.audioReady) throw Error('output_not_ready');
+    const target = window, ui = captureUi = { target, owner: randomUUID() };
+    // Hide preparation controls, not the real review panel. Wait for a painted
+    // clean compositor before taking the first picture or subscribing to frames.
+    const cleanUi = `(()=>{const root=document.documentElement;root.dataset.nativeCapture='active';root.dataset.nativeCaptureOwner=${JSON.stringify(ui.owner)};return new Promise(resolve=>{const timeout=setTimeout(()=>resolve(false),1500);requestAnimationFrame(()=>requestAnimationFrame(()=>{clearTimeout(timeout);resolve(root.dataset.nativeCaptureOwner===${JSON.stringify(ui.owner)});}));});})()`;
+    const marked = await target.webContents.executeJavaScript(cleanUi, false);
+    if (marked !== true || closed || version !== captureVersion || target !== window || target.isDestroyed()) throw Error('output_capture_cancelled');
+    // Review can remain open for minutes; seed from the actual current compositor,
+    // never from prepare()'s earlier picture, then recheck the reviewed receiver.
+    storeFrame(await window.webContents.capturePage()); await readSnapshot();
+    if (closed || version !== captureVersion || !window || window.isDestroyed()) throw Error('output_capture_cancelled');
+    const current = status();
+    if (!current.peerId || !current.rendered || current.reviewOpen || current.audioBlocked || !current.audioReady) throw Error('output_not_ready');
+    if (!latest) throw Error('output_picture_unavailable');
+    const run = active = { id: randomUUID(), peerId: current.peerId, epoch: now(), timer: null, onVideo, onAudio, frames: 0, index: 0, droppedVideo: 0, videoBusy: false, lastImageAt: 0, audioPackets: 0, droppedAudio: 0, audioSeq: -1, lastAudioPts: -1, audioStarted: false, audioBusy: false, lastAudioAt: now() };
+    window.webContents.beginFrameSubscription(false, image => { if (active !== run || now() - run.lastImageAt < 25000) return; run.lastImageAt = now(); try { storeFrame(image); } catch (_) { stopCapture(); report('output_frame_failed'); } });
+    window.webContents.send(CHANNELS.control, { type: 'start', captureId: run.id });
+    function tick() {
+      if (active !== run) return;
+      if (run.audioStarted && now() - run.lastAudioAt > 1000000) { stopCapture(); report('output_audio_stalled'); return; }
+      const elapsed = now() - run.epoch, targetIndex = Math.floor(elapsed * FPS / 1000000);
+      if (targetIndex > run.index + 2) { run.droppedVideo += targetIndex - run.index; run.index = targetIndex; }
+      const ptsUs = Math.round(run.index * 1000000 / FPS); run.index++;
+      if (run.videoBusy) run.droppedVideo++;
+      else {
+        try {
+          const accepted = run.onVideo(latest, ptsUs); run.frames++;
+          if (accepted && typeof accepted.then === 'function') { run.videoBusy = true; accepted.catch(() => { if (active === run) { stopCapture(); report('output_video_sink_failed'); } }).finally(() => { run.videoBusy = false; }); }
+          else if (accepted === false) run.droppedVideo++;
+        } catch (_) { stopCapture(); report('output_video_sink_failed'); return; }
+      }
+      const wait = Math.max(1, (run.index * 1000000 / FPS - (now() - run.epoch)) / 1000);
+      run.timer = setTimeout(tick, wait); run.timer.unref?.();
+    }
+    tick();
+    const deadline = now() + 3000000;
+    while (active === run && !run.audioStarted && now() < deadline) await new Promise(resolve => setTimeout(resolve, 15));
+    if (active !== run || !run.audioStarted) { stopCapture(); throw Error('output_audio_capture_not_started'); }
+    return status();
+    } catch (error) { await stopCapture(); throw error; }
+    finally { starting = false; }
+  }
+  function stopCapture() {
+    captureVersion++;
+    const run = active; active = null;
+    if (run) {
+      clearTimeout(run.timer);
+      try { if (window && !window.isDestroyed()) { window.webContents.endFrameSubscription(); window.webContents.send(CHANNELS.control, { type: 'stop', captureId: run.id }); } } catch (_) {}
+    }
+    return clearCaptureUi();
+  }
+  const onHealth = (event, value) => {
+    if (!owned(event) || !value || typeof value !== 'object') return;
+    if (value.error) { audio.ready = false; if (active) stopCapture(); report('output_audio_unavailable'); return; }
+    if (typeof value.ready !== 'boolean' || !['running', 'suspended', 'closed'].includes(value.contextState)) return;
+    audio = { ready: value.ready, contextState: value.contextState, sourceCount: Number.isInteger(value.sourceCount) ? Math.min(64, Math.max(0, value.sourceCount)) : 0,
+      unavailableCount: Number.isInteger(value.unavailableCount) ? Math.min(64, Math.max(0, value.unavailableCount)) : 0 };
+    audioAt = now();
+    if (active && (!audio.ready || audio.contextState !== 'running' || audio.unavailableCount > 0)) { stopCapture(); report('output_audio_unavailable'); return; }
+    if (active && value.captureId === active.id && value.started === true) active.audioStarted = true;
+  };
+  const onPcm = async (event, value) => {
+    const run = active;
+    if (!run || !owned(event) || value?.captureId !== run.id) return;
+    if (run.audioBusy || !Number.isSafeInteger(value.seq) || value.seq <= run.audioSeq
+        || !Number.isSafeInteger(value.ptsUs) || value.ptsUs < 0 || value.ptsUs <= run.lastAudioPts || value.ptsUs > now() - run.epoch + 1000000
+        || !(value.pcm instanceof Uint8Array) || value.pcm.byteLength !== AUDIO_FRAMES * 2 * 4) { stopCapture(); report('output_audio_protocol_invalid'); return; }
+    const bytes = Buffer.from(value.pcm.buffer, value.pcm.byteOffset, value.pcm.byteLength);
+    for (let i = 0; i < bytes.length; i += 4) if (!Number.isFinite(bytes.readFloatLE(i)) || Math.abs(bytes.readFloatLE(i)) > 1.01) { stopCapture(); report('output_audio_protocol_invalid'); return; }
+    run.audioBusy = true; run.audioSeq = value.seq; run.lastAudioPts = value.ptsUs; run.lastAudioAt = now();
+    if (Number.isSafeInteger(value.dropped) && value.dropped >= (run.workletDropped || 0)) run.workletDropped = value.dropped;
+    try { if (await run.onAudio(bytes, value.ptsUs) === false) run.droppedAudio++; else run.audioPackets++; }
+    catch (_) { if (active === run) { stopCapture(); report('output_audio_sink_failed'); } }
+    finally { run.audioBusy = false; if (active === run && owned(event)) event.sender.send(CHANNELS.ack, { captureId: run.id, seq: value.seq }); }
+  };
+  ipcMain.on(CHANNELS.health, onHealth); ipcMain.on(CHANNELS.pcm, onPcm);
+  ipcMain.handle(CHANNELS.sync, event => { if (!active || !owned(event)) throw Error('output_capture_untrusted'); return { captureId: active.id, epochUs: now() - active.epoch }; });
+  return { prepare, startCapture, stopCapture, status, get window() { return window; },
+    async review() {
+      await prepare(); if (active) throw Error('output_capture_active');
+      if (!window || window.isDestroyed() || !allowed(window.webContents.getURL())) throw Error('output_capture_untrusted');
+      window.show(); window.focus();
+      await window.webContents.executeJavaScript('window.ProducerStudioOutput?.reviewBrowserSources()', false);
+      await readSnapshot(); return status();
+    },
+    close() { if (closed) return; closed = true; stopCapture(); clearInterval(polling); polling = null; ipcMain.removeListener(CHANNELS.health, onHealth); ipcMain.removeListener(CHANNELS.pcm, onPcm); ipcMain.removeHandler(CHANNELS.sync); if (window && !window.isDestroyed()) window.destroy(); window = null; latest = null; },
+  };
+}
+module.exports = { createOutputCapture, cleanSnapshot, CHANNELS };

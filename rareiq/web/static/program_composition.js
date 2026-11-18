@@ -297,7 +297,7 @@
   function boot(){
     const container=host.document?.querySelector('[data-producer-program-output]');
     if(!container||container.dataset.compositionStarted==='true'||!host.RareIQOverlay||!host.ProducerGuestMedia)return;
-    container.dataset.compositionStarted='true';let view,receiver,stopped=false,playback=null;
+    container.dataset.compositionStarted='true';let view,receiver,stopped=false,playback=null,outputPeerId=null;
     const soundButton=host.document.querySelector('[data-output-audio-enable]');
     let embedded=false;
     try{embedded=host.parent!==host&&host.parent.document.querySelector('iframe.program')?.contentWindow===host;}catch(_){/* Standalone recovery stays available. */}
@@ -310,7 +310,7 @@
     receiver=host.ProducerGuestMedia.createReceiver({role:'output',
       onState:message=>{if(!stopped&&message.room){view.setRoom(message.room);view.render(message.room.switcher);}},
       onTracks:()=>view?.refresh(),
-      onConnection:event=>{if(!event.participant_id&&['disconnected','closed'].includes(event.state))view?.clear();},
+      onConnection:event=>{if(event.scope==='signaling'&&event.state==='connected')outputPeerId=event.peer_id||null;if(!event.participant_id&&['disconnected','closed'].includes(event.state)){outputPeerId=null;view?.clear();}},
       onError:()=>view?.refresh()});
     view=new ProducerCompositionView({container,mediaReceiver:receiver,onStatus:report,onRendered:generation=>{
       // HTTP rendering may precede signaling. Re-send current health before its
@@ -324,7 +324,7 @@
     // The containing Studio Output calls this synchronously from a real click.
     // postMessage cannot carry the browser's transient user activation reliably.
     const browserReview=host.ProducerBrowserReview?.mount({view,document:host.document,fetch:host.fetch.bind(host)});
-    host.ProducerProgramOutput={resumeAudio:resume,reviewBrowserSources:()=>browserReview?.open()};
+    host.ProducerProgramOutput={resumeAudio:resume,reviewBrowserSources:()=>browserReview?.open(),snapshot:()=>({peerId:outputPeerId,generation:playback?.generation??-1,rendered:playback?.rendered===true,browserReviewOpen:view.browserReviewOpen,readySources:view.readySources(),programSources:(view.state?.sources||[]).slice(),previewSources:(view.state?.preview||[]).slice(),audioBlocked:playback?.audioBlocked===true})};
     if(browserReview&&host.URLSearchParams&&new host.URLSearchParams(host.location?.search||'').get('browser-review')==='1')browserReview?.open();
     host.addEventListener('pagehide',()=>{stopped=true;host.clearInterval(ready);stopPoll();browserReview?.close();view.close();receiver.close();host.removeEventListener('pointerdown',resume);host.removeEventListener('keydown',resume);soundButton?.removeEventListener('click',resume);delete host.ProducerProgramOutput;},{once:true});
     Promise.resolve(receiver.connect()).catch(()=>view.clear());return {view,receiver};

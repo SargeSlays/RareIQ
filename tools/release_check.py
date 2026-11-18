@@ -123,17 +123,20 @@ def check_untracked_source_hygiene(
 
 def python_sources(root: Path = PROJECT_ROOT) -> list[Path]:
     sources = [root / "app.py"]
-    for directory in ("rareiq", "tests", "tools"):
+    for directory in ("rareiq", "tests", "tools", "desktop"):
         sources.extend((root / directory).rglob("*.py"))
     return sorted(
         path
         for path in sources
-        if path.is_file() and "__pycache__" not in path.parts
+        if path.is_file() and "__pycache__" not in path.parts and "node_modules" not in path.parts
     )
 
 
 def javascript_sources(root: Path = PROJECT_ROOT) -> list[Path]:
-    return sorted((root / "rareiq" / "web" / "static").rglob("*.js"))
+    sources = list((root / "rareiq" / "web" / "static").rglob("*.js"))
+    for suffix in ("*.js", "*.cjs"):
+        sources.extend((root / "desktop").rglob(suffix))
+    return sorted(path for path in sources if "node_modules" not in path.parts)
 
 
 class StaticDocument(HTMLParser):
@@ -270,7 +273,8 @@ def check_javascript_behavior(
             raise ReleaseCheckError("Node.js is required for JavaScript behavior tests.")
         print("[SKIP] JavaScript behavior (Node.js not found)")
         return 0
-    suites = sorted((root / "tests" / "browser").rglob("*.test.cjs"))
+    suites = sorted([*(root / "tests" / "browser").rglob("*.test.cjs"),
+                     *(root / "desktop" / "tests").rglob("*.test.cjs")])
     if not suites:
         raise ReleaseCheckError("No JavaScript behavior test suites found.")
     run_checked(
@@ -327,7 +331,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.skip_tests:
         check_javascript_behavior(args.node, require_node=args.require_node)
         run_checked(
-            [sys.executable, "-B", "-m", "pytest", "tests", "-q"],
+            [sys.executable, "-B", "-m", "pytest", "tests", "desktop/tests", "-q"],
             "Canonical test suite",
         )
 

@@ -1216,3 +1216,51 @@ CAMERA_REASSIGNMENT_CHECKPOINT.md. Logs and numeric evidence remain local in .tm
   separate hardware/platform acceptance tasks. This pass does not verify them.
 - [ ] Narrow-screen full-shell visual acceptance remains incomplete; isolated
   component captures are not proof of the complete running Studio layout.
+
+## November 18, 2026 — Desktop native-output acceptance
+
+- [x] Native Windows shell and isolated renderer bridge; real DPAPI round trip and
+  synthetic destination persistence without plaintext credentials in public status
+  or on-disk JSON. No real account connection or key was used.
+- [x] Output capture/audio isolation at 1280×720, 1920×1080 and 720×1280: public
+  media only, mute/volume/pause/seek/loop behavior, monotonic timestamps, review guard.
+- [x] Full production-component chain with isolated generated media: asset import,
+  Preview/Take, exact peer/generation preflight, native ownership, compositor/audio
+  capture and PyAV local FLV. Decoded H.264 720p, AAC 48 kHz stereo, 6.153 seconds,
+  184 frames / 29.9041 fps, detected 440 Hz tone, zero reported dropped frames or
+  audio packets. Image/title Take appears in the file while the window was minimized.
+- [x] Native stop released backend encoding ownership while its Main PID was still
+  alive, then closed owned test processes. Unit coverage also exercises stale,
+  replaced, unknown and reused backend/owner identities and active-client guards.
+- [x] Local RTMPS receiver: successful decoded H.264/AAC delivery with trusted
+  certificate; wrong hostname and wrong CA rejected with zero received media bytes;
+  successful repeated valid-certificate run. This is transport fixture evidence.
+- [x] Document local-development-runtime dependency, F: build/data/cache/evidence
+  locations, the C: checkout/Python requirement and Windows Start Menu exception.
+- [ ] Real platform dashboard receipt and listener-quality A/V sync.
+- [ ] Current native path with real cameras, microphones and explicit screen capture;
+  driver/device recovery and sustained production at each offered encoding format.
+- [ ] NVENC initialization/performance acceptance; current successful runs use
+  software H.264. No cause or successful GPU encode is asserted.
+- [ ] Self-contained, signed install/update/uninstall and clean-machine acceptance.
+- [x] Canonical gate passed on the isolated checkpoint source: **3474 Python
+  tests and 575 JavaScript tests**. The source excludes unrelated local edits;
+  evidence is `ProducerPlease-desktop-20261118/release-gate-isolated-final.log`.
+- [x] Rehearsal 05 excluded an injected opaque preparation notice from the encoded
+  picture and restored preparation controls after Stop. Decoded video was visually
+  inspected. Earlier rehearsal 04's notice contamination is preserved as a defect
+  in its visual audit, not accepted as clean output.
+- [x] Latest local app launched against the actual managed studio; native setup
+  opens with output preparation enabled and no destination saved. Windows Start
+  Menu shortcut points to the validated F: executable. No broadcast was started.
+
+Release decision: available for local operator evaluation on this development PC.
+This is not clean-machine or platform-live acceptance; the unchecked items above
+remain open. A portable/signed installer is not part of this checkpoint.
+
+Evidence and reproduction paths: [DESKTOP_APP.md](DESKTOP_APP.md). Use
+`ProducerPlease-native-full-20261118-05`, the RTMPS `serialized-20261118` run and its
+`repeat-20261118` result. The earlier RTMPS directory containing `final-20261118`
+failed during handshake and is diagnostic history, not passing acceptance.
+No physical capture, external broadcast, public deployment or real account change
+was performed by these native rehearsals.

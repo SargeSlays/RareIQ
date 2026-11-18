@@ -43,6 +43,7 @@ from rareiq.services.greenroom_service import GreenroomService, GreenroomError
 from rareiq.services.greenroom_network import GreenroomNetwork
 from rareiq.web.greenroom import GreenroomHub, PUBLIC_GUEST_PATHS
 from rareiq.web.guest_ingress_lifecycle import GuestIngressLifecycle
+from rareiq.web.desktop_lifecycle import DesktopAdmission, DesktopAdmissionMiddleware, native_output_readiness
 from rareiq.web.shared_scene_access import SharedSceneAccessMiddleware, SharedScenePolicy, VerifiedPrincipal
 from rareiq.services.voice_command_service import VoiceCommandService, MAX_VOICE_BYTES
 from rareiq.services.voice_rule_store import VoiceRuleStore
@@ -139,6 +140,7 @@ async def _read_bounded_json(request: Request, max_bytes: int = MAX_CONTROL_REQU
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    desktop_mode = os.getenv("PRODUCER_DESKTOP") == "1"
     orchestrator.set_loop(asyncio.get_running_loop())
     greenroom_service.reset_runtime()
     try:
@@ -151,12 +153,12 @@ async def lifespan(_app: FastAPI):
         await asyncio.sleep(0.15)
         await asyncio.to_thread(orchestrator.boot_manager.run, False)
 
-    boot_task = asyncio.create_task(boot_in_background())
+    boot_task = None if desktop_mode else asyncio.create_task(boot_in_background())
     async def warm_recognition_ocr() -> None:
         await asyncio.sleep(0.35)
         await asyncio.to_thread(orchestrator.recognition.warm_ocr)
 
-    ocr_warmup_task = asyncio.create_task(warm_recognition_ocr())
+    ocr_warmup_task = None if desktop_mode else asyncio.create_task(warm_recognition_ocr())
     async def refresh_new_releases() -> None:
         # Catalog providers publish new localized expansions independently.
         # Reconcile periodically so RareIQ never depends on a server restart
@@ -171,9 +173,10 @@ async def lifespan(_app: FastAPI):
                 LOGGER.exception("TCG catalog freshness scan failed")
             await asyncio.sleep(CATALOG_REFRESH_INTERVAL_SECONDS)
 
-    freshness_task = asyncio.create_task(refresh_new_releases())
-    instant_replay.start()
-    auto_clip.start()
+    freshness_task = None if desktop_mode else asyncio.create_task(refresh_new_releases())
+    if not desktop_mode:
+        instant_replay.start()
+        auto_clip.start()
     guest_ingress = GuestIngressLifecycle(_app, public_origin=greenroom_network.public_origin)
     _app.state.guest_ingress = guest_ingress
     greenroom_hub.ingress_status = guest_ingress.snapshot
@@ -186,17 +189,18 @@ async def lifespan(_app: FastAPI):
         await youtube_audience_connector.close()
         await kick_audience_connector.close()
         await asyncio.to_thread(voice_commands.close)
-        if not boot_task.done():
+        if boot_task is not None and not boot_task.done():
             boot_task.cancel()
             with suppress(asyncio.CancelledError):
                 await boot_task
-        if not ocr_warmup_task.done():
+        if ocr_warmup_task is not None and not ocr_warmup_task.done():
             ocr_warmup_task.cancel()
             with suppress(asyncio.CancelledError):
                 await ocr_warmup_task
-        freshness_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await freshness_task
+        if freshness_task is not None:
+            freshness_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await freshness_task
         await asyncio.to_thread(auto_clip.stop)
         await asyncio.to_thread(instant_replay.stop)
         await asyncio.to_thread(recording.stop)
@@ -204,6 +208,8 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title=f"RareIQ v{VERSION}", lifespan=lifespan)
+DESKTOP_ADMISSION = DesktopAdmission(enabled=os.getenv("PRODUCER_DESKTOP") == "1")
+app.add_middleware(DesktopAdmissionMiddleware, admission=DESKTOP_ADMISSION)
 # API-only integration seam. No environment toggle or live provider is configured.
 SHARED_SCENE_ACCESS = SharedScenePolicy()
 
@@ -1477,6 +1483,71 @@ async def system_shutdown():
 
     threading.Thread(target=stop_process, daemon=True).start()
     return {"ok": True, "message": "RareIQ is shutting down."}
+
+
+async def _desktop_idle_reason():
+    if not DESKTOP_ADMISSION.enabled:
+        return "desktop_mode_required"
+    if DESKTOP_ADMISSION.native_encoding.snapshot()["active"]:
+        return "native_encoding_active"
+    try:
+        # A disconnected/disabled OBS integration is unknown, never idle proof.
+        current_obs = await asyncio.wait_for(asyncio.to_thread(obs.status), timeout=5.0)
+        with PRODUCTION_SESSION_LOCK:
+            return DESKTOP_ADMISSION.idle_reason(session=dict(PRODUCTION_SESSION),
+                recording=recording.status(), obs=current_obs)
+    except Exception:
+        return "idle_state_unknown"
+
+
+@app.get("/api/desktop/status")
+async def desktop_status():
+    reason = await _desktop_idle_reason()
+    return {"ok": True, "idle": reason is None, "reason": reason,
+            "closing": DESKTOP_ADMISSION.closing,
+            "clients": DESKTOP_ADMISSION.clients,
+            "native_encoding": DESKTOP_ADMISSION.native_encoding.snapshot(),
+            "pid": os.getpid(), "server_session_id": SERVER_SESSION_ID}
+
+
+@app.post("/api/desktop/encoding-status")
+async def desktop_encoding_status(request: Request):
+    if not DESKTOP_ADMISSION.enabled:
+        return {"ok": False, "reason": "desktop_mode_required"}
+    if not is_loopback_client(request.client.host if request.client else None):
+        return {"ok": False, "reason": "local_request_required"}
+    payload = await _read_bounded_json(request, 1024)
+    if (payload.get("pid") != os.getpid()
+            or payload.get("server_session_id") != SERVER_SESSION_ID):
+        return {"ok": False, "reason": "identity_mismatch"}
+    if DESKTOP_ADMISSION.closing:
+        return {"ok": False, "reason": "desktop_closing"}
+    return DESKTOP_ADMISSION.native_encoding.update(active=payload.get("active"),
+        owner_pid=payload.get("owner_pid"))
+
+
+@app.post("/api/desktop/stop")
+async def desktop_stop(request: Request):
+    if not is_loopback_client(request.client.host if request.client else None):
+        return {"ok": False, "stopping": False, "reason": "local_request_required"}
+    identity = await _read_bounded_json(request, 1024)
+    if (identity.get("pid") != os.getpid()
+            or identity.get("server_session_id") != SERVER_SESSION_ID):
+        return {"ok": False, "stopping": False, "reason": "identity_mismatch"}
+    if DESKTOP_ADMISSION.closing:
+        return {"ok": True, "stopping": True}
+    reason = await _desktop_idle_reason()
+    if reason:
+        return {"ok": True, "stopping": False, "reason": reason}
+    # No await between final state/counter inspection and admission closure.
+    # New sockets, streams and commands can no longer race the stop decision.
+    DESKTOP_ADMISSION.closing = True
+    try:
+        await system_shutdown()
+    except Exception:
+        DESKTOP_ADMISSION.closing = False
+        return {"ok": False, "stopping": False, "reason": "shutdown_not_confirmed"}
+    return {"ok": True, "stopping": True}
 
 @app.get("/api/catalog/status")
 async def catalog_status():
@@ -3051,6 +3122,41 @@ async def acknowledge_production_health_incident(incident_id: str):
     return JSONResponse(status_code=status_code, content=result)
 
 
+@app.get("/api/production/native-preflight")
+async def production_native_preflight(output_peer_id: str | None = Query(default=None, max_length=64)):
+    """Inspect native Program readiness without OBS, device discovery or changes."""
+    encoding = DESKTOP_ADMISSION.native_encoding.snapshot()
+    if not DESKTOP_ADMISSION.enabled:
+        return {"ok": False, "reason": "desktop_mode_required",
+                "preflight": {"ready": False, "blockers": ["desktop_mode_required"]},
+                "native_encoding": encoding, "platform_live_verified": False}
+    try:
+        with PRODUCTION_SWITCHER_LOCK:
+            state = composition_state(PRODUCTION_SWITCHER_STATE)
+            generation, sources = state["generation"], state["program_sources"]
+            slots = orchestrator.camera_manager.camera_slots()
+            program = _program_composition_readiness(slots, int(state["program_slot"]))
+            output = native_output_readiness(greenroom_hub.peers, output_peer_id=output_peer_id,
+                generation=generation, sources=sources, now=time.monotonic())
+            blockers = []
+            if DESKTOP_ADMISSION.closing:
+                blockers.append("desktop_closing")
+            if not program.get("ready"):
+                blockers.append(program.get("reason") or "program_not_ready")
+            if not output["ready"]:
+                blockers.append(output["reason"])
+            if PRODUCTION_SWITCHER_STATE["generation"] != generation:
+                blockers.append("program_changed")
+            return {"ok": True, "preflight": {"ready": not blockers,
+                    "generation": generation, "program_sources": sources,
+                    "blockers": blockers, "program": program, "output": output},
+                    "native_encoding": encoding, "platform_live_verified": False}
+    except (KeyError, TypeError, ValueError, RuntimeError, OSError):
+        return {"ok": False, "reason": "preflight_unavailable",
+                "preflight": {"ready": False, "blockers": ["preflight_unavailable"]},
+                "native_encoding": encoding, "platform_live_verified": False}
+
+
 @app.get("/api/production/preflight")
 async def production_preflight(workflow: Literal["studio", "cards"] = "studio"):
     """Return one operator-facing verdict before a show is put on air."""
@@ -3152,7 +3258,7 @@ async def production_session_status():
         current_recording = recording.status()
         if current_recording.get("session_id") == PRODUCTION_SESSION.get("session_id"):
             PRODUCTION_SESSION["recording"] = current_recording
-        return {"ok": True, "session": dict(PRODUCTION_SESSION), "duration_seconds": max(0, (time.time() if PRODUCTION_SESSION["active"] else PRODUCTION_SESSION.get("ended_at", 0)) - PRODUCTION_SESSION.get("started_at", 0)) if PRODUCTION_SESSION.get("started_at") else 0}
+        return {"ok": True, "session": dict(PRODUCTION_SESSION), "native_encoding": DESKTOP_ADMISSION.native_encoding.snapshot(), "duration_seconds": max(0, (time.time() if PRODUCTION_SESSION["active"] else PRODUCTION_SESSION.get("ended_at", 0)) - PRODUCTION_SESSION.get("started_at", 0)) if PRODUCTION_SESSION.get("started_at") else 0}
 
 @app.get("/api/production/recording/settings")
 async def recording_settings():

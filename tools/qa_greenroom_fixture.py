@@ -21,7 +21,7 @@ from rareiq.services.reaction_asset_service import ReactionAssetService
 from rareiq.services.production_source_store import ProductionSourceStore
 
 
-def main():
+def main(*, native_desktop=False):
     if len(sys.argv) not in {2, 3}:
         raise SystemExit("Supply a NEW isolated evidence directory and optional loopback port")
     port = int(sys.argv[2]) if len(sys.argv) == 3 else 8768
@@ -62,6 +62,8 @@ def main():
                     "/api/production/switcher", "/api/production/voice/rules", "/api/production/vision", "/api/production/actions")
     allowed_write = ("/api/creator/assets", "/api/production/sources/", "/api/production/greenroom/", "/api/production/switcher/", "/api/production/scenes",
                      "/api/production/audience/", "/api/production/voice/rules", "/api/production/vision/")
+    native_reads = {"/api/production/native-preflight", "/api/desktop/status"} if native_desktop else set()
+    native_writes = {"/api/desktop/encoding-status"} if native_desktop else set()
 
     @server.app.middleware("http")
     async def isolate(request, call_next):
@@ -71,15 +73,16 @@ def main():
         if path.startswith("/api/camera-slots/") and path.endswith("/stream") and request.method == "GET":
             return Response(jpeg, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
         if request.method not in {"GET", "HEAD"}:
-            if path not in {"/guest/join", "/guest/leave", "/guest/chat"} and not path.startswith(allowed_write):
+            if path not in native_writes and path not in {"/guest/join", "/guest/leave", "/guest/chat"} and not path.startswith(allowed_write):
                 return JSONResponse({"ok": False, "reason": "mutation_blocked_in_guest_fixture"}, status_code=403)
-        elif path.startswith("/api/") and not path.startswith(allowed_read):
+        elif path.startswith("/api/") and path not in native_reads and not path.startswith(allowed_read):
             return JSONResponse({"ok": False, "reason": "read_blocked_in_guest_fixture"}, status_code=503)
         return await call_next(request)
 
     @server.app.get("/__qa__/guest-fixture")
     async def marker():
-        return {"isolated_guest_fixture": True, "hardware": False, "external_broadcast": False}
+        return {"isolated_guest_fixture": True, "native_desktop_fixture": native_desktop,
+                "hardware": False, "external_broadcast": False}
 
     uvicorn.run(server.app, host="127.0.0.1", port=port, log_level="error", access_log=False)
 

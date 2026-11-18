@@ -26,6 +26,8 @@ def test_release_gate_discovers_and_compiles_active_python_sources():
     assert PROJECT_ROOT / "app.py" in sources
     assert PROJECT_ROOT / "rareiq" / "web" / "server.py" in sources
     assert SCRIPT_PATH in sources
+    assert PROJECT_ROOT / "desktop" / "encoder_worker.py" in sources
+    assert all("node_modules" not in path.parts for path in sources)
     assert release_check.check_python_syntax(PROJECT_ROOT) == len(sources)
 
 
@@ -34,7 +36,9 @@ def test_release_gate_discovers_active_javascript_sources():
     sources = release_check.javascript_sources(PROJECT_ROOT)
 
     assert PROJECT_ROOT / "rareiq" / "web" / "static" / "studiox.js" in sources
-    assert all(path.suffix == ".js" for path in sources)
+    assert PROJECT_ROOT / "desktop" / "main.cjs" in sources
+    assert all(path.suffix in {".js", ".cjs"} for path in sources)
+    assert all("node_modules" not in path.parts for path in sources)
 
 
 def test_repository_hygiene_rejects_local_credentials_and_private_keys(tmp_path):
@@ -184,3 +188,4 @@ def test_main_runs_both_behavior_suites_unless_skipped(monkeypatch, skip_tests):
     assert any("pytest" in command for command in commands) is not skip_tests
     if not skip_tests:
         assert behavior == [("node-explicit", {"require_node": True})]
+        assert any("pytest" in command and "desktop/tests" in command for command in commands)

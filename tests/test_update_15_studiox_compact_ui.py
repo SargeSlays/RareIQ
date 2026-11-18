@@ -90,7 +90,7 @@ def test_update15_stylesheet_is_last_and_cache_busted() -> None:
     html = read("control.html")
     links = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
     active_version = re.search(r'data-studiox-build="([^"]+)"', html).group(1)
-    assert links[-23:] == [
+    assert links[-24:] == [
         f"/static/studiox_ui4_tokens.css?v={active_version}",
         f"/static/studiox_update15.css?v={active_version}&amp;shell=6.8.93-camera-workspace1&amp;media=20260830-2&amp;grid=20260830-1&amp;audit=20260830-2",
         f"/static/pack_run_coach.css?v={active_version}",
@@ -112,6 +112,7 @@ def test_update15_stylesheet_is_last_and_cache_busted() -> None:
         "/static/production_media_library.css?v=20261115-1",
         "/static/production_browser_library.css?v=20261115-1",
         "/static/production_layouts.css?v=20261115-1",
+        "/static/desktop_bridge.css?v=20261118-1",
         "/static/audience_controls.css?v=20261115-1",
         "/static/production_vision.css?v=20261115-1",
     ]

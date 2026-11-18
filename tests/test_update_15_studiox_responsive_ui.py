@@ -151,7 +151,7 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
     html = read("control.html")
     styles = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
     version = re.search(r'data-studiox-build="([^"]+)"', html).group(1)
-    assert styles[-23:] == [
+    assert styles[-24:] == [
         f"/static/studiox_ui4_tokens.css?v={version}",
         f"/static/studiox_update15.css?v={version}&amp;shell=6.8.93-camera-workspace1&amp;media=20260830-2&amp;grid=20260830-1&amp;audit=20260830-2",
         f"/static/pack_run_coach.css?v={version}",
@@ -173,10 +173,11 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
         "/static/production_media_library.css?v=20261115-1",
         "/static/production_browser_library.css?v=20261115-1",
         "/static/production_layouts.css?v=20261115-1",
+        "/static/desktop_bridge.css?v=20261118-1",
         "/static/audience_controls.css?v=20261115-1",
         "/static/production_vision.css?v=20261115-1",
     ]
-    assert len(styles) == 24
+    assert len(styles) == 25
     assert not any("studiox_60.css" in style for style in styles)
     assert not any("studiox_604.css" in style for style in styles)
 

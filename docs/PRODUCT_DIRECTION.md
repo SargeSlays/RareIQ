@@ -711,3 +711,25 @@ that authentication, checkout or the integration is implemented or launch-ready.
 - Exact StackThis.AI URL/docs and account/billing ownership are awaiting confirmation.
   No real charge, stream, recording, deployment or public release is authorized by
   this product-direction update alone.
+
+## November 18, 2026 — Producer, Please desktop checkpoint
+
+The current owner-requested slice resumes Producer, Please as a Windows desktop
+production application with a native encoding path independent of OBS. This
+supersedes the earlier desktop deferral for this bounded Producer checkpoint; it
+does not change RareIQ's separate identity or invent hosting, billing or account
+contracts. Existing OBS workflows remain available.
+
+Implemented and locally exercised: Electron shell, manual Twitch/YouTube/Kick/custom
+RTMPS destination setup, Windows account-encrypted secrets, exact-output native
+readiness, compositor/public-audio capture, software H.264/AAC encoding and guarded
+stop/quit. Saving a destination is not OAuth/account connection; sending media is
+not verified platform receipt. The complete generated-media chain produced a
+decoded 720p local file, and a separate local RTMPS fixture verified certificate
+acceptance/rejection. Neither constitutes a real platform broadcast.
+
+The app remains a local development build dependent on the C: checkout/Python
+environment. F: contains app builds, desktop data, caches and evidence; the Windows
+Start Menu shortcut retains its supported C: location. Real platform/hardware
+acceptance, reliable NVENC, portable packaging and public release remain open.
+See [Desktop checkpoint and evidence](DESKTOP_APP.md).

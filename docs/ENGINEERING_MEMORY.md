@@ -769,3 +769,62 @@ See CAMERA_REASSIGNMENT_CHECKPOINT.md for evidence and driver-failure limitation
   The canonical gate passed with 2,639 Python tests and its JavaScript suite.
 - Route registration is not OBS acceptance: browser-output preflight now warns
   that source setup, picture and audio still require OBS verification.
+
+## November 18, 2026 — Desktop ownership and native-output evidence
+
+- **Preparation UI is not Program.** Decoded rehearsal 04 exposed a retained
+  review warning in the encoded picture even though frame/audio counters passed.
+  Native capture now hides only preparation controls, waits for a clean painted
+  compositor, and seeds a fresh frame. Actual review remains a blocker. Ownership
+  tokens restore UI safely after stop/cancellation without affecting a newer run.
+  Rehearsal 05 injects an opaque preparation notice and verifies it is excluded
+  from capture, then restored after stop; decoded pictures are inspected as well.
+- **Refresh must not erase an action failure.** The browser-review renderer's
+  periodic status message cleared a native-broadcast refusal within 200 ms. Keep
+  the warning until the next explicit review attempt or successful preparation;
+  regression checks exercise both refresh and recovery. Native setup likewise
+  prioritizes failed encoder state over a retained readiness receipt, and leaves
+  startup cancellable while ignoring late Start/poll replies after Stop.
+- **Process identity is not an idle verdict.** Reusing a healthy managed backend
+  must not inherit shutdown authority. A private one-use receipt binds the desktop
+  launch to its exact backend PID/session; stop checks that identity under the
+  managed-server lock, then the server checks active production/recording/encoding
+  and clients. Unknown state preserves the backend. Keep asynchronous window close
+  under one quit owner until encoder and backend cleanup settle.
+- **No heartbeat is not proof of an exited encoder owner.** Native encoding state
+  remains active while Main is alive or cannot be inspected. Clear it only after
+  confirmed owner exit or the matching owner's explicit post-stop update. Expose
+  that state to browser-source review so an active output cannot enter review.
+- **Aggregate output readiness can combine incompatible evidence.** Native
+  preflight requires source availability and a fresh rendered receipt from the
+  exact captured peer at the same Program generation. Another window, old receipt,
+  pending browser review or stale generation cannot supply readiness. Camera-only
+  programs also need the captured output's rendered receipt.
+- **A muted window can still require a public audio tap.** Capture only approved
+  Program and direct public Soundboard media; exclude nested/private/backstage
+  frames. Preserve borrowed tracks. Native tests check volume, mute, pause, seek,
+  loop, private-frame exclusion, monotonic timestamps and review rejection.
+- **Codec enumeration is not a working encoder.** Probe a generated frame before
+  selecting NVENC; report the selected software fallback truthfully. NVENC did not
+  initialize successfully in this runtime. The verified full-chain file uses
+  `libx264`, not a claimed GPU path.
+- **TLS flags and a handshake alone are insufficient.** Explicit CA behavior in
+  the Windows native transport required a verified stdlib TLS relay. One owner
+  pumps each SSL connection; bounded serialized I/O avoids the handshake failures
+  seen in intermediate attempts. The permanent checks require decoded media for a
+  valid certificate and zero media for wrong-host and wrong-CA cases. Neither a
+  local TLS pass nor an encoder's sending state means a platform is live.
+- **Rehearsal isolation must precede application import.** The native fixture
+  redirects storage/cwd first, substitutes an empty credential provider, suppresses
+  constructor workers, blocks external sockets/DNS and skips hardware lifespan.
+  Its allowlist adds only native preflight/status and encoding ownership, never
+  shutdown. Browser isolation must allow the fixture's exact WebSocket origin as
+  well as HTTP; blocking signaling created a false readiness timeout in the first
+  harness run. Production readiness was not mocked to resolve it.
+- **Inspect the decoded artifact, not just counters or a restored window.** The
+  full-chain check takes an image/title while minimized, then verifies that the
+  encoded frames changed and the generated 440 Hz tone survived AAC encoding.
+  It records zero dropped queues and confirms ownership clears while Main remains
+  alive. Passing evidence is `ProducerPlease-native-full-20261118-05`; failed runs
+  remain preserved. A directory named `final` is not proof of success: cite the
+  passing RTMPS serialized/repeat results listed in [DESKTOP_APP.md](DESKTOP_APP.md).

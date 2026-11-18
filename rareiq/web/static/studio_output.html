@@ -12,6 +12,9 @@
     iframe{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none}
     .program{z-index:1;background:#000}.graphics{z-index:2;background:transparent}
     .audience{z-index:3;background:transparent}.audio{z-index:4;width:1px;height:1px;opacity:0}
+    html[data-native-capture="active"] [data-browser-review-open],
+    html[data-native-capture="active"] [data-browser-review-note],
+    html[data-native-capture="active"] [data-output-audio-enable]{display:none!important}
   </style>
 </head>
 <body>
@@ -24,7 +27,7 @@
   <button type="button" class="output-audio-enable" data-output-audio-enable hidden>Enable output sound</button>
   <button type="button" class="output-browser-review-open" data-browser-review-open hidden>Review browser sources</button>
   <p class="output-browser-review-note" data-browser-review-note hidden role="status"></p>
-  <script src="/static/studio_output_browser.js?v=20261115-1"></script>
+  <script src="/static/studio_output_browser.js?v=20261118-2"></script>
   <script src="/static/studio_output_audio.js?v=20261115-3"></script>
 </body>
 </html>

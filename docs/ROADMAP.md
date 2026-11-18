@@ -722,3 +722,29 @@ The deadline is a target, not a guarantee or a substitute for acceptance checks.
 First implementation priority remains Studio readiness while the integration
 contract is clarified. Do not build a speculative StackThis-specific adapter or
 claim that the September 19 gate verifies the current October launch scope.
+
+## November 18, 2026 — Native desktop checkpoint and next gates
+
+Producer, Please now has a locally installed Electron development build and an
+implemented native output/encoding path. The generated-media full-chain rehearsal
+passed at 720p: real asset import, Preview/Take, exact output readiness, public audio,
+local H.264/AAC file, a Program change while minimized, and confirmed ownership
+release. Local RTMPS certificate acceptance and rejection also passed. OBS remains
+an available external workflow rather than a native encoder prerequisite.
+
+The next acceptance gates are bounded separately:
+
+1. Finish the current-build canonical gate and desktop visual/recovery review;
+   preserve the exact verified evidence and limitations in [DESKTOP_APP.md](DESKTOP_APP.md).
+2. With explicit authorization, verify physical input and listener A/V sync, then
+   actual destination receipt using a manually supplied dashboard server/key.
+   No OAuth client or connected-account implementation is implied.
+3. Exercise interruption/recovery and longer sessions at supported formats.
+   Software H.264 is verified; diagnose NVENC initialization before promising GPU
+   encoding. Do not substitute short capture tests for full encoding endurance.
+4. Package and validate a self-contained runtime, signing, installation, update and
+   uninstall on a clean machine before offering a portable/customer release.
+   Today's F: app still depends on the active C: checkout and its Python environment.
+
+This desktop checkpoint does not clear the earlier hosted multi-user/billing gates
+or authorize a public release, live stream, account change or paid action.

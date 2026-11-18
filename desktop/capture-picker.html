@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><title>Choose a screen or window — Producer, Please</title><link rel="stylesheet" href="assets/producer-please.tokens.css"><link rel="stylesheet" href="capture-picker.css"></head>
+<body class="pp-shell"><main><header><p class="eyebrow">PRODUCER, PLEASE</p><h1>Choose what to share</h1><p>Share one screen or window with your production.</p></header>
+<p class="notice" id="captureScope">Video only. Screen and system audio are not included. A whole screen may show notifications and other windows.</p>
+<fieldset id="choices" aria-describedby="captureScope"><legend>Available screens and windows</legend><div id="sources" class="sources"></div></fieldset>
+<p id="captureStatus" role="status" aria-live="polite">Finding available screens and windows…</p>
+<footer><p id="selectionStatus">Choose a source, then select Share video.</p><div class="actions"><button type="button" id="cancelCapture">Cancel</button><button type="button" id="shareCapture" class="primary" disabled>Share video</button></div></footer></main><script src="capture-picker.js"></script></body></html>

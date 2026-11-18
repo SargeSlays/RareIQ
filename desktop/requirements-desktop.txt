@@ -1,0 +1,2 @@
+# Optional native encoder dependency; install into the F: runtime target.
+av==19.0.2
