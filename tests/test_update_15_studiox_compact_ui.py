@@ -112,7 +112,7 @@ def test_update15_stylesheet_is_last_and_cache_busted() -> None:
         "/static/production_media_library.css?v=20261115-1",
         "/static/production_browser_library.css?v=20261115-1",
         "/static/production_layouts.css?v=20261115-1",
-        "/static/desktop_bridge.css?v=20261118-1",
+        "/static/desktop_bridge.css?v=20261118-4",
         "/static/audience_controls.css?v=20261115-1",
         "/static/production_vision.css?v=20261115-1",
     ]

@@ -1277,3 +1277,49 @@ The current production app remains open; the newer package takes effect on reope
 
 Canonical gate passed on the isolated checkpoint source: **3474 Python tests and
 586 JavaScript tests**. Log: `ProducerPlease-desktop-onboarding-20261118/release-gate.log`.
+
+## November 18, 2026 — Private bundled-runtime candidate acceptance
+
+- [x] Separate private candidate packages official embedded CPython 3.13.12 amd64
+  with pinned archive SHA-256, 48 dependency distributions, approved backend/static
+  source, default seeds and FFmpeg. Inventory and Python/package/binary notices
+  retained; operator configuration, keys, catalogs and user models are not copied.
+- [x] Source allowlist and resource containment guards, including junction escape;
+  default-profile and legacy redirector-child/foreign-PID regression coverage.
+- [x] Candidate 02 actual controller/backend on isolated 8767: executable identity
+  verified, 569 probed import paths inside resources despite invalid environment
+  Python paths, F: profile writes and zero resource hash changes. Native encoding
+  stayed inactive; readiness truthfully blocked empty Program and missing output.
+- [x] Normal stop preserved unknown OBS state. QA then stopped only its exact newly
+  owned idle test process after identity/profile/port/client/encoding checks.
+- [x] Candidate 02 native EXE/setup on 8770 with bundled backend, source navigation
+  without Take, protected storage available and owned test-process cleanup.
+- [x] Bundled software encoder produced a local synthetic FLV with 90 video frames
+  and 144,000 audio samples; zero reported video/audio drops.
+- [x] Primary development build, shortcut, data and port 8765 studio preserved.
+- [x] Candidate 04 full packaged Program: actual app/backend/resources, local
+  H.264 720p/AAC 48 kHz stereo, 170 frames / 5.685 seconds / 29.9033 fps, generated
+  tone, minimized image/title Take, zero reported dropped queues, preparation UI
+  excluded/restored and native ownership released. `native-program-acceptance04`.
+- [x] Canonical isolated-source gate: **3533 Python and 592 JavaScript tests**.
+  Evidence: `ProducerPlease-bundled-20261118/release-gate.log`.
+- [x] Separate Standalone Preview shortcut installed and actual app opened and
+  visually inspected. Its banner and F: ProducerPleasePreview profile/port 8767
+  distinguish it; primary app/shortcut/data are preserved. No keys or data migrated.
+- [x] Candidate copied to another folder and real isolated backend acceptance
+  passed on port 8771 with no resource changes. `relocated-acceptance/results.json`.
+- [x] Local preview ZIP created and integrity-checked; operator configuration
+  filenames excluded. Archive path is recorded in [DESKTOP_APP.md](DESKTOP_APP.md).
+- [ ] Runtime patch/update strategy, signing, installation/update/uninstall,
+  migration/recovery and clean-machine acceptance.
+- [ ] Public redistribution/license review. Preserved metadata/notices alone are
+  not a legal assessment or public-release approval.
+- [ ] Real platform receipt, physical capture, listener A/V sync, endurance and
+  hardware encoding remain separate authorized acceptance work.
+
+Passing evidence under `F:/Temp/jonat/ProducerPlease-bundled-20261118`:
+`backend-acceptance02/results.json`, `native-acceptance/results.json` and
+`encoder-acceptance/results.json`. The earlier `backend-acceptance` failure was an
+incorrect harness dependency assumption, not evidence of a passing candidate.
+Final candidate evidence/counts are deliberately not inferred from these checks.
+See [DESKTOP_APP.md](DESKTOP_APP.md) for the two build types and interpreter pin.

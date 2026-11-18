@@ -8,6 +8,8 @@ import time
 from copy import deepcopy
 from typing import Any
 
+from rareiq.core.runtime_paths import desktop_config_path
+
 
 def current_intelligence_theme(theme: dict[str, Any]) -> dict[str, Any]:
     """Migrate the untouched stock theme, preserving deliberate custom styling."""
@@ -28,7 +30,8 @@ class OverlayStateService:
     def __init__(self, state_path: Path | None = None) -> None:
         self._lock = threading.RLock()
         self._state_path = state_path or (
-            Path(__file__).resolve().parents[1] / "data" / "overlay_presentation.json"
+            desktop_config_path("rareiq/data/overlay_presentation.json")
+            or Path(__file__).resolve().parents[1] / "data" / "overlay_presentation.json"
         )
         self._state: dict[str, Any] = {
             "status": "ready",

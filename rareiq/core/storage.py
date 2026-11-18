@@ -4,9 +4,12 @@ import hashlib
 import json
 import os
 import shutil
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from rareiq.core.runtime_paths import desktop_config_path, desktop_data_root, portable_storage_defaults
 
 
 class StorageManager:
@@ -31,7 +34,8 @@ class StorageManager:
     ) -> None:
         self.project_root = Path(project_root or Path(__file__).resolve().parents[2]).resolve()
         requested_config = Path(config_file)
-        self.config_file = (
+        self._desktop_data_root = desktop_data_root()
+        self.config_file = desktop_config_path(requested_config) or (
             requested_config
             if requested_config.is_absolute()
             else self.project_root / requested_config
@@ -45,12 +49,30 @@ class StorageManager:
         if self.initialized:
             return
         if not self.config_file.exists():
-            if not self.example_config_file.is_file():
+            if self._desktop_data_root is not None:
+                self.config_file.parent.mkdir(parents=True, exist_ok=True)
+                temporary = None
+                try:
+                    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8",
+                            dir=self.config_file.parent, prefix=".storage-", suffix=".tmp", delete=False) as handle:
+                        temporary = Path(handle.name)
+                        json.dump(portable_storage_defaults(), handle, indent=2)
+                    try:
+                        # Publish only a complete file, without replacing a profile
+                        # another process initialized while we prepared defaults.
+                        os.link(temporary, self.config_file)
+                    except FileExistsError:
+                        pass
+                finally:
+                    if temporary is not None:
+                        temporary.unlink(missing_ok=True)
+            elif not self.example_config_file.is_file():
                 raise FileNotFoundError(
                     f"Storage configuration was not found: {self.config_file}"
                 )
-            self.config_file.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(self.example_config_file, self.config_file)
+            else:
+                self.config_file.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(self.example_config_file, self.config_file)
 
         payload = json.loads(self.config_file.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):

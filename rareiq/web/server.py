@@ -31,6 +31,7 @@ from rareiq.core.events import EventBus
 from rareiq.core.orchestrator import RareIQOrchestrator
 from rareiq.core.secrets import secrets as secret_store
 from rareiq.core.storage import storage
+from rareiq.core.runtime_paths import desktop_data_root
 from rareiq.services.provenance_capture_service import ProvenanceCaptureService
 from rareiq.services.spotify_service import spotify
 from rareiq.services.instant_replay_service import InstantReplayService
@@ -85,7 +86,7 @@ from rareiq.web.remote_access import (
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
-CAPTURE_DIR = BASE_DIR.parent.parent / "captures"
+CAPTURE_DIR = storage.get_path("capture_path") if desktop_data_root() is not None else BASE_DIR.parent.parent / "captures"
 SERVER_SESSION_ID = uuid.uuid4().hex
 SERVER_STARTED_AT = time.time()
 REMOTE_ACCESS = RemoteAccessPolicy.from_environment(

@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from rareiq.services.artwork_index_service import ArtworkIndexService
+from rareiq.core.runtime_paths import desktop_config_path
 
 
 class LiveCatalogService:
@@ -31,7 +32,7 @@ class LiveCatalogService:
         cache_root: Path | None = None,
     ) -> None:
         project_root = Path(__file__).resolve().parents[2]
-        self.cache_root = cache_root or (project_root / "catalog_cache")
+        self.cache_root = cache_root or desktop_config_path("catalog_cache") or (project_root / "catalog_cache")
         self.images_dir = self.cache_root / "images"
         self.metadata_dir = self.cache_root / "metadata"
         self.images_dir.mkdir(parents=True, exist_ok=True)

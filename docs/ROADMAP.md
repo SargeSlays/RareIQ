@@ -757,3 +757,28 @@ Program generation, retained unsaved fields, protected synthetic-key saving and
 six dark/light desktop layouts. The native encoder is unchanged. Remaining gates
 are physical/listener acceptance, authorized platform receipt, endurance, NVENC
 diagnosis and self-contained packaging; this UI pass does not clear those gates.
+
+## November 18, 2026 — Bundled runtime preview phase
+
+The private bundled-runtime candidate now contains its own pinned CPython 3.13.12,
+48 dependency distributions, backend/static source and FFmpeg. Candidate 02 passed
+an actual isolated backend run on 8767 with all 569 probed imports inside resources,
+unchanged resource hashes, native EXE/setup on 8770 and a 90-frame local encoder run.
+This supersedes the earlier “packaging not implemented” status for this candidate;
+the primary thin app still uses the development checkout and remains unchanged.
+
+Next bounded gates:
+
+1. Finish candidate 04's full packaged Program check and final gate evidence for
+   the preview banner and path-containment fixes; record the exact accepted build.
+2. Expose a separate Standalone Preview shortcut only after that proof. `--preview`
+   uses ProducerPleasePreview on F: and port 8767, with no migration or copied keys;
+   preserve the primary shortcut, profile and port 8765 studio.
+3. Validate runtime patch updates, installation/update/uninstall, signing,
+   redistribution/license review and a clean machine before any customer release.
+   Retained notices and a source inventory do not clear these gates themselves.
+4. Define and test an explicit data-migration/recovery workflow before offering
+   migration. Continue separate authorized hardware/listener, platform receipt,
+   endurance and NVENC acceptance; local generated output proves none of those.
+
+Current evidence and build distinctions: [DESKTOP_APP.md](DESKTOP_APP.md).

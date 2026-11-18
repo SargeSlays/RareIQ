@@ -5,15 +5,24 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from rareiq.core.runtime_paths import desktop_config_path
+
 
 class SetCatalogService:
     def __init__(self, catalog_path: Path | None = None) -> None:
+        self._seed_path: Path | None = None
         if catalog_path is None:
             catalog_path = (
                 Path(__file__).resolve().parents[1]
                 / "data"
                 / "set_catalog.json"
             )
+            writable = desktop_config_path("rareiq/data/set_catalog.json")
+            if writable is not None:
+                # The packaged catalog is a read-only seed. Selection changes
+                # belong to the profile and never overwrite bundled resources.
+                self._seed_path = catalog_path
+                catalog_path = writable
         self.catalog_path = catalog_path
         self._lock = threading.Lock()
         self._sets: list[dict[str, Any]] = []
@@ -26,9 +35,8 @@ class SetCatalogService:
     def load(self) -> None:
         with self._lock:
             try:
-                payload = json.loads(
-                    self.catalog_path.read_text(encoding="utf-8")
-                )
+                source = self._seed_path if self._seed_path is not None and not self.catalog_path.exists() else self.catalog_path
+                payload = json.loads(source.read_text(encoding="utf-8"))
                 sets = payload.get("sets", [])
                 self._sets = [
                     item for item in sets if isinstance(item, dict)
@@ -59,6 +67,7 @@ class SetCatalogService:
             "selection_mode": self._selection_mode,
             "active_set_override": self._active_set_override,
         }
+        self.catalog_path.parent.mkdir(parents=True, exist_ok=True)
         self.catalog_path.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2),
             encoding="utf-8",

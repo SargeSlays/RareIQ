@@ -12,6 +12,8 @@ from urllib.parse import urlencode
 
 import httpx
 
+from rareiq.core.runtime_paths import desktop_config_path, desktop_data_root
+
 
 class SpotifyService:
     API = "https://api.spotify.com/v1"
@@ -19,10 +21,12 @@ class SpotifyService:
     SCOPES = "user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private playlist-read-collaborative user-read-playback-position"
 
     def __init__(self, settings_path: Path | None = None) -> None:
-        self.settings_path = settings_path or (Path(__file__).resolve().parents[2] / "spotify_settings.json")
+        requested_path = settings_path or (Path(__file__).resolve().parents[2] / "spotify_settings.json")
+        self.settings_path = desktop_config_path(requested_path) or requested_path
         saved = self._load_settings()
-        self.client_id = os.getenv("SPOTIFY_CLIENT_ID", str(saved.get("client_id", ""))).strip()
-        self.redirect_uri = os.getenv("SPOTIFY_REDIRECT_URI", str(saved.get("redirect_uri", "http://127.0.0.1:8765/api/spotify/callback"))).strip()
+        environment = os.environ if desktop_data_root() is None else {}
+        self.client_id = environment.get("SPOTIFY_CLIENT_ID", str(saved.get("client_id", ""))).strip()
+        self.redirect_uri = environment.get("SPOTIFY_REDIRECT_URI", str(saved.get("redirect_uri", "http://127.0.0.1:8765/api/spotify/callback"))).strip()
         self._verifiers: dict[str, str] = {}
         self._token: dict[str, Any] = {}
 

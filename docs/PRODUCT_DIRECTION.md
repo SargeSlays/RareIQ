@@ -741,3 +741,22 @@ destination configuration separately. Choose sources navigates to the existing
 production library while retaining the unsaved destination draft. It does not add
 or select sources, Take, start capture or transmit. This is usability polish on the
 local desktop checkpoint; account sign-in and platform acceptance remain separate.
+
+## November 18, 2026 — Private bundled desktop preview
+
+Producer, Please now has a separate private bundled-runtime candidate. The existing
+thin development app and primary shortcut remain unchanged. The candidate packages
+CPython 3.13.12, 48 dependency distributions, approved source/static assets and
+FFmpeg; it uses resource-relative code paths and writable F: profile data. This
+advances the standalone desktop direction without claiming a public installer or
+clean-machine release.
+
+`--preview` selects the separate ProducerPleasePreview profile on F: and port 8767.
+No existing scenes, keys, accounts or data are migrated; port 8765 remains intact.
+Camera choice is explicit rather than automatic discovery on desktop launch.
+Candidate 02 passed isolated actual-backend, native-EXE and local-encoder checks.
+Candidate 04's banner/path-guard changes still require final packaged Program
+evidence. A separate preview shortcut follows that proof, not replacement of the
+primary entry. Runtime updates, signing, license/redistribution review, migration,
+clean-machine and real platform/hardware acceptance remain open. See
+[Desktop build types and evidence](DESKTOP_APP.md).

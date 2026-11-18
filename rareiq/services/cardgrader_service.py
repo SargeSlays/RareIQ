@@ -11,13 +11,14 @@ import httpx
 import numpy as np
 
 from rareiq.core.secrets import SecretsManager
+from rareiq.core.runtime_paths import desktop_config_path
 
 
 class CardGraderService:
     BASE_URL = "https://cardgrader.ai/v1"
 
     def __init__(self, project_root: Path | None = None) -> None:
-        self.project_root = project_root or Path(__file__).resolve().parents[2]
+        self.project_root = project_root or desktop_config_path(".") or Path(__file__).resolve().parents[2]
         self.secrets_path = self.project_root / "rareiq_secrets.json"
         self._secrets_store = SecretsManager(self.secrets_path)
         self.capture_dir = self.project_root / "grading_captures"

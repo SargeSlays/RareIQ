@@ -151,6 +151,79 @@ def _ping(host: str, port: int, *, timeout: float = 1.0) -> dict[str, Any] | Non
     return _request_json(f"{_base_url(host, port)}/api/boot/ping", timeout=timeout)
 
 
+def _windows_child_of(pid: int, parent_pid: int) -> bool:
+    """Verify a live Windows redirector child without trusting the HTTP payload."""
+    if os.name != "nt" or pid <= 0 or parent_pid <= 0 or pid == parent_pid:
+        return False
+    from ctypes import wintypes
+
+    class ProcessEntry(ctypes.Structure):
+        _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD),
+                    ("th32ProcessID", wintypes.DWORD), ("th32DefaultHeapID", ctypes.c_size_t),
+                    ("th32ModuleID", wintypes.DWORD), ("cntThreads", wintypes.DWORD),
+                    ("th32ParentProcessID", wintypes.DWORD), ("pcPriClassBase", wintypes.LONG),
+                    ("dwFlags", wintypes.DWORD), ("szExeFile", wintypes.WCHAR * 260)]
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel.OpenProcess.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel.GetProcessTimes.argtypes = [wintypes.HANDLE] + [ctypes.POINTER(wintypes.FILETIME)] * 4
+    kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    kernel.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    kernel.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    kernel.Process32FirstW.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessEntry)]
+    kernel.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessEntry)]
+    handles = []
+    snapshot = None
+    try:
+        created = []
+        # Hold both process handles and verify creation order so a recycled
+        # parent ID cannot establish ownership of an older unrelated process.
+        for candidate in (parent_pid, pid):
+            handle = kernel.OpenProcess(0x1000, False, candidate)
+            if not handle:
+                return False
+            handles.append(handle)
+            times = [wintypes.FILETIME() for _ in range(4)]
+            if not kernel.GetProcessTimes(handle, *(ctypes.byref(value) for value in times)):
+                return False
+            created.append((times[0].dwHighDateTime << 32) | times[0].dwLowDateTime)
+        if created[1] < created[0]:
+            return False
+        snapshot = kernel.CreateToolhelp32Snapshot(0x00000002, 0)
+        if snapshot in (None, ctypes.c_void_p(-1).value):
+            snapshot = None
+            return False
+        entry = ProcessEntry()
+        entry.dwSize = ctypes.sizeof(entry)
+        present = kernel.Process32FirstW(snapshot, ctypes.byref(entry))
+        while present and entry.th32ProcessID != pid:
+            present = kernel.Process32NextW(snapshot, ctypes.byref(entry))
+        if not present or entry.th32ParentProcessID != parent_pid:
+            return False
+        for handle in handles:
+            code = wintypes.DWORD()
+            if not kernel.GetExitCodeProcess(handle, ctypes.byref(code)) or code.value != 259:
+                return False
+        return True
+    except (OSError, ValueError):
+        return False
+    finally:
+        if snapshot is not None:
+            kernel.CloseHandle(snapshot)
+        for handle in handles:
+            kernel.CloseHandle(handle)
+
+
+def _matches_started_process(ping: dict[str, Any] | None, pid: int,
+                             *, allow_redirector_child: bool = False) -> bool:
+    if not (ping and type(ping.get("pid")) is int and ping["pid"] > 0
+            and isinstance(ping.get("server_session_id"), str) and ping["server_session_id"]):
+        return False
+    return ping["pid"] == pid or (allow_redirector_child and _windows_child_of(ping["pid"], pid))
+
+
 def _resolved_paths(project_root: Path, state_path: Path | None) -> tuple[Path, Path]:
     if state_path is None:
         return _runtime_paths(project_root)
@@ -311,7 +384,8 @@ def _control_lock(state_path: Path, *, timeout: float = 15.0):
         handle.close()
 
 
-def server_status(project_root: Path, *, state_path: Path | None = None) -> dict[str, Any]:
+def server_status(project_root: Path, *, state_path: Path | None = None,
+                  host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> dict[str, Any]:
     project_root = Path(project_root).resolve()
     state_path, _log_root = _resolved_paths(project_root, state_path)
     state = _load_state(state_path)
@@ -322,7 +396,7 @@ def server_status(project_root: Path, *, state_path: Path | None = None) -> dict
             remote_access=bool(state.get("remote_access")),
         )
     else:
-        host, port = DEFAULT_HOST, DEFAULT_PORT
+        host, port = _validate_binding(host, port)
     ping = _ping(host, port)
     if not state:
         return {
@@ -405,7 +479,7 @@ def start_server(
                 _lock_held=True,
                 _attach_to_parent=_attach_to_parent,
             )
-    existing = server_status(project_root, state_path=state_path)
+    existing = server_status(project_root, state_path=state_path, host=host, port=port)
     if existing["state"] == "running":
         return {**existing, "already_running": True}
     if existing["state"] in {"unmanaged", "conflict", "unhealthy"}:
@@ -417,12 +491,18 @@ def start_server(
         _remove_state(state_path)
     if _ping(host, port):
         raise ServerControlError(f"A RareIQ server already responds at {_base_url(host, port)} but is not managed by this state file.")
-    python = project_root / ".venv" / "Scripts" / (
+    from rareiq.core.runtime_paths import desktop_data_root, desktop_python
+    data_root, embedded_python = desktop_data_root(), desktop_python()
+    if (data_root is None) != (embedded_python is None):
+        raise ServerControlError("Bundled desktop runtime requires both its data root and Python executable.")
+    python = embedded_python or project_root / ".venv" / "Scripts" / (
         "pythonw.exe" if os.name == "nt" and _attach_to_parent else "python.exe"
     )
     app = project_root / "app.py"
     if not python.is_file() or not app.is_file():
-        raise ServerControlError("RareIQ runtime is incomplete; expected .venv\\Scripts\\python.exe and app.py.")
+        raise ServerControlError("RareIQ runtime is incomplete; expected a Python executable and app.py.")
+    if data_root is not None:
+        data_root.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     stdout_path = log_root / f"server-{stamp}.out.log"
     stderr_path = log_root / f"server-{stamp}.err.log"
@@ -435,7 +515,7 @@ def start_server(
         "RAREIQ_REMOTE_ACCESS": "1" if remote_access else "0",
     })
     popen_kwargs: dict[str, Any] = {
-        "cwd": str(project_root),
+        "cwd": str(data_root or project_root),
         "env": environment,
         "stdin": subprocess.DEVNULL,
     }
@@ -472,14 +552,22 @@ def start_server(
     _write_state(state_path, pending)
     deadline = time.monotonic() + timeout
     ping = None
+    allow_redirector_child = embedded_python is None and os.name == "nt"
+    identity_verified = False
     while time.monotonic() < deadline:
         if process.poll() is not None:
             break
         ping = _ping(host, port)
-        if ping and int(ping.get("pid") or 0) > 0 and ping.get("server_session_id"):
+        if _matches_started_process(ping, process.pid, allow_redirector_child=allow_redirector_child):
+            identity_verified = True
+            break
+        if ping:
+            # A different state file may launch a server on this port while our
+            # child is starting. Its health is not our process ownership receipt.
+            ping = None
             break
         time.sleep(0.25)
-    if not ping or int(ping.get("pid") or 0) <= 0 or not ping.get("server_session_id"):
+    if not identity_verified:
         if process.poll() is None:
             process.terminate()
             try:
@@ -499,7 +587,7 @@ def start_server(
         "ready_at": _utc_now(),
     }
     _write_state(state_path, ready)
-    result = server_status(project_root, state_path=state_path)
+    result = server_status(project_root, state_path=state_path, host=host, port=port)
     if open_browser:
         webbrowser.open(result["control_url"])
     return {**result, "started": True}

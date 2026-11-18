@@ -3958,6 +3958,10 @@ function viewerHasLiveFrame(){
 }
 
 async function attemptCameraAutostart(){
+  if(window.producerDesktop){
+    setCameraAutostartState("manual","CHOOSE A SOURCE");
+    return;
+  }
   if(cameraAutoStartDone||cameraAutoStartInFlight) return;
 
   if(viewerHasLiveFrame()){
@@ -4080,15 +4084,13 @@ async function startBackgroundInitialization(){
   2. Attach the main viewer immediately.
   3. Let First Frame Wins suppress stale loading overlays.
   */
-  try{
-    bootstrapCamera();
-  }catch{}
-
-  try{
-    verifyAndConnectMainViewer();
-  }catch{}
-
-  setTimeout(attemptCameraAutostart,180);
+  if(!window.producerDesktop){
+    try{bootstrapCamera();}catch{}
+    try{verifyAndConnectMainViewer();}catch{}
+    setTimeout(attemptCameraAutostart,180);
+  }else{
+    setCameraAutostartState("manual","CHOOSE A SOURCE");
+  }
 
   try{ loadRecognition(); }catch{}
   try{ loadSystemHealth(); }catch{}

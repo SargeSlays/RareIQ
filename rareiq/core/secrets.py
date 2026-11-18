@@ -6,6 +6,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from rareiq.core.runtime_paths import desktop_config_path, desktop_data_root
+
 
 class SecretsManager:
     """Loads local-only RareIQ credentials without exposing them to the UI."""
@@ -13,7 +15,10 @@ class SecretsManager:
     def __init__(self, path: str | Path | None = None) -> None:
         self.project_root = Path(__file__).resolve().parents[2]
         requested_path = Path(path) if path is not None else Path("rareiq_secrets.json")
-        self.path = requested_path if requested_path.is_absolute() else self.project_root / requested_path
+        self._desktop_data_root = desktop_data_root()
+        self.path = desktop_config_path(requested_path) or (
+            requested_path if requested_path.is_absolute() else self.project_root / requested_path
+        )
         self._lock = threading.RLock()
         self._values: dict[str, Any] = {}
         self.reload()
@@ -22,7 +27,7 @@ class SecretsManager:
         with self._lock:
             values = self._read_file(strict=False)
 
-            env_key = os.environ.get("POKEMONTCG_API_KEY", "").strip()
+            env_key = os.environ.get("POKEMONTCG_API_KEY", "").strip() if self._desktop_data_root is None else ""
             if env_key:
                 values["pokemontcg_api_key"] = env_key
 

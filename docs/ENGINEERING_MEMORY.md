@@ -839,3 +839,49 @@ the target/frame after awaiting and ignore stale ownership before hiding windows
 Regressions cover missing acknowledgment, duplicate clicks, replaced frames/windows
 and packaged-window unsaved-field persistence. Readiness also belongs to the
 selected output format: changing it must not retain a Ready label from the old one.
+
+## November 18, 2026 — Bundled runtime isolation and launcher identity
+
+- **Decoded UI state precedes acknowledged output readiness.** The packaged
+  rehearsal initially tried Take as soon as the output's local video decoded.
+  Wait for the backend's current ready groups as well; keep the real Take guard.
+  Electron application evaluation also receives its Electron module as the first
+  callback argument, with supplied data second. Tests must use the actual packaged
+  module context and not assume a global CommonJS require. Preserve failed probes
+  separately from the full passing packaged evidence.
+- **A launcher PID is not always the interpreter PID.** A benign Windows probe
+  confirmed that `.venv/Scripts/python.exe` is a redirector whose script runs in a
+  direct child. Requiring exact PID equality in every mode would break development
+  startup. Embedded Python still requires an exact spawned PID; the legacy Windows
+  path may accept only a live direct child verified through OS process handles,
+  parent linkage and creation ordering. Preserve both PID fields in the receipt.
+  Regressions cover the real benign child, unrelated health replies and malformed
+  identities; a responding server alone never establishes launch ownership.
+- **Runtime resources and operator data have different lifetimes.** Set the
+  desktop data root/Python environment before backend imports, generate profile
+  defaults without copying machine configuration, and leave normal web/dev behavior
+  unchanged. Concurrent first-use publishes only complete defaults without
+  replacing an existing profile. Windows can retain an extended path prefix during
+  a creation race; normalize equivalent spellings before containment comparison.
+- **Lexical containment misses junction escapes.** Resolve actual resource paths
+  before accepting a bundled manifest. Source packaging reads the staged Git tree
+  through an allowlist, rejects traversal/link entries and records hashes. Keep
+  source-staging and junction-escape regressions; do not package an entire dirty
+  checkout, runtime configuration, user models or credentials. Stock wheel assets
+  and license metadata are separate from operator data.
+- **Feature names do not establish dependencies.** The first acceptance probe
+  incorrectly assumed Python `aiortc` was required for WebRTC. This app uses browser
+  peers and Python signaling. The corrected probe's dependencies are checked
+  against production imports. Preserve the failed harness evidence and identify
+  `backend-acceptance02` as the passing run rather than adding an unused package.
+- **A packaging check must exercise the packaged controller.** Candidate 02's
+  actual embedded backend proved 569 imported paths stayed under F: resources even
+  with invalid Python environment paths, while profile writes stayed on F: and
+  resource hashes did not change. A source test or development interpreter pass
+  would not establish this. Check the exact artifact again after packaging changes.
+- **Test teardown is not product quit policy.** Unknown OBS state correctly kept
+  the acceptance backend running. QA terminated only its newly owned idle process
+  after checking receipt, session, executable, profile/port, clients and encoding.
+  The product retains its conservative guard; no reused server or port 8765 process
+  was stopped. Desktop launch continues to require explicit camera choice instead
+  of the older automatic boot/discovery path.

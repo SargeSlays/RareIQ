@@ -13,6 +13,8 @@ import hashlib
 import cv2
 import numpy as np
 
+from rareiq.core.runtime_paths import desktop_config_path
+
 
 class ArtworkIndexService:
     # Live cross-card acceptance showed exact-variant marker evidence can
@@ -51,7 +53,7 @@ class ArtworkIndexService:
         (0.55, 0.55, 0.98, 0.86),
     )
     def __init__(self, index_path: Path | None = None) -> None:
-        data_dir = Path(__file__).resolve().parents[1] / "data"
+        data_dir = desktop_config_path("rareiq/data") or Path(__file__).resolve().parents[1] / "data"
         self.reference_dir = data_dir / "reference_cards"
         self.reference_dir.mkdir(parents=True, exist_ok=True)
 

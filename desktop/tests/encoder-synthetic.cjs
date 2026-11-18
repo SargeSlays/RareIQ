@@ -5,7 +5,8 @@ async function main(){
   const artifactRoot=path.resolve(process.argv[2]||'F:/Temp/jonat/ProducerPlease-encoder-synthetic');await fs.mkdir(artifactRoot,{recursive:true});
   const testOutput=path.join(artifactRoot,'synthetic-'+Date.now()+'.flv');
   const testTransport=process.env.PRODUCER_ENCODER_TEST_PORT?{port:Number(process.env.PRODUCER_ENCODER_TEST_PORT),caFile:path.join(artifactRoot,'ca.pem'),serverName:process.env.PRODUCER_ENCODER_TEST_HOST||'localhost'}:undefined;
-  const runtime=process.argv[3]?JSON.parse(await fs.readFile(path.resolve(process.argv[3]),'utf8')):{};
+  const runtimePath=process.argv[3]?path.resolve(process.argv[3]):null;
+  const runtime=runtimePath?require('../runtime.cjs').resolveRuntime(JSON.parse(await fs.readFile(runtimePath,'utf8')),path.dirname(runtimePath),path.join(artifactRoot,'profile')):{};
   const encoder=new Encoder({python:runtime.python||path.resolve(__dirname,'../../.venv/Scripts/python.exe'),workerPath:runtime.encoderWorker,pythonPackages:runtime.pythonPackages||'F:/Caches/ProducerPlease/python-packages',artifactRoot,testTransport});
   const events=[];encoder.on('state',state=>events.push(state));
   const ready=await encoder.start({width:320,height:180,fps:30,codec:process.env.PRODUCER_ENCODER_TEST_CODEC||'auto',...(testTransport?{}:{testOutput})});

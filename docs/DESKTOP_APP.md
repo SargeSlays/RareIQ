@@ -9,13 +9,12 @@ replaced by this desktop work.
 
 ## Local installation and storage
 
-This is a **local development build**, not a portable installer or public release.
-The Electron executable is under `F:\Apps\ProducerPlease\builds`; the selected
-executable is recorded in `F:\Apps\ProducerPlease\latest-build.json`. Its runtime
-manifest still requires the existing RareIQ checkout on C: and that checkout's
-`.venv\Scripts\python.exe`. Do not move or remove them and expect the desktop
-build to continue working. The encoder worker and its extra Python packages are
-copied into app resources, but the full backend/Python runtime is not bundled.
+There are now **two private build types**, neither a public installer release.
+
+| Build | Runtime and current entry point |
+| --- | --- |
+| Primary development app | The existing Start Menu entry and `F:\Apps\ProducerPlease\latest-build.json` remain unchanged. This thin shell requires the C: RareIQ checkout and its `.venv\Scripts\python.exe`. Keep those in place. |
+| Bundled runtime candidate | `F:\Apps\ProducerPlease\latest-bundled-build.json` identifies a separate build with embedded Python, approved backend source/static assets, encoder and dependencies in its own resources. Its tested backend does not require the development checkout or Python environment. Final packaged Program and clean-machine acceptance remain separate. |
 
 Desktop profile, browser state and logs default to
 `F:\Users\<user>\AppData\ProducerPlease`; build/dependency caches use
@@ -25,6 +24,88 @@ the desktop app does not relocate existing scenes, card data or captures.
 Windows' per-user Start Menu shortcut remains in its supported C: AppData
 location. Existing Windows/runtime tools and the development checkout also
 remain on C:; this checkpoint does not claim a universal relocation to F:.
+
+## November 18, 2026 — Private standalone preview
+
+Launching the bundled executable with `--preview` selects
+`F:\Users\<user>\AppData\ProducerPleasePreview` and loopback port **8767**.
+The preview banner identifies this separate profile. It does not migrate scenes,
+catalogs, captures, accounts or destination keys from the primary app. The normal
+port 8765 studio and its shortcut are preserved. **Producer, Please - Standalone
+Preview** is installed in the Windows Start Menu and was opened and visually
+inspected on port 8767. Its new profile has no copied accounts or destination keys.
+
+The resources manifest uses relative paths, resolved and checked against the real
+resources directory, including Windows junctions. Resources are treated as read-only;
+the preview's backend config, databases, captures and logs belong under its F:
+profile. Defaults are created there before backend imports. Existing profile values
+are preserved, and startup does not read configuration or credentials from the
+developer checkout. Camera selection remains an explicit operator action: desktop
+launch disables the older automatic boot/discovery path.
+
+The private candidate pins **CPython 3.13.12 amd64**, matching the existing native
+package ABI, from the official
+[`python-3.13.12-embed-amd64.zip`](https://www.python.org/ftp/python/3.13.12/python-3.13.12-embed-amd64.zip)
+archive. Packaging checks SHA-256
+`76f238f606250c87c6beac75dccd35ee99070a13490555936abb6cb64ecce3d0`.
+This is a compatibility pin, not a claim to include the newest Python patch.
+Updating the interpreter requires another dependency/encoding acceptance pass.
+
+The candidate includes **48 dependency distributions**, FFmpeg binaries, approved
+default seeds and an inventory of copied source/package files. The backend builder reads
+the staged Git source tree through an allowlist; it does not package the dirty
+working directory, operator JSON, secrets, captures, catalogs or user model/cache
+directories. Models supplied as stock wheel assets are a distinct part of those
+third-party packages and may be included. Python licenses, package metadata/license
+files and binary notices remain with the build. Their presence is not a legal
+determination; redistribution/license review remains a public-release gate.
+
+## Bundled candidate acceptance and remaining proof
+
+Candidate 02 passed these separate checks under
+`F:\Temp\jonat\ProducerPlease-bundled-20261118`:
+
+| Scope | Observed result | Evidence |
+| --- | --- | --- |
+| Actual bundled backend, port 8767 | Bundled executable/PID verified; 569 probed module paths and app/server/controller origins inside resources despite deliberately invalid `PYTHONHOME`/`PYTHONPATH`; 14 profile files on F:; before/after resource hashes identical | `backend-acceptance02/results.json`, `import-paths.json`, resource hash files |
+| Native packaged app, port 8770 | Actual EXE started its bundled backend; Studio/setup and source navigation worked without Take; protected storage available; owned test backend closed | `native-acceptance/results.json`, `bundled-studio.png`, `bundled-setup.png` |
+| Bundled local encoder | Software H.264 encoded 90 generated frames and 144,000 audio samples into a local FLV; zero reported video/audio drops | `encoder-acceptance/results.json` and its synthetic FLV |
+
+Backend acceptance used the actual controller and app, without mocked readiness.
+Native encoding remained inactive; empty Program correctly reported `unassigned`
+and `output_not_identified`. Normal quit retained the server because OBS was not
+confirmed idle. Only the acceptance harness then terminated its newly owned test
+process, after checking the exact identity, bundled executable, profile/port,
+inactive session/recording/encoding and absence of clients. That QA-only cleanup
+does not relax application quit. Port 8765 was not contacted by this check.
+
+The first `backend-acceptance` directory is a failed harness probe: it incorrectly
+required Python `aiortc`. Production WebRTC peers live in the browser; Python
+provides signaling. The corrected probe checks dependencies against actual source
+imports. Keep that failed attempt as diagnostic history, not candidate evidence.
+
+Candidate 04 passed the complete packaged Program rehearsal with its actual
+backend, app.asar production modules, embedded Python, encoder and FFmpeg. Generated
+video/audio was imported through the real API and taken to Program; an image/title
+Take changed decoded frames while the output was minimized. The local file contains
+170 H.264 1280×720 frames over 5.685 seconds (29.9033 fps) with AAC 48 kHz stereo
+and the generated 440 Hz tone. No dropped video/audio queues were reported.
+An injected preparation notice stayed out of encoded pixels and returned after
+Stop. Ownership cleared before the app exited; the owned test backend was closed.
+Evidence: `native-program-acceptance04/results.json` and its `program` directory.
+
+The isolated source gate passed **3533 Python tests and 592 JavaScript tests**;
+see `release-gate.log`. The failed Program harness attempts remain preserved:
+they exposed Electron-evaluate callback/require assumptions and the need to wait
+for backend output acknowledgment before Take; readiness was never bypassed.
+No real platform transmission, account changes or physical capture were performed.
+
+The candidate also passed its real backend/import/resource checks after copying
+the complete application folder to a different location, using isolated port 8771.
+Evidence: `relocated-acceptance/results.json` (no resource changes). The local
+evaluation archive is `F:\Apps\ProducerPlease\packages\ProducerPlease-standalone-preview-20261118-win64.zip`;
+its ZIP integrity check passed and no operator configuration files are included.
+This is a private preview folder/ZIP, not a signed installer or clean-machine claim.
 
 ## Broadcast setup and state
 
@@ -128,8 +209,9 @@ Real Twitch/YouTube/Kick/custom destination receipt, platform-specific ingest
 compatibility, listener-quality A/V sync, physical cameras/microphones/screen capture,
 driver recovery, prolonged production, and network-loss recovery require separate
 authorized checks. Full 1080p/portrait encoding endurance, reliable hardware encoding,
-a self-contained runtime, signed installation/update/uninstall and clean-machine
-acceptance are not established. Local file capture and a passing TLS fixture must
+final bundled-Program acceptance, signed installation/update/uninstall, runtime
+updates, migration and clean-machine acceptance are not established. Public
+redistribution also needs licensing review. Local file capture and a passing TLS fixture must
 not be described as a live platform broadcast or a production-ready release.
 
 ## Reproduce the isolated full-chain check

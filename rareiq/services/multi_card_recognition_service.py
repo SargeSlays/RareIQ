@@ -16,6 +16,7 @@ import cv2
 import numpy as np
 
 from rareiq.services.recognition_service import RecognitionService
+from rareiq.core.runtime_paths import desktop_config_path
 from rareiq.services.artwork_index_service import ArtworkIndexService
 from rareiq.services.vision_service import VisionService
 
@@ -325,14 +326,16 @@ class MultiCardRecognitionService:
         self._crop_cache: dict[int, np.ndarray] = {}
         self._family_delegates: dict[int, list[int]] = {}
         self._temporal_history_path = history_path or (
-            Path(__file__).resolve().parents[1] / "data" / "temporal_multi_card_history.json"
+            desktop_config_path("rareiq/data/temporal_multi_card_history.json")
+            or Path(__file__).resolve().parents[1] / "data" / "temporal_multi_card_history.json"
         )
         self._temporal_history: dict[int, dict[str, Any]] = self._load_temporal_history()
         self._reference_cards = self._load_reference_cards()
         self._reference_feature_cache: dict[str, dict[str, Any]] = {}
         self._reference_feature_cache_lock = threading.RLock()
         self._presentation_path = presentation_path or (
-            Path(__file__).resolve().parents[1] / "data" / "multi_card_presentation.json"
+            desktop_config_path("rareiq/data/multi_card_presentation.json")
+            or Path(__file__).resolve().parents[1] / "data" / "multi_card_presentation.json"
         )
         self._selected_slots: set[int] = self._load_selected_slots()
         self._single_exact_history: dict[str, Any] = {}

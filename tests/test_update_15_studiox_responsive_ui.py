@@ -173,7 +173,7 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
         "/static/production_media_library.css?v=20261115-1",
         "/static/production_browser_library.css?v=20261115-1",
         "/static/production_layouts.css?v=20261115-1",
-        "/static/desktop_bridge.css?v=20261118-1",
+        "/static/desktop_bridge.css?v=20261118-4",
         "/static/audience_controls.css?v=20261115-1",
         "/static/production_vision.css?v=20261115-1",
     ]

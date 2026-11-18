@@ -99,7 +99,7 @@ def test_owned_idle_stop_is_one_use_and_removes_only_managed_state(backend):
     desktop.start(backend.project, backend.receipt)
     stopped = desktop.stop(backend.project, backend.receipt)
     assert stopped["state"] == "stopped" and stopped["owned"] is False and stopped["running"] is False
-    backend.stop_request.assert_called_once_with({"pid": 1234, "server_session_id": "session-one"}, 8.0)
+    backend.stop_request.assert_called_once_with({"pid": 1234, "server_session_id": "session-one"}, 8.0, port=8765)
     desktop.control._remove_state.assert_called_once()
     assert json.loads(backend.receipt.read_text())["consumed"] is True
     desktop.stop(backend.project, backend.receipt)

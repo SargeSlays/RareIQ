@@ -3,7 +3,8 @@ const {app,BrowserWindow,Menu,dialog,ipcMain,shell,session,desktopCapturer}=requ
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),{pathToFileURL}=require('node:url');
 const policy=require('./policy.cjs'),{Backend}=require('./backend.cjs');
 app.setName('Producer, Please');app.setAppUserModelId('com.producerplease.studio');
-const profile=process.env.PRODUCER_DESKTOP_QA_PROFILE||process.env.PRODUCER_DESKTOP_DATA||path.join('F:/Users',os.userInfo().username,'AppData','ProducerPlease');
+const preview=process.argv.includes('--preview');
+const profile=process.env.PRODUCER_DESKTOP_QA_PROFILE||process.env.PRODUCER_DESKTOP_DATA||path.join('F:/Users',os.userInfo().username,'AppData',preview?'ProducerPleasePreview':'ProducerPlease');
 if(!path.isAbsolute(profile))throw Error('Desktop data must use an absolute directory');
 for(const directory of [profile,path.join(profile,'browser'),path.join(profile,'logs'),path.join(profile,'crashes')])fs.mkdirSync(directory,{recursive:true});
 app.setPath('userData',profile);app.setPath('sessionData',path.join(profile,'browser'));app.setPath('logs',path.join(profile,'logs'));app.setPath('crashDumps',path.join(profile,'crashes'));
@@ -34,7 +35,10 @@ async function openSources(event){
 }
 app.whenReady().then(async()=>{
   const fixture=process.env.PRODUCER_DESKTOP_QA_ORIGIN;
-  const runtimePath=process.env.PRODUCER_DESKTOP_RUNTIME||path.join(process.resourcesPath,'runtime.json');runtime=JSON.parse(fs.readFileSync(runtimePath,'utf8'));
+  const runtimePath=process.env.PRODUCER_DESKTOP_RUNTIME||path.join(process.resourcesPath,'runtime.json');const manifest=JSON.parse(fs.readFileSync(runtimePath,'utf8'));
+  if(preview&&manifest.buildKind!=='bundled-runtime')throw Error('Standalone preview needs the bundled desktop build.');
+  const qaPort=process.env.PRODUCER_DESKTOP_QA_PROFILE&&process.env.PRODUCER_DESKTOP_QA_PORT?Number(process.env.PRODUCER_DESKTOP_QA_PORT):undefined;
+  runtime=require('./runtime.cjs').resolveRuntime(manifest,path.dirname(runtimePath),profile,{port:qaPort??(preview?8767:undefined)});
   if(fixture){origin=policy.studioOrigin(fixture);}else{
     backend=new Backend(runtime,path.join(profile,'backend-owner.json'));const started=await backend.start();origin=policy.studioOrigin(started.origin||started.url);
   }
@@ -61,7 +65,7 @@ app.whenReady().then(async()=>{
   polling=setInterval(()=>broadcast.check().catch(()=>{}),1000);polling.unref();
   const publicBroadcast=()=>({...broadcast.status(),available:Boolean(runtime.encoderWorker&&fs.existsSync(runtime.encoderWorker)&&backend?.started?.identity)});
 
-  ipcMain.handle('producer:info',event=>{if(!policy.trustedMain(event,studio.webContents,origin))throw Error('Untrusted request');return {name:'Producer, Please',version:app.getVersion(),desktop:true,engine:'standalone'};});
+  ipcMain.handle('producer:info',event=>{if(!policy.trustedMain(event,studio.webContents,origin))throw Error('Untrusted request');return {name:'Producer, Please',version:app.getVersion(),desktop:true,engine:'standalone',preview};});
   ipcMain.handle('producer:settings',event=>{if(!policy.trustedMain(event,studio.webContents,origin))throw Error('Untrusted request');return openSettings();});
   ipcMain.handle('producer:sources:open',openSources);
   ipcMain.handle('producer:destinations:status',event=>{if(!settingsEvent(event))throw Error('Untrusted request');return destinations.public().then(value=>({...value,broadcast:publicBroadcast()}));});
@@ -72,7 +76,7 @@ app.whenReady().then(async()=>{
   ipcMain.handle('producer:broadcast:stop',async event=>{if(!settingsEvent(event))throw Error('Untrusted request');await broadcast.stop();return publicBroadcast();});
   ipcMain.handle('producer:broadcast:status',event=>{if(!policy.trustedMain(event,studio.webContents,origin)&&!settingsEvent(event))throw Error('Untrusted request');return publicBroadcast();});
   ipcMain.handle('producer:platform',(event,value)=>{if(!settingsEvent(event)||!policy.allowedExternal(value))throw Error('Untrusted address');return shell.openExternal(value);});
-  Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Producer, Please',submenu:[{label:'Broadcast setup…',accelerator:'CmdOrCtrl+,',click:openSettings},{type:'separator'},{label:'Quit',click:()=>app.quit()}]},{label:'View',submenu:[{role:'reload'},{role:'togglefullscreen'},{role:'resetzoom'},{role:'zoomin'},{role:'zoomout'}]},{role:'editMenu'},{label:'Help',submenu:[{label:'About Producer, Please',click:()=>dialog.showMessageBox(studio,{message:'Producer, Please',detail:'Standalone desktop production studio. Configuring a destination, sending media, and verified platform receipt are separate states. This local build uses the existing project runtime.'})}]}]));
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Producer, Please',submenu:[{label:'Broadcast setup…',accelerator:'CmdOrCtrl+,',click:openSettings},{type:'separator'},{label:'Quit',click:()=>app.quit()}]},{label:'View',submenu:[{role:'reload'},{role:'togglefullscreen'},{role:'resetzoom'},{role:'zoomin'},{role:'zoomout'}]},{role:'editMenu'},{label:'Help',submenu:[{label:'About Producer, Please',click:()=>dialog.showMessageBox(studio,{message:'Producer, Please',detail:'Standalone desktop production studio. Configuring a destination, sending media, and verified platform receipt are separate states. '+(runtime?.buildKind==='bundled-runtime'?'This build includes its own backend runtime.':'This local build uses the existing project runtime.')})}]}]));
   await studio.loadURL(origin+'/control?workspace=studio&desktop=1');
 }).catch(async error=>{await dialog.showMessageBox({type:'error',message:'Producer, Please could not start',detail:typeof error.message==='string'?error.message:'The local runtime is unavailable.'});app.exit(1);});
 const {createQuitCoordinator}=require('./quit.cjs');
