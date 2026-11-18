@@ -1323,3 +1323,32 @@ Passing evidence under `F:/Temp/jonat/ProducerPlease-bundled-20261118`:
 incorrect harness dependency assumption, not evidence of a passing candidate.
 Final candidate evidence/counts are deliberately not inferred from these checks.
 See [DESKTOP_APP.md](DESKTOP_APP.md) for the two build types and interpreter pin.
+
+## November 18, 2026 — Desktop explicit-recovery acceptance
+
+- [x] 62 focused broker, encoder, output, bridge and Settings regressions pass.
+- [x] Canonical isolated staged-source gate: **3533 Python + 612 JavaScript tests**.
+- [x] Actual recovery EXE: `0.1.0-20261118105522739`, own profile/backend on 8770.
+- [x] Real Settings View output bridge restores the same minimized output without
+  review, Take, capture start or transmission. Dark/light recovery layout inspected
+  at 960×900 using explicitly simulated public statuses; no horizontal overflow.
+- [x] Real packaged Program/peer/preflight/capture/encoder path, generated PNG and
+  local FLVs only: output destruction stops worker, clears backend ownership,
+  preserves 37 frames and does not automatically restart. A second explicit
+  confirmation prepares a new window/peer and encodes 44 frames; normal Stop clears
+  ownership. Both files decode as 720p H.264 and 48 kHz stereo AAC; workers exit.
+- [x] Actual current bundled encoder, local trusted TLS receiver: deliberate
+  disconnect reports safe `encoder_failed`, worker closes 47 ms after failure,
+  no automatic retry; explicit new local-file attempt encodes/decodes 90 frames
+  and generated audio. Owned child processes and listener close. This generic
+  failure does not prove a specialized transport diagnosis.
+- [x] One-pass read-only recovery review found no concrete blocker.
+- [x] Existing primary and preview studios were not restarted or changed by QA.
+- [ ] Real destination receipt, physical devices/listener/echo, endurance, clean
+  machine, signing/installer/update and public redistribution acceptance remain.
+
+Evidence under `F:/Temp/jonat/ProducerPlease-recovery-20261118`:
+`native-ui01/results.json`, `native-recovery01/recovery/recovery-results.json`,
+`encoder03/results.json`, and `release-gate.log`. Earlier `encoder02` proof remains
+preserved for the prior build; the final repeat uses the recovery candidate.
+No real platform stream, user recording, credentials or physical capture were used.

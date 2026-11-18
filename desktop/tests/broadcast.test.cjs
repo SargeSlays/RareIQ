@@ -10,3 +10,114 @@ test('capture cleanup failure still stops the worker before clearing ownership',
 test('ambiguous reservation response is cleared conservatively after a failed start',async()=>{const f=fixture();await f.app.prepare();const request=f.app.request;f.app.request=async(url,body)=>{if(body?.active===true){f.calls.push({url,body});throw Error('response lost');}return request(url,body);};await assert.rejects(f.app.start({destinationId:'one'}),/broadcast_start_failed/);assert.equal(f.calls.at(-1).body.active,false);});
 
 test('late preflight cannot bless an output generation that changed during the check',async()=>{const f=fixture();await f.app.prepare();let resolve;f.app.request=()=>new Promise(r=>resolve=r);const pending=f.app.check();f.captureState={peerId:'output-one',rendered:true,browserReviewOpen:false,generation:4};resolve({preflight:{ready:true,generation:3}});await pending;assert.equal(f.app.status().ready,false);});
+
+const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
+const settle=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
+const healthy=()=>({peerId:'output-one',rendered:true,browserReviewOpen:false,audioBlocked:false,audioReady:true,prepared:true,generation:3});
+function runningFixture(){
+  const f=fixture();f.runs=[];f.taps=[];f.confirmations=0;
+  f.app.confirm=async()=>{f.confirmations++;return true;};
+  f.app.createEncoder=notify=>{
+    const run={state:{running:false,codec:'libx264',videoFrames:0,audioSamples:0},starts:0,stops:0,video:0,audio:0,
+      status(){return {...this.state};},async start(){this.starts++;this.state.running=true;},async stop(){this.stops++;this.state.running=false;},
+      sendVideo(){this.video++;return true;},sendAudio(){this.audio++;return true;},emit(value){Object.assign(this.state,value);notify({...this.state});}};
+    f.runs.push(run);f.setupWorker?.(run);return run;
+  };
+  f.capture.startCapture=async(video,audio)=>{f.taps.push({video,audio});};
+  return f;
+}
+
+test('old encoder events and capture callbacks cannot stop or feed a confirmed retry',async()=>{
+  const f=runningFixture();await f.app.prepare();await f.app.start({destinationId:'one'});
+  const previous=f.runs[0],tap=f.taps[0];await f.app.stop();await f.app.start({destinationId:'one'});
+  const current=f.runs[1];current.emit({state:'active',videoFrames:2});
+  previous.emit({state:'failed',code:'tls_connection_failed'});previous.emit({state:'active',videoFrames:900});
+  assert.equal(tap.video(Buffer.alloc(1),0),false);assert.equal(tap.audio(Buffer.alloc(1),0),false);await settle();
+  assert.equal(current.stops,0);assert.equal(current.video,0);assert.equal(current.audio,0);assert.equal(f.app.status().phase,'sending');assert.equal(f.app.status().frames,2);assert.equal(f.confirmations,2);
+  await f.app.stop();
+});
+
+test('cancelling a pending encoder Start stops its worker and never starts capture afterward',async()=>{
+  const f=runningFixture(),pending=deferred();f.setupWorker=run=>{run.start=async()=>{run.starts++;run.state.running=true;await pending.promise;};};
+  await f.app.prepare();const starting=f.app.start({destinationId:'one'});await settle();assert.equal(f.runs.length,1);
+  await f.app.stop();assert.equal(f.runs[0].stops,1);assert.equal(f.runs[0].state.running,false);
+  pending.resolve();await assert.rejects(starting,/broadcast_cancelled/);assert.equal(f.taps.length,0);assert.equal(f.app.status().active,false);assert.equal(f.app.status().reason,null);
+});
+
+test('Stop waits for an unresolved reservation before clearing ownership',async()=>{
+  const f=runningFixture(),reservation=deferred(),request=f.app.request;
+  f.app.request=async(url,body)=>{if(body?.active===true){f.calls.push({url,body});await reservation.promise;return {};}return request(url,body);};
+  await f.app.prepare();const starting=f.app.start({destinationId:'one'});await settle();const stopping=f.app.stop();await settle();
+  assert.equal(f.calls.some(call=>call.body?.active===false),false);assert.equal(f.runs.length,0);
+  reservation.resolve();await stopping;await assert.rejects(starting,/broadcast_cancelled/);
+  assert.equal(f.calls.at(-1).body.active,false);assert.equal(f.app.ownsEncoding,false);assert.equal(f.runs.length,0);
+});
+
+test('safe encoder failures survive startup cancellation cleanup; raw worker failures are redacted',async()=>{
+  for(const [code,expected] of [['tls_verification_failed','tls_verification_failed'],['encoder_transport_interrupted','encoder_transport_interrupted'],['rtmps://private/secret-key','encoder_failed']]){
+    const f=runningFixture();f.setupWorker=run=>{run.start=async()=>{run.state.running=true;run.emit({state:'failed',code});throw Object.assign(Error('rtmps://private/secret-key'),{code});};};
+    await f.app.prepare();await assert.rejects(f.app.start({destinationId:'one'}),{message:expected});
+    assert.equal(f.app.status().reason,expected);assert.equal(f.app.status().active,false);assert.equal(f.runs[0].stops,1);assert.doesNotMatch(JSON.stringify(f.app.status()),/private|secret-key/);
+    await f.app.check();assert.equal(f.runs.length,1);assert.equal(f.app.status().reason,expected);
+  }
+});
+
+test('worker rejection with a safe public code is retained without exposing its message',async()=>{
+  const f=runningFixture();f.setupWorker=run=>{run.start=async()=>{throw Object.assign(Error('private destination/key'),{code:'destination_dns_failed'});};};
+  await f.app.prepare();await assert.rejects(f.app.start({destinationId:'one'}),{message:'destination_dns_failed'});
+  assert.equal(f.app.status().reason,'destination_dns_failed');assert.doesNotMatch(JSON.stringify(f.app.status()),/private/);
+});
+
+test('uncertain ownership blocks retry and close until explicit Stop reconciles it',async()=>{
+  const f=runningFixture(),request=f.app.request;let failClear=true,closed=0;
+  f.capture.close=async()=>{closed++;};f.app.request=async(url,body)=>{if(body?.active===false&&failClear)throw Error('private response');return request(url,body);};
+  await f.app.prepare();await f.app.start({destinationId:'one'});await f.app.stop();
+  assert.equal(f.app.status().active,false);assert.equal(f.app.status().ownershipPending,true);assert.equal(f.app.status().ready,false);assert.equal(f.app.status().reason,'studio_status_unconfirmed');
+  await assert.rejects(f.app.start({destinationId:'one'}),/studio_status_unconfirmed/);assert.equal(await f.app.close(),false);assert.equal(closed,0);assert.equal(f.runs.length,1);
+  failClear=false;await f.app.stop();assert.equal(f.app.status().ownershipPending,false);assert.equal(f.app.status().ready,true);
+  await f.app.start({destinationId:'one'});assert.equal(f.confirmations,2);await f.app.stop();
+});
+
+test('transient readiness gets a resettable grace period, including a zero-origin clock',async()=>{
+  const f=runningFixture();let now=0;f.app.clock=()=>now;await f.app.prepare();await f.app.start({destinationId:'one'});f.runs[0].emit({state:'active',videoFrames:1});
+  f.captureState={...healthy(),rendered:false};await f.app.check();now=6499;await f.app.check();assert.equal(f.runs[0].stops,0);
+  f.captureState=healthy();await f.app.check();now=7000;f.captureState={...healthy(),rendered:false};await f.app.check();now=13499;await f.app.check();assert.equal(f.runs[0].stops,0);
+  now=13500;await f.app.check();assert.equal(f.runs[0].stops,1);assert.equal(f.app.status().reason,'output_lost');
+  f.captureState=healthy();await f.app.check();assert.equal(f.runs.length,1);assert.equal(f.app.status().reason,'output_lost');
+});
+
+test('durable output faults stop immediately and closed windows are not prepared',async()=>{
+  const f=runningFixture();await f.app.prepare();await f.app.start({destinationId:'one'});f.runs[0].emit({state:'active',videoFrames:1});
+  f.captureState={...healthy(),prepared:false,error:'output_closed'};await f.app.check();
+  assert.equal(f.runs[0].stops,1);assert.equal(f.app.status().prepared,false);assert.equal(f.app.status().ready,false);assert.equal(f.app.status().reason,'output_closed');
+});
+
+test('final safe codec and counters survive confirmed stop and reset on a new attempt',async()=>{
+  const f=runningFixture();await f.app.prepare();await f.app.start({destinationId:'one'});
+  f.runs[0].emit({state:'active',videoFrames:90,audioSamples:144000,codec:'libx264',private:'secret-key'});f.runs[0].emit({state:'failed',code:'tls_connection_failed'});await settle();
+  assert.equal(f.app.status().frames,90);assert.equal(f.app.status().audioSamples,144000);assert.equal(f.app.status().codec,'libx264');assert.equal(f.app.status().reason,'tls_connection_failed');assert.doesNotMatch(JSON.stringify(f.app.status()),/secret-key/);
+  await f.app.start({destinationId:'one'});assert.equal(f.app.status().frames,0);assert.equal(f.app.status().audioSamples,0);
+  f.runs[1].emit({state:'failed',code:'arbitrary secret',codec:'private-codec',videoFrames:Infinity,audioSamples:-1});await settle();
+  assert.equal(f.app.status().frames,0);assert.equal(f.app.status().audioSamples,0);assert.equal(f.app.status().codec,null);assert.equal(f.app.status().reason,'encoder_failed');
+});
+
+test('unknown capture and backend reasons never enter public status or notifications',async()=>{
+  const f=fixture(),events=[];f.app.onState=value=>events.push(value);await f.app.prepare();
+  f.preflight={ready:false,generation:3,blockers:[{reason:'rtmps://private/secret-key'}]};await f.app.check();assert.equal(f.app.status().reason,'output_not_ready');
+  await f.app.stop('rtmps://private/secret-key');assert.equal(f.app.status().reason,'encoder_failed');assert.doesNotMatch(JSON.stringify(events),/private|secret-key/);
+});
+
+test('unconfirmed worker shutdown retains ownership and prevents retry or close',async()=>{
+  const f=runningFixture(),pending=deferred();await f.app.prepare();await f.app.start({destinationId:'one'});
+  const run=f.runs[0];run.stop=async()=>{run.stops++;await pending.promise;};
+  const first=f.app.stop(),second=f.app.stop();await settle();assert.equal(run.stops,1);pending.resolve();await Promise.all([first,second]);
+  assert.equal(f.app.status().active,true);assert.equal(f.app.status().reason,'encoder_stop_unconfirmed');assert.equal(f.app.status().ready,false);
+  assert.equal(f.calls.some(call=>call.body?.active===false),false);await assert.rejects(f.app.start({destinationId:'one'}),/broadcast_busy/);assert.equal(await f.app.close(),false);
+  run.stop=async()=>{run.state.running=false;};await f.app.stop();assert.equal(f.app.status().active,false);assert.equal(f.app.ownsEncoding,false);
+});
+
+test('cancelled destination lookup cannot open a later confirmation or create a worker',async()=>{
+  const f=runningFixture(),lookup=deferred();f.app.destinations.getPrivateDestination=()=>lookup.promise;await f.app.prepare();
+  const starting=f.app.start({destinationId:'one'});await settle();await f.app.stop();lookup.resolve({serverUrl:'rtmps://example.net/app',streamKey:'synthetic'});
+  await assert.rejects(starting,/broadcast_cancelled/);assert.equal(f.confirmations,0);assert.equal(f.runs.length,0);assert.equal(f.app.status().active,false);
+});

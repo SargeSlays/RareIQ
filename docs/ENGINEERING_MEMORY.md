@@ -885,3 +885,25 @@ selected output format: changing it must not retain a Ready label from the old o
   The product retains its conservative guard; no reused server or port 8765 process
   was stopped. Desktop launch continues to require explicit camera choice instead
   of the older automatic boot/discovery path.
+
+## November 18, 2026 — Recovery owns the entire start/stop attempt
+
+Symptom: late encoder/capture callbacks or a cancelled startup could affect a new
+attempt, and uncertain lease cleanup could appear idle. Root cause: asynchronous
+work outlived its Start operation and public readiness did not fully represent
+pending ownership. Durable guards bind callbacks to their operation/worker,
+check cancellation after awaited setup, wait for unresolved reservations before
+releasing ownership, and retain an ownershipPending blocker until explicit Stop
+reconciles it. Unknown failure text never enters public status. Preserve safe last
+metrics through Stop and reset them only on a new approved Start. A zero-origin
+clock must still receive the full, resettable transient-readiness grace period.
+
+Regression guards cover stale callbacks, late destination lookup, unresolved
+reservations, worker-stop failure, backend lease-clear failure and unknown error
+redaction. Actual packaged output destruction proves worker exit, lease release,
+retained counts, no automatic restart, and explicit retry with a new peer. View
+output must only restore/show/focus the existing trusted window: never reuse the
+review action while sending or create a replacement implicitly. Its closing and
+restore races are guarded. Local TLS disconnect exercises the real worker; a
+generic safe encoder error is evidence of failure handling, not proof of a
+specific diagnosed transport cause.

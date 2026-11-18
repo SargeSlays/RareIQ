@@ -27,7 +27,12 @@ function fixture(options = {}) {
       wc.endFrameSubscription = () => { wc.events.push('unsubscribe'); wc.frameCallback = null; wc.ended = true; };
       wc.send = (channel, value) => { sent.push({ channel, value }); if (channel === CHANNELS.control && value.type === 'start') queueMicrotask(() => health({ captureId: value.captureId, started: true })); };
     }
-    isDestroyed() { return this.destroyed; } show() {} focus() {} setMenu() {}
+    isDestroyed() { return this.destroyed; }
+    isMinimized() { return this.minimized === true; }
+    restore() { this.minimized = false; (this.visibilityCalls ||= []).push('restore'); options.onRestore?.(this); }
+    show() { (this.visibilityCalls ||= []).push('show'); }
+    focus() { (this.visibilityCalls ||= []).push('focus'); }
+    setMenu() {}
     async loadURL(url) { this.webContents.url = url; this.webContents.mainFrame.url = url; if (options.loadWait) await options.loadWait; health(); }
     destroy() { this.destroyed = true; this.emit('closed'); }
   }
@@ -72,6 +77,29 @@ test('explicit review reopens through the owned output hook without replacing it
   const result = await f.capture.review();
   assert.equal(f.window, original); assert.equal(calls, 1); assert.equal(result.reviewOpen, true);
   assert.ok(f.window.webContents.scripts.includes('window.ProducerStudioOutput?.reviewBrowserSources()'));
+});
+test('View output restores the same active output without scripts, review or capture changes', async t => {
+  const f = fixture(); t.after(() => f.capture.close());
+  await f.capture.startCapture(() => true, () => true);
+  const original = f.window, scripts = [...original.webContents.scripts], subscription = original.webContents.frameCallback;
+  original.minimized = true; original.visibilityCalls = [];
+  const result = f.capture.show();
+  assert.equal(f.window, original); assert.deepEqual(original.visibilityCalls, ['restore', 'show', 'focus']);
+  assert.deepEqual(original.webContents.scripts, scripts); assert.equal(original.webContents.frameCallback, subscription);
+  assert.equal(result.capturing, true); assert.equal(result.reviewOpen, false);
+  await assert.rejects(f.capture.review(), /output_capture_active/);
+});
+test('View output never creates an absent window and rejects closed, closing or untrusted output', async () => {
+  const absent = fixture(); assert.throws(() => absent.capture.show(), /output_capture_closed/); assert.equal(absent.window, undefined); absent.capture.close();
+  for (const action of [f => f.window.emit('close'), f => f.window.destroy(), f => { f.window.webContents.url = 'https://untrusted.invalid/'; }]) {
+    const f = fixture(); try { await f.capture.prepare(); const target = f.window; target.visibilityCalls = []; action(f); assert.throws(() => f.capture.show(), /output_capture_(closed|untrusted)/); assert.deepEqual(target.visibilityCalls, []); }
+    finally { f.capture.close(); }
+  }
+});
+test('View output does not show a window that closes while being restored', async t => {
+  const f = fixture({ onRestore: target => target.emit('close') }); t.after(() => f.capture.close()); await f.capture.prepare();
+  f.window.minimized = true; f.window.visibilityCalls = [];
+  assert.throws(() => f.capture.show(), /output_capture_closed/); assert.deepEqual(f.window.visibilityCalls, ['restore']);
 });
 test('constant video clock repeats latest full BGRA frame with microsecond PTS', async t => {
   const f = fixture(), video = []; t.after(() => f.capture.close());

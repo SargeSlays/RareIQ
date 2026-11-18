@@ -755,8 +755,18 @@ clean-machine release.
 No existing scenes, keys, accounts or data are migrated; port 8765 remains intact.
 Camera choice is explicit rather than automatic discovery on desktop launch.
 Candidate 02 passed isolated actual-backend, native-EXE and local-encoder checks.
-Candidate 04's banner/path-guard changes still require final packaged Program
-evidence. A separate preview shortcut follows that proof, not replacement of the
-primary entry. Runtime updates, signing, license/redistribution review, migration,
+Candidate 04 passed final packaged Program acceptance; the separate Standalone
+Preview shortcut was installed and opened. The primary entry is preserved. Runtime updates, signing, license/redistribution review, migration,
 clean-machine and real platform/hardware acceptance remain open. See
 [Desktop build types and evidence](DESKTOP_APP.md).
+
+## November 18, 2026 — Guarded desktop recovery
+
+Desktop transmission failures now retain safe last-attempt metrics and show an
+explicit recovery path. View output restores the existing clean output without
+changing Program or opening review. Unconfirmed worker shutdown or backend
+ownership keeps Stop available and blocks retry/close. A new transmission always
+requires an explicit Start and destination confirmation; automatic reconnect is
+not implemented. Actual bundled output-loss/explicit-retry and local TLS-failure
+checks passed with synthetic media. Real platform/hardware acceptance remains
+separate; see [desktop recovery evidence](DESKTOP_APP.md).

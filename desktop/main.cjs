@@ -33,6 +33,11 @@ async function openSources(event){
   })().finally(()=>{choosingSources=null;});
   return choosingSources;
 }
+function viewOutput(event){
+  if(!settingsEvent(event))throw Error('Untrusted request');
+  if(typeof broadcast?.capture?.show!=='function')throw Error('Prepare Studio Output before choosing View output.');
+  broadcast.capture.show();return {ok:true};
+}
 app.whenReady().then(async()=>{
   const fixture=process.env.PRODUCER_DESKTOP_QA_ORIGIN;
   const runtimePath=process.env.PRODUCER_DESKTOP_RUNTIME||path.join(process.resourcesPath,'runtime.json');const manifest=JSON.parse(fs.readFileSync(runtimePath,'utf8'));
@@ -68,6 +73,7 @@ app.whenReady().then(async()=>{
   ipcMain.handle('producer:info',event=>{if(!policy.trustedMain(event,studio.webContents,origin))throw Error('Untrusted request');return {name:'Producer, Please',version:app.getVersion(),desktop:true,engine:'standalone',preview};});
   ipcMain.handle('producer:settings',event=>{if(!policy.trustedMain(event,studio.webContents,origin))throw Error('Untrusted request');return openSettings();});
   ipcMain.handle('producer:sources:open',openSources);
+  ipcMain.handle('producer:output:view',viewOutput);
   ipcMain.handle('producer:destinations:status',event=>{if(!settingsEvent(event))throw Error('Untrusted request');return destinations.public().then(value=>({...value,broadcast:publicBroadcast()}));});
   ipcMain.handle('producer:destinations:save',async(event,value)=>{if(!settingsEvent(event))throw Error('Untrusted request');return destinations.save(value);});
   ipcMain.handle('producer:destinations:remove',async(event,id)=>{if(!settingsEvent(event))throw Error('Untrusted request');if(broadcast?.active()&&broadcast.selected===id)throw Error('Stop the broadcast before removing its destination');return destinations.remove(id);});

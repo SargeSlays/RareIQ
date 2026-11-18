@@ -14,7 +14,7 @@ There are now **two private build types**, neither a public installer release.
 | Build | Runtime and current entry point |
 | --- | --- |
 | Primary development app | The existing Start Menu entry and `F:\Apps\ProducerPlease\latest-build.json` remain unchanged. This thin shell requires the C: RareIQ checkout and its `.venv\Scripts\python.exe`. Keep those in place. |
-| Bundled runtime candidate | `F:\Apps\ProducerPlease\latest-bundled-build.json` identifies a separate build with embedded Python, approved backend source/static assets, encoder and dependencies in its own resources. Its tested backend does not require the development checkout or Python environment. Final packaged Program and clean-machine acceptance remain separate. |
+| Bundled runtime candidate | `F:\Apps\ProducerPlease\latest-bundled-build.json` identifies a separate build with embedded Python, approved backend source/static assets, encoder and dependencies in its own resources. Its tested backend does not require the development checkout or Python environment. Packaged Program has local acceptance; clean-machine acceptance remains separate. |
 
 Desktop profile, browser state and logs default to
 `F:\Users\<user>\AppData\ProducerPlease`; build/dependency caches use
@@ -207,9 +207,9 @@ are not release evidence.
 
 Real Twitch/YouTube/Kick/custom destination receipt, platform-specific ingest
 compatibility, listener-quality A/V sync, physical cameras/microphones/screen capture,
-driver recovery, prolonged production, and network-loss recovery require separate
+driver recovery, prolonged production, and real-destination network-loss recovery require separate
 authorized checks. Full 1080p/portrait encoding endurance, reliable hardware encoding,
-final bundled-Program acceptance, signed installation/update/uninstall, runtime
+signed installation/update/uninstall, runtime
 updates, migration and clean-machine acceptance are not established. Public
 redistribution also needs licensing review. Local file capture and a passing TLS fixture must
 not be described as a live platform broadcast or a production-ready release.
@@ -228,3 +228,39 @@ It permits the native status/preflight and ownership endpoints, but explicitly
 blocks shutdown endpoints. It never supplies a real network destination. Canonical
 release-gate results for the final checkpoint are recorded separately in
 [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+
+## November 18, 2026 — Explicit broadcast recovery
+
+Broadcast setup now includes **View output**, which restores the existing trusted
+clean-output window without changing Program, starting transmission or opening
+browser review. During sending, use this control to inspect that same output.
+
+If output or encoder failure stops transmission, setup shows recovery guidance
+and the last safe codec/frame/audio counts. Restore unavailable sources or check
+the destination/connection, prepare output when needed, then choose **Start
+broadcast** and confirm again. There is no automatic restart or reconnect.
+If shutdown or the studio ownership update is uncertain, **Stop broadcast** stays
+available and Start/Prepare remain blocked. Keep the application open and retry
+Stop; closing the window must not discard an unconfirmed encoder or ownership claim.
+
+Actual packaged acceptance used generated imagery and two local FLVs: closing
+the sending output stopped its real worker and released backend ownership;
+counts remained visible (37 frames), no restart occurred, and a second explicit
+confirmation started a new window/peer and encoded 44 frames. Both local files
+decode as H.264 1280×720 and AAC 48 kHz stereo. Every owned test worker exited.
+Settings View output was also exercised through its real bridge. Recovery message
+screens in dark/light use simulated public statuses; the worker/output-loss test
+uses actual packaged modules and backend receipts.
+
+A separate local TLS receiver disconnect test stopped its real encoder worker,
+then a new explicit attempt encoded 90 generated frames to a local file. The
+disconnect reported the safe generic encoder failure; no more specific network
+diagnosis is claimed. These local checks do not establish platform receipt,
+physical devices, listener quality or prolonged network recovery.
+
+Evidence: `F:/Temp/jonat/ProducerPlease-recovery-20261118/`:
+`native-ui01/results.json`, `native-recovery01/recovery/recovery-results.json`,
+`encoder03/results.json` and `release-gate.log`.
+Accepted recovery build: `0.1.0-20261118105522739`. The separate Standalone Preview
+shortcut points there after acceptance. An already-open preview keeps its earlier
+build until closed/reopened; its profile and the primary studio are preserved.

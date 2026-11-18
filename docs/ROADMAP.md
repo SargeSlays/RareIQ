@@ -767,13 +767,12 @@ unchanged resource hashes, native EXE/setup on 8770 and a 90-frame local encoder
 This supersedes the earlier “packaging not implemented” status for this candidate;
 the primary thin app still uses the development checkout and remains unchanged.
 
-Next bounded gates:
+Completed: candidate 04 passed full packaged Program acceptance and its canonical
+gate; the separate Standalone Preview shortcut was installed and opened. The
+primary profile, shortcut and 8765 studio were preserved.
 
-1. Finish candidate 04's full packaged Program check and final gate evidence for
-   the preview banner and path-containment fixes; record the exact accepted build.
-2. Expose a separate Standalone Preview shortcut only after that proof. `--preview`
-   uses ProducerPleasePreview on F: and port 8767, with no migration or copied keys;
-   preserve the primary shortcut, profile and port 8765 studio.
+Remaining bounded gates:
+
 3. Validate runtime patch updates, installation/update/uninstall, signing,
    redistribution/license review and a clean machine before any customer release.
    Retained notices and a source inventory do not clear these gates themselves.
@@ -782,3 +781,14 @@ Next bounded gates:
    endurance and NVENC acceptance; local generated output proves none of those.
 
 Current evidence and build distinctions: [DESKTOP_APP.md](DESKTOP_APP.md).
+
+## November 18, 2026 — Desktop recovery checkpoint
+
+Implemented and locally exercised in the packaged candidate: same-window View
+output, retained failure metrics, stale-start/callback isolation, explicit retry,
+and refusal to retry/close with unconfirmed worker or ownership cleanup. Closing
+the test output while encoding released ownership; a second confirmation created
+a new output/peer and encoded another local file. Local TLS disconnect and explicit
+new-attempt checks also passed. No automatic network reconnect or platform-live
+verification is claimed. Continue with authorized platform receipt and physical/
+listener checks, then endurance and packaging/update gates already listed above.

@@ -1,10 +1,11 @@
-/* Bundled app evaluation: fresh profile, isolated local port, no capture/transmission. */
+/* Bundled app evaluation: fresh profile and local-only media; no external transmission. */
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),{execFileSync}=require('node:child_process');
 const {_electron}=require('playwright');
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function main(){
   const evidence=path.resolve(process.argv[2]||''),executable=process.argv[3];if(!process.argv[2]||!executable||!path.isAbsolute(executable))throw Error('Absolute evidence and executable required');
+  if((process.argv.includes('--view-output')||process.argv.includes('--recovery-ui'))&&(process.argv.includes('--program')||process.argv.includes('--recovery')))throw Error('Run Settings output/UI checks separately from encoder rehearsals');
   fs.mkdirSync(evidence,{recursive:false});const profile=path.join(evidence,'profile'),port=8770,origin='http://127.0.0.1:'+port;
   const result={complete:false,physicalCapture:false,externalBroadcast:false,existingStudioTouched:false};let app,identity;
   const env={};for(const key of ['SystemRoot','WINDIR','COMSPEC','USERPROFILE','LOCALAPPDATA','APPDATA','USERNAME','USERDOMAIN','NUMBER_OF_PROCESSORS','PROCESSOR_ARCHITECTURE'])if(process.env[key])env[key]=process.env[key];
@@ -28,8 +29,28 @@ async function main(){
     await studio.screenshot({path:path.join(evidence,'bundled-studio.png')});await studio.locator('[data-studio-open=broadcast][data-studio-view=setup]').click();await settings.screenshot({path:path.join(evidence,'bundled-setup.png')});
     const prefs=await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().map(w=>w.webContents.getLastWebPreferences()));assert.ok(prefs.every(p=>p.sandbox&&p.contextIsolation&&!p.nodeIntegration));
     Object.assign(result,{complete:true,bundledBackendStarted:true,managedRuntimeAvailable:true,sourceNavigation:true,navigationDoesNotTake:true,developmentPythonNotOnPath:true,protectedStorageAvailable:status.secureStorageAvailable});
+    if(process.argv.includes('--view-output')){
+      const beforeView=await api('/api/production/switcher');await settings.locator('#prepareOutput').click();
+      await settings.locator('#status').filter({hasText:'Output opened'}).waitFor();
+      const output=app.windows().find(window=>window.url().startsWith(origin+'/output/studio'));assert.ok(output);const originalUrl=output.url();
+      await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().includes('/output/studio')).minimize());
+      await settings.locator('#viewOutput').click();
+      assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().find(w=>w.webContents.getURL().includes('/output/studio')).isMinimized()),false);
+      assert.equal(output.url(),originalUrl);assert.equal((await api('/api/production/switcher')).generation,beforeView.generation);
+      const review=await output.frameLocator('iframe.program').locator('.browser-output-review').isVisible();assert.equal(review,false);
+      Object.assign(result,{viewOutputSameWindow:true,viewOutputDoesNotReview:true,viewOutputDoesNotTake:true});
+    }
+    if(process.argv.includes('--recovery-ui')){
+      result.simulatedRecoveryUi=true;
+      for(const reason of ['encoder_transport_interrupted','studio_status_unconfirmed']){
+        await app.evaluate(({ipcMain},code)=>{ipcMain.removeHandler('producer:broadcast:status');ipcMain.handle('producer:broadcast:status',()=>({phase:'failed',active:false,ownershipPending:code==='studio_status_unconfirmed',prepared:code!=='studio_status_unconfirmed',ready:false,reason:code,format:'hd',codec:'libx264',frames:125,audioSamples:200000,available:true}));},reason);
+        await settings.locator('#recoveryPanel').waitFor({state:'visible'});await settings.waitForFunction(expected=>document.querySelector('#recoveryInstructions').textContent.includes(expected),reason==='studio_status_unconfirmed'?'Stop confirmation':'internet connection');
+        for(const skin of ['ignite','daylight']){await settings.evaluate(value=>document.documentElement.dataset.operatorSkin=value,skin);await settings.setViewportSize({width:960,height:900});await settings.locator('#recoveryPanel').scrollIntoViewIfNeeded();assert.equal(await settings.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await settings.screenshot({path:path.join(evidence,`recovery-${reason}-${skin}.png`)});}
+      }
+    }
     if(process.argv.includes('--program')){result.complete=false;result.program=await require('./bundled-program.cjs').exerciseBundledProgram(app,{origin,evidence:path.join(evidence,'program'),resources:path.join(path.dirname(executable),'resources')});result.complete=true;}
-  }finally{
+    if(process.argv.includes('--recovery')){result.complete=false;result.recovery=await require('./bundled-recovery.cjs').exerciseBundledRecovery(app,{origin,evidence:path.join(evidence,'recovery'),resources:path.join(path.dirname(executable),'resources')});result.complete=true;}
+  }catch(error){result.complete=false;throw error;}finally{
     if(app)await app.close().catch(()=>{});await pause(500);
     try{const status=await api('/api/desktop/status'),session=await api('/api/production/session');
       if(identity&&status.pid===identity.pid&&status.server_session_id===identity.server_session_id&&status.clients===0&&status.native_encoding.active===false&&session.session.active===false&&session.session.recording.active===false){

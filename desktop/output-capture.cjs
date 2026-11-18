@@ -16,7 +16,7 @@ function cleanSnapshot(value) {
 function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirname, width = 1280, height = 720, partition = 'persist:producer-output', onError = () => {} } = {}) {
   if (!BrowserWindow || !ipcMain || !SIZES.has(width + 'x' + height) || !path.isAbsolute(baseDir)) throw Error('output_capture_configuration_invalid');
   const trusted = new URL(origin); if (trusted.origin !== origin || !/^https?:$/.test(trusted.protocol)) throw Error('output_capture_origin_invalid');
-  let window = null, preparing = null, closed = false, active = null, starting = false, captureVersion = 0, captureUi = null, latest = null, polling = null, snapshotPending = null;
+  let window = null, windowClosing = false, preparing = null, closed = false, active = null, starting = false, captureVersion = 0, captureUi = null, latest = null, polling = null, snapshotPending = null;
   let snapshot = null, snapshotAt = 0, audioAt = 0, audio = { ready: false, contextState: 'unavailable', sourceCount: 0, unavailableCount: 0 }, fault = null;
   const now = () => Number(process.hrtime.bigint() / 1000n);
   const allowed = value => { try { const u = new URL(value); return u.origin === origin && u.pathname === '/output/studio' && !u.username && !u.password; } catch (_) { return false; } };
@@ -68,7 +68,7 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
     if (preparing) return preparing;
     if (window && !window.isDestroyed()) { window.show(); return status(); }
     preparing = (async () => {
-      fault = null; audio.ready = false;
+      fault = null; audio.ready = false; windowClosing = false;
       window = new BrowserWindow({ width, height, useContentSize: true, resizable: false, maximizable: false, fullscreenable: false, show: true,
         title: 'Studio Output — Producer, Please', autoHideMenuBar: true, backgroundColor: '#000000',
         webPreferences: { preload: path.join(baseDir, 'output-preload.cjs'), additionalArguments: ['--producer-output-origin=' + origin], partition,
@@ -86,6 +86,7 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
       contents.on('will-attach-webview', event => event.preventDefault());
       contents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main !== false) { snapshot = null; audio.ready = false; if (active) { stopCapture(); report('output_navigated'); } } });
       contents.on('render-process-gone', () => { stopCapture(); audio.ready = false; report('output_renderer_unavailable'); });
+      target.on('close', () => { if (window === target) windowClosing = true; });
       target.on('closed', () => { const wasActive = Boolean(active); stopCapture(); if (window === target) window = null; audio.ready = false; latest = null; clearInterval(polling); polling = null; if (wasActive) report('output_closed'); });
       await target.loadURL(origin + '/output/studio?browser-review=1');
       const deadline = now() + 8000000;
@@ -183,6 +184,16 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
   ipcMain.on(CHANNELS.health, onHealth); ipcMain.on(CHANNELS.pcm, onPcm);
   ipcMain.handle(CHANNELS.sync, event => { if (!active || !owned(event)) throw Error('output_capture_untrusted'); return { captureId: active.id, epochUs: now() - active.epoch }; });
   return { prepare, startCapture, stopCapture, status, get window() { return window; },
+    show() {
+      const target = window;
+      const check = () => {
+        if (closed || windowClosing || !target || target !== window || target.isDestroyed() || target.webContents.isDestroyed?.()) throw Error('output_capture_closed');
+        if (!allowed(target.webContents.getURL())) throw Error('output_capture_untrusted');
+      };
+      check(); if (target.isMinimized()) target.restore();
+      check(); target.show(); check(); target.focus(); check();
+      return status();
+    },
     async review() {
       await prepare(); if (active) throw Error('output_capture_active');
       if (!window || window.isDestroyed() || !allowed(window.webContents.getURL())) throw Error('output_capture_untrusted');

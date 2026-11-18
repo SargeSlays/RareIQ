@@ -15,7 +15,7 @@ class Element{
   scrollIntoView(){this.scrolled=true;}
 }
 async function fixture(){
-  const nodes=new Map(),timers=[],calls={start:0,stop:0,poll:0,save:0,remove:0,sources:0};let state={...prepared};
+  const nodes=new Map(),timers=[],calls={start:0,stop:0,poll:0,save:0,remove:0,sources:0,view:0};let state={...prepared};
   const node=id=>{if(!nodes.has(id))nodes.set(id,new Element());return nodes.get(id);};
   const form=node('#destinationForm');form.elements=[];
   for(const name of ['name','platform','serverUrl','streamKey']){const element=new Element();form.elements.push(element);form.elements[name]=element;}
@@ -28,7 +28,7 @@ async function fixture(){
   const api={status:async()=>({secureStorageAvailable:true,broadcast:state,destinations:[{id:'one',name:'Synthetic',platform:'twitch',configured:true}]}),
     startBroadcast:async()=>{calls.start++;return state;},stopBroadcast:async()=>{calls.stop++;return state={...prepared};},
     broadcastStatus:async()=>{calls.poll++;return state;},prepareOutput:async()=>state,
-    save:async()=>{calls.save++;},remove:async()=>{calls.remove++;},openPlatform:()=>{},openSources:async()=>{calls.sources++;return {ok:true};}};
+    save:async()=>{calls.save++;},remove:async()=>{calls.remove++;},openPlatform:()=>{},openSources:async()=>{calls.sources++;return {ok:true};},viewOutput:async()=>{calls.view++;return {ok:true};}};
   vm.runInNewContext(source,{document,producerSettings:api,window:{close(){}},localStorage:{getItem(){},setItem(){}},crypto:{randomUUID:()=> 'synthetic-request'},
     setInterval:fn=>{timers.push(fn);return timers.length;},clearInterval(){},addEventListener(){}},{filename:'settings.js'});
   await settle();return {node,form,api,calls,poll:()=>timers[0](),set state(value){state=value;},get start(){return document.querySelectorAll('[data-destination-id]')[0];},get remove(){return document.querySelectorAll('[data-remove-destination-id]')[0];}};
@@ -85,4 +85,28 @@ test('source navigation keeps destination drafts, blocks repeat clicks, and repo
   assert.equal(f.form.elements.name.value,name);assert.equal(f.form.elements.streamKey.value,key);assert.doesNotMatch(f.node('#status').textContent,/private error/);
   f.api.openSources=async()=>({ok:true});await f.node('#chooseSources').fire();assert.match(f.node('#status').textContent,/draft is kept/);
   f.node('#addDestination').fire();assert.equal(f.form.scrolled,true);assert.equal(f.form.elements.name.focused,true);
+});
+
+test('pending Stop acknowledgment keeps Stop available and blocks new transmission',async()=>{
+  const f=await fixture();f.state={...prepared,phase:'failed',ownershipPending:true,reason:'studio_status_unconfirmed'};await f.poll();
+  assert.equal(f.node('#stopBroadcast').hidden,false);assert.equal(f.node('#stopBroadcast').disabled,false);assert.equal(f.node('#prepareOutput').disabled,true);assert.equal(f.start.disabled,true);
+  await f.start.fire();assert.equal(f.calls.start,0);assert.equal(f.node('#recoveryPanel').hidden,false);assert.match(f.node('#recoveryInstructions').textContent,/choose Stop broadcast again/);
+  await f.node('#stopBroadcast').fire();assert.equal(f.calls.stop,1);assert.equal(f.node('#recoveryPanel').hidden,true);
+});
+
+test('View output stays usable during sending without starting or preparing another output',async()=>{
+  const f=await fixture(),view=deferred();f.state={...prepared,phase:'sending',active:true,ready:false};await f.poll();f.api.viewOutput=()=>{f.calls.view++;return view.promise;};
+  assert.equal(f.node('#viewOutput').disabled,false);const pending=f.node('#viewOutput').fire();await f.node('#viewOutput').fire();assert.equal(f.calls.view,1);assert.equal(f.node('#stopBroadcast').disabled,false);
+  view.resolve({ok:true});await pending;assert.equal(f.calls.start,0);assert.match(f.node('#status').textContent,/does not change Program/);
+  f.state={...prepared,prepared:false,ready:false};await f.poll();assert.equal(f.node('#viewOutput').disabled,true);
+});
+
+test('connection recovery remains explicit, preserves input drafts and hides unknown error text',async()=>{
+  const f=await fixture();f.state={...prepared,phase:'failed',reason:'tls_verification_failed'};await f.poll();assert.match(f.node('#recoveryInstructions').textContent,/date and time/);assert.equal(f.calls.start,0);assert.equal(f.form.elements.streamKey.value,'synthetic-never-sent');
+  f.state={...prepared,phase:'failed',reason:'rtmps://private/secret-key'};await f.poll();assert.doesNotMatch(f.node('#broadcastSummary').textContent+f.node('#recoveryInstructions').textContent,/secret-key|private/);
+  f.state={...prepared,phase:'sending',active:true,ready:false,reason:'output_not_ready'};await f.poll();assert.match(f.node('#broadcastSummary').textContent,/Waiting for output readiness/);assert.equal(f.node('#outputStep').textContent,'Checking output');
+});
+
+test('normal startup reservation does not show an unconfirmed-stop recovery warning',async()=>{
+  const f=await fixture();f.state={...prepared,phase:'starting',active:true,ready:false,ownershipPending:true};await f.poll();assert.equal(f.node('#recoveryPanel').hidden,true);assert.match(f.node('#broadcastSummary').textContent,/Broadcast starting/);
 });

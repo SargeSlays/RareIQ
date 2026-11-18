@@ -6,7 +6,7 @@ function fixture(){
   const settingsFrame={url:settingsUrl},studioFrame={url:studioUrl};
   const settings={isDestroyed:()=>false,webContents:{mainFrame:settingsFrame},hide:()=>calls.push('hide-settings'),destroy:()=>assert.fail('destination draft must not be destroyed')};
   const studio={isDestroyed:()=>false,isMinimized:()=>true,restore:()=>calls.push('restore-studio'),show:()=>calls.push('show-studio'),focus:()=>calls.push('focus-studio'),webContents:{mainFrame:studioFrame,getURL:()=>studioFrame.url,executeJavaScript:async(code,gesture)=>{calls.push({code,gesture});return true;}}};
-  const context={settings,studio,origin:'http://127.0.0.1:54321',choosingSources:null,path,pathToFileURL,URL,__dirname:desktop,policy:require('../policy.cjs')};
+  const context={settings,studio,broadcast:null,origin:'http://127.0.0.1:54321',choosingSources:null,path,pathToFileURL,URL,__dirname:desktop,policy:require('../policy.cjs')};
   vm.createContext(context);vm.runInContext(main.slice(main.indexOf('function settingsEvent('),main.indexOf('app.whenReady()')),context);
   return {context,settings,studio,calls,event:{sender:settings.webContents,senderFrame:settingsFrame},run(event){return context.openSources(event||this.event);}};
 }
@@ -15,6 +15,14 @@ test('settings preload exposes a fixed no-payload Choose sources action',async()
   const electron={contextBridge:{exposeInMainWorld:(_name,value)=>{bridge=value;}},ipcRenderer:{invoke:(...args)=>{called=args;return Promise.resolve({ok:true});}}};
   vm.runInNewContext(fs.readFileSync(path.join(desktop,'settings-preload.cjs'),'utf8'),{require:()=>electron});
   await bridge.openSources({url:'https://ignored.invalid',script:'ignored'});assert.deepEqual(called,['producer:sources:open']);
+  await bridge.viewOutput({url:'https://ignored.invalid',script:'ignored'});assert.deepEqual(called,['producer:output:view']);
+});
+test('View output uses only existing capture.show and accepts only the settings main frame',()=>{
+  const f=fixture();let shown=0;f.context.broadcast={capture:{show:()=>{shown++;}},active:()=>true};
+  assert.throws(()=>f.context.viewOutput({sender:f.event.sender,senderFrame:{url:f.event.senderFrame.url}}),/Untrusted request/);assert.equal(shown,0);
+  assert.equal(f.context.viewOutput(f.event).ok,true);assert.equal(shown,1);assert.deepEqual(f.calls,[]);
+  f.context.broadcast.capture=null;assert.throws(()=>f.context.viewOutput(f.event),/Prepare Studio Output/);
+  f.context.broadcast.capture={show:()=>{throw Error('output_capture_closed');}};assert.throws(()=>f.context.viewOutput(f.event),/output_capture_closed/);
 });
 test('only exact settings main frame can request source navigation',async()=>{
   const f=fixture();for(const event of [{sender:{},senderFrame:f.event.senderFrame},{sender:f.event.sender,senderFrame:{url:f.event.senderFrame.url}},{sender:f.studio.webContents,senderFrame:f.studio.webContents.mainFrame}])await assert.rejects(f.run(event),/Untrusted request/);
