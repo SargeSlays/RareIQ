@@ -1517,8 +1517,9 @@ Primary Start Menu shortcut was updated to the tested development build, with it
 - [x] Full-dashboard dark/light pointer checks at 960/1366/1920/3840: Viewer chat,
   Platform connections, Manage accounts, Close and readiness Retry are reachable.
   Right tools end above full-width backstage; readiness stays inline above tools.
-- [ ] Load the update into the primary backend and reconnect its current guest;
-  existing capture is preserved pending the requested controlled restart.
+- [x] Loaded the primary backend and updated development EXE; existing guest
+  reconnected. See the later primary acceptance section for exact media and
+  remaining owner-permission limits.
 - [ ] Owner Twitch read-consent and real message receipt; Google app/consent and
   active YouTube chat; Kick separately approved public callback and receipt.
 - [ ] Remote named producer sign-in remains separate StackThis identity work.
@@ -1527,3 +1528,26 @@ Evidence: F:/Temp/jonat/ProducerPlease-viewer-chat-20261118/visual03, dock-point
 picture-size and YouTube account UI evidence folders for this date. All messages,
 account codes and media in synthetic UI captures are fixtures. Real credentials,
 private guest origin/invites and private chat are excluded from source/backups.
+
+## November 18, 2026 — Primary restart and reconnection evidence
+
+- [x] Actual graceful primary restart after the owner continued the reviewed
+  restart step; no forced termination or active show/record/encoder.
+- [x] Saved per-profile private listener restored without guest environment;
+  actual HTTPS/TLS guest page 200, producer path 404. A direct HTTP probe with the
+  wrong origin returned 403 as required; it is not private-link failure evidence.
+- [x] Actual updated development EXE opened; Viewer chat and compact producer
+  picture controls observed. Primary Start Menu target updated, prior link kept.
+- [x] Existing second-PC participant reconnected admitted, with camera/mic/screen
+  enabled and screen audio off. Ten-second receiver: 3840x2160, 302 additional
+  decoded screen frames; mic track live, 268 PCM callbacks, all 50 samples quiet.
+  Monitor gain stayed zero, receiver closed, Program unchanged, no recording.
+- [ ] Physical guest page refresh/new compact assets and owner screen reselection.
+- [ ] Windows network prompt owner choice; no firewall outcome claimed.
+- [ ] Prepared Twitch permission review requires owner consent; no grant/receipt
+  claimed. Other provider and named-producer prerequisites remain as above.
+
+Runtime evidence is primary-restart01 in the viewer-chat evidence folder. Numeric
+physical reception evidence is restart09 in the earlier room-test folder. Neither
+contains a raw physical video/audio recording. Private config, invitation and
+pending authorization material remain local and excluded from Git/backups.

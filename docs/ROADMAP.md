@@ -874,3 +874,17 @@ YouTube broadcast's chat, and Kick approved public webhook hosting remain separa
 provider prerequisites. No public stream or recording is authorized by account
 setup. Remote named producers remain blocked on the actual StackThis identity
 contract, independent of guest invitations and these platform accounts.
+
+## November 18, 2026 — Primary runtime acceptance
+
+Loaded the tested viewer-chat/account checkpoint through an actual graceful primary
+restart. Saved private ingress restored with verified TLS and guest/operator
+isolation; the new native build is open and its primary shortcut updated. The
+existing second-PC guest reconnected with all enabled sources, and its 4K screen
+and live quiet microphone decoded in a bounded no-monitor receiver check.
+
+Next owner steps: resolve the Windows network prompt and approve or decline the
+prepared Twitch read-chat consent. Then verify actual authorized Twitch message
+receipt and refresh the physical guest page for its newer compact UI, with owner
+screen reselection. New speech/echo listening, Google/Kick provider prerequisites
+and StackThis named producer identity remain separate acceptance work.

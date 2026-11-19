@@ -866,3 +866,24 @@ Listening, account attempts and platform connect/disconnect controls append safe
 local-operator activity metadata. This does not verify a person's identity. Named
 remote producer sign-in still requires the real StackThis identity/callback
 agreement; guest invitations and platform OAuth do not grant producer access.
+
+## November 18, 2026 — Primary viewer-chat update loaded
+
+The primary local backend was gracefully restarted after the owner continued the
+reviewed restart step. No show, recording or native encoding was active. Its saved
+private guest configuration restored the listener without guest environment
+variables; actual private HTTPS returned the guest page while producer routes
+remained blocked. Program generation stayed unchanged. The updated development
+EXE is open, and the primary Start Menu shortcut now points to its tested build.
+
+The existing second-PC session reconnected with camera, mic and screen still
+enabled. A bounded real receiver decoded its 3840x2160 screen and live microphone
+track after restart; all samples were quiet, so fresh speech/listening acceptance
+is not implied. The receiver closed without recording, monitoring or taking
+Program. The guest page still has its earlier assets until a controlled refresh;
+refreshing it will require the owner to select a screen again. Producer compact
+picture and Viewer chat controls were observed in the updated native window.
+
+Twitch permission review is prepared but no owner chat grant is confirmed. The
+updated EXE also raised a Windows network prompt; the owner must choose it. No
+agent action or resulting firewall choice is claimed.
