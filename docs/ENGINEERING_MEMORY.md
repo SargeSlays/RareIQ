@@ -1488,3 +1488,9 @@ therefore showed a saved account while leaving YouTube selection disabled. Exten
 the shared public projection to both providers, retain secret-field filtering and
 unauthorized-state guards, and cover the original status/check bridge. Browser
 fixtures must not replace the native boundary when claiming native acceptance.
+
+Final native YouTube acceptance also distinguished a fixture-only control error:
+its simulator's private mode endpoint was missing from that fixture's allowlist.
+Allow only the exact owned test-control path, retain GET-only provider transport,
+keep both failures, and rerun the original Main/Settings path. Do not weaken a
+production trust boundary or treat simulated provider replies as real consent.

@@ -338,3 +338,16 @@ from all real destinations and does not publish to YouTube.
 Stream info automatically uses the same saved broadcast for a linked YouTube
 destination. Add a separate destination to prepare another broadcast. Manual
 YouTube destinations retain explicit broadcast selection and confirmation.
+
+## Open the accepted standalone preview
+
+Use Start menu **Producer, Please - Standalone Preview**. The launcher now opens
+build 0.1.0-20261119115536681 and keeps its separate preview profile. The current
+preview is open; use **Broadcast setup** for Rehearsal, destinations and audio.
+Signing into Google and granting platform editing permissions still needs your
+review. Local rehearsal never sends media to a platform.
+
+Your main **Producer, Please** launcher and saved settings remain intact. Main
+profile migration is waiting for its enabled OBS integration to be confirmed idle;
+it was not disabled or bypassed unattended. The prepared adoption preserves your
+card reference library and original files when production is confirmed idle.

@@ -1144,3 +1144,18 @@ Local Rehearsal/bundled acceptance and reviewed primary adoption remain separate
 Do not bypass an enabled-but-disconnected OBS shutdown blocker to promote a build.
 StackThis remote producer identity and physical guest/audio/platform acceptance
 still require their previously recorded external decisions or owner presence.
+
+## November 19, 2026 — Standalone preview acceptance outcome
+
+Completed independent implementation and acceptance: saved bound YouTube broadcast
+selection with privacy/settings review, private resolution and metadata binding;
+correct account fields through native Main; corrected encoder account projection;
+actual discard Rehearsal; safe shared shutdown admission; immutable source packaging
+and reviewed card/profile adoption tooling. Tested Preview build 0.1.0-20261119115536681 is open
+on port 8767; the main studio on port 8765 and its private guest link are preserved.
+
+Next owner-dependent work: resolve main OBS integration before guarded migration;
+complete Google consent/Desktop client and requested provider editing grants;
+confirm StackThis producer identity contract; conduct physical guest/screen/audio
+and approved real stream/VOD receipt tests. No live service result is inferred
+from local simulations or encrypted persistence checks.

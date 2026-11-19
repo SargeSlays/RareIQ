@@ -65,13 +65,13 @@ def setup(server, fixture_root):
   if body['mode']=='renamed':state['renamed']=True
   state['delay']=body['mode']=='delayed'
   return {'ok':True}
-main(rehearsal=True,extra_setup=setup,extra_api_paths=('/api/production/accounts',))
+main(rehearsal=True,extra_setup=setup,extra_api_paths=('/api/production/accounts','/__qa__/youtube-native'))
 `;
 async function main(){
  await available();fs.mkdirSync(evidence,{recursive:false});let server,app,settings;
  const result={passed:false,actualPackagedMain:true,originalRouter:true,originalSelectionService:true,windowsEncryptedStore:true,syntheticProvider:true,realCredentials:false,realProvider:false,providerWrites:0,mediaTransport:false,physicalCapture:false,guards:[]};
  const marker=()=>fetch(origin+'/__qa__/youtube-native',{signal:AbortSignal.timeout(3000)}).then(response=>response.json());
- const mode=async value=>assert.equal((await fetch(origin+'/__qa__/youtube-native',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:value})}).then(response=>response.json())).ok,true);
+ const mode=async value=>{const response=await fetch(origin+'/__qa__/youtube-native',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:value})}),body=await response.json();assert.ok(response.ok&&body.ok===true,'Owned fixture mode control: '+response.status+' '+(body.reason||''));};
  const guards=async()=>{const value=await app.evaluate(()=>{const qa=__youtubeDestinationNative;return {external:qa.external,externalWindows:qa.externalWindows,capture:qa.capture,permissions:qa.permissions,forbiddenControls:qa.forbiddenControls};});for(const [name,count] of Object.entries(value))assert.equal(count,0,name);result.guards.push(value);};
  async function launch(){
   const instance=await _electron.launch({executablePath,args:[],env:{...process.env,PRODUCER_DESKTOP_QA_ORIGIN:origin,PRODUCER_DESKTOP_QA_PROFILE:profile}});instance.context().setDefaultTimeout(20000);

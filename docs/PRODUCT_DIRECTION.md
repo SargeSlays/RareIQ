@@ -1191,3 +1191,16 @@ claim of real YouTube sign-in or receipt. Manual destinations remain available.
 
 For linked YouTube destinations, Stream info is bound to that same saved broadcast.
 Its selector is fixed, and Main rejects mismatches before confirmation or a write.
+
+## November 19, 2026 — Standalone preview activated
+
+The separately stored Standalone Preview now opens the tested self-contained build
+0.1.0-20261119115536681. Actual native YouTube saved-selection persistence and
+Rehearsal discard encoding are exercised at their locally verified layers; Google
+sign-in/permission setup and real platform reception are still pending. Existing
+card workspace source/assets are preserved in its immutable private source tree.
+
+The main desktop profile and guest host remain on their existing runtime. Its
+enabled OBS connection is disconnected, so guarded shutdown/adoption is deferred
+until the operator resolves that integration. Preview data stays separate; copying
+main accounts, scenes and card data has not been silently substituted by a reset.

@@ -1968,3 +1968,36 @@ adoption is still blocked by enabled, disconnected OBS; no guard was bypassed.
 Evidence: ProducerPlease-youtube-destination-20261119/native-rehearsal01, backend01,
 accounts-readonly01 and native-youtube01. Hardware and platform receipt remain
 unverified. No stream, recording, provider grant or metadata write was initiated.
+
+## November 19, 2026 — Accepted standalone preview
+
+- [x] Final account bridge source passed 4,474 Python / 1,031 JavaScript checks.
+- [x] Build 0.1.0-20261119115536681 pins private source tree
+  e5e2bad7073fdcf96075730f6204a6c1a5422dc7 at base commit 9a891c9.
+- [x] Actual embedded backend/helpers/encoder companion imports, isolated Python
+  environment, unchanged installed resources and guarded owned shutdown passed.
+- [x] Actual Main/Settings/Windows encrypted YouTube persistence passed in
+  native-youtube03: review/save/reopen, privacy/binding-only contents, no ingest,
+  exact retry after title rename, duplicate suppression and cancellation/frame guards.
+  All 24 simulated provider calls were GET; no actual Google account was used.
+- [x] Actual Rehearsal discard proof from native-rehearsal01 remains applicable:
+  final-build-comparison.json verifies identical capture/rehearsal/backend/workers
+  and dependencies; only the native provider public projection changed.
+- [x] Existing real Twitch/Kick authorization and private reads passed using the
+  bundled helpers in accounts-readonly01, without helper vault changes or media.
+- [x] Full Settings picker and linked Stream info checks passed eight dark/light
+  layouts each. The saved YouTube binding cannot update a different broadcast.
+- [x] Standalone Preview Start-menu launcher updated, previous launcher backed up;
+  actual preview opened on 8767 with its own profile and expected embedded process.
+  Session, recording and native encoding are inactive; preserved /rareiq is served.
+- [x] Main native settings hashes unchanged; existing private guest HTTPS remains
+  guest-only (200 guest/assets/badge; 404 producer/setup/Apply/rehearsal controls).
+- [ ] Main-profile adoption: deliberately not performed while its enabled OBS
+  integration is disconnected. Original data, app and private guest access remain.
+- [ ] Owner Google setup/grants, metadata-edit permissions, StackThis producer
+  identity, physical guest/audio checks and actual platform/VOD receipt.
+
+Evidence: F:/Temp/jonat/ProducerPlease-youtube-destination-20261119. Failed native
+YouTube01 (real projection defect) and02 (fixture control allowlist) remain intact.
+The corrected03 fixture allows only its own test-control route and starts no media.
+No public stream, recording, real provider metadata write or new grant occurred.
