@@ -1059,3 +1059,35 @@ above the dock frame, preserving feedback without overlaying controls. The full
 pointer matrix passes in both skins at 960/1366/1920/3840, including Retry and
 modal focus return. Known fixture-denied reads are recorded separately from
 unknown page errors; never suppress arbitrary errors to pass a visual check.
+
+
+## November 19, 2026 — Output lifetime and archive routing guards
+
+- Symptom: Stop during a delayed output-profile read allowed the stale Prepare to
+  create/review a window afterward. Root cause: operation ownership was registered
+  after the first await. Guard: claim preparing/operation synchronously, recheck
+  immediately after the read, and retain a delayed-read cancellation regression.
+- Repeated startup class: output preparation awaited loadURL before its timeout,
+  so a long-lived MJPEG resource could prevent the timeout from starting. Both main
+  studio and public output now use exact-document DOM readiness with bounded
+  navigation, trusted-frame checks and consumed late load rejections. The output
+  regression leaves the resource load pending forever and still reaches readiness.
+- A Twitch VOD mix must be separated before public audio is collapsed. Two paired
+  480-frame stereo buses share one timestamp/credit/drop epoch, honor Program mute
+  and never tap private/nested frames. Do not copy Live audio into a missing VOD bus.
+  Modern OBS sends archive AAC as enhanced-FLV track 1; old PNAR/additionalMedia
+  scripts describe a different legacy transport and must not be mixed into it.
+  Local wire/decode proof never establishes Twitch archive acceptance.
+- Twitch receiver scheduling: using the advertised keepalive deadline with zero
+  grace can disconnect a healthy stream. The receive loop now has 2 seconds bounded
+  scheduling grace and resets its retry budget only after validated healthy traffic.
+  Safe diagnostics expose timeout/closed/transport and numeric close codes only,
+  never provider reason strings, URLs, frames or tokens. A 45-second real reader probe
+  remained connected and closed its owned subscription; no message was posted or
+  received by that probe. The original approved test message is not a receipt proof.
+
+- NVENC capability false negative: a hard-coded 64x64 generated probe failed even
+  though normal output sizes worked. Probe the actual validated dimensions, not
+  an artificially tiny frame; preserve both unsupported-size fallback and a
+  dimension-sensitive regression. Two actual local HD workers now select NVIDIA
+  and their files decode correctly. This does not establish platform delivery.

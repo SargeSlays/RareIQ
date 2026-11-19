@@ -12,6 +12,7 @@ const PRESETS = Object.freeze([
   Object.freeze({ id: 'twitch', name: 'Twitch', serverUrl: 'rtmps://ingest.global-contribute.live-video.net/app', helpUrl: 'https://dev.twitch.tv/docs/video-broadcast/reference/ingest' }),
   Object.freeze({ id: 'youtube', name: 'YouTube', serverUrl: '', helpUrl: 'https://support.google.com/youtube/answer/10364924?hl=en' }),
   Object.freeze({ id: 'kick', name: 'Kick', serverUrl: '', helpUrl: 'https://help.kick.com/en/articles/7066931-how-to-stream-on-kick-com' }),
+  ...[['rumble','Rumble'],['facebook','Facebook'],['tiktok','TikTok'],['x','X'],['instagram','Instagram']].map(([id,name])=>Object.freeze({id,name,serverUrl:'',helpUrl:''})),
   Object.freeze({ id: 'custom', name: 'Custom', serverUrl: '', helpUrl: '' }),
 ]);
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;

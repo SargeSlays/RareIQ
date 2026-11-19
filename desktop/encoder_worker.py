@@ -1,12 +1,14 @@
 """Owned encoder worker. Secrets enter through stdin, never arguments or logs.
 
 Protocol: one JSON line, then <kind:u8,length:u32LE,ptsUs:u64LE> and payload.
-V = BGRA, A = interleaved stereo float32/48 kHz, E = explicit drain/stop.
+V = BGRA, A = live stereo float32/48 kHz, B = optional independent VOD stereo,
+E = explicit drain/stop. B is never synthesized from the live bus.
 No camera, microphone, desktop capture, automatic reconnect or platform claim.
 """
 from __future__ import annotations
 
 from fractions import Fraction
+from io import BytesIO
 import ipaddress
 import json
 import os
@@ -36,7 +38,8 @@ def fail(code):
 
 
 def emit(event, **values):
-    print(json.dumps({"event": event, **values}, separators=(",", ":")), flush=True)
+    print(json.dumps({"event": event, **values, "platformLiveVerified": False,
+                      "vodPlatformVerified": False}, separators=(",", ":")), flush=True)
 
 
 def integer(value, low, high):
@@ -48,12 +51,18 @@ def validate_config(value):
         fail("invalid_encoder_config")
     width, height, fps = value.get("width"), value.get("height"), value.get("fps", 30)
     bitrate = value.get("bitrate", 6_000_000)
+    audio_bitrate, keyframe_seconds = value.get("audioBitrateKbps", 192), value.get("keyframeSeconds", 2)
+    twitch_vod = value.get("twitchVod", False)
     if (not integer(width, 16, 3840) or not integer(height, 16, 3840) or width * height > 3840 * 2160
             or width % 2 or height % 2 or not integer(fps, 1, 60)
             or not integer(bitrate, 250_000, 40_000_000)
+            or not integer(audio_bitrate, 64, 320) or not integer(keyframe_seconds, 1, 10)
+            or type(twitch_vod) is not bool
             or value.get("codec", "auto") not in {"auto", "h264_nvenc", "libx264"}):
         fail("invalid_encoder_config")
-    return {**value, "width": width, "height": height, "fps": fps, "bitrate": bitrate, "codec": value.get("codec", "auto")}
+    return {**value, "width": width, "height": height, "fps": fps, "bitrate": bitrate,
+            "codec": value.get("codec", "auto"), "audioBitrateKbps": audio_bitrate,
+            "keyframeSeconds": keyframe_seconds, "twitchVod": twitch_vod}
 
 
 def test_path(config):
@@ -299,10 +308,109 @@ def configure_video(stream, config, codec):
     stream.bit_rate = config["bitrate"]
     stream.codec_context.time_base = Fraction(1, config["fps"])
     stream.codec_context.framerate = Fraction(config["fps"], 1)
-    stream.codec_context.gop_size = config["fps"] * 2
+    gop = config["fps"] * config["keyframeSeconds"]
+    stream.codec_context.gop_size = gop
     stream.codec_context.max_b_frames = 0
-    stream.options = ({"preset": "p4", "tune": "ll", "rc": "cbr", "bf": "0"} if codec == "h264_nvenc"
-                      else {"preset": "veryfast", "tune": "zerolatency", "bf": "0"})
+    rate = {"maxrate": str(config["bitrate"]), "minrate": str(config["bitrate"]),
+            "bufsize": str(config["bitrate"] * 2), "bf": "0"}
+    stream.options = ({**rate, "preset": "p4", "tune": "ll", "rc": "cbr", "no-scenecut": "1", "forced-idr": "1"}
+                      if codec == "h264_nvenc" else {**rate, "preset": "veryfast", "tune": "zerolatency",
+                      "x264-params": f"nal-hrd=cbr:force-cfr=1:scenecut=0:keyint={gop}:min-keyint={gop}"})
+
+
+def configure_audio(stream, bitrate_kbps):
+    stream.layout, stream.bit_rate = "stereo", bitrate_kbps * 1000
+    stream.codec_context.time_base = Fraction(1, 48000)
+
+
+def verify_twitch_vod_wire(data):
+    """Accept OBS30.2+ track-1 AAC plus the E-RTMP v2 native stereo config.
+
+    OBS30.2.3 flv-mux.c:408-455 and rtmp-stream.c:791-813 define AF00/01
+    for primary AAC, and 95 00/01 'mp4a' 01 for archive AAC. Legacy OBS27's
+    PNAR/additionalMedia script transport is a different format, not injected.
+    """
+    if not isinstance(data, bytes) or not 13 <= len(data) <= 1024 * 1024 or data[:4] != b"FLV\x01":
+        fail("twitch_vod_unavailable")
+    offset = int.from_bytes(data[5:9], "big")
+    if not 9 <= offset <= 64 or data[offset:offset + 4] != b"\0\0\0\0":
+        fail("twitch_vod_unavailable")
+    offset += 4
+    found, configs = set(), {}
+    while offset < len(data):
+        if offset + 15 > len(data):
+            fail("twitch_vod_unavailable")
+        kind, length = data[offset], int.from_bytes(data[offset + 1:offset + 4], "big")
+        end = offset + 11 + length
+        if end + 4 > len(data) or int.from_bytes(data[end:end + 4], "big") != length + 11:
+            fail("twitch_vod_unavailable")
+        body = data[offset + 11:end]
+        if kind == 18:
+            if b"onMetaData" not in body or not all(key in body for key in (b"audiocodecid", b"audiosamplerate", b"stereo")):
+                fail("twitch_vod_unavailable")
+            found.add("metadata")
+        elif kind == 8:
+            if body[:2] in (b"\xaf\x00", b"\xaf\x01") and len(body) > 2:
+                track, packet_type, payload = 0, body[1], body[2:]
+            elif body[:7] in (b"\x95\x00mp4a\x01", b"\x95\x01mp4a\x01") and len(body) > 7:
+                track, packet_type, payload = 1, body[1], body[7:]
+            elif body == b"\x95\x04mp4a\x01\x01\x02\x00\x00\x00\x03":
+                offset = end + 4
+                continue  # Native channel order, 2 channels, FL|FR mask3 (E-RTMP v2).
+            else:
+                fail("twitch_vod_unavailable")
+            found.add((track, packet_type))
+            if packet_type == 0:
+                if len(payload) < 2 or payload[0] >> 3 != 2 or ((payload[0] & 7) << 1 | payload[1] >> 7) != 3 or (payload[1] >> 3 & 15) != 2:
+                    fail("twitch_vod_unavailable")
+                configs[track] = payload
+        elif kind != 9 or len(body) < 5 or body[0] & 15 != 7 or body[1] not in (0, 1, 2):
+            fail("twitch_vod_unavailable")
+        offset = end + 4
+    if found != {"metadata", (0, 0), (0, 1), (1, 0), (1, 1)} or configs.get(0) != configs.get(1):
+        fail("twitch_vod_unavailable")
+    return True
+
+
+def probe_twitch_vod_mux(av, np):
+    """Generated AAC in memory proves actual dependency wire support before I/O."""
+    output = None
+    try:
+        target = BytesIO()
+        output = av.open(target, "w", format="flv")
+        streams = [output.add_stream("aac", rate=48000) for _ in range(2)]
+        for audio in streams:
+            configure_audio(audio, 128)
+        output.start_encoding()
+        for index in range(3):
+            for audio in streams:
+                frame = av.AudioFrame.from_ndarray(np.zeros((2, 1024), dtype=np.float32), format="fltp", layout="stereo")
+                frame.sample_rate, frame.time_base, frame.pts = 48000, Fraction(1, 48000), index * 1024
+                for packet in audio.encode(frame):
+                    output.mux(packet)
+        for audio in streams:
+            for packet in audio.encode(None):
+                output.mux(packet)
+        output.close()
+        return verify_twitch_vod_wire(target.getvalue())
+    except Exception:
+        fail("twitch_vod_unavailable")
+    finally:
+        if output is not None:
+            try:
+                output.close()
+            except Exception:
+                pass
+
+
+def check_vod_input(pts, first_media_pts, last_vod_pts):
+    if last_vod_pts is None:
+        if pts - first_media_pts > 1_000_000:
+            fail("twitch_vod_audio_missing")
+    elif pts - last_vod_pts > 1_000_000:
+        fail("twitch_vod_audio_late")
+    elif last_vod_pts - pts > 1_000_000:
+        fail("vod_audio_timeline_discontinuity")
 
 
 def select_codec(av, np, config):
@@ -311,12 +419,14 @@ def select_codec(av, np, config):
     for codec in choices:
         try:
             context = av.CodecContext.create(codec, "w")
-            context.width, context.height = 64, 64
+            # NVENC may reject tiny probe sizes while supporting the real
+            # production output. Probe exactly the dimensions we will encode.
+            context.width, context.height = config["width"], config["height"]
             context.pix_fmt, context.time_base, context.framerate = "yuv420p", Fraction(1, 30), Fraction(30, 1)
             context.bit_rate = 500_000
             context.options = {"preset": "p4", "tune": "ll"} if codec == "h264_nvenc" else {"preset": "ultrafast", "tune": "zerolatency"}
             context.open()
-            frame = av.VideoFrame.from_ndarray(np.zeros((64, 64, 3), dtype=np.uint8), format="rgb24").reformat(format="yuv420p")
+            frame = av.VideoFrame.from_ndarray(np.zeros((config["height"], config["width"], 3), dtype=np.uint8), format="rgb24").reformat(format="yuv420p")
             frame.pts = 0
             if list(context.encode(frame)) + list(context.encode(None)):
                 return codec
@@ -351,8 +461,12 @@ def run(config, stream):
     import numpy as np
     av.logging.set_level(av.logging.PANIC)
     config = validate_config(config)
-    codec = select_codec(av, np, config)
     synthetic = config.get("testOutput") is not None or config.get("testTransport") is not None
+    if config["twitchVod"] and not synthetic and (
+            not isinstance(config.get("destination"), dict) or config["destination"].get("platform") != "twitch"):
+        fail("invalid_encoder_config")
+    vod_wire_verified = probe_twitch_vod_mux(av, np) if config["twitchVod"] else False
+    codec = select_codec(av, np, config)
     if config.get("testOutput") is not None and config.get("testTransport") is not None:
         fail("invalid_test_transport")
     handle, relay = None, None
@@ -374,24 +488,41 @@ def run(config, stream):
     video = output.add_stream(codec, rate=config["fps"])
     configure_video(video, config, codec)
     audio = output.add_stream("aac", rate=48000)
-    audio.layout, audio.bit_rate = "stereo", 192000
-    audio.codec_context.time_base = Fraction(1, 48000)
-    counts = {"videoFrames": 0, "audioSamples": 0, "audioSilenceSamples": 0, "packets": 0, "bytesMuxed": 0}
-    next_audio_sample = None
+    configure_audio(audio, config["audioBitrateKbps"])
+    audio_streams = {ord("A"): audio}
+    if config["twitchVod"]:
+        vod_audio = output.add_stream("aac", rate=48000)
+        configure_audio(vod_audio, config["audioBitrateKbps"])
+        audio_streams[ord("B")] = vod_audio
+    counts = {"videoFrames": 0, "audioSamples": 0, "audioSilenceSamples": 0,
+              "vodAudioSamples": 0, "vodAudioSilenceSamples": 0, "packets": 0, "bytesMuxed": 0}
+    next_audio_sample = {kind: None for kind in audio_streams}
     last = {ord("V"): -1, ord("A"): -1}
+    if config["twitchVod"]:
+        last[ord("B")] = -1
+    first_media_pts = None
     last_report, active = 0.0, False
     try:
         output.start_encoding()
-        emit("ready", state="starting", codec=codec, hardwareVerified=codec == "h264_nvenc", synthetic=synthetic, tlsVerified=bool(relay and relay.tls_verified), platformVerified=False)
+        emit("ready", state="starting", codec=codec, hardwareVerified=codec == "h264_nvenc", synthetic=synthetic,
+             tlsVerified=bool(relay and relay.tls_verified), twitchVodWireVerified=vod_wire_verified, platformVerified=False)
         while True:
             kind, length, pts = HEADER.unpack(read_exact(stream, HEADER.size))
             if kind == ord("E") and length == 0:
+                if config["twitchVod"] and not counts["vodAudioSamples"] and (counts["videoFrames"] or counts["audioSamples"]):
+                    fail("twitch_vod_audio_missing")
                 break
             if kind not in last or not 0 <= pts <= MAX_PTS or pts <= last[kind]:
                 fail("invalid_encoder_packet")
             if ((kind == ord("V") and length != config["width"] * config["height"] * 4)
-                    or (kind == ord("A") and (not 8 <= length <= MAX_AUDIO_BYTES or length % 8))):
+                    or (kind in audio_streams and (not 8 <= length <= MAX_AUDIO_BYTES or length % 8))):
                 fail("invalid_encoder_packet")
+            if first_media_pts is None:
+                first_media_pts = pts
+            if config["twitchVod"] and kind != ord("B"):
+                check_vod_input(pts, first_media_pts, None if last[ord("B")] < 0 else last[ord("B")])
+            elif config["twitchVod"] and max(last[ord("V")], last[ord("A")]) >= 0 and abs(pts - max(last[ord("V")], last[ord("A")])) > 1_000_000:
+                fail("vod_audio_timeline_discontinuity")
             data = read_exact(stream, length)
             last[kind] = pts
             if kind == ord("V"):
@@ -400,23 +531,29 @@ def run(config, stream):
                 packets = video.encode(frame)
                 counts["videoFrames"] += 1
             else:
+                audio = audio_streams[kind]
+                samples_field = "audioSamples" if kind == ord("A") else "vodAudioSamples"
+                silence_field = "audioSilenceSamples" if kind == ord("A") else "vodAudioSilenceSamples"
                 samples = np.frombuffer(data, dtype="<f4").reshape(-1, 2)
                 if not np.isfinite(samples).all():
                     fail("invalid_audio_samples")
                 samples = np.ascontiguousarray(np.clip(samples, -1, 1).T)
-                start_sample, gap = audio_timing(pts, next_audio_sample)
+                try:
+                    start_sample, gap = audio_timing(pts, next_audio_sample[kind])
+                except EncoderError:
+                    fail("audio_timeline_discontinuity" if kind == ord("A") else "vod_audio_timeline_discontinuity")
                 packets = []
                 if gap:
                     silence = av.AudioFrame.from_ndarray(np.zeros((2, gap), dtype=np.float32), format="fltp", layout="stereo")
-                    silence.sample_rate, silence.time_base, silence.pts = 48000, Fraction(1, 48000), next_audio_sample
+                    silence.sample_rate, silence.time_base, silence.pts = 48000, Fraction(1, 48000), next_audio_sample[kind]
                     packets.extend(audio.encode(silence))
-                    counts["audioSilenceSamples"] += gap
+                    counts[silence_field] += gap
                 frame = av.AudioFrame.from_ndarray(samples, format="fltp", layout="stereo")
                 frame.sample_rate, frame.time_base = 48000, Fraction(1, 48000)
                 frame.pts = start_sample
-                next_audio_sample = start_sample + frame.samples
+                next_audio_sample[kind] = start_sample + frame.samples
                 packets.extend(audio.encode(frame))
-                counts["audioSamples"] += frame.samples
+                counts[samples_field] += frame.samples
             for packet in packets:
                 counts["bytesMuxed"] += packet.size
                 output.mux(packet)
@@ -428,7 +565,7 @@ def run(config, stream):
             if now - last_report >= 1:
                 emit("stats", state="active" if active else "starting", **counts, platformVerified=False)
                 last_report = now
-        for channel in (video, audio):
+        for channel in (video, *audio_streams.values()):
             for packet in channel.encode(None):
                 counts["bytesMuxed"] += packet.size
                 output.mux(packet)

@@ -140,6 +140,8 @@ test('Program mute flags separately suppress microphone and screen sound without
 test('mid-shot Program mute releases consumers and unmute recreates them without changing video or borrowed tracks',async()=>{
   const f=fixture(),media=guestTracks(f),snapshot=room();f.view.render(state({program_sources:[CAM,SCREEN,AUDIO]}),snapshot);paint(f);await f.run(16);await settle();
   const video=f.view.current.tiles[0].video,screen=f.view.current.tiles[1].video,oldMic=f.view.audio.get(G+':microphone'),oldScreen=f.view.audio.get(G+':screen_audio');
+  assert.equal(oldMic.node.dataset.audioSource,'guest:'+G+':microphone');assert.equal(oldMic.node.dataset.audioCategory,'voice');
+  assert.equal(oldScreen.node.dataset.audioSource,'guest:'+G+':screen_audio');assert.equal(oldScreen.node.dataset.audioCategory,'screen');
   const muted=room();muted.revision=2;muted.participants[0].program_audio={microphone_muted:true,screen_muted:false};f.view.setRoom(muted);
   assert.equal(f.view.audio.size,1);assert.equal(oldMic.node.srcObject,null);assert.equal(oldMic.node.paused,true);assert.equal(oldMic.node.muted,true);
   assert.equal(f.view.audio.get(G+':screen_audio'),oldScreen);assert.equal(f.view.current.tiles[0].video,video);assert.equal(f.view.current.tiles[1].video,screen);

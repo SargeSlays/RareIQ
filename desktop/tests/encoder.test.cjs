@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),{EventEmitter}=require('node:events'),{PassThrough,Writable}=require('node:stream');
-const {Encoder,packet}=require('../encoder.cjs');
+const {Encoder,packet,validateSettings}=require('../encoder.cjs');
 function fixture(options={}){
   let args,settings,writes=[],pending=[];const child=new EventEmitter();child.stdout=new PassThrough();child.stderr=new PassThrough();child.killed=false;
   child.stdin=new Writable({write(chunk,encoding,done){writes.push(Buffer.from(chunk));if(options.block)pending.push(done);else done();}});
@@ -47,4 +47,56 @@ test('test transport is constructor-only and refuses destination credentials',as
   const fixtureTransport=fixture({testTransport:{port:19000,caFile:path.resolve('F:/Temp/encoder-test/ca.pem'),serverName:'localhost'}});
   await assert.rejects(fixtureTransport.encoder.start(config),{message:'invalid_test_transport'});
   assert.throws(()=>fixture({testTransport:{port:19000,caFile:path.resolve('F:/Temp/encoder-test/ca.pem'),serverName:'public.provider.com'}}),{message:'invalid_test_transport'});
+});
+
+test('encoder profile accepts only bounded output settings and explicit Twitch VOD',()=>{
+  const valid=validateSettings({...config,fps:60,audioBitrateKbps:320,keyframeSeconds:10,twitchVod:true});
+  assert.equal(valid.audioBitrateKbps,320);assert.equal(valid.keyframeSeconds,10);assert.equal(valid.fps,60);
+  assert.equal(validateSettings({...config,fps:25}).fps,25);assert.equal(validateSettings({...config,fps:1}).fps,1);
+  assert.equal(validateSettings(config).twitchVod,false);
+  for(const changes of [{fps:0},{fps:61},{fps:29.97},{fps:true},{audioBitrateKbps:63},{audioBitrateKbps:321},{audioBitrateKbps:true},
+    {audioBitrateKbps:null},{keyframeSeconds:0},{keyframeSeconds:11},{keyframeSeconds:1.5},{twitchVod:1},{twitchVod:null}])
+    assert.throws(()=>validateSettings({...config,...changes}),{message:'invalid_encoder_config'});
+});
+
+test('VOD packets have their own timestamps and counters and never leak to ordinary targets',async()=>{
+  const ordinary=fixture(),starting=ordinary.encoder.start(config);ordinary.message({event:'ready'});await starting;
+  assert.equal(ordinary.encoder.sendVodAudio(Buffer.alloc(1600*8),0),false);
+  ordinary.child.emit('close',0);
+  const f=fixture(),started=f.encoder.start({...config,testOutput:undefined,twitchVod:true,destination:{...config.destination,platform:'twitch'},audioBitrateKbps:128,keyframeSeconds:1});
+  f.message({event:'ready',twitchVodWireVerified:true,platformLiveVerified:true,vodPlatformVerified:true});await started;
+  const settings=JSON.parse(f.writes[0].toString());
+  assert.equal(settings.twitchVod,true);assert.equal(settings.audioBitrateKbps,128);assert.equal(settings.keyframeSeconds,1);
+  assert.equal(settings.destination.platform,'twitch');
+  const audio=Buffer.alloc(1600*8,7);
+  assert.equal(f.encoder.sendAudio(audio,1000),true);assert.equal(f.encoder.sendVodAudio(audio,1000),true);
+  assert.equal(f.encoder.sendVodAudio(audio,1000),false);assert.equal(f.encoder.sendVodAudio(audio,999),false);
+  assert.equal(f.writes[1][0],65);assert.equal(f.writes[2][0],66);
+  f.message({event:'stats',audioSamples:1600,vodAudioSamples:3200,vodAudioSilenceSamples:100,packets:3,platformLiveVerified:true,vodPlatformVerified:true});
+  assert.equal(f.encoder.status().audioSamples,1600);assert.equal(f.encoder.status().vodAudioSamples,3200);
+  assert.equal(f.encoder.status().vodAudioSilenceSamples,100);assert.equal(f.encoder.status().twitchVodWireVerified,true);
+  assert.equal(f.encoder.status().platformLiveVerified,false);assert.equal(f.encoder.status().vodPlatformVerified,false);
+  f.child.emit('close',0);
+});
+
+test('real VOD transport requires a Twitch destination and unknown worker errors remain redacted',async()=>{
+  for(const platform of ['youtube','kick',undefined]){
+    const f=fixture();await assert.rejects(f.encoder.start({...config,twitchVod:true,destination:{...config.destination,platform}}),{message:'invalid_encoder_config'});
+    assert.equal(f.writes.length,0);
+  }
+  for(const code of ['twitch_vod_unavailable','twitch_vod_audio_missing','twitch_vod_audio_late','vod_audio_timeline_discontinuity']){
+    const f=fixture(),started=f.encoder.start(config);f.message({event:'error',code});
+    await assert.rejects(started,{message:code});assert.equal(f.encoder.status().code,code);
+  }
+});
+
+test('backpressure bounds both audio buses and accounts for VOD drops separately',async()=>{
+  const f=fixture({block:true}),started=f.encoder.start({...config,twitchVod:true,destination:{...config.destination,platform:'twitch'}});
+  f.pending.shift()();f.message({event:'ready'});await started;
+  const audio=Buffer.alloc(384000);let accepted=0;
+  for(let index=0;index<8;index++)accepted+=Number(f.encoder.sendVodAudio(audio,index*1000000));
+  assert.ok(accepted>0&&accepted<8);assert.ok(f.encoder.status().droppedVodAudioPackets>0);
+  assert.equal(f.encoder.status().droppedAudioPackets,0);
+  assert.ok(f.encoder.status().queuedBytes<=2*(64*64*4+13)+2*384000);
+  f.child.emit('close',1);
 });

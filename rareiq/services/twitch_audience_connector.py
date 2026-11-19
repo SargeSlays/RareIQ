@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 
 import httpx
 from websockets.asyncio.client import connect as websocket_connect
+from websockets.exceptions import ConnectionClosed
 
 from rareiq.services.audience_service import TrustedAudienceEvent
 from rareiq.services.viewer_chat_service import deliver_viewer_chat
@@ -50,6 +51,7 @@ class TwitchAudienceConnector:
     """
 
     CLOSE_TIMEOUT_SECONDS = 2
+    KEEPALIVE_GRACE_SECONDS = 2
     SOCKET_URL = "wss://eventsub.wss.twitch.tv/ws"
     VALIDATE_URL = "https://id.twitch.tv/oauth2/validate"
     SUBSCRIPTIONS_URL = "https://api.twitch.tv/helix/eventsub/subscriptions"
@@ -60,13 +62,13 @@ class TwitchAudienceConnector:
     _LOGIN = re.compile(r"^[a-z0-9_]{1,25}$")
 
     def __init__(self, audience_service, credentials_provider, *, http_factory=None,
-                 websocket_factory=None, clock=time.time, transcript_sink=None):
+                 websocket_factory=None, clock=time.time, transcript_sink=None, sleep=asyncio.sleep):
         self._audience, self._credentials_provider = audience_service, credentials_provider
         self._transcript_sink = transcript_sink
         self._http_factory = http_factory or (lambda: httpx.AsyncClient(
             timeout=httpx.Timeout(5, connect=3), follow_redirects=False))
         self._websocket_factory = websocket_factory or _open_websocket
-        self._clock, self._lock = clock, asyncio.Lock()
+        self._clock, self._sleep, self._lock = clock, sleep, asyncio.Lock()
         self._http = self._socket = self._task = None
         self._token = self._client_id = self._login = self._user_id = self._session_id = None
         self._owned = set()
@@ -80,10 +82,11 @@ class TwitchAudienceConnector:
         self._received = self._rejected = 0
         self._last_attempt = float("-inf")
         self._cleanup_incomplete = False
+        self._last_receive_failure = None
 
     def cached_status(self):
         connected = self._state == "connected" and self._clock() < self._expires_at
-        return {"platform": "twitch", "implemented": True, "state": self._state,
+        status = {"platform": "twitch", "implemented": True, "state": self._state,
                 "connected": connected, "authorized": self._authorized and connected,
                 "verified": connected, "reason": self._reason,
                 "events": ["first_chat", "featured_chat"],
@@ -91,6 +94,20 @@ class TwitchAudienceConnector:
                 "viewer_join_supported": False, "received": self._received,
                 "rejected": self._rejected, "cleanup_incomplete": self._cleanup_incomplete,
                 "history": [dict(item) for item in self._history]}
+        if self._last_receive_failure is not None:
+            status["last_receive_failure"] = dict(self._last_receive_failure)
+        return status
+
+    @staticmethod
+    def _receive_failure(exc):
+        kind = "timeout" if isinstance(exc, TimeoutError) else "closed" if isinstance(exc, ConnectionClosed) else "transport"
+        result = {"kind": kind, "received_close_code": None, "sent_close_code": None}
+        if isinstance(exc, ConnectionClosed):
+            for name, field in (("rcvd", "received_close_code"), ("sent", "sent_close_code")):
+                code = getattr(getattr(exc, name, None), "code", None)
+                if isinstance(code, int) and not isinstance(code, bool) and 1000 <= code <= 4999:
+                    result[field] = int(code)
+        return result
 
     def _state_change(self, state, reason):
         self._state, self._reason = state, reason
@@ -374,24 +391,31 @@ class TwitchAudienceConnector:
                 if self._clock() >= self._validated_until:
                     await self._validate()
                 try:
-                    timeout = max(.05, min(self._keepalive, self._validated_until - self._clock()))
+                    # Twitch's advertised interval is also the sender's deadline;
+                    # allow bounded transport/scheduling jitter before reconnecting.
+                    timeout = max(.05, min(self._keepalive + self.KEEPALIVE_GRACE_SECONDS,
+                                           self._validated_until - self._clock()))
                     raw = await asyncio.wait_for(self._socket.recv(), timeout)
-                except Exception:
-                    if self._clock() >= self._validated_until:
+                except Exception as exc:
+                    if isinstance(exc, TimeoutError) and self._clock() >= self._validated_until:
                         await self._validate()
                         continue
+                    self._last_receive_failure = self._receive_failure(exc)
                     retries += 1
                     if retries > 3:
                         raise _ProviderError("connection_lost") from None
                     self._state_change("reconnecting", "connection_lost")
                     await self._delete_owned()
                     await self._socket.close()
-                    await asyncio.sleep(.5 * retries)
+                    await self._sleep(.5 * retries)
                     self._socket, self._session_id, self._keepalive = await self._open(self.SOCKET_URL)
                     await self._subscribe()
                     self._state_change("connected", "observing_chat")
                     continue
                 url = self._handle(raw)
+                # Only a provider frame that passes validation restores the
+                # consecutive-failure budget; opening a new socket does not.
+                retries = 0
                 if url:
                     self._state_change("reconnecting", "provider_reconnect")
                     await self._migrate(url)

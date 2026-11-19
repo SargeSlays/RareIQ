@@ -1,9 +1,11 @@
 'use strict';
 const path = require('node:path');
+const {loadInitialOutput}=require('./startup.cjs');
 const { randomUUID } = require('node:crypto');
+const {normalizeAudioRouting,normalizeSourceManifest}=require('./audio-routing.cjs');
 const CHANNELS = Object.freeze({ health: 'producer:output:health', pcm: 'producer:output:pcm', sync: 'producer:output:sync', control: 'producer:output:control', ack: 'producer:output:ack' });
 const SIZES = new Set(['1280x720', '1920x1080', '720x1280']);
-const FPS = 30, RATE = 48000, AUDIO_FRAMES = 480;
+const RATE = 48000, AUDIO_FRAMES = 480;
 const SNAPSHOT = `(()=>{try{const f=document.querySelector('iframe.program');if(!f||f.contentWindow.location.origin!==location.origin||f.contentWindow.location.pathname!=='/program')return null;return f.contentWindow.ProducerProgramOutput?.snapshot()||null;}catch(_){return null;}})()`;
 
 function cleanSnapshot(value) {
@@ -13,8 +15,9 @@ function cleanSnapshot(value) {
   const readySources = Array.isArray(value.readySources) ? value.readySources.filter(s => typeof s === 'string' && /^(camera:[1-4]|guest:[a-f0-9]{32}:(camera|screen|audio)|(image|video|text|browser):[a-f0-9-]{36})$/.test(s)).slice(0, 6) : [];
   return { peerId: value.peerId, generation: value.generation, rendered: value.rendered, browserReviewOpen: value.browserReviewOpen, reviewOpen: value.browserReviewOpen, audioBlocked: value.audioBlocked, readySources };
 }
-function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirname, width = 1280, height = 720, partition = 'persist:producer-output', onError = () => {} } = {}) {
-  if (!BrowserWindow || !ipcMain || !SIZES.has(width + 'x' + height) || !path.isAbsolute(baseDir)) throw Error('output_capture_configuration_invalid');
+function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirname, width = 1280, height = 720, fps = 30, audioRouting = {}, requireVod = false, partition = 'persist:producer-output', onError = () => {} } = {}) {
+  if (!BrowserWindow || !ipcMain || !SIZES.has(width + 'x' + height) || ![30,60].includes(fps) || !path.isAbsolute(baseDir)) throw Error('output_capture_configuration_invalid');
+  audioRouting=normalizeAudioRouting(audioRouting);
   const trusted = new URL(origin); if (trusted.origin !== origin || !/^https?:$/.test(trusted.protocol)) throw Error('output_capture_origin_invalid');
   let window = null, windowClosing = false, preparing = null, closed = false, active = null, starting = false, captureVersion = 0, captureUi = null, latest = null, polling = null, snapshotPending = null;
   let snapshot = null, snapshotAt = 0, audioAt = 0, audio = { ready: false, contextState: 'unavailable', sourceCount: 0, unavailableCount: 0 }, fault = null;
@@ -33,9 +36,9 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
   }
   function status() {
     const fresh = window && !window.isDestroyed() && snapshot && now() - snapshotAt < 2000000;
-    return { prepared: Boolean(window && !window.isDestroyed() && audio.ready), capturing: Boolean(active), width, height, fps: FPS, pixelFormat: 'bgra', audioFormat: 'f32le', sampleRate: RATE, channels: 2,
+    return { prepared: Boolean(window && !window.isDestroyed() && audio.ready), capturing: Boolean(active), width, height, fps, pixelFormat: 'bgra', audioFormat: 'f32le', sampleRate: RATE, channels: 2,
       ...(fresh ? snapshot : { peerId: null, generation: null, rendered: false, browserReviewOpen: false, reviewOpen: false, audioBlocked: true, readySources: [] }),
-      audioReady: audio.ready && now() - audioAt < 2000000 && audio.contextState === 'running' && audio.unavailableCount === 0, audioSources: audio.sourceCount,
+      audioReady: audio.ready && now() - audioAt < 2000000 && audio.contextState === 'running' && audio.unavailableCount === 0, audioSources: audio.sourceCount,audioSourcesAvailable:audio.sources||[],
       locallyMuted: Boolean(window && !window.isDestroyed() && window.webContents.isAudioMuted()), error: fault,
       capturedFrames: active?.frames || 0, droppedFrames: active?.droppedVideo || 0, audioPackets: active?.audioPackets || 0, droppedAudioPackets: (active?.droppedAudio || 0) + (active?.workletDropped || 0) };
   }
@@ -88,7 +91,7 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
       contents.on('render-process-gone', () => { stopCapture(); audio.ready = false; report('output_renderer_unavailable'); });
       target.on('close', () => { if (window === target) windowClosing = true; });
       target.on('closed', () => { const wasActive = Boolean(active); stopCapture(); if (window === target) window = null; audio.ready = false; latest = null; clearInterval(polling); polling = null; if (wasActive) report('output_closed'); });
-      await target.loadURL(origin + '/output/studio?browser-review=1');
+      await loadInitialOutput(contents,origin + '/output/studio?browser-review=1',{timeoutMs:8000});
       const deadline = now() + 8000000;
       while (!audio.ready && !fault && now() < deadline && !target.isDestroyed()) await new Promise(resolve => setTimeout(resolve, 25));
       if (closed || target.isDestroyed() || target !== window) throw Error('output_capture_closed');
@@ -121,14 +124,14 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
     if (!current.peerId || !current.rendered || current.reviewOpen || current.audioBlocked || !current.audioReady) throw Error('output_not_ready');
     if (!latest) throw Error('output_picture_unavailable');
     const run = active = { id: randomUUID(), peerId: current.peerId, epoch: now(), timer: null, onVideo, onAudio, frames: 0, index: 0, droppedVideo: 0, videoBusy: false, lastImageAt: 0, audioPackets: 0, droppedAudio: 0, audioSeq: -1, lastAudioPts: -1, audioStarted: false, audioBusy: false, lastAudioAt: now() };
-    window.webContents.beginFrameSubscription(false, image => { if (active !== run || now() - run.lastImageAt < 25000) return; run.lastImageAt = now(); try { storeFrame(image); } catch (_) { stopCapture(); report('output_frame_failed'); } });
-    window.webContents.send(CHANNELS.control, { type: 'start', captureId: run.id });
+    window.webContents.beginFrameSubscription(false, image => { if (active !== run || now() - run.lastImageAt < 750000 / fps) return; run.lastImageAt = now(); try { storeFrame(image); } catch (_) { stopCapture(); report('output_frame_failed'); } });
+    window.webContents.send(CHANNELS.control, { type: 'start', captureId: run.id, audioRouting });
     function tick() {
       if (active !== run) return;
       if (run.audioStarted && now() - run.lastAudioAt > 1000000) { stopCapture(); report('output_audio_stalled'); return; }
-      const elapsed = now() - run.epoch, targetIndex = Math.floor(elapsed * FPS / 1000000);
+      const elapsed = now() - run.epoch, targetIndex = Math.floor(elapsed * fps / 1000000);
       if (targetIndex > run.index + 2) { run.droppedVideo += targetIndex - run.index; run.index = targetIndex; }
-      const ptsUs = Math.round(run.index * 1000000 / FPS); run.index++;
+      const ptsUs = Math.round(run.index * 1000000 / fps); run.index++;
       if (run.videoBusy) run.droppedVideo++;
       else {
         try {
@@ -137,7 +140,7 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
           else if (accepted === false) run.droppedVideo++;
         } catch (_) { stopCapture(); report('output_video_sink_failed'); return; }
       }
-      const wait = Math.max(1, (run.index * 1000000 / FPS - (now() - run.epoch)) / 1000);
+      const wait = Math.max(1, (run.index * 1000000 / fps - (now() - run.epoch)) / 1000);
       run.timer = setTimeout(tick, wait); run.timer.unref?.();
     }
     tick();
@@ -162,6 +165,7 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
     if (value.error) { audio.ready = false; if (active) stopCapture(); report('output_audio_unavailable'); return; }
     if (typeof value.ready !== 'boolean' || !['running', 'suspended', 'closed'].includes(value.contextState)) return;
     audio = { ready: value.ready, contextState: value.contextState, sourceCount: Number.isInteger(value.sourceCount) ? Math.min(64, Math.max(0, value.sourceCount)) : 0,
+      sources:Array.isArray(value.sources)?value.sources.slice(0,64).flatMap(item=>{try{return normalizeSourceManifest([item]);}catch(_){return [];}}):[],
       unavailableCount: Number.isInteger(value.unavailableCount) ? Math.min(64, Math.max(0, value.unavailableCount)) : 0 };
     audioAt = now();
     if (active && (!audio.ready || audio.contextState !== 'running' || audio.unavailableCount > 0)) { stopCapture(); report('output_audio_unavailable'); return; }
@@ -172,12 +176,15 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
     if (!run || !owned(event) || value?.captureId !== run.id) return;
     if (run.audioBusy || !Number.isSafeInteger(value.seq) || value.seq <= run.audioSeq
         || !Number.isSafeInteger(value.ptsUs) || value.ptsUs < 0 || value.ptsUs <= run.lastAudioPts || value.ptsUs > now() - run.epoch + 1000000
-        || !(value.pcm instanceof Uint8Array) || value.pcm.byteLength !== AUDIO_FRAMES * 2 * 4) { stopCapture(); report('output_audio_protocol_invalid'); return; }
+        || !(value.pcm instanceof Uint8Array) || value.pcm.byteLength !== AUDIO_FRAMES * 2 * 4
+        || (requireVod&&value.vodPcm===undefined)
+        || (value.vodPcm!==undefined&&(!(value.vodPcm instanceof Uint8Array)||value.vodPcm.byteLength!==AUDIO_FRAMES*2*4))) { stopCapture(); report('output_audio_protocol_invalid'); return; }
     const bytes = Buffer.from(value.pcm.buffer, value.pcm.byteOffset, value.pcm.byteLength);
-    for (let i = 0; i < bytes.length; i += 4) if (!Number.isFinite(bytes.readFloatLE(i)) || Math.abs(bytes.readFloatLE(i)) > 1.01) { stopCapture(); report('output_audio_protocol_invalid'); return; }
+    const vod=value.vodPcm===undefined?Buffer.alloc(AUDIO_FRAMES*2*4):Buffer.from(value.vodPcm.buffer,value.vodPcm.byteOffset,value.vodPcm.byteLength);
+    for (const pcm of [bytes,vod])for (let i = 0; i < pcm.length; i += 4) if (!Number.isFinite(pcm.readFloatLE(i)) || Math.abs(pcm.readFloatLE(i)) > 1.01) { stopCapture(); report('output_audio_protocol_invalid'); return; }
     run.audioBusy = true; run.audioSeq = value.seq; run.lastAudioPts = value.ptsUs; run.lastAudioAt = now();
     if (Number.isSafeInteger(value.dropped) && value.dropped >= (run.workletDropped || 0)) run.workletDropped = value.dropped;
-    try { if (await run.onAudio(bytes, value.ptsUs) === false) run.droppedAudio++; else run.audioPackets++; }
+    try { if (await run.onAudio(bytes, value.ptsUs, vod) === false) run.droppedAudio++; else run.audioPackets++; }
     catch (_) { if (active === run) { stopCapture(); report('output_audio_sink_failed'); } }
     finally { run.audioBusy = false; if (active === run && owned(event)) event.sender.send(CHANNELS.ack, { captureId: run.id, seq: value.seq }); }
   };

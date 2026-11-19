@@ -10,7 +10,7 @@ function fixture(options = {}) {
     constructor(config) {
       super(); instance = this; this.config = config; this.destroyed = false;
       const wc = this.webContents = new EventEmitter(); wc.mainFrame = { url: '' }; wc.url = ''; wc.muted = false;
-      wc.getURL = () => wc.url; wc.setAudioMuted = value => { wc.muted = value; }; wc.isAudioMuted = () => wc.muted;
+      wc.getURL = () => wc.url;wc.isDestroyed=()=>this.destroyed;wc.loadURL=url=>this.loadURL(url); wc.setAudioMuted = value => { wc.muted = value; }; wc.isAudioMuted = () => wc.muted;
       wc.setWindowOpenHandler = fn => { wc.openHandler = fn; };
       wc.session = { setPermissionCheckHandler(fn) { this.check = fn; }, setPermissionRequestHandler(fn) { this.request = fn; }, setDisplayMediaRequestHandler(fn) { this.display = fn; } };
       wc.document = { documentElement: { dataset: {} } }; wc.frames = []; wc.events = [];
@@ -33,12 +33,12 @@ function fixture(options = {}) {
     show() { (this.visibilityCalls ||= []).push('show'); }
     focus() { (this.visibilityCalls ||= []).push('focus'); }
     setMenu() {}
-    async loadURL(url) { this.webContents.url = url; this.webContents.mainFrame.url = url; if (options.loadWait) await options.loadWait; health(); }
+    async loadURL(url) { this.webContents.url = url; this.webContents.mainFrame.url = url; health();this.webContents.emit('dom-ready');if (options.loadWait) await options.loadWait; }
     destroy() { this.destroyed = true; this.emit('closed'); }
   }
   const event = () => ({ sender: instance.webContents, senderFrame: instance.webContents.mainFrame });
   const health = extra => ipc.emit(CHANNELS.health, event(), { ready: true, contextState: 'running', sourceCount: 1, unavailableCount: 0, ...extra });
-  const capture = createOutputCapture({ BrowserWindow: Window, ipcMain: ipc, origin: ORIGIN, width: options.width || 1280, height: options.height || 720, onError: code => errors.push(code) });
+  const capture = createOutputCapture({ BrowserWindow: Window, ipcMain: ipc, origin: ORIGIN, fps:options.fps??30,requireVod:options.requireVod??false,audioRouting:options.audioRouting||{},width: options.width || 1280, height: options.height || 720, onError: code => errors.push(code) });
   return { capture, ipc, errors, sent, event, health, get window() { return instance; },
     packet(extra = {}) { return { captureId: sent.filter(s => s.channel === CHANNELS.control && s.value.type === 'start').at(-1).value.captureId, seq: 0, ptsUs: 100, pcm: new Uint8Array(3840), ...extra }; },
     async pcm(value, from = event()) { await ipc.listeners(CHANNELS.pcm)[0](from, value); },
@@ -189,4 +189,27 @@ test('portrait format stays exact and close removes all privileged handlers', as
   await f.capture.startCapture(buffer => { bytes = buffer.length; }, () => true);
   assert.equal(bytes, 720 * 1280 * 4); assert.equal(f.capture.status().height, 1280);
   f.capture.close(); f.capture.close(); assert.equal(f.ipc.listenerCount(CHANNELS.pcm), 0); assert.equal(f.ipc.handlers.size, 0);
+});
+
+
+test('60fps capture uses the selected clock and passes paired Live/VOD PCM unchanged',async t=>{
+  const f=fixture({fps:60,requireVod:true,audioRouting:{'voice:default':{live:true,vod:true}}});t.after(()=>f.capture.close());
+  let received;await f.capture.startCapture(()=>true,(live,pts,vod)=>{received={live,pts,vod};return true;});
+  const live=new Uint8Array(3840),vod=new Uint8Array(3840);new Float32Array(live.buffer).fill(.2);new Float32Array(vod.buffer).fill(.1);
+  await f.pcm(f.packet({pcm:live,vodPcm:vod}));assert.equal(f.capture.status().fps,60);assert.equal(received.live.readFloatLE(0),Math.fround(.2));assert.equal(received.vod.readFloatLE(0),Math.fround(.1));
+  const start=f.sent.find(s=>s.value.type==='start');assert.equal(start.value.audioRouting['voice:default'].vod,true);
+});
+test('separate VOD capture fails closed on missing, malformed or nonfinite second bus',async()=>{
+  for(const patch of [{},{vodPcm:new Uint8Array(8)},{vodPcm:new Uint8Array(new Float32Array(960).fill(NaN).buffer)}]){
+    const f=fixture({requireVod:true});let received=0;
+    try{await f.capture.startCapture(()=>true,()=>received++);await f.pcm(f.packet(patch));assert.equal(received,0);assert.equal(f.errors.at(-1),'output_audio_protocol_invalid');}finally{f.capture.close();}
+  }
+});
+test('audio source catalog is bounded, classified and never accepts arbitrary labels',async t=>{
+  const f=fixture();t.after(()=>f.capture.close());await f.capture.prepare();f.health({sources:[{id:'voice:default',category:'voice'},{id:'https://secret',category:'voice'},{id:'other',category:'bad'}]});
+  assert.deepEqual(f.capture.status().audioSourcesAvailable,[{id:'voice:default',category:'voice',label:'Guest microphone'}]);
+});
+
+test('output preparation follows trusted DOM readiness while an MJPEG load never finishes',async t=>{
+  const f=fixture({loadWait:new Promise(()=>{})});t.after(()=>f.capture.close());await f.capture.prepare();assert.equal(f.capture.status().prepared,true);
 });

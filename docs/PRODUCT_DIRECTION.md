@@ -887,3 +887,34 @@ picture and Viewer chat controls were observed in the updated native window.
 Twitch permission review is prepared but no owner chat grant is confirmed. The
 updated EXE also raised a Windows network prompt; the owner must choose it. No
 agent action or resulting firewall choice is claimed.
+
+
+## November 19, 2026 — Saved desktop outputs and separate archive audio
+
+Producer, Please desktop output profiles save resolution, 30/60 fps, H.264 encoder,
+video bitrate, keyframe interval, AAC bitrate and per-source Live/VOD routing.
+The desktop can select up to 8 saved destinations in one explicit confirmation;
+a shared public compositor feeds independently owned encoder workers. All targets
+start as one guarded operation; a later target transport failure is isolated, while
+a shared output failure stops all targets. Stop one and Stop all remain explicit;
+there is no automatic broadcast restart.
+
+Twitch, YouTube, Kick, Rumble, Facebook, TikTok, X, Instagram and Custom are destination
+labels, not platform-verification claims. Except Twitch's documented secure ingest
+template, the operator supplies the platform-issued secure RTMPS server and key.
+Platform eligibility, account-side setup and actual receipt require separate checks.
+RTMP-only services, AV1/HEVC, enhanced multirendition/dual-format negotiation and full
+OBS/Streamlabs settings parity are not implemented by these controls. Each target
+currently owns an encoder; capacity and combined upload need endurance acceptance.
+
+An optional Twitch-only secondary AAC track uses the modern OBS enhanced-FLV track 1
+contract, guarded by an actual dependency mux probe before network output. This is
+locally tested experimental transport; neither Twitch live receipt nor VOD archive
+selection has been accepted against a real broadcast. Save Past Broadcasts remains
+an account-side requirement. Live and VOD mixes are independently saved; the default
+VOD mix includes guest microphones and excludes other public source categories.
+A guest's own effects/soundboard are already premixed into their microphone and
+cannot yet be separated at the producer. Nested browser-source audio is excluded
+from native audio capture.
+
+Primary wire references: [OBS30.2.3 mux](https://github.com/obsproject/obs-studio/blob/30.2.3/plugins/obs-outputs/flv-mux.c#L404) and [Enhanced RTMP v2](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v2.md#L954).

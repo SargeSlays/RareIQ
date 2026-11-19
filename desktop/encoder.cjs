@@ -2,17 +2,21 @@
 // Main process only. This coordinator owns only its encoder child, never OBS.
 const {EventEmitter}=require('node:events'),{spawn}=require('node:child_process'),path=require('node:path');
 const HEADER_BYTES=13,MAX_PTS=7*24*3600*1e6;
-const FAILURE_CODES=new Set(['invalid_encoder_config','invalid_test_output','invalid_test_transport','destination_required','invalid_destination','secure_destination_required','nonpublic_destination','destination_dns_failed','tls_trust_unavailable','tls_verification_failed','tls_connection_failed','encoder_transport_ownership_unavailable','encoder_transport_interrupted','video_encoder_unavailable','encoder_input_ended','invalid_encoder_packet','invalid_audio_samples','audio_timeline_discontinuity','encoder_dependency_missing','encoder_failed']);
+const FAILURE_CODES=new Set(['invalid_encoder_config','invalid_test_output','invalid_test_transport','destination_required','invalid_destination','secure_destination_required','nonpublic_destination','destination_dns_failed','tls_trust_unavailable','tls_verification_failed','tls_connection_failed','encoder_transport_ownership_unavailable','encoder_transport_interrupted','video_encoder_unavailable','encoder_input_ended','invalid_encoder_packet','invalid_audio_samples','audio_timeline_discontinuity','vod_audio_timeline_discontinuity','twitch_vod_unavailable','twitch_vod_audio_missing','twitch_vod_audio_late','encoder_dependency_missing','encoder_failed']);
 const publicError=code=>Object.assign(new Error(code),{code});
 function packet(kind,buffer,ptsUs){const header=Buffer.alloc(HEADER_BYTES);header.writeUInt8(kind.charCodeAt(0));header.writeUInt32LE(buffer.length,1);header.writeBigUInt64LE(BigInt(ptsUs),5);return Buffer.concat([header,buffer]);}
 function validateSettings(value){
   if(!value||!Number.isInteger(value.width)||value.width<16||value.width>3840||value.width%2||!Number.isInteger(value.height)||value.height<16||value.height>3840||value.height%2||value.width*value.height>3840*2160)throw publicError('invalid_encoder_config');
   const fps=value.fps??30,bitrate=value.bitrate??6000000,codec=value.codec??'auto';
-  if(!Number.isInteger(fps)||fps<1||fps>60||!Number.isInteger(bitrate)||bitrate<250000||bitrate>40000000||!['auto','h264_nvenc','libx264'].includes(codec))throw publicError('invalid_encoder_config');
-  return {width:value.width,height:value.height,fps,bitrate,codec};
+  const audioBitrateKbps=value.audioBitrateKbps===undefined?192:value.audioBitrateKbps;
+  const keyframeSeconds=value.keyframeSeconds===undefined?2:value.keyframeSeconds,twitchVod=value.twitchVod===undefined?false:value.twitchVod;
+  if(!Number.isInteger(fps)||fps<1||fps>60||!Number.isInteger(bitrate)||bitrate<250000||bitrate>40000000||!['auto','h264_nvenc','libx264'].includes(codec)
+    ||!Number.isInteger(audioBitrateKbps)||audioBitrateKbps<64||audioBitrateKbps>320
+    ||!Number.isInteger(keyframeSeconds)||keyframeSeconds<1||keyframeSeconds>10||typeof twitchVod!=='boolean')throw publicError('invalid_encoder_config');
+  return {width:value.width,height:value.height,fps,bitrate,codec,audioBitrateKbps,keyframeSeconds,twitchVod};
 }
 class Encoder extends EventEmitter{
-  #python;#worker;#pythonPath;#artifactRoot;#testTransport;#spawn;#child=null;#settings=null;#state={state:'idle',platformVerified:false};#queueBytes=0;#last={V:-1,A:-1};#stopPromise=null;#startTimeout;#stopTimeout;#generation=0;
+  #python;#worker;#pythonPath;#artifactRoot;#testTransport;#spawn;#child=null;#settings=null;#state={state:'idle',platformVerified:false,platformLiveVerified:false,vodPlatformVerified:false};#queueBytes=0;#last={V:-1,A:-1,B:-1};#stopPromise=null;#startTimeout;#stopTimeout;#generation=0;
   constructor({python,workerPath=path.join(__dirname,'encoder_worker.py'),pythonPath,pythonPackages,artifactRoot,testTransport,onState,spawnProcess=spawn,startTimeoutMs=30000,stopTimeoutMs=12000}={}){
     pythonPath=pythonPath??pythonPackages;
     super();if(typeof python!=='string'||!path.isAbsolute(python)||!path.isAbsolute(workerPath))throw publicError('encoder_runtime_required');
@@ -23,7 +27,7 @@ class Encoder extends EventEmitter{
     if(typeof onState==='function')this.on('state',onState);
   }
   status(){return {...this.#state,running:Boolean(this.#child),queuedBytes:this.#queueBytes};}
-  #publish(value){this.#state={...this.#state,...value,platformVerified:false};this.emit('status',this.status());this.emit('state',this.status());}
+  #publish(value){this.#state={...this.#state,...value,platformVerified:false,platformLiveVerified:false,vodPlatformVerified:false};this.emit('status',this.status());this.emit('state',this.status());}
   start(value){
     if(this.#child||this.#state.state==='starting')return Promise.reject(publicError('encoder_already_running'));
     let settings,config;
@@ -32,11 +36,14 @@ class Encoder extends EventEmitter{
       if(value.testTransport!==undefined)throw publicError('invalid_test_transport');
       if(this.#testTransport){if(value.testOutput!==undefined||value.destination!==undefined)throw publicError('invalid_test_transport');config.testTransport=this.#testTransport;config.artifactRoot=this.#artifactRoot;}
       else if(value.testOutput!==undefined){if(!this.#artifactRoot||typeof value.testOutput!=='string'||!path.isAbsolute(value.testOutput))throw publicError('invalid_test_output');config.testOutput=value.testOutput;config.artifactRoot=this.#artifactRoot;}
-      else{if(!value.destination||typeof value.destination.serverUrl!=='string'||typeof value.destination.streamKey!=='string')throw publicError('destination_required');config.destination={serverUrl:value.destination.serverUrl,streamKey:value.destination.streamKey};}
+      else{if(!value.destination||typeof value.destination.serverUrl!=='string'||typeof value.destination.streamKey!=='string')throw publicError('destination_required');
+        if(settings.twitchVod&&value.destination.platform!=='twitch')throw publicError('invalid_encoder_config');
+        config.destination={serverUrl:value.destination.serverUrl,streamKey:value.destination.streamKey};
+        if(settings.twitchVod)config.destination.platform='twitch';}
     }catch(error){return Promise.reject(publicError(FAILURE_CODES.has(error.code)?error.code:'invalid_encoder_config'));}
     const encoded=JSON.stringify(config)+'\n';if(Buffer.byteLength(encoded)>16384)return Promise.reject(publicError('invalid_encoder_config'));
-    this.#settings=settings;this.#queueBytes=0;this.#last={V:-1,A:-1};this.#stopPromise=null;
-    this.#state={state:'starting',videoFrames:0,audioSamples:0,packets:0,bytesMuxed:0,droppedVideoFrames:0,droppedAudioPackets:0,platformVerified:false};
+    this.#settings=settings;this.#queueBytes=0;this.#last={V:-1,A:-1,B:-1};this.#stopPromise=null;
+    this.#state={state:'starting',videoFrames:0,audioSamples:0,vodAudioSamples:0,packets:0,bytesMuxed:0,droppedVideoFrames:0,droppedAudioPackets:0,droppedVodAudioPackets:0,twitchVod:settings.twitchVod,platformVerified:false,platformLiveVerified:false,vodPlatformVerified:false};
     const generation=++this.#generation;
     return new Promise((resolve,reject)=>{
       let child,ready=false,settled=false,output='',failed=false;
@@ -56,10 +63,11 @@ class Encoder extends EventEmitter{
         let end;while((end=output.indexOf('\n'))>=0){const line=output.slice(0,end);output=output.slice(end+1);let message;try{message=JSON.parse(line);}catch(_){fail('encoder_protocol_failed');return;}
           if(!message||!['ready','active','stats','stopped','error'].includes(message.event)){fail('encoder_protocol_failed');return;}
           if(message.event==='error'){fail(FAILURE_CODES.has(message.code)?message.code:'encoder_failed');return;}
-          const safe={};for(const key of ['videoFrames','audioSamples','audioSilenceSamples','packets','bytesMuxed'])if(Number.isSafeInteger(message[key])&&message[key]>=0)safe[key]=message[key];
+          const safe={};for(const key of ['videoFrames','audioSamples','audioSilenceSamples','vodAudioSamples','vodAudioSilenceSamples','packets','bytesMuxed'])if(Number.isSafeInteger(message[key])&&message[key]>=0)safe[key]=message[key];
           if(['h264_nvenc','libx264'].includes(message.codec))safe.codec=message.codec;
           if(typeof message.hardwareVerified==='boolean')safe.hardwareVerified=message.hardwareVerified;
           if(typeof message.synthetic==='boolean')safe.synthetic=message.synthetic;
+          if(this.#settings.twitchVod&&message.twitchVodWireVerified===true)safe.twitchVodWireVerified=true;
           if(typeof message.tlsVerified==='boolean')safe.tlsVerified=message.tlsVerified;
           if(message.event==='ready'){ready=true;safe.state=this.#state.state==='stopping'?'stopping':'starting';this.#publish(safe);finishStart();}
           else if(message.event==='stopped'){this.#publish({...safe,state:'stopped'});}
@@ -76,18 +84,21 @@ class Encoder extends EventEmitter{
     });
   }
   #send(kind,data,ptsUs){
+    if(kind==='B'&&!this.#settings?.twitchVod)return false;
     if(!this.#child||!['starting','active'].includes(this.#state.state)||!Buffer.isBuffer(data)||!Number.isSafeInteger(ptsUs)||ptsUs<0||ptsUs>MAX_PTS||ptsUs<=this.#last[kind])return false;
     const frameBytes=this.#settings.width*this.#settings.height*4;
     if(kind==='V'?data.length!==frameBytes:data.length<8||data.length>384000||data.length%8)return false;
-    const limit=2*(frameBytes+HEADER_BYTES)+384000;
-    if(this.#queueBytes+data.length+HEADER_BYTES>limit){const field=kind==='V'?'droppedVideoFrames':'droppedAudioPackets';this.#state[field]++;return false;}
+    const limit=2*(frameBytes+HEADER_BYTES)+384000*(this.#settings.twitchVod?2:1);
+    if(this.#queueBytes+data.length+HEADER_BYTES>limit){const field=kind==='V'?'droppedVideoFrames':kind==='B'?'droppedVodAudioPackets':'droppedAudioPackets';this.#state[field]++;return false;}
     const bytes=packet(kind,data,ptsUs),generation=this.#generation;this.#last[kind]=ptsUs;this.#queueBytes+=bytes.length;
     try{this.#child.stdin.write(bytes,()=>{if(generation===this.#generation)this.#queueBytes=Math.max(0,this.#queueBytes-bytes.length);});return true;}catch(_){this.#queueBytes-=bytes.length;return false;}
   }
   sendVideo(buffer,ptsUs){return this.#send('V',buffer,ptsUs);}
   sendAudio(buffer,ptsUs){return this.#send('A',buffer,ptsUs);}
+  sendVodAudio(buffer,ptsUs){return this.#send('B',buffer,ptsUs);}
   pushVideo(buffer,ptsUs){return this.sendVideo(buffer,ptsUs);}
   pushAudio(buffer,ptsUs){return this.sendAudio(buffer,ptsUs);}
+  pushVodAudio(buffer,ptsUs){return this.sendVodAudio(buffer,ptsUs);}
   stop(){
     if(this.#stopPromise)return this.#stopPromise;
     if(!this.#child)return Promise.resolve(this.status());

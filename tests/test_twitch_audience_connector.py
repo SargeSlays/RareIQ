@@ -5,12 +5,14 @@ import json
 
 import httpx
 import pytest
+from websockets.exceptions import ConnectionClosedError
+from websockets.frames import Close
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from rareiq.services.audience_service import AudienceService
 from rareiq.services.viewer_chat_service import ViewerChatService
-from rareiq.services.twitch_audience_connector import TwitchAudienceConnector, _NoRedirectConnect, _ProviderError
+from rareiq.services.twitch_audience_connector import TwitchAudienceConnector, _NoRedirectConnect, _ProviderError, _open_websocket
 from rareiq.web.twitch_audience import create_twitch_audience_router
 from rareiq.web.audience import create_audience_router
 
@@ -106,6 +108,149 @@ def test_default_is_disconnected_and_does_not_read_credentials(tmp_path):
     assert state["state"] == "not_connected" and not state["authorized"] and not state["verified"]
     assert state["available_events"] == [] and state["viewer_join_supported"] is False
     assert not f.calls and not f.urls and f.reads == 0
+
+
+def test_keepalive_deadline_allows_bounded_jitter_without_reconnecting(tmp_path):
+    async def scenario():
+        f = Fixture(tmp_path)
+        assert f.service.KEEPALIVE_GRACE_SECONDS == 2
+        await f.service.connect()
+        # Use short fixture intervals: arrival misses the advertised deadline
+        # while staying comfortably within the same bounded grace calculation.
+        f.service._keepalive = .06
+        f.service.KEEPALIVE_GRACE_SECONDS = .14
+        async def delayed():
+            await asyncio.sleep(.1)
+            f.sockets[0].queue.put_nowait(notification())
+        sending = asyncio.create_task(delayed())
+        await spin_until(lambda: f.service.cached_status()["received"] == 1)
+        await sending
+        assert len(f.sockets) == 1 and f.service.cached_status()["connected"]
+        assert "last_receive_failure" not in f.service.cached_status()
+        await f.service.disconnect()
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("healthy", ["keepalive", "notification"])
+def test_validated_healthy_frames_reset_consecutive_reconnect_budget(tmp_path, healthy):
+    async def scenario():
+        f = Fixture(tmp_path)
+        delays = []
+        async def sleep(seconds):
+            delays.append(seconds)
+        original_ws = f.ws
+        async def ws(url):
+            socket = await original_ws(url)
+            if len(f.sockets) > 1:
+                count = str(len(f.sockets))
+                socket.queue.put_nowait(frame("session_keepalive", {}) if healthy == "keepalive" else notification(
+                    session="session-" + count, subscription="sub-" + count, event_id="chat-" + count))
+            if len(f.sockets) <= 4:
+                socket.queue.put_nowait(ConnectionClosedError(Close(4005, "private provider reason"), None))
+            return socket
+        f.service._sleep, f.service._websocket_factory = sleep, ws
+        await f.service.connect()
+        await spin_until(lambda: len(f.sockets) >= 5 or f.service.cached_status()["state"] == "not_connected")
+        assert len(f.sockets) == 5 and f.service.cached_status()["connected"]
+        assert delays == [.5, .5, .5, .5]
+        assert "private" not in json.dumps(f.service.cached_status())
+        await f.service.disconnect()
+    asyncio.run(scenario())
+
+
+def test_consecutive_receive_failures_remain_bounded_even_when_welcome_succeeds(tmp_path):
+    async def scenario():
+        f = Fixture(tmp_path)
+        delays = []
+        async def sleep(seconds):
+            delays.append(seconds)
+        original_ws = f.ws
+        async def ws(url):
+            socket = await original_ws(url)
+            socket.queue.put_nowait(ConnectionClosedError(Close(4002, "private received reason"),
+                                                         Close(1000, "private sent reason"), True))
+            return socket
+        f.service._sleep, f.service._websocket_factory = sleep, ws
+        await f.service.connect()
+        await spin_until(lambda: f.service.cached_status()["state"] == "not_connected")
+        status = f.service.cached_status()
+        assert len(f.sockets) == 4 and delays == [.5, 1, 1.5]
+        assert status["reason"] == "connection_lost" and status["received"] == status["rejected"] == 0
+        assert status["last_receive_failure"] == {"kind": "closed", "received_close_code": 4002, "sent_close_code": 1000}
+        assert "private" not in json.dumps(status) and f.service._token is None
+        await f.service.disconnect()
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure,expected", [
+    (TimeoutError("private timeout URL"), {"kind": "timeout", "received_close_code": None, "sent_close_code": None}),
+    (RuntimeError("wss://private.example/private-token"), {"kind": "transport", "received_close_code": None, "sent_close_code": None}),
+    (ConnectionClosedError(Close(4001, "private received reason"), Close(1001, "private sent reason"), True),
+        {"kind": "closed", "received_close_code": 4001, "sent_close_code": 1001}),
+    (ConnectionClosedError(Close(999, "private received reason"), Close(5000, "private sent reason"), True),
+        {"kind": "closed", "received_close_code": None, "sent_close_code": None}),
+    (ConnectionClosedError(None, None), {"kind": "closed", "received_close_code": None, "sent_close_code": None}),
+])
+def test_receive_diagnostics_are_constant_bounded_and_never_echo_exception_details(tmp_path, failure, expected):
+    async def scenario():
+        f = Fixture(tmp_path)
+        async def sleep(seconds):
+            pass
+        original_ws = f.ws
+        async def ws(url):
+            socket = await original_ws(url)
+            if len(f.sockets) == 1:
+                socket.queue.put_nowait(failure)
+            return socket
+        f.service._sleep, f.service._websocket_factory = sleep, ws
+        await f.service.connect()
+        await spin_until(lambda: len(f.sockets) == 2)
+        status = f.service.cached_status()
+        assert status["last_receive_failure"] == expected and status["connected"]
+        assert "private" not in json.dumps(status) and "wss://" not in json.dumps(status)
+        status["last_receive_failure"]["kind"] = "private changed value"
+        assert f.service.cached_status()["last_receive_failure"] == expected
+        await f.service.disconnect()
+    asyncio.run(scenario())
+
+
+def test_invalid_provider_frame_never_restores_connection_or_weakens_fail_closed(tmp_path):
+    async def scenario():
+        f = Fixture(tmp_path)
+        async def sleep(seconds):
+            pass
+        original_ws = f.ws
+        async def ws(url):
+            socket = await original_ws(url)
+            if len(f.sockets) == 1:
+                socket.queue.put_nowait(ConnectionClosedError(Close(4005, "private reason"), None))
+            else:
+                socket.queue.put_nowait(notification(subscription="unowned"))
+            return socket
+        f.service._sleep, f.service._websocket_factory = sleep, ws
+        await f.service.connect()
+        await spin_until(lambda: f.service.cached_status()["state"] == "not_connected")
+        status = f.service.cached_status()
+        assert len(f.sockets) == 2 and status["reason"] == "unexpected_subscription_event"
+        assert status["rejected"] == 1 and status["last_receive_failure"]["kind"] == "closed"
+        assert not status["authorized"] and f.service._token is None
+        await f.service.disconnect()
+    asyncio.run(scenario())
+
+
+def test_open_transport_still_disables_client_pings_and_payload_logging(monkeypatch):
+    async def scenario():
+        import rareiq.services.twitch_audience_connector as module
+        calls = []
+        async def opening(url, **options):
+            calls.append(options)
+            return FakeSocket()
+        monkeypatch.setattr(module, "_NoRedirectConnect", opening)
+        await _open_websocket(module.TwitchAudienceConnector.SOCKET_URL)
+        assert calls[0]["ping_interval"] is None
+        assert calls[0]["logger"].disabled is True and calls[0]["compression"] is None
+        assert calls[0]["max_size"] == 65536
+    asyncio.run(scenario())
 
 
 def test_opted_in_transcript_is_independent_of_alert_rejection_and_deduplicates(tmp_path):

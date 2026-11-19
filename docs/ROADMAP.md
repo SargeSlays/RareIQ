@@ -888,3 +888,22 @@ prepared Twitch read-chat consent. Then verify actual authorized Twitch message
 receipt and refresh the physical guest page for its newer compact UI, with owner
 screen reselection. New speech/echo listening, Google/Kick provider prerequisites
 and StackThis named producer identity remain separate acceptance work.
+
+
+## November 19, 2026 — Desktop output profiles / archive mixes
+
+- Implemented and locally exercised: saved output profiles, 30/60 fps capture,
+  H.264/AAC bitrate and keyframe controls, up to eight selected RTMPS destinations,
+  isolated transport failures, per-target Stop and shared-output Stop all.
+- Implemented and locally decoded: paired per-source Live/VOD buses and modern
+  Twitch-only enhanced AAC archive track 1. Experimental until actual Twitch live
+  and archived VOD acceptance; never substitute Live for a missing VOD bus.
+- Hardware encoder acceptance: generated two-target HD output uses NVIDIA H.264;
+  both files contain 72 frames, zero reported video/audio drops, and the Twitch
+  format file has two independently decoded AAC mixes. No real stream/capture.
+- Still required: destination credentials/eligibility, real platform live/VOD receipt,
+  upload/GPU endurance at the desired destination count, separate guest soundboard
+  stems, nested browser audio, RTMP-only transports and broader OBS settings parity.
+- Existing Twitch reader now tolerates keepalive scheduling jitter; a bounded real
+  reader-only probe stayed connected for 45 seconds. Actual message receipt remains
+  unverified; do not repost the previously approved one-time message.

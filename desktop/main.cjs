@@ -9,7 +9,7 @@ const profile=process.env.PRODUCER_DESKTOP_QA_PROFILE||process.env.PRODUCER_DESK
 if(!path.isAbsolute(profile))throw Error('Desktop data must use an absolute directory');
 for(const directory of [profile,path.join(profile,'browser'),path.join(profile,'logs'),path.join(profile,'crashes')])fs.mkdirSync(directory,{recursive:true});
 app.setPath('userData',profile);app.setPath('sessionData',path.join(profile,'browser'));app.setPath('logs',path.join(profile,'logs'));app.setPath('crashDumps',path.join(profile,'crashes'));
-let studio,settings,backend,origin,destinations,capturePicker,quit,runtime,broadcast,polling,choosingSources,destinationMutation=false;
+let studio,settings,backend,origin,destinations,outputProfiles,capturePicker,quit,runtime,broadcast,polling,choosingSources,destinationMutation=false;
 if(!app.requestSingleInstanceLock())app.exit(0);
 app.on('second-instance',()=>{if(studio){if(studio.isMinimized())studio.restore();studio.show();studio.focus();}});
 function windowOptions(extra={}){return {width:1600,height:1000,minWidth:800,minHeight:600,title:'Producer, Please',icon:path.join(__dirname,'assets','icon-512.png'),backgroundColor:'#101318',autoHideMenuBar:false,...extra,webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true,allowRunningInsecureContent:false,webviewTag:false,backgroundThrottling:false,...extra.webPreferences}};}
@@ -63,17 +63,26 @@ app.whenReady().then(async()=>{
     const response=await dialog.showMessageBox(studio,{type:'question',buttons:['Allow this time','Cancel'],defaultId:1,cancelId:1,message:'Allow Producer, Please to use your camera or microphone?',detail:'Choose Allow only after selecting a capture control in the studio.'});callback(response.response===0);
   });
   const {DestinationStore}=require('./destinations.cjs');destinations=new DestinationStore({directory:profile,cipher:require('electron').safeStorage});
+  const {OutputProfileStore}=require('./output-profiles.cjs');outputProfiles=new OutputProfileStore({directory:profile});
   studio=new BrowserWindow(windowOptions({webPreferences:{partition:'persist:producer-studio',preload:path.join(__dirname,'preload.cjs')}}));secureWindow(studio,origin);
   const {createCapturePicker}=require('./capture-picker.cjs');capturePicker=createCapturePicker({BrowserWindow,ipcMain,desktopCapturer,studio,origin});partition.setDisplayMediaRequestHandler(capturePicker.handler);
   studio.on('close',event=>{if(backend&&!quit?.finished){event.preventDefault();app.quit();}});
   const {NativeBroadcast}=require('./broadcast.cjs'),{Encoder}=require('./encoder.cjs'),{createOutputCapture}=require('./output-capture.cjs');
   const outputSession=session.fromPartition('persist:producer-output');policy.applySessionPolicy(outputSession,origin);
   const request=async(url,body)=>{const response=await fetch(origin+url,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(8000)});const value=await response.json();const preflight=!body&&url.startsWith('/api/production/native-preflight?')&&value.preflight&&typeof value.preflight.ready==='boolean';if(!response.ok||(value.ok===false&&!preflight))throw Error('studio_unavailable');return value;};
-  let lastPhase='';broadcast=new NativeBroadcast({destinations,identity:backend?.started?.identity,ownerPid:process.pid,request,
+  let lastPhase='';broadcast=new NativeBroadcast({destinations,outputProfiles,identity:backend?.started?.identity,ownerPid:process.pid,request,
     createCapture:dimensions=>createOutputCapture({BrowserWindow,ipcMain,origin,...dimensions,onError:code=>{if(broadcast?.active())broadcast.stop(code).catch(()=>{});}}),
     createEncoder:onState=>new Encoder({python:runtime.python,workerPath:runtime.encoderWorker,pythonPackages:runtime.pythonPackages,onState}),
-    confirm:async profile=>{const answer=await dialog.showMessageBox(settings&&!settings.isDestroyed()?settings:studio,{type:'warning',message:'Start a live broadcast?',detail:'Your current Program picture and public audio will be sent to '+profile.name+'. Check your platform dashboard to confirm viewers can receive it.',buttons:['Cancel','Start broadcast'],defaultId:0,cancelId:0});return answer.response===1;},
-    onState:value=>{if(value.phase!==lastPhase){lastPhase=value.phase;try{fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify({at:new Date().toISOString(),action:'broadcast.'+value.phase,actor:'Desktop operator',identityVerified:false,destinationId:value.destinationId||null,reason:value.reason||null})+'\n');}catch(_){}}}
+    confirm:async (selection,output)=>{
+      const chosen=Array.isArray(selection)?selection:[selection];
+      const upload=chosen.length*(output.videoBitrateKbps+output.audioBitrateKbps)/1000;
+      const detail='Your current Program picture and Live audio will be sent to:\n'+chosen.map(p=>'• '+p.name).join('\n')+'\n\n'+output.name+': '+output.fps+' fps, '+output.videoBitrateKbps+' kbps video, '+output.audioBitrateKbps+' kbps AAC. Approximate combined upload: '+upload.toFixed(1)+' Mbps before overhead.'+(output.twitchVod?'\nA separate VOD mix is sent to Twitch destinations; Twitch archive receipt is not yet verified.':'')+'\nCheck each platform dashboard to confirm receipt.';
+      const answer=await dialog.showMessageBox(settings&&!settings.isDestroyed()?settings:studio,{type:'warning',message:'Start a live broadcast?',detail,buttons:['Cancel','Start broadcast'],defaultId:0,cancelId:0});return answer.response===1;
+    },
+    onState:value=>{
+      const state=JSON.stringify({phase:value.phase,targets:value.targets.map(t=>({destinationId:t.destinationId,phase:t.phase,reason:t.reason}))});
+      if(state!==lastPhase){lastPhase=state;try{fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify({at:new Date().toISOString(),action:'broadcast.'+value.phase,actor:'Desktop operator',identityVerified:false,profileId:value.profileId,destinationIds:value.destinationIds,targets:value.targets.map(t=>({destinationId:t.destinationId,phase:t.phase,reason:t.reason})),reason:value.reason||null})+'\n');}catch(_){}}
+    }
   });
   polling=setInterval(()=>broadcast.check().catch(()=>{}),1000);polling.unref();
   const publicBroadcast=()=>({...broadcast.status(),available:Boolean(runtime.encoderWorker&&fs.existsSync(runtime.encoderWorker)&&backend?.started?.identity)});
@@ -88,9 +97,14 @@ app.whenReady().then(async()=>{
   ipcMain.handle('producer:settings',event=>{if(!policy.trustedMain(event,studio.webContents,origin))throw Error('Untrusted request');return openSettings();});
   ipcMain.handle('producer:sources:open',openSources);
   ipcMain.handle('producer:output:view',viewOutput);
-  ipcMain.handle('producer:destinations:status',event=>{if(!settingsEvent(event))throw Error('Untrusted request');return destinations.public().then(value=>({...value,broadcast:publicBroadcast()}));});
+  ipcMain.handle('producer:destinations:status',event=>{if(!settingsEvent(event))throw Error('Untrusted request');return Promise.all([destinations.public(),outputProfiles.public()]).then(([value,profiles])=>({...value,outputProfiles:profiles,broadcast:publicBroadcast()}));});
   ipcMain.handle('producer:destinations:save',(event,value)=>changeDestination(event,()=>destinations.save(value)));
   ipcMain.handle('producer:destinations:remove',(event,id)=>changeDestination(event,()=>destinations.remove(id)));
+  ipcMain.handle('producer:profiles:list',event=>{if(!settingsEvent(event))throw Error('Untrusted request');return outputProfiles.public();});
+  ipcMain.handle('producer:profiles:save',(event,value)=>changeDestination(event,()=>outputProfiles.save(value)));
+  ipcMain.handle('producer:profiles:remove',(event,id)=>changeDestination(event,()=>outputProfiles.remove(id)));
+  ipcMain.handle('producer:profiles:select',(event,id)=>changeDestination(event,()=>outputProfiles.select(id)));
+  ipcMain.handle('producer:broadcast:stop-target',async(event,id)=>{if(!settingsEvent(event))throw Error('Untrusted request');await broadcast.stopTarget(id);return publicBroadcast();});
   ipcMain.handle('producer:broadcast:prepare',async(event,value)=>{if(!settingsEvent(event))throw Error('Untrusted request');await broadcast.prepare(value);return publicBroadcast();});
   ipcMain.handle('producer:broadcast:start',async(event,value)=>{if(!settingsEvent(event))throw Error('Untrusted request');if(destinationMutation)throw Error('destination_change_pending');await broadcast.start(value);return publicBroadcast();});
   ipcMain.handle('producer:broadcast:stop',async event=>{if(!settingsEvent(event))throw Error('Untrusted request');await broadcast.stop();return publicBroadcast();});

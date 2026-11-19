@@ -232,7 +232,8 @@
       const plan=this.muted?new Map():audioPlan(sources,this.room,id=>this._tracks(id));
       for(const [key,entry] of this.audio)if(plan.get(key)!==entry.track){this._disposeAudio(entry);this.audio.delete(key);}
       for(const [key,track] of plan)if(!this.audio.has(key)){
-        const node=this.document.createElement('audio');node.autoplay=true;node.muted=false;node.srcObject=this.makeStream([track]);this.audioHost.append(node);
+        const node=this.document.createElement('audio');node.autoplay=true;node.muted=false;node.srcObject=this.makeStream([track]);
+        node.dataset.audioSource='guest:'+key;node.dataset.audioCategory=key.endsWith(':microphone')?'voice':'screen';this.audioHost.append(node);
         const entry={node,track,playing:false,blocked:false,disposed:false};this.audio.set(key,entry);this._playAudio(key,entry);
       }
     }

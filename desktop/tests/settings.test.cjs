@@ -14,8 +14,8 @@ class Element{
   focus(){this.focused=true;}
   scrollIntoView(){this.scrolled=true;}
 }
-async function fixture(){
-  const nodes=new Map(),timers=[],calls={start:0,stop:0,poll:0,save:0,remove:0,sources:0,view:0};let state={...prepared};
+async function fixture(options={}){
+  const nodes=new Map(),timers=[],calls={start:0,stop:0,poll:0,save:0,remove:0,sources:0,view:0,profileSave:0,profileSelect:0,profileRemove:0,prepare:0,targetStop:0};let profileState=options.profiles?{profiles:require('../output-profiles.cjs').defaultProfiles(),selectedProfileId:'hd-balanced'}:null,state={...prepared,...(profileState?{profileId:'hd-balanced',outputProfile:JSON.parse(JSON.stringify(profileState.profiles[0]))}:{})},destinations=options.destinations||[{id:'one',name:'Synthetic',platform:'twitch',configured:true,keyConfigured:true}];
   const node=id=>{if(!nodes.has(id))nodes.set(id,new Element());return nodes.get(id);};
   const form=node('#destinationForm');form.elements=[];
   for(const name of ['name','platform','serverUrl','streamKey']){const element=new Element();form.elements.push(element);form.elements[name]=element;}
@@ -24,15 +24,16 @@ async function fixture(){
   node('#destinationFormTitle').textContent='Add a destination';
   const descendants=element=>element.children.flatMap(child=>[child,...descendants(child)]);
   const document={querySelector:node,createElement:()=>new Element(),documentElement:{dataset:{}},querySelectorAll:selector=>{
-    const key={'[data-destination-id]':'destinationId','[data-remove-destination-id]':'removeDestinationId','[data-edit-destination-id]':'editDestinationId'}[selector];return descendants(node('#destinations')).filter(element=>key in element.dataset);
+    const key={'[data-destination-id]':'destinationId','[data-remove-destination-id]':'removeDestinationId','[data-edit-destination-id]':'editDestinationId','[data-select-destination-id]':'selectDestinationId','[data-stop-destination-id]':'stopDestinationId'}[selector];return descendants(node('#destinations')).filter(element=>key in element.dataset);
   }};
-  const api={status:async()=>({secureStorageAvailable:true,broadcast:state,destinations:[{id:'one',name:'Synthetic',platform:'twitch',configured:true,keyConfigured:true}]}),
+  const api={status:async()=>({secureStorageAvailable:true,broadcast:state,destinations,...(profileState?{outputProfiles:profileState}:{})}),
     startBroadcast:async()=>{calls.start++;return state;},stopBroadcast:async()=>{calls.stop++;return state={...prepared};},
-    broadcastStatus:async()=>{calls.poll++;return state;},prepareOutput:async()=>state,
-    save:async()=>{calls.save++;},remove:async()=>{calls.remove++;},openPlatform:()=>{},openSources:async()=>{calls.sources++;return {ok:true};},viewOutput:async()=>{calls.view++;return {ok:true};}};
+    broadcastStatus:async()=>{calls.poll++;return state;},prepareOutput:async value=>{calls.prepare++;if(value.profileId){const profile=profileState.profiles.find(item=>item.id===value.profileId);state={...prepared,profileId:profile.id,format:profile.format,outputProfile:JSON.parse(JSON.stringify(profile))};}return state;},
+    save:async()=>{calls.save++;},remove:async()=>{calls.remove++;},openPlatform:()=>{},openSources:async()=>{calls.sources++;return {ok:true};},viewOutput:async()=>{calls.view++;return {ok:true};},
+    listOutputProfiles:async()=>profileState,saveOutputProfile:async value=>{calls.profileSave++;const {requestId,id,...settings}=value,profile={id:id||'new-profile',...settings,updatedAt:calls.profileSave};profileState={profiles:id?profileState.profiles.map(item=>item.id===id?profile:item):[...profileState.profiles,profile],selectedProfileId:profile.id};return profileState;},selectOutputProfile:async id=>{calls.profileSelect++;profileState={...profileState,selectedProfileId:id};return profileState;},removeOutputProfile:async id=>{calls.profileRemove++;profileState={profiles:profileState.profiles.filter(item=>item.id!==id),selectedProfileId:profileState.profiles.find(item=>item.id!==id).id};return profileState;},stopBroadcastTarget:async id=>{calls.targetStop++;state={...state,targets:state.targets.map(item=>item.destinationId===id?{...item,phase:'stopped'}:item)};return state;}};
   vm.runInNewContext(source,{document,producerSettings:api,window:{close(){}},localStorage:{getItem(){},setItem(){}},crypto:{randomUUID:()=> 'synthetic-request'},
     setInterval:fn=>{timers.push(fn);return timers.length;},clearInterval(){},addEventListener(){}},{filename:'settings.js'});
-  await settle();return {node,form,api,calls,poll:()=>timers[0](),set state(value){state=value;},get start(){return document.querySelectorAll('[data-destination-id]')[0];},get remove(){return document.querySelectorAll('[data-remove-destination-id]')[0];},get edit(){return document.querySelectorAll('[data-edit-destination-id]')[0];}};
+  await settle();return {node,form,api,calls,descendants,poll:()=>timers[0](),set state(value){state=value;},get state(){return state;},get profiles(){return profileState;},get checks(){return document.querySelectorAll('[data-select-destination-id]');},get targetButtons(){return document.querySelectorAll('[data-stop-destination-id]');},get start(){return document.querySelectorAll('[data-destination-id]')[0];},get remove(){return document.querySelectorAll('[data-remove-destination-id]')[0];},get edit(){return document.querySelectorAll('[data-edit-destination-id]')[0];}};
 }
 test('stopped encoder failures override readiness and format hints without exposing unknown errors',async()=>{
   const f=await fixture();f.node('#outputFormat').value='portrait';
@@ -137,4 +138,43 @@ test('all destination edits and mutations stop during sending or unconfirmed own
 
 test('ambiguous Add retry retains its receipt after an intervening edit and cancel',async()=>{
   const f=await fixture(),attempts=[];f.api.save=async value=>{attempts.push(value);if(attempts.length===1)throw Error('acknowledgment lost');};await f.form.fire('submit');await f.edit.fire();await f.node('#cancelEdit').fire();await f.form.fire('submit');assert.deepEqual(attempts[0],attempts[1]);
+});
+
+test('saved output profiles populate explicit encoding and routing defaults without preparing or starting',async()=>{
+  const f=await fixture({profiles:true});assert.equal(f.node('#outputProfileSection').hidden,false);assert.equal(f.node('#legacyOutputFormat').hidden,true);assert.equal(f.node('#profileFps').value,'30');assert.equal(f.node('#profileVideoBitrate').value,'4000');assert.equal(f.node('#profileCodec').value,'auto');assert.equal(f.node('#profileTwitchVod').checked,false);const routes=f.descendants(f.node('#profileAudioRouting')).filter(element=>element.dataset.audioRouteBus==='vod');assert.equal(routes.find(element=>element.dataset.audioRouteSource==='voice:default').checked,true);assert.equal(routes.find(element=>element.dataset.audioRouteSource==='video:default').checked,false);assert.equal(f.calls.start,0);assert.equal(f.calls.prepare,0);
+});
+
+test('profile drafts survive polling, require Save, and changed settings under the same id require Prepare again',async()=>{
+  const f=await fixture({profiles:true});f.node('#profileVideoBitrate').value='8000';f.node('#profileVideoBitrate').fire('input');await f.poll();assert.equal(f.node('#profileVideoBitrate').value,'8000');assert.equal(f.start.disabled,true);assert.equal(f.node('#prepareOutput').disabled,true);await f.start.fire();assert.equal(f.calls.start,0);
+  await f.node('#outputProfileForm').fire('submit');assert.equal(f.calls.profileSave,1);assert.equal(f.node('#prepareOutput').disabled,false);assert.equal(f.start.disabled,true);assert.match(f.node('#broadcastSummary').textContent,/Output profile changed/);await f.start.fire();assert.equal(f.calls.start,0);await f.node('#prepareOutput').fire();assert.equal(f.calls.prepare,1);assert.equal(f.start.disabled,false);assert.equal(f.state.outputProfile.videoBitrateKbps,8000);
+});
+
+test('profile save retry preserves the exact receipt and draft after an uncertain result',async()=>{
+  const f=await fixture({profiles:true}),attempts=[],save=f.api.saveOutputProfile;f.api.saveOutputProfile=async value=>{attempts.push(value);if(attempts.length===1)throw Error('private filesystem detail');return save(value);};f.node('#outputProfileName').value='My saved show';f.node('#profileFps').value='60';f.node('#profileTwitchVod').checked=true;f.node('#outputProfileName').fire('input');await f.node('#outputProfileForm').fire('submit');assert.equal(f.node('#outputProfileName').value,'My saved show');assert.match(f.node('#outputProfileStatus').textContent,/draft is kept/);assert.doesNotMatch(f.node('#outputProfileStatus').textContent,/private/);await f.node('#outputProfileForm').fire('submit');assert.deepEqual(attempts[0],attempts[1]);assert.equal(attempts[0].fps,60);assert.equal(attempts[0].twitchVod,true);assert.equal('streamKey' in attempts[0],false);
+});
+
+test('profile selection and save-as-new preserve existing profile identity and prevent accidental transmission',async()=>{
+  const f=await fixture({profiles:true});f.node('#outputProfileSelect').value='portrait-hd';await f.node('#outputProfileSelect').fire('change');assert.equal(f.node('#profileFormat').value,'portrait');assert.equal(f.node('#outputFormat').value,'portrait');assert.equal(f.start.disabled,true);f.node('#outputProfileName').value='Portrait show';await f.node('#saveOutputProfileAsNew').fire();assert.equal(f.profiles.profiles.length,4);assert.equal(f.profiles.profiles.find(item=>item.id==='portrait-hd').name,'Portrait HD');assert.equal(f.profiles.selectedProfileId,'new-profile');assert.equal(f.calls.start,0);
+});
+
+test('audio routing exposes fixed source labels, keeps exact overrides and protects live-session editing',async()=>{
+  const f=await fixture({profiles:true}),source='video:12345678-1234-1234-1234-123456789abc';f.state={...f.state,audioSourcesAvailable:[{id:source,category:'video',label:'private-file-name'}]};await f.poll();let inputs=f.descendants(f.node('#profileAudioRouting')).filter(element=>element.dataset.audioRouteSource===source);const vod=inputs.find(element=>element.dataset.audioRouteBus==='vod');assert.equal(vod.checked,false);vod.checked=true;vod.fire('change');await f.node('#outputProfileForm').fire('submit');assert.deepEqual({...f.profiles.profiles.find(item=>item.id==='hd-balanced').audioRouting[source]},{live:true,vod:true});assert.equal(f.descendants(f.node('#profileAudioRouting')).some(element=>element.textContent.includes('private-file-name')),false);
+  f.state={...f.state,phase:'sending',active:true,ready:false};await f.poll();inputs=f.descendants(f.node('#profileAudioRouting')).filter(element=>element.dataset.audioRouteSource);assert.ok(inputs.every(element=>element.disabled));assert.equal(f.node('#profileCodec').disabled,true);assert.equal(f.node('#saveOutputProfileAsNew').disabled,true);
+});
+
+test('multi-destination selection is capped at eight and Start selected sends only selected ids plus saved profile',async()=>{
+  const destinations=Array.from({length:10},(_,index)=>({id:'target-'+index,name:'Target '+index,platform:'custom',configured:true,keyConfigured:true})),f=await fixture({profiles:true,destinations});let started;f.api.startBroadcast=async value=>{started=value;f.calls.start++;return f.state;};f.node('#selectAllDestinations').fire();assert.equal(f.checks.filter(item=>item.checked).length,8);f.checks[8].checked=true;f.checks[8].fire('change');assert.equal(f.checks[8].checked,false);await f.node('#startSelectedDestinations').fire();assert.equal(started.destinationIds.length,8);assert.equal(started.profileId,'hd-balanced');assert.equal('format' in started,false);assert.equal(f.calls.start,1);assert.equal(f.calls.save,0);
+});
+
+test('single-target Stop preserves other sending destinations and hides raw failure reasons',async()=>{
+  const f=await fixture({destinations:[{id:'one',name:'First',platform:'twitch',configured:true},{id:'two',name:'Second',platform:'youtube',configured:true}]});f.state={...prepared,phase:'sending',active:true,ready:false,targets:[{destinationId:'one',phase:'sending'},{destinationId:'two',phase:'sending'}]};await f.poll();assert.equal(f.targetButtons[0].hidden,false);await f.targetButtons[0].fire();assert.equal(f.calls.targetStop,1);assert.equal(f.state.targets[0].phase,'stopped');assert.equal(f.state.targets[1].phase,'sending');assert.equal(f.calls.stop,0);assert.match(f.node('#status').textContent,/Destination stopped/);
+  f.state={...f.state,targets:[f.state.targets[0],{destinationId:'two',phase:'failed',reason:'private-key-in-error'}]};await f.poll();assert.equal(f.descendants(f.node('#destinations')).some(element=>element.textContent.includes('private-key-in-error')),false);
+});
+
+test('Settings exposes every platform class with manual secure ingest guidance and no extra dashboard shortcuts',()=>{
+  const html=fs.readFileSync(path.join(__dirname,'../settings.html'),'utf8');for(const platform of ['twitch','youtube','kick','rumble','facebook','tiktok','x','instagram','custom'])assert.ok(html.includes('value="'+platform+'"'));assert.match(html,/secure RTMPS server/);assert.match(html,/Guest soundboards and voice effects arrive mixed/);assert.match(html,/nested browser sources is currently excluded/);
+});
+
+test('saved-profile hints preserve a runtime-unavailable blocker and keep Prepare disabled',async()=>{
+  const f=await fixture({profiles:true});f.state={...prepared,phase:'idle',available:false,prepared:false,ready:false,profileId:null,outputProfile:null};await f.poll();assert.match(f.node('#broadcastSummary').textContent,/managed desktop runtime/);assert.doesNotMatch(f.node('#broadcastSummary').textContent,/Output profile changed/);assert.equal(f.node('#prepareOutput').disabled,true);
 });

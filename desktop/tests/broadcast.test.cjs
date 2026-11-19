@@ -121,3 +121,43 @@ test('cancelled destination lookup cannot open a later confirmation or create a 
   const starting=f.app.start({destinationId:'one'});await settle();await f.app.stop();lookup.resolve({serverUrl:'rtmps://example.net/app',streamKey:'synthetic'});
   await assert.rejects(starting,/broadcast_cancelled/);assert.equal(f.confirmations,0);assert.equal(f.runs.length,0);assert.equal(f.app.status().active,false);
 });
+
+test('selected destinations share one capture and keep transport failures isolated',async()=>{
+  const f=runningFixture();let confirmed;f.app.confirm=async value=>{confirmed=value;return true;};
+  await f.app.prepare();await f.app.start({destinationIds:['one','two','three']});
+  assert.equal(confirmed.length,3);assert.equal(f.taps.length,1);assert.equal(f.runs.length,3);
+  f.runs.forEach(run=>run.emit({state:'active',videoFrames:3}));
+  f.runs[1].emit({state:'failed',code:'tls_connection_failed'});await settle();
+  assert.equal(f.runs[1].stops,1);assert.equal(f.runs[0].stops,0);assert.equal(f.runs[2].stops,0);assert.equal(f.app.status().active,true);
+  f.taps[0].video(Buffer.alloc(1),0);assert.equal(f.runs[0].video,1);assert.equal(f.runs[1].video,0);assert.equal(f.runs[2].video,1);
+  const failed=f.app.status().targets[1];assert.equal(failed.phase,'failed');assert.equal(failed.reason,'tls_connection_failed');
+  await f.app.stopTarget('one');assert.equal(f.runs[2].stops,0);await f.app.stopTarget('three');assert.equal(f.app.status().active,false);assert.equal(f.app.ownsEncoding,false);
+});
+test('a failed destination during startup rolls back the entire unstarted selection',async()=>{
+  const f=runningFixture();f.setupWorker=run=>{if(f.runs.length===2)run.start=async()=>{run.state.running=true;throw Object.assign(Error('private'),{code:'destination_dns_failed'});};};
+  await f.app.prepare();await assert.rejects(f.app.start({destinationIds:['one','two','three']}),/destination_dns_failed/);
+  assert.equal(f.taps.length,0);assert.equal(f.runs.length,2);assert.equal(f.runs.every(r=>r.stops===1),true);assert.equal(f.app.ownsEncoding,false);
+});
+test('selection validation happens before destination access or confirmation',async()=>{
+  const f=runningFixture();await f.app.prepare();
+  for(const value of [{destinationIds:[]},{destinationIds:['one','one']},{destinationIds:Array.from({length:9},(_,i)=>String(i))},{destinationId:'one',destinationIds:['two']}])await assert.rejects(f.app.start(value),/invalid_broadcast_request/);
+  assert.equal(f.confirmations,0);assert.equal(f.runs.length,0);
+});
+test('saved profile settings are immutable during confirmation and edits require preparation',async()=>{
+  const f=runningFixture();const p={id:'hd-custom',name:'Custom',format:'hd',fps:60,videoBitrateKbps:8500,codec:'libx264',keyframeSeconds:3,audioBitrateKbps:256,twitchVod:true,audioRouting:{}};
+  f.app.outputProfiles={getProfile:async()=>structuredClone(p)};const configs=[];f.setupWorker=run=>{run.start=async value=>{configs.push(value);run.state.running=true;};run.sendVodAudio=()=>true;};
+  f.app.destinations.getPrivateDestination=async id=>({name:id,platform:id==='one'?'twitch':'youtube',serverUrl:'rtmps://example.net/app',streamKey:'synthetic'});
+  await f.app.prepare({profileId:p.id});await f.app.start({profileId:p.id,destinationIds:['one','two']});
+  assert.equal(configs[0].fps,60);assert.equal(configs[0].bitrate,8500000);assert.equal(configs[0].audioBitrateKbps,256);assert.equal(configs[0].keyframeSeconds,3);assert.equal(configs[0].twitchVod,true);assert.equal(configs[1].twitchVod,false);
+  await f.app.stop();p.videoBitrateKbps=9000;await assert.rejects(f.app.start({profileId:p.id,destinationId:'one'}),/prepare_output/);assert.equal(configs.length,2);
+});
+test('shared output failure stops every selected destination and holds uncertain ownership',async()=>{
+  const f=runningFixture();await f.app.prepare();await f.app.start({destinationIds:['one','two']});f.runs.forEach(r=>r.emit({state:'active',videoFrames:1}));
+  f.captureState={...healthy(),error:'output_audio_stalled'};await f.app.check();assert.equal(f.runs.every(r=>r.stops===1),true);assert.equal(f.app.status().reason,'output_audio_stalled');assert.equal(f.app.ownsEncoding,false);
+});
+
+test('Stop cancels a delayed profile read before it can create or review output',async()=>{
+  const f=runningFixture(),lookup=deferred();let created=0;f.app.outputProfiles={getProfile:()=>lookup.promise};f.app.createCapture=()=>{created++;return f.capture;};
+  const preparing=f.app.prepare({profileId:'saved'});await settle();await assert.rejects(f.app.prepare(),/broadcast_busy/);await f.app.stop();lookup.resolve({id:'saved',format:'hd',fps:30,audioRouting:{}});
+  await assert.rejects(preparing,/broadcast_cancelled/);assert.equal(created,0);assert.equal(f.app.status().phase,'idle');
+});

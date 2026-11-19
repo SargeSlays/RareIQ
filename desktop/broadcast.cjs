@@ -1,7 +1,8 @@
 'use strict';
 const FORMATS=Object.freeze({hd:{width:1280,height:720},fullhd:{width:1920,height:1080},portrait:{width:720,height:1280}});
-const START_FIELDS=new Set(['destinationId','format']);
+const START_FIELDS=new Set(['destinationId','destinationIds','format','profileId']);
 const PUBLIC_ENCODER_FAILURE_CODES=Object.freeze([
+  'twitch_vod_unavailable','twitch_vod_audio_missing','twitch_vod_audio_late','vod_audio_timeline_discontinuity',
   'invalid_encoder_config','destination_required','invalid_destination','secure_destination_required','nonpublic_destination','destination_dns_failed',
   'tls_trust_unavailable','tls_verification_failed','tls_connection_failed','encoder_transport_ownership_unavailable','encoder_transport_interrupted',
   'video_encoder_unavailable','encoder_input_ended','invalid_encoder_packet','invalid_audio_samples','audio_timeline_discontinuity','encoder_dependency_missing',
@@ -23,28 +24,41 @@ const safeStats=value=>({codec:['h264_nvenc','libx264'].includes(value?.codec)?v
   frames:Number.isSafeInteger(value?.frames??value?.videoFrames)&&(value.frames??value.videoFrames)>=0?(value.frames??value.videoFrames):0,
   audioSamples:Number.isSafeInteger(value?.audioSamples)&&value.audioSamples>=0?value.audioSamples:0});
 class NativeBroadcast{
-  constructor({destinations,createCapture,createEncoder,request,identity,ownerPid,confirm=async()=>false,onState=()=>{},clock=()=>Date.now()}={}){
-    Object.assign(this,{destinations,createCapture,createEncoder,request,identity,ownerPid,confirm,onState,clock});
-    this.capture=null;this.encoder=null;this.format='hd';this.phase='idle';this.failure=null;this.selected=null;this.preflight=null;this.operation=0;this.starting=false;this.preparing=false;this.stopping=null;this.reserving=null;this.ownsEncoding=false;this.unreadySince=null;this.lastStats=safeStats();
+  constructor({destinations,outputProfiles,createCapture,createEncoder,request,identity,ownerPid,confirm=async()=>false,onState=()=>{},clock=()=>Date.now()}={}){
+    Object.assign(this,{destinations,outputProfiles,createCapture,createEncoder,request,identity,ownerPid,confirm,onState,clock});
+    this.targets=[];this.outputProfile=null;this.profileSignature=null;this.capture=null;this.encoder=null;this.format='hd';this.phase='idle';this.failure=null;this.selected=null;this.preflight=null;this.operation=0;this.starting=false;this.preparing=false;this.stopping=null;this.reserving=null;this.ownsEncoding=false;this.unreadySince=null;this.lastStats=safeStats();
   }
-  active(){return this.starting||['starting','sending','stopping'].includes(this.phase)||this.encoder?.status?.().running===true;}
+  active(){return this.starting||['starting','sending','stopping'].includes(this.phase)||this.targets.some(t=>t.encoder?.status?.().running===true);}
   status(){
     const encoder=this.encoder?.status?.(),own=this.capture?.status?.(),blocker=this.preflight?.blockers?.[0];
     const prepared=Boolean(this.capture)&&own?.prepared!==false;
     return {phase:this.phase,active:this.active(),format:this.format,prepared,ownershipPending:this.ownsEncoding&&!encoder?.running,
       ready:prepared&&this.preflight?.ready===true&&!this.active()&&!this.preparing&&!this.ownsEncoding,
-      reason:this.failure||(blocker?safeReason(blocker?.reason||blocker,'output_not_ready'):null),destinationId:this.selected,
-      ...(encoder?safeStats(encoder):this.lastStats),platformLiveVerified:false};
+      reason:this.failure||(blocker?safeReason(blocker?.reason||blocker,'output_not_ready'):null),destinationId:this.selected,destinationIds:this.targets.map(t=>t.destinationId),profileId:this.outputProfile?.id||null,outputProfile:this.outputProfile,
+      audioSourcesAvailable:own?.audioSourcesAvailable||[],targets:this.targets.map(t=>({destinationId:t.destinationId,phase:t.phase,reason:t.reason,...safeStats(t.encoder?.status?.()||t.lastStats)})),
+      ...(encoder?safeStats(encoder):this.lastStats),platformLiveVerified:false,vodPlatformVerified:false};
   }
   notify(){try{this.onState(this.status());}catch(_){} }
-  async prepare({format='hd'}={}){
-    if(this.active()||this.preparing||this.ownsEncoding)throw Error('broadcast_busy');if(!Object.hasOwn(FORMATS,format))throw Error('invalid_output_format');
+  async resolveProfile(value={}){
+    if(value.profileId!==undefined){
+      if(typeof value.profileId!=='string'||!this.outputProfiles)throw Error('invalid_output_profile');
+      return this.outputProfiles.getProfile(value.profileId);
+    }
+    const format=value.format||'hd';if(!Object.hasOwn(FORMATS,format))throw Error('invalid_output_format');
+    return {id:null,name:'Current format',format,fps:30,videoBitrateKbps:format==='fullhd'?6000:4000,codec:'auto',keyframeSeconds:2,audioBitrateKbps:192,twitchVod:false,audioRouting:{}};
+  }
+  async prepare(value={}){
+    if(!value||Object.keys(value).some(k=>!['format','profileId'].includes(k)))throw Error('invalid_output_profile');
+    if(this.active()||this.preparing||this.ownsEncoding)throw Error('broadcast_busy');
     const operation=++this.operation;this.preparing=true;
     try{
-      if(this.capture&&(this.format!==format||this.capture.status().error||this.capture.status().prepared===false)){await this.capture.close();this.capture=null;}
+      const profile=await this.resolveProfile(value),format=profile.format;
       if(operation!==this.operation)throw Error('broadcast_cancelled');
-      this.format=format;this.failure=null;
-      if(!this.capture)this.capture=this.createCapture(FORMATS[format]);
+      if(!Object.hasOwn(FORMATS,format))throw Error('invalid_output_format');
+      if(this.capture&&(this.profileSignature!==JSON.stringify(profile)||this.capture.status().error||this.capture.status().prepared===false)){await this.capture.close();this.capture=null;}
+      if(operation!==this.operation)throw Error('broadcast_cancelled');
+      this.format=format;this.outputProfile=structuredClone(profile);this.profileSignature=JSON.stringify(profile);this.failure=null;
+      if(!this.capture)this.capture=this.createCapture({...FORMATS[format],fps:profile.fps,audioRouting:profile.audioRouting,requireVod:profile.twitchVod===true});
       await this.capture.prepare();if(operation!==this.operation)throw Error('broadcast_cancelled');
       await this.capture.review();if(operation!==this.operation)throw Error('broadcast_cancelled');
       this.phase='prepared';await this.check();this.preparing=false;return this.status();
@@ -84,33 +98,48 @@ class NativeBroadcast{
     }
   }
   async start(value){
-    if(!value||Object.keys(value).some(key=>!START_FIELDS.has(key))||typeof value.destinationId!=='string'||!Object.hasOwn(FORMATS,value.format||'hd'))throw Error('invalid_broadcast_request');
+    if(!value||Object.keys(value).some(key=>!START_FIELDS.has(key))||(value.destinationId!==undefined&&value.destinationIds!==undefined))throw Error('invalid_broadcast_request');
+    const ids=value.destinationIds??[value.destinationId];
+    if(!Array.isArray(ids)||ids.length<1||ids.length>8||ids.some(id=>typeof id!=='string'||!id||id.length>128)||new Set(ids).size!==ids.length)throw Error('invalid_broadcast_request');
     if(this.active()||this.preparing)throw Error('broadcast_busy');if(this.ownsEncoding)throw Error('studio_status_unconfirmed');
-    this.starting=true;const operation=++this.operation;let runFailure=null,encoder;
+    this.starting=true;const operation=++this.operation;let runFailure=null;
     const current=()=>operation===this.operation;
     const assertCurrent=()=>{if(!current())throw Error('broadcast_cancelled');};
     try{
-      if(!this.capture||this.format!==(value.format||'hd'))throw Error('prepare_output');
+      const settings=await this.resolveProfile(value);assertCurrent();
+      if(!this.capture||this.profileSignature!==JSON.stringify(settings))throw Error('prepare_output');
       await this.check();assertCurrent();if(!this.preflight?.ready)throw Error('output_not_ready');
-      const generation=this.preflight.generation,profile=await this.destinations.getPrivateDestination(value.destinationId);assertCurrent();
-      const approved=await this.confirm(profile);assertCurrent();if(!approved){this.starting=false;return this.status();}
+      const generation=this.preflight.generation,profiles=[];
+      for(const id of ids){profiles.push(await this.destinations.getPrivateDestination(id));assertCurrent();}
+      const approved=await this.confirm(profiles.length===1?profiles[0]:profiles,structuredClone(settings));assertCurrent();if(!approved){this.starting=false;return this.status();}
       await this.check();assertCurrent();if(!this.preflight?.ready||this.preflight.generation!==generation)throw Error('output_generation_changed');
-      this.selected=value.destinationId;this.phase='starting';this.failure=null;this.lastStats=safeStats();this.unreadySince=null;this.notify();await this.reserve(true);assertCurrent();
-      encoder=this.createEncoder(snapshot=>{
-        if(!current()||this.encoder!==encoder)return;
-        if(this.phase==='starting'||this.phase==='sending'){
-          if(snapshot.state==='failed'||snapshot.phase==='failed'||snapshot.error||snapshot.state==='stopped'||snapshot.running===false){runFailure=ENCODER_FAILURES.has(snapshot.code)?snapshot.code:'encoder_failed';this.stop(runFailure).catch(()=>{});}
-          else if(safeStats(snapshot).frames>0){this.phase='sending';this.notify();}
+      this.targets=[];this.encoder=null;this.selected=ids[0];this.phase='starting';this.failure=null;this.lastStats=safeStats();this.unreadySince=null;this.notify();await this.reserve(true);assertCurrent();
+      for(let index=0;index<ids.length;index++){
+        const target={destinationId:ids[index],encoder:null,phase:'starting',reason:null,lastStats:safeStats(),vod:settings.twitchVod===true&&profiles[index].platform==='twitch'};
+        this.targets.push(target);
+        const encoder=this.createEncoder(snapshot=>{
+          if(!current()||!this.targets.includes(target)||target.encoder!==encoder||!['starting','sending'].includes(target.phase))return;
+          if(snapshot.state==='failed'||snapshot.phase==='failed'||snapshot.error||snapshot.state==='stopped'||snapshot.running===false){
+            const reason=ENCODER_FAILURES.has(snapshot.code)?snapshot.code:'encoder_failed';
+            if(this.starting){runFailure=reason;this.stop(reason).catch(()=>{});}
+            else this.stopTarget(target.destinationId,reason).catch(()=>{});
+          }else if(safeStats(snapshot).frames>0){target.phase='sending';this.phase='sending';this.notify();}
+        });
+        target.encoder=encoder;if(!this.encoder)this.encoder=encoder;
+        await encoder.start({destination:profiles[index],...FORMATS[settings.format],fps:settings.fps,bitrate:settings.videoBitrateKbps*1000,codec:settings.codec,keyframeSeconds:settings.keyframeSeconds,audioBitrateKbps:settings.audioBitrateKbps,twitchVod:target.vod});assertCurrent();
+      }
+      await this.check();assertCurrent();if(!this.preflight?.ready||this.preflight.generation!==generation)throw Error('output_generation_changed');
+      const send=(method,buffer,pts,vod)=>{
+        if(!current())return false;
+        for(const target of this.targets){
+          if(!['starting','sending'].includes(target.phase))continue;
+          let accepted=false;
+          try{accepted=target.encoder[method](buffer,pts)!==false;if(method==='sendAudio'&&target.vod)accepted=target.encoder.sendVodAudio(vod,pts)!==false&&accepted;}catch(_){}
+          if(!accepted){if(this.starting){runFailure='encoder_backpressure';this.stop(runFailure).catch(()=>{});}else this.stopTarget(target.destinationId,'encoder_backpressure').catch(()=>{});}
         }
-      });
-      this.encoder=encoder;
-      await encoder.start({destination:profile,...FORMATS[this.format],fps:30,bitrate:this.format==='fullhd'?6000000:4000000,codec:'auto'});assertCurrent();
-      await this.check();assertCurrent();if(!this.preflight?.ready||this.preflight.generation!==generation)throw Error('output_generation_changed');
-      const send=(method,buffer,pts)=>{
-        if(!current()||this.encoder!==encoder)return false;
-        const accepted=encoder[method](buffer,pts);if(accepted===false)this.stop('encoder_backpressure').catch(()=>{});return accepted;
+        return true; // A destination fault is isolated; shared output faults stop all.
       };
-      await this.capture.startCapture((buffer,pts)=>send('sendVideo',buffer,pts),(buffer,pts)=>send('sendAudio',buffer,pts));assertCurrent();
+      await this.capture.startCapture((buffer,pts)=>send('sendVideo',buffer,pts),(buffer,pts,vod)=>send('sendAudio',buffer,pts,vod));assertCurrent();
       return this.status();
     }catch(error){
       const cancelled=!current();
@@ -119,15 +148,37 @@ class NativeBroadcast{
       throw Error(reason);
     }finally{this.starting=false;this.notify();}
   }
+  async stopTarget(destinationId,reason=null){
+    if(typeof destinationId!=='string')throw Error('invalid_broadcast_request');
+    if(this.starting)throw Error('broadcast_busy');
+    const target=this.targets.find(t=>t.destinationId===destinationId);if(!target)throw Error('invalid_broadcast_request');
+    if(target.stopping)return target.stopping;
+    target.phase='stopping';target.reason=reason===null?null:safeReason(reason);this.notify();
+    target.stopping=(async()=>{
+      try{await target.encoder?.stop();}catch(_){target.reason='encoder_stop_unconfirmed';}
+      target.lastStats=safeStats(target.encoder?.status?.());
+      if(target.encoder?.status?.().running===true){target.phase='failed';target.reason='encoder_stop_unconfirmed';this.failure='encoder_stop_unconfirmed';this.notify();return this.status();}
+      target.phase=target.reason?'failed':'stopped';target.encoder=null;
+      const live=this.targets.some(t=>['starting','sending','stopping'].includes(t.phase)||t.encoder?.status?.().running===true);
+      if(!live){this.lastStats=target.lastStats;await this.stop(target.reason);}
+      else{this.encoder=this.targets.find(t=>t.encoder)?.encoder||null;this.notify();}
+      return this.status();
+    })().finally(()=>{target.stopping=null;});return target.stopping;
+  }
   async stop(reason=null){
     if(this.stopping)return this.stopping;
     reason=reason===null?null:safeReason(reason);++this.operation;this.phase='stopping';this.notify();
     this.stopping=(async()=>{
       try{await this.capture?.stopCapture();}catch(_){reason=reason||'capture_stop_unconfirmed';}
-      try{await this.encoder?.stop();}catch(_){reason=reason||'encoder_stop_unconfirmed';}
+      await Promise.all(this.targets.map(async target=>{
+        target.phase='stopping';
+        try{await target.encoder?.stop();}catch(_){reason=reason||'encoder_stop_unconfirmed';}
+        if(target.encoder)target.lastStats=safeStats(target.encoder.status?.());
+        target.reason=target.reason||reason;target.phase=target.reason?'failed':'stopped';
+      }));
       const encoder=this.encoder?.status?.();if(encoder)this.lastStats=safeStats(encoder);
-      if(encoder?.running===true){this.phase='failed';this.failure='encoder_stop_unconfirmed';this.notify();return this.status();}
-      this.encoder=null;
+      if(this.targets.some(t=>t.encoder?.status?.().running===true)){this.phase='failed';this.failure='encoder_stop_unconfirmed';this.notify();return this.status();}
+      this.encoder=null;for(const t of this.targets)t.encoder=null;
       // A cancellation must clear ownership after an in-flight reservation settles.
       if(this.reserving){try{await this.reserving;}catch(_){} }
       if(this.ownsEncoding){try{await this.reserve(false);}catch(_){reason='studio_status_unconfirmed';}}
@@ -135,6 +186,6 @@ class NativeBroadcast{
       return this.status();
     })().finally(()=>{this.stopping=null;});return this.stopping;
   }
-  async close(){await this.stop();if(this.encoder?.status?.().running===true||this.ownsEncoding)return false;await this.capture?.close();this.capture=null;this.preflight=null;this.phase='idle';return true;}
+  async close(){await this.stop();if(this.targets.some(t=>t.encoder?.status?.().running===true)||this.ownsEncoding)return false;await this.capture?.close();this.capture=null;this.preflight=null;this.phase='idle';return true;}
 }
 module.exports={NativeBroadcast,FORMATS,PUBLIC_ENCODER_FAILURE_CODES,PUBLIC_FAILURE_CODES};

@@ -8,7 +8,7 @@ function fixture() {
   vm.runInNewContext(code, context); const processor = new Processor();
   return { processor, packets,
     message(value) { processor.port.onmessage({ data: value }); },
-    tick(left = .5, right = -.25) { const output = [new Float32Array(128).fill(1), new Float32Array(128).fill(1)]; processor.process([[new Float32Array(128).fill(left), new Float32Array(128).fill(right)]], [output]); context.currentFrame += 128; return output; },
+    tick(left = .5, right = -.25,vodLeft=0,vodRight=0) { const output = [new Float32Array(128).fill(1), new Float32Array(128).fill(1)]; processor.process([[new Float32Array(128).fill(left), new Float32Array(128).fill(right)],[new Float32Array(128).fill(vodLeft),new Float32Array(128).fill(vodRight)]], [output]); context.currentFrame += 128; return output; },
   };
 }
 test('worklet produces interleaved stereo samples, sample timestamps and a silent local sink', () => {
@@ -17,6 +17,16 @@ test('worklet produces interleaved stereo samples, sample timestamps and a silen
   assert.equal(f.packets.length, 1); const p = f.packets[0], samples = new Float32Array(p.pcm);
   assert.equal(p.captureId, 'first'); assert.equal(p.frame, 0); assert.equal(samples.length, 960);
   assert.ok(samples.every((sample, i) => sample === (i % 2 ? -.25 : .5)));
+  assert.equal(new Float32Array(p.vodPcm).every(sample=>sample===0),true);
+});
+
+test('paired live and VOD chunks share timestamps, credits and dropped-chunk boundaries',()=>{
+  const f=fixture();f.message({type:'start',captureId:'paired'});
+  for(let i=0;i<20;i++)f.tick(.5,-.25,.125,-.5);
+  assert.equal(f.packets.length,1);const first=f.packets[0];assert.equal(first.pcm.byteLength,3840);assert.equal(first.vodPcm.byteLength,3840);
+  assert.ok(new Float32Array(first.vodPcm).every((value,i)=>value===(i%2?-.5:.125)));
+  for(let i=0;i<60;i++)f.tick(.5,-.25,.125,-.5);f.message({type:'credit',captureId:'paired'});
+  const next=f.packets.at(-1);assert.ok(next.dropped>0);assert.equal(next.frame%480,0);assert.ok(new Float32Array(next.pcm).every((value,i)=>value===(i%2?-.25:.5)));assert.ok(new Float32Array(next.vodPcm).every((value,i)=>value===(i%2?-.5:.125)));
 });
 test('worklet has one transport credit and at most four queued chunks during backpressure', () => {
   const f = fixture(); f.message({ type: 'start', captureId: 'first' });

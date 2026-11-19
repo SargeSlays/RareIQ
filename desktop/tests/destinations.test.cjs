@@ -188,3 +188,11 @@ test('explicit options and ID validation cannot be bypassed through renderer pay
   await rejects(store.save(payload({ token: 'extra-secret' })), 'invalid_destination_fields');
   await rejects(store.save(payload({ streamKey: 'key\ncommand' })), 'invalid_destination_key');
 });
+
+test('additional platform labels require the operator supplied secure server and key',async t=>{
+  for(const platform of ['rumble','facebook','tiktok','x','instagram']){
+    assert.equal(PRESETS.find(p=>p.id===platform).serverUrl,'');
+    assert.equal(validateServerUrl('rtmps://ingest.provider.com/app',{platform}),'rtmps://ingest.provider.com/app');
+    assert.throws(()=>validateServerUrl('rtmp://ingest.provider.com/app',{platform}));
+  }
+});

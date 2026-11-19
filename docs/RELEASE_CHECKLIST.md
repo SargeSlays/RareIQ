@@ -1551,3 +1551,42 @@ Runtime evidence is primary-restart01 in the viewer-chat evidence folder. Numeri
 physical reception evidence is restart09 in the earlier room-test folder. Neither
 contains a raw physical video/audio recording. Private config, invitation and
 pending authorization material remain local and excluded from Git/backups.
+
+
+## November 19, 2026 — Saved output profiles and multistream audio
+
+- [x] Strict profile persistence, atomic replacement, replay/conflict guards and
+  corruption recovery; current Windows user data remains outside source.
+- [x] Settings source routing, dirty-state/prepared-snapshot guards, destination
+  selection and target Stop unit checks; real UI layouts at narrow/desktop sizes
+  in both themes; actual packaged save/select/reload/disk and trusted-IPC checks.
+- [x] Real Electron public output: synchronized Live/VOD PCM, default voice-only
+  archive routing, explicit overrides, Program mute, removal/restart and borrowed
+  track ownership. Private nested audio is excluded from both buses.
+- [x] Generated two-target H.264/AAC worker outputs decoded independently: one
+  shared capture, 72 video frames each; Live has 440/880Hz, Twitch VOD has 440Hz
+  with 880Hz amplitude below 0.000001. Other target has one AAC mix only.
+- [x] NVIDIA false-negative regression: 64x64 was rejected by NVENC while supported
+  production sizes encode. Probe now tests the actual output size; two local HD
+  encoders use h264_nvenc with zero reported video/audio drops.
+- [x] Modern OBS enhanced-FLV track 1 headers/configuration and independent missing/
+  late archive bus guards; no legacy PNAR metadata injected. Actual dependency
+  capability is probed before network output.
+- [x] Twitch keepalive jitter, healthy retry-reset and sanitized failure regressions;
+  45-second real authorized reader-only probe remained connected and cleaned up.
+- [ ] Real platform live receipt and Twitch archive listening/download acceptance.
+- [ ] Physical devices/echo in Program, eight-target endurance, reboot and all
+  platform account-side eligibility, settings and secure ingest acceptance.
+
+Evidence: F:/Temp/jonat/ProducerPlease-output-profiles-20261119 (multistream04-nvidia,
+native-regression01, final gate); F:/Temp/jonat/ProducerPlease-audio-routing-20261119/native01;
+F:/Temp/jonat/ProducerPlease-multistream-20261118 (settings-dom02/settings-native02).
+No real broadcast, production recording or additional platform post was made.
+
+Final canonical gate: 3,897 Python and 730 JavaScript tests passed. The final
+`0.1.0-20261119043607643` local-development app was opened on the production PC;
+broadcast setup is visible, and the Windows Start-menu shortcut targets that build.
+The existing backend was reused (not restarted), no show/record/OBS stream was
+active, and the private guest endpoint remained reachable. The Twitch reader fix
+was exercised separately; the still-running backend loads it on its next safe
+restart. No new real chat-message receipt was verified.

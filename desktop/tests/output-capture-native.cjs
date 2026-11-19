@@ -21,13 +21,22 @@ async function main() {
     let stats = await app.evaluate(() => outputFixture.stats);
     const rms = stats.audio.slice(-20).reduce((sum, p) => sum + p.rms, 0) / 20;
     assert.ok(rms > .10 && rms < .17, 'Only the public 0.4-volume 440Hz tone reaches the mix: RMS=' + rms);
-    assert.ok(stats.audio.every(p => p.bytes === 3840 && p.stereoError < .001));
+    assert.ok(stats.audio.every(p => p.bytes === 3840 && p.stereoError < .001&&p.vod.bytes===3840&&p.vod.stereoError<.001));
+    assert.ok(stats.audio.slice(-20).every(p=>Math.abs(p.rms-p.vod.rms)<.00001),'Identified microphone reaches both synchronous buses');
     assert.ok(stats.video.every(p => p.bytes === width * height * 4));
     assert.ok(new Set(stats.video.map(p => p.r + ':' + p.b)).size > 1, 'Animated compositor frames advance');
     for (const packets of [stats.audio, stats.video]) assert.ok(packets.every((p, i) => !i || p.ptsUs > packets[i - 1].ptsUs));
     const audioGaps = stats.audio.filter((p, i) => i && p.ptsUs - stats.audio[i - 1].ptsUs > 10001).length;
     assert.ok(audioGaps / stats.audio.length < .05, 'Normal scheduling must preserve continuous audio');
     const tone = page.frameLocator('iframe.program').locator('#tone');
+    const sound=page.frameLocator('iframe.audio').locator('#sound');
+    await sound.evaluate(el=>{el.volume=.2;el.muted=false;});await new Promise(resolve=>setTimeout(resolve,250));
+    const separated=(await app.evaluate(()=>outputFixture.stats.audio)).slice(-12);
+    const mean=(packets,select)=>packets.reduce((sum,p)=>sum+select(p),0)/packets.length;
+    assert.ok(mean(separated,p=>p.tones[440])>.15&&mean(separated,p=>p.tones[880])>.07,'Live contains microphone and soundboard tones');
+    assert.ok(mean(separated,p=>p.vod.tones[440])>.15&&mean(separated,p=>p.vod.tones[880])<.03,'VOD contains voice while excluding soundboard');
+    assert.ok(separated.every(p=>p.tones[1100]<.04&&p.vod.tones[1100]<.04),'Nested/backstage1100Hz stays outside both buses');
+    await sound.evaluate(el=>{el.muted=true;});await new Promise(resolve=>setTimeout(resolve,150));
     await tone.evaluate(el => { el.volume = .2; });
     await new Promise(resolve => setTimeout(resolve, 200));
     stats = await app.evaluate(() => outputFixture.stats);
@@ -37,6 +46,7 @@ async function main() {
     await new Promise(resolve => setTimeout(resolve, 150));
     stats = await app.evaluate(() => outputFixture.stats);
     assert.ok(stats.audio.slice(-8).every(p => p.rms < .00001), 'Muted public audio is silent despite nested/backstage tones');
+    assert.ok(stats.audio.slice(-8).every(p=>p.vod.rms<.00001),'Program mute also silences VOD');
     await tone.evaluate(el => { el.muted = false; el.pause(); });
     await new Promise(resolve => setTimeout(resolve, 150));
     assert.ok((await app.evaluate(() => outputFixture.stats.audio)).slice(-8).every(p => p.rms < .00001), 'Paused audio is silent');
@@ -46,14 +56,19 @@ async function main() {
     assert.ok(stats.audio.slice(-10).every(p => p.rms > .1), 'File tap survives pause/resume, seek and loop');
     assert.ok(await tone.evaluate(el => el.currentTime < 1), 'Fixture actually crossed the file loop');
     await tone.evaluate(el => { el.muted = true; });
-    const sound = page.frameLocator('iframe.audio').locator('#sound');
     await sound.evaluate(el => { el.volume = .2; el.muted = false; });
     await new Promise(resolve => setTimeout(resolve, 150));
     stats = await app.evaluate(() => outputFixture.stats);
     assert.ok(stats.audio.slice(-8).every(p => p.rms > .05 && p.rms < .085), 'Direct soundboard audio enters the public mix');
+    assert.ok(stats.audio.slice(-8).every(p=>p.vod.rms<.00001),'Default soundboard route stays out of VOD');
+    await app.evaluate(()=>outputFixture.route({'soundboard:default':{live:false,vod:true}}));
+    await new Promise(resolve=>setTimeout(resolve,200));stats=await app.evaluate(()=>outputFixture.stats);
+    assert.ok(stats.audio.slice(-8).every(p=>p.rms<.00001&&p.vod.rms>.05&&p.vod.rms<.085),'Explicit source route swaps soundboard into VOD only');
     await sound.evaluate(el => { el.remove(); });
     await new Promise(resolve => setTimeout(resolve, 150));
     assert.ok((await app.evaluate(() => outputFixture.stats.audio)).slice(-8).every(p => p.rms < .00001), 'Removed public element leaves the mix');
+    assert.ok((await app.evaluate(()=>outputFixture.stats.audio)).slice(-8).every(p=>p.vod.rms<.00001),'Removed source also leaves VOD');
+    await app.evaluate(()=>outputFixture.route({}));
     await tone.evaluate(async el => {
       const context = new AudioContext({ sampleRate: 48000, sinkId: { type: 'none' } }), oscillator = context.createOscillator(), gain = context.createGain(), destination = context.createMediaStreamDestination();
       oscillator.frequency.value = 440; gain.gain.value = .3; oscillator.connect(gain).connect(destination); oscillator.start(); await context.resume();
@@ -75,8 +90,8 @@ async function main() {
     await tone.evaluate(() => { window.reviewOpen = true; });
     await new Promise(resolve => setTimeout(resolve, 300));
     await assert.rejects(app.evaluate(() => outputFixture.start()), /output_not_ready/);
-    Object.assign(result, { complete: true, bgraCompositor: true, monotonicPtsUs: true, audioGaps, restartEpoch: true, mutedWindowRetainsTap: true, publicAudioRms: rms, volumeFollows: true, mutedAndPausedSilence: true, fileSeekAndLoop: true, publicSoundboardAndRemoval: true, privateFramesExcluded: true, borrowedTrackPreserved: true, reviewBlocksCapture: true, errors: await app.evaluate(() => outputFixture.stats.errors) });
-  } finally { await fs.writeFile(path.join(evidence, 'results.json'), JSON.stringify(result, null, 2)); await app.close().catch(() => {}); }
+    Object.assign(result, { complete: true, bgraCompositor: true, monotonicPtsUs: true, audioGaps, restartEpoch: true, mutedWindowRetainsTap: true, publicAudioRms: rms, volumeFollows: true, mutedAndPausedSilence: true, fileSeekAndLoop: true, publicSoundboardAndRemoval: true, privateFramesExcluded: true, borrowedTrackPreserved: true, reviewBlocksCapture: true,paired480FrameBuses:true,voiceInBothMixes:true,soundboardExcludedFromVodByDefault:true,explicitRoutingChangesMixes:true,sourceRemovalSilencesBoth:true,private1100HzExcludedFromBoth:true,twitchVodPlatformVerified:false,separation:{live440:mean(separated,p=>p.tones[440]),live880:mean(separated,p=>p.tones[880]),vod440:mean(separated,p=>p.vod.tones[440]),vod880:mean(separated,p=>p.vod.tones[880])}, errors: await app.evaluate(() => outputFixture.stats.errors) });
+  }catch(error){result.error=error.message;throw error;} finally { await fs.writeFile(path.join(evidence, 'results.json'), JSON.stringify(result, null, 2)); await app.close().catch(() => {}); }
   console.log('PASS: real Electron synthetic compositor and public audio capture');
 }
 main().catch(error => { console.error(error.message); process.exitCode = 1; });

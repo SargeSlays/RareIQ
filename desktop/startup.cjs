@@ -3,10 +3,10 @@ const {studioOrigin}=require('./policy.cjs');
 
 // MJPEG and other persistent resources may keep loadURL pending after the UI is usable.
 // Readiness belongs to the exact initial top-level document, not its resource load.
-function loadInitialStudio(contents,target,{timeoutMs=45000}={}){
+function loadInitialDocument(contents,target,{timeoutMs=45000}={},pathname){
   try{
     const url=new URL(target);studioOrigin(url.origin);
-    if(url.href!==target||url.pathname!=='/control'||url.username||url.password||url.hash
+    if(url.href!==target||url.pathname!==pathname||url.username||url.password||url.hash
         ||!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>120000
         ||!contents||typeof contents.loadURL!=='function'||typeof contents.on!=='function')throw Error();
   }catch(_){return Promise.reject(Object.assign(Error('The initial studio address is invalid.'),{code:'studio_startup_invalid'}));}
@@ -43,4 +43,6 @@ function loadInitialStudio(contents,target,{timeoutMs=45000}={}){
     }catch(_){finish('load_failed');}
   });
 }
-module.exports={loadInitialStudio};
+function loadInitialStudio(contents,target,options){return loadInitialDocument(contents,target,options,'/control');}
+function loadInitialOutput(contents,target,options){return loadInitialDocument(contents,target,options,'/output/studio');}
+module.exports={loadInitialStudio,loadInitialOutput};
