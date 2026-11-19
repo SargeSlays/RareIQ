@@ -1421,10 +1421,15 @@ failed harness probe, not passing acceptance evidence.
 - [x] Owner confirmed hearing synthetic test beeps clearly in headphones on the
   second PC, delivered through the real producer return path. Concurrent guest
   microphone PCM and video were received; no host microphone was captured.
-- [ ] Speech intelligibility/echo report, normal/quiet speech gate calibration
-  and host-mic conversation. No physical Program Take or platform test occurred.
-- [ ] Owner keep/end decision for temporary private guest access. Restore the
-  mapping and revoke this test invitation if ending; cleanup is not yet claimed.
+- [x] Owner heard clear voice and quiet speech during the 45-second processed-
+  mic loopback. After it ended, the owner confirmed no delayed self-voice. The
+  normal producer desktop is restored with monitoring and host microphone off.
+- [ ] Host-mic/multi-guest conversation and acoustic echo, gate calibration under
+  varied noise, and physical Program Take/platform acceptance remain separate.
+- [x] Owner explicitly chose to keep the tested private guest route available.
+  Retained guest-only HTTPS passed 21 boundary checks again. No public hosting,
+  firewall changes or operator exposure. Automatic private-route provisioning
+  after a backend/PC restart is not implemented; retain this limitation.
 
 Sizing evidence: `F:/Temp/jonat/ProducerPlease-makeover-sizing-20261118/visual03/`.
 Gate/native evidence: `F:/Temp/jonat/ProducerPlease-makeover-room-20261118/`.
@@ -1438,10 +1443,13 @@ mic peak 0.90936 and 117 quiet samples out of 450. The software-monitor pass ret
 report in `return06/owner-listening-report.json` records the clear headphone beeps,
 separately from numeric telemetry. That pass also received mic peak 0.10337 and
 282 quiet samples out of 300. The integrated gate log is under the separate
-sizing-integration evidence folder.
+sizing-integration evidence folder. `mic07/` contains numeric results and the
+owner listening report for the bounded self-listening test. Mic peak was 0.80087,
+68/225 sampled intervals were quiet and Program generation stayed unchanged.
+`retained-ingress-check.log` records the repeated private boundary checks.
 
 Private configuration, invitation material and physical images are excluded from
 source/backups. No raw audio/video recording was retained. Ending a receiver does
-not stop the second PC's camera/mic publisher, which remains connected pending
-the owner's test decision. No public stream, platform receipt or producer login
+not stop the second PC's camera/mic publisher, which remains connected for the
+owner's continued use. No public stream, platform receipt or producer login
 acceptance is claimed. This is a first sizing pass, not the full visual refinish.

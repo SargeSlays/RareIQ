@@ -817,9 +817,16 @@ waiting and readmission passed without changing Program; a real receiver decoded
 showed both open and closed states. The owner heard synthetic return beeps clearly
 through headphones on the second PC. Bounded test receivers close after each pass.
 
-Remaining: speech intelligibility/echo report, gate calibration against normal/quiet
-speech, host-mic conversation, and authorized composition/Take and platform
-acceptance. The owner must choose whether to retain the tested private guest route
-or end the test; cleanup is not yet claimed. Private configuration and invitation
-material stay outside Git. Verified remote producer login remains blocked on the
-actual StackThis identity registration/callback agreement.
+The owner also heard clear processed mic audio, including quiet speech, in a
+bounded self-listening check and confirmed no delayed self-voice after it ended.
+The test return was removed and the producer desktop reopened with room monitoring
+and the host microphone off.
+
+Remaining: host-mic/multi-guest conversation and acoustic echo, gate calibration
+under varied noise, and authorized composition/Take and platform acceptance. The
+owner explicitly chose to retain private guest access for continued use with the
+running studio; automatic private-route setup after a backend/PC restart remains
+separate work. Keep individual invitations and operator isolation. Private
+configuration and invitation material stay outside Git. Verified remote producer
+login remains blocked on the actual StackThis identity registration/callback
+agreement.

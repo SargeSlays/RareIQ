@@ -797,8 +797,13 @@ Yeti GX microphone reached a real producer receiver: 1280x720 moving video,
 nonzero microphone PCM and quiet intervals. Returning this guest to waiting and
 readmitting the same session preserved Program. The guest gate was enabled at
 -45 dB and displayed open/closed states. The owner confirmed hearing the return
-audio test beeps clearly through headphones on the second PC. Speech quality,
-gate calibration and conversational echo remain separate acceptance checks.
-No public stream or recording was started. Guest access remains distinct from
-producer sign-in; the private route is still temporary pending the owner's
-keep/end decision, not a deployed remote producer service.
+audio test beeps clearly through headphones on the second PC. A bounded processed-
+mic listening check also passed: clear voice and quiet speech came through. The
+owner confirmed the delayed self-voice stopped after that test ended. Host-mic
+conversation and multi-guest acoustic echo remain untested.
+
+At the owner's explicit request, the tested private guest route remains available
+for the running studio. Guests still need individual invitations; producer
+controls stay local. Restart/startup provisioning for this private route is not
+yet implemented in the desktop app. No public stream or recording was started,
+and guest access remains distinct from producer sign-in.
