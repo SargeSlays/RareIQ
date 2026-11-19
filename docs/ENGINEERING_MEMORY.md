@@ -964,3 +964,21 @@ viewport combinations, including short screens: correct ratios, no horizontal
 overflow or nested dock scrolling, and readable label gaps. Existing API/readiness
 contracts were not changed. Cache-bust only the owned stylesheet token while
 preserving unrelated working-tree additions and their test-count adjustments.
+
+## November 18, 2026 — Measure decoded audio before diagnosing a microphone
+
+Symptom: an external physical-guest test receiver reported live audio tracks and
+running WebAudio but zero PCM. The diagnostic omitted Chromium's muted autoplay
+HTML audio consumer. Production already supplies this decoder consumer through
+`createConferenceAudio.syncSilentConsumers`; its browser regression asserts
+muted/hidden playing consumers and their cleanup. Fix the probe rather than
+changing guest processing or weakening the noise gate. Preserve the early results
+as inconclusive microphone evidence, not a diagnosed production failure.
+
+The corrected actual two-PC receiver decoded moving 720p video and nonzero mic
+PCM with quiet intervals. A live track, software gain or completed probe does not
+prove audible output, intelligible speech, correct gate calibration, lip-sync or
+echo cancellation. The low-gain monitor receiver closed after its bounded pass;
+the guest's camera/mic publisher remains independent. Keep listening and two-way
+return acceptance open until actually exercised and reported by the owner. Store
+only numeric diagnostics; invitation material and captured media stay out of Git.

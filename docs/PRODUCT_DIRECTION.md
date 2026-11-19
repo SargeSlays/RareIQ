@@ -791,7 +791,14 @@ dark/light viewport checks and the actual running desktop inspection passed.
 This corrects concrete scaling defects; it is the first pass of the requested
 broader makeover, not a claim that the whole interface has been redesigned.
 
-The owner's second PC reached the invitation-only guest page over the temporary
-private HTTPS route. Actual joining, new physical camera/mic reception and spoken/
-echo acceptance are awaiting the owner enabling those controls. No public stream
-or recording was started. Guest access remains distinct from producer sign-in.
+After the owner granted browser device permissions, the second PC joined and
+was admitted over invitation-only private HTTPS. Its selected C922 webcam and
+Yeti GX microphone reached a real producer receiver: 1280x720 moving video,
+nonzero microphone PCM and quiet intervals. Returning this guest to waiting and
+readmitting the same session preserved Program. The guest gate was enabled at
+-45 dB and displayed open/closed states. The owner confirmed hearing the return
+audio test beeps clearly through headphones on the second PC. Speech quality,
+gate calibration and conversational echo remain separate acceptance checks.
+No public stream or recording was started. Guest access remains distinct from
+producer sign-in; the private route is still temporary pending the owner's
+keep/end decision, not a deployed remote producer service.

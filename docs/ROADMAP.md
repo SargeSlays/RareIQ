@@ -810,7 +810,16 @@ desktop loaded the cache-busted CSS; the bundled candidate passed isolated nativ
 startup/source navigation. Broader visual refinish remains ongoing.
 
 The stopped local studio was started through the managed controller. Private
-guest-only HTTPS passed 21 boundary checks and the second PC displayed its guest
-page. Hardware join/admission, gate tuning and listening/echo checks remain
-pending owner action. Temporary mapping/invitation cleanup is required after the
-test; private configuration and invite material stay outside Git.
+guest-only HTTPS passed 21 boundary checks. The second PC joined with a physical
+C922 webcam and Yeti GX mic after owner-granted permissions. Admission, return to
+waiting and readmission passed without changing Program; a real receiver decoded
+720p video and microphone PCM with quiet intervals. The gate was on at -45 dB and
+showed both open and closed states. The owner heard synthetic return beeps clearly
+through headphones on the second PC. Bounded test receivers close after each pass.
+
+Remaining: speech intelligibility/echo report, gate calibration against normal/quiet
+speech, host-mic conversation, and authorized composition/Take and platform
+acceptance. The owner must choose whether to retain the tested private guest route
+or end the test; cleanup is not yet claimed. Private configuration and invitation
+material stay outside Git. Verified remote producer login remains blocked on the
+actual StackThis identity registration/callback agreement.

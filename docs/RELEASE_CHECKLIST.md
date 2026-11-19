@@ -1398,7 +1398,7 @@ failed harness probe, not passing acceptance evidence.
 
 ## November 18, 2026 — Studio asset-sizing checkpoint
 
-- [x] Canonical isolated staged-source gate: **3535 Python + 621 JavaScript tests**.
+- [x] Final integrated canonical gate: **3535 Python + 622 JavaScript tests**.
 - [x] Proportional header lockup and 32px compact mark; matching 16:9 camera/empty
   thumbnails capped at 320px; PGM/PVW badges do not overlap camera labels.
 - [x] Eight isolated dark/light layouts at 1920×1080, 3840×2160, 960×900 and
@@ -1409,13 +1409,39 @@ failed harness probe, not passing acceptance evidence.
   protected storage readiness and source navigation without Take or capture.
 - [x] Current private guest-only HTTPS boundary: 21/21 checks pass. Second PC
   actually displayed the secure guest page; no operator routes exposed there.
-- [ ] Owner joins/enables physical camera and mic; verify admission, waiting,
-  readmission, received picture, noise gate, speech, conversation and echo.
-- [ ] Restore the temporary private mapping and revoke the test invitation after
-  the two-PC test. Do not call this network cleanup complete before observing it.
+- [x] Actual second PC joined after owner-granted camera/mic permissions;
+  selected C922 webcam and Yeti GX mic, admitted, returned to waiting and
+  readmitted the same guest session. Program generation stayed unchanged.
+- [x] Corrected physical receiver decoded 1280x720 moving video and nonzero mic
+  PCM with quiet intervals. Guest noise gate was enabled at -45 dB and visually
+  displayed open and closed states. This does not establish gate calibration.
+- [x] Bounded low-gain software monitor pass completed and its receiver/context
+  closed. Gain reached 0.08; no safety mute triggered. Hearing at the production
+  PC was not confirmed by the owner.
+- [x] Owner confirmed hearing synthetic test beeps clearly in headphones on the
+  second PC, delivered through the real producer return path. Concurrent guest
+  microphone PCM and video were received; no host microphone was captured.
+- [ ] Speech intelligibility/echo report, normal/quiet speech gate calibration
+  and host-mic conversation. No physical Program Take or platform test occurred.
+- [ ] Owner keep/end decision for temporary private guest access. Restore the
+  mapping and revoke this test invitation if ending; cleanup is not yet claimed.
 
 Sizing evidence: `F:/Temp/jonat/ProducerPlease-makeover-sizing-20261118/visual03/`.
 Gate/native evidence: `F:/Temp/jonat/ProducerPlease-makeover-room-20261118/`.
+Physical receiver evidence is `speech04/physical-receiver-results.json`,
+`listening05/physical-receiver-results.json` and `return06/` in the room-test folder.
+Earlier receiver runs lacked Chromium's muted audio decoder consumer and cannot
+diagnose a production mic failure; the production conference helper already
+supplies it. The corrected 90-second probe decoded 1428 additional video frames,
+mic peak 0.90936 and 117 quiet samples out of 450. The software-monitor pass retains
+`listeningVerified:false`; it is not human listening or echo acceptance. The owner
+report in `return06/owner-listening-report.json` records the clear headphone beeps,
+separately from numeric telemetry. That pass also received mic peak 0.10337 and
+282 quiet samples out of 300. The integrated gate log is under the separate
+sizing-integration evidence folder.
+
 Private configuration, invitation material and physical images are excluded from
-source/backups. No public stream, recording, platform receipt or producer login
+source/backups. No raw audio/video recording was retained. Ending a receiver does
+not stop the second PC's camera/mic publisher, which remains connected pending
+the owner's test decision. No public stream, platform receipt or producer login
 acceptance is claimed. This is a first sizing pass, not the full visual refinish.
