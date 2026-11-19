@@ -1,5 +1,28 @@
 # RareIQ Release Checklist
 
+## November 18, 2026 — Windows CI fixture portability
+
+Authenticated logs from failed run `44291995253` identify 13 fixture-allocation
+failures on an absent developer F: drive and two encoder-suite cancellations on
+Node 22. The test repair uses OS temporary storage with owned cleanup, adds a
+guard exercised against the original failing fixtures, and keeps a bounded test
+handle alive while checking the actual encoder timeout behavior. Nested test
+runners must prove both suites executed rather than accept a recursive-skip exit.
+
+Canonical local gate passed: **3533 Python tests and 622 JavaScript tests**, using
+a clean clone, Python 3.13.12 and the failed runner's exact Node 22.23.4.
+Baseline encoder tests reproduce five passes/two cancellations;
+the repaired focused suite passes all seven. The portability guard rejects the
+original fixtures and passes the corrected suites, including cleanup checks.
+The full canonical gate and the GitHub Actions run on the exact pushed commit
+must both pass before reporting CI restored; a local pass alone is insufficient.
+
+Evidence is retained under `F:/Temp/jonat/RareIQ-ci-evidence-20261118`, including
+authenticated logs, baseline reproductions and `release-gate-node22-final.log`.
+No application behavior or workflow configuration changed. Existing studios and
+unrelated checkout changes were preserved; no hardware, real transmission,
+recording, deployment or platform receipt was exercised by this repair.
+
 ## November 15, 2026 - Smart layouts and Advanced controls
 
 Canonical gate passed: **3376 Python tests and 513 JavaScript tests**.

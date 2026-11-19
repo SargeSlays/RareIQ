@@ -25,9 +25,8 @@ function syntheticCipher() {
   };
 }
 async function fixture(t, options = {}) {
-  const root = path.resolve(process.platform === 'win32' ? 'F:/Temp/jonat/RareIQ-destination-tests' : path.join(os.tmpdir(), 'rareiq-destination-tests'));
-  await fs.mkdir(root, { recursive: true });
-  const directory = await fs.mkdtemp(path.join(root, 'case-'));
+  const root = path.resolve(os.tmpdir());
+  const directory = await fs.mkdtemp(path.join(root, 'rareiq-destination-'));
   t.after(async () => { assert.equal(path.dirname(path.resolve(directory)), root); await fs.rm(directory, { recursive: true, force: true }); });
   const cipher = syntheticCipher();
   const store = new DestinationStore({ directory, cipher, platform: 'win32', ...options });

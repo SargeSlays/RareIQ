@@ -1,5 +1,26 @@
 # RareIQ engineering memory
 
+## November 18, 2026 — CI fixtures must be independent of developer hardware
+
+The Windows Release Quality run `44291995253` failed before Python tests: ten
+destination and three bundled-runtime tests allocated fixtures on the developer's
+F: drive, absent on the hosted runner. Use unique directories under `os.tmpdir()`
+and bounded per-test cleanup. The canonical fixture-portability test reruns both
+real suites with an isolated OS temp root, rejects allocations outside it and
+requires no leftover profiles. Mock encoder F: strings are inert inputs, not writes.
+The guard was mutation-checked against the original fixtures. Clear inherited
+`NODE_TEST_CONTEXT` for nested runners and assert both suites actually execute;
+Node 22 otherwise warns that recursive test files were skipped and exits zero.
+
+The same log also exposed a separate Node 22 cancellation: the mock encoder child
+has no process handle, so its deliberately unref'ed product deadline timers could
+outlive the test event loop. A bounded, ref'ed test deadline now surrounds the
+actual startup/stop timeout assertions and clears in finally; product lifecycle
+timers remain unchanged. Local Node 24 passing was insufficient evidence for the
+CI runtime. Reproduce with the exact runner Node version (22.23.4 here), use a
+clean source checkout and confirm CI on the exact pushed commit. Do not infer a
+current failure from an older annotation or call a local gate a remote CI pass.
+
 ## November 15, 2026 - Layout suggestions must remain Preview-only
 
 - Compute suggestions from current selected visual IDs at click time. Never add or
