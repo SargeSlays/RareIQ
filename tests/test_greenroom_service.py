@@ -460,6 +460,8 @@ def test_composition_audit_source_list_is_bounded_and_excludes_free_text(room):
     ("viewer_chat.listening", "viewer_chat"), ("platform.account.begin", "twitch"),
     ("platform.account.cancel", "youtube"), ("platform.chat.connect", "kick"),
     ("platform.chat.disconnect", "twitch"),
+    ("platform.account.begin_streaming", "twitch"), ("platform.account.check", "twitch"),
+    ("platform.account.disconnect", "twitch"),
 ])
 def test_safe_account_and_chat_events_are_append_only_idempotent_and_do_not_change_room_revision(room, action, target):
     service, _ = room
@@ -486,14 +488,16 @@ def test_safe_account_and_chat_events_are_append_only_idempotent_and_do_not_chan
 @pytest.mark.parametrize("target", ["twitch", "youtube", "kick"])
 def test_platform_event_targets_accept_only_fixed_platform_names(room, target):
     service, _ = room
-    for action in ("platform.account.begin", "platform.account.cancel", "platform.chat.connect", "platform.chat.disconnect"):
+    for action in ("platform.account.begin", "platform.account.cancel", "platform.account.begin_streaming",
+                   "platform.account.check", "platform.account.disconnect", "platform.chat.connect", "platform.chat.disconnect"):
         service.record_production_event(action, target, "requested")
     assert all(event["target"] == target and event["details"] == {} for event in service.history()["events"])
 
 
 def test_account_event_targets_cannot_include_account_ids_or_production_sources(room):
     service, _ = room
-    for action in ("platform.account.begin", "platform.account.cancel", "platform.chat.connect", "platform.chat.disconnect"):
+    for action in ("platform.account.begin", "platform.account.cancel", "platform.account.begin_streaming",
+                   "platform.account.check", "platform.account.disconnect", "platform.chat.connect", "platform.chat.disconnect"):
         for target in ("viewer_chat", "channel_123456", "camera:1", "Twitch", "private-token"):
             with pytest.raises(GreenroomError) as error:
                 service.record_production_event(action, target, "requested")
@@ -506,6 +510,7 @@ def test_account_event_targets_cannot_include_account_ids_or_production_sources(
 
 
 @pytest.mark.parametrize("action", ["viewer_chat.listening", "platform.account.begin", "platform.account.cancel",
+    "platform.account.begin_streaming", "platform.account.check", "platform.account.disconnect",
     "platform.chat.connect", "platform.chat.disconnect"])
 def test_account_events_reject_tokens_codes_private_text_and_legacy_id_details(room, action):
     service, _ = room

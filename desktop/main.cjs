@@ -62,7 +62,17 @@ app.whenReady().then(async()=>{
     if(permission==='display-capture')return callback(true);
     const response=await dialog.showMessageBox(studio,{type:'question',buttons:['Allow this time','Cancel'],defaultId:1,cancelId:1,message:'Allow Producer, Please to use your camera or microphone?',detail:'Choose Allow only after selecting a capture control in the studio.'});callback(response.response===0);
   });
-  const {DestinationStore}=require('./destinations.cjs');destinations=new DestinationStore({directory:profile,cipher:require('electron').safeStorage});
+  const {createTwitchResolver,createTwitchConnection}=require('./twitch-connection.cjs');
+  const resolveTwitch=createTwitchResolver({runtime});
+  const {DestinationStore}=require('./destinations.cjs');destinations=new DestinationStore({directory:profile,cipher:require('electron').safeStorage,
+    accountResolver:async accountRef=>{
+      // The backend is the sole token-refresh writer. Its HTTP response contains metadata only.
+      const response=await fetch(origin+'/api/production/accounts/twitch/check',{method:'POST',redirect:'error',headers:{'Content-Type':'application/json',Origin:origin},body:'{}',signal:AbortSignal.timeout(20000)});
+      if(!response.ok)throw Error('account_authorization_required');
+      const value=await response.json();
+      if(value.account?.authorized!==true||value.account?.streaming_authorized!==true||value.account?.account_ref!==accountRef)throw Error('account_authorization_required');
+      return resolveTwitch(accountRef);
+    }});
   const {OutputProfileStore}=require('./output-profiles.cjs');outputProfiles=new OutputProfileStore({directory:profile});
   const profileActions=require('./profile-actions.cjs').createProfileActions({store:outputProfiles,append:entry=>fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify(entry)+'\n',{mode:0o600})});
   studio=new BrowserWindow(windowOptions({webPreferences:{partition:'persist:producer-studio',preload:path.join(__dirname,'preload.cjs')}}));secureWindow(studio,origin);
@@ -87,7 +97,11 @@ app.whenReady().then(async()=>{
       if(state!==lastPhase){lastPhase=state;try{fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify({at:new Date().toISOString(),action:'broadcast.'+value.phase,actor:'Desktop operator',identityVerified:false,profileId:value.profileId,destinationIds:value.destinationIds,targets:value.targets.map(t=>({destinationId:t.destinationId,phase:t.phase,reason:t.reason})),reason:value.reason||null})+'\n');}catch(_){}}
     }
   });
-  polling=setInterval(()=>broadcast.check().catch(()=>{}),1000);polling.unref();
+  let nextAccountCheck=0,accountChecking=false;
+  polling=setInterval(()=>{
+    broadcast.check().catch(()=>{});
+    if(!accountChecking&&Date.now()>=nextAccountCheck){accountChecking=true;nextAccountCheck=Date.now()+3600000;twitchConnection.checkSaved().catch(()=>{nextAccountCheck=Date.now()+60000;}).finally(()=>{accountChecking=false;});}
+  },1000);polling.unref();
   const publicBroadcast=()=>({...broadcast.status(),available:Boolean(runtime.encoderWorker&&fs.existsSync(runtime.encoderWorker)&&runtime.sharedEncoderWorker&&fs.existsSync(runtime.sharedEncoderWorker)&&backend?.started?.identity)});
   const {createAccountAuthorization}=require('./account-authorization.cjs');
   const authorizeAccount=createAccountAuthorization({origin,
@@ -96,6 +110,9 @@ app.whenReady().then(async()=>{
     openExternal:url=>shell.openExternal(url)});
 
   ipcMain.handle('producer:accounts:authorize',authorizeAccount);
+  const twitchConnection=createTwitchConnection({origin,store:destinations,trustedSender:settingsEvent,mutate:changeDestination,
+    append:entry=>fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify(entry)+'\n',{mode:0o600})});
+  ipcMain.handle('producer:accounts:twitch',twitchConnection);
   ipcMain.handle('producer:info',event=>{if(!policy.trustedMain(event,studio.webContents,origin))throw Error('Untrusted request');return {name:'Producer, Please',version:app.getVersion(),desktop:true,engine:'standalone',preview};});
   ipcMain.handle('producer:settings',event=>{if(!policy.trustedMain(event,studio.webContents,origin))throw Error('Untrusted request');return openSettings();});
   ipcMain.handle('producer:sources:open',openSources);

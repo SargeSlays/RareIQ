@@ -23,7 +23,7 @@ PROJECT = Path(__file__).resolve().parents[1]
 PYTHON_VERSION = "3.13.12"
 PYTHON_URL = f"https://www.python.org/ftp/python/{PYTHON_VERSION}/python-{PYTHON_VERSION}-embed-amd64.zip"
 PYTHON_SHA256 = "76f238f606250c87c6beac75dccd35ee99070a13490555936abb6cb64ecce3d0"
-CONTROLLERS = {"tools/server_control.py", "tools/desktop_backend.py"}
+CONTROLLERS = {"tools/server_control.py", "tools/desktop_backend.py", "tools/desktop_twitch_account.py"}
 SEEDS = {"rareiq/data/cards_poc.json", "rareiq/data/set_catalog.json"}
 
 

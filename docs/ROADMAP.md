@@ -997,3 +997,22 @@ and synthetic-sending interaction tests passed separately.
 Remaining: physical listener/echo and real platform/Twitch archive acceptance,
 separate guest soundboard stems, broader output parity and the owner-requested
 Rehearsal workspace described above.
+
+
+## November 18, 2026 — Saved Twitch account destination checkpoint
+
+Implemented: native Broadcast setup account card; explicit streaming consent
+upgrade; encrypted saved authorization; startup/hourly validation and refresh;
+reference-based Twitch destinations with a private fresh-key lookup at Start;
+reconnect guidance; cancel and local disconnect; metadata-only activity warnings.
+Existing chat-only and manual-key workflows remain supported.
+
+Real acceptance: Twitch streaming permission is now saved and validated, and a
+fresh native helper process privately retrieved the real channel's stream key.
+The primary account card shows streaming ready; Save Twitch destination adds its
+linked output. Synthetic native acceptance covers full app reopening and upsert. No actual broadcast is authorized by this checkpoint. Real live/VOD
+receipt remains a separate explicitly approved test. YouTube broadcast account
+connection requires its own registered app, suitable consent and live eligibility;
+Kick and remaining providers need individual official integration contracts. Do not
+label all platform logins connected. Remote producer/team sign-in still requires
+the StackThis identity contract. The planned Rehearsal room remains unimplemented.

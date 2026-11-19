@@ -14,6 +14,7 @@ const PUBLIC_ENCODER_FAILURE_CODES=Object.freeze([
 ]);
 const ENCODER_FAILURES=new Set(PUBLIC_ENCODER_FAILURE_CODES);
 const PUBLIC_FAILURE_CODES=Object.freeze([...PUBLIC_ENCODER_FAILURE_CODES,
+  'account_authorization_required','streaming_not_available',
   'audio_mix_not_ready','audio_mix_unconfirmed','prepare_output','output_not_ready','output_generation_changed','broadcast_cancelled','desktop_backend_required','desktop_mode_required','desktop_closing',
   'close_browser_review','studio_unavailable','another_broadcast_active','output_lost','encoder_backpressure','capture_stop_unconfirmed','encoder_stop_unconfirmed','studio_status_unconfirmed','broadcast_start_failed',
   'output_review_open','output_receiver_changed','output_receiver_unavailable','output_capture_size_mismatch','output_navigated','output_renderer_unavailable','output_closed','output_frame_failed',

@@ -294,3 +294,60 @@ def test_youtube_url_endpoint_rejects_cross_origin_and_malformed_flow_query():
         assert client.get(PATH + '/youtube/authorization' + query).status_code == 400
     assert client.post(PATH + '/youtube/begin', json={'client_secret': 'private'}, headers={'Origin': ORIGIN}).status_code == 400
     assert youtube.begins == 0
+
+
+@pytest.mark.parametrize('action', ['begin-streaming', 'check', 'disconnect'])
+def test_streaming_account_commands_preserve_all_local_operator_guards(action):
+    for options in ({'host': '198.51.100.7'}, {'origin': 'http://rebind.example:8765'}, {'authorized': False}):
+        _, _, _, client = fixture(**options)
+        assert client.post(PATH + '/twitch/' + action, json={}, headers={'Origin': ORIGIN}).status_code == 403
+    _, _, _, client = fixture()
+    assert client.post(PATH + '/twitch/' + action, json={}).status_code == 403
+    assert client.post(PATH + '/twitch/' + action, json={'secret': 'private'}, headers={'Origin': ORIGIN}).status_code == 400
+
+
+def test_stream_capabilities_are_sanitized_and_not_confused_with_chat_permission():
+    service, _, _, client = fixture()
+    service.value.update(state='authorized', reason='account_authorized', authorized=True,
+                         streaming_authorized=True, account_ref='d' * 64, public_label='Fixture')
+    account = client.get(PATH).json()['accounts'][0]
+    assert account['streaming_authorized'] and account['account_ref'] == 'd' * 64
+    service.value.update(account_ref='private-secret', authorized=False)
+    account = client.get(PATH).json()['accounts'][0]
+    assert not account['streaming_authorized'] and 'account_ref' not in account
+
+
+def test_disconnect_ends_connector_and_forgets_account_even_when_audit_unavailable():
+    calls = []
+    service, vault, app = Account(), Vault(), FastAPI()
+    async def disconnect():
+        calls.append('forget')
+        service.value.update(state='not_authorized', reason='account_disconnected', authorized=False)
+    service.disconnect = disconnect
+    async def stop():
+        calls.append('stop')
+    def audit(**entry):
+        raise RuntimeError('private audit path')
+    app.include_router(routes.create_platform_accounts_router(service, lambda _: True, vault=vault,
+        audit=audit, twitch_disconnect=stop))
+    client = TestClient(app, base_url=ORIGIN, client=('127.0.0.1', 1234))
+    result = client.post(PATH + '/twitch/disconnect', json={}, headers={'Origin': ORIGIN})
+    assert result.status_code == 200 and calls == ['stop', 'forget']
+    assert result.json()['activity_history_warning'] and not result.json()['account']['authorized']
+    assert 'private' not in result.text
+
+
+@pytest.mark.parametrize('path,method', [('begin-streaming', 'begin_streaming'), ('check', 'check')])
+def test_new_account_commands_audit_and_return_only_public_status(path, method):
+    audit, calls = [], []
+    service, _, _, client = fixture(audit=lambda **event: audit.append(event))
+    async def command():
+        calls.append(method)
+        service.value.update(state='authorized', reason='account_authorized', authorized=True,
+            streaming_authorized=True, account_ref='e' * 64, access_token='private-secret')
+        return {'streamKey': 'private-secret'}
+    setattr(service, method, command)
+    result = client.post(PATH + '/twitch/' + path, json={}, headers={'Origin': ORIGIN})
+    assert result.status_code == 200 and calls == [method] and 'private-secret' not in result.text
+    assert audit == [{'action': 'twitch.' + method, 'outcome': 'requested'},
+                     {'action': 'twitch.' + method, 'outcome': 'authorized'}]

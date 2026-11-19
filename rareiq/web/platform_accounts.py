@@ -25,6 +25,7 @@ provider_response_too_large provider_rate_limited authorization_rejected account
 chat_scope_required account_storage_unavailable authorization_required authorization_expired
 authorization_denied authorization_refresh_required account_authorized authorization_pending
 account_service_closed authorization_cancelled account_unavailable account_state_changed
+streaming_scope_required account_disconnected
 """.split())
 _STORAGE = {"empty", "stored", "locked", "unavailable"}
 _FLAGS = ("stored", "has_client_id", "has_client_secret", "has_access_token", "has_refresh_token", "has_channel")
@@ -54,6 +55,10 @@ def _twitch_status(raw):
     result = {"platform": "twitch", "state": state, "reason": reason,
               "authorized": raw.get("authorized") is True if state != "unavailable" else False,
               "app_configured": raw.get("app_configured") is True}
+    result["streaming_authorized"] = result["authorized"] and raw.get("streaming_authorized") is True
+    account_ref = raw.get("account_ref")
+    if result["authorized"] and isinstance(account_ref, str) and re.fullmatch(r"[a-f0-9]{64}", account_ref):
+        result["account_ref"] = account_ref
     label = _public_label(raw.get("public_label"))
     if label and result["authorized"]:
         result["public_label"] = label
@@ -67,6 +72,7 @@ def _twitch_status(raw):
             return {"platform": "twitch", "state": "unavailable", "reason": "account_unavailable",
                     "authorized": False, "app_configured": result["app_configured"]}
         result.update(user_code=code, flow_id=flow, verification_url=VERIFICATION_URL)
+        result["authorization_kind"] = "streaming" if raw.get("authorization_kind") == "streaming" else "chat"
         if _number(raw.get("poll_after"), 60) and raw["poll_after"] >= 1:
             result["poll_after"] = raw["poll_after"]
     return result
@@ -113,7 +119,8 @@ def _google_authorization_url(value):
     return value
 
 
-def create_platform_accounts_router(twitch_service, authorize_operator, *, vault=None, audit=None, youtube_service=None):
+def create_platform_accounts_router(twitch_service, authorize_operator, *, vault=None, audit=None,
+                                   youtube_service=None, twitch_disconnect=None):
     router = APIRouter()
 
     def response(value, status=200):
@@ -197,11 +204,12 @@ def create_platform_accounts_router(twitch_service, authorize_operator, *, vault
         except Exception:
             return unavailable()
         history_warning = False
+        connection_stop_warning = False
         if audit is not None:
             try:
                 await _result(audit(action=platform + "." + action, outcome="requested"))
             except Exception:
-                if action != "cancel":
+                if action not in {"cancel", "disconnect"}:
                     return unavailable()
                 history_warning = True
         outcome = "failed"
@@ -209,9 +217,17 @@ def create_platform_accounts_router(twitch_service, authorize_operator, *, vault
         try:
             service = twitch_service if platform == "twitch" else youtube_service
             sanitize = _twitch_status if platform == "twitch" else _youtube_status
+            if platform == "twitch" and action == "disconnect" and twitch_disconnect is not None:
+                try:
+                    await _result(twitch_disconnect())
+                except Exception:
+                    # Still forget local credentials; a failed stop must not suppress it.
+                    connection_stop_warning = True
             await _result(getattr(service, action)())
             account = sanitize(await _result(service.status()))
-            outcome = account["state"]
+            # A cached login can remain stored through a provider outage. That
+            # must not become evidence that an explicit verification succeeded.
+            outcome = "failed" if action == "check" and account["state"] != "pending" and account["reason"] != "account_authorized" else account["state"]
             payload = {"account": account}
         except Exception:
             pass
@@ -219,13 +235,15 @@ def create_platform_accounts_router(twitch_service, authorize_operator, *, vault
             try:
                 await _result(audit(action=platform + "." + action, outcome=outcome))
             except Exception:
-                if action != "cancel" or payload is None:
+                if action not in {"cancel", "disconnect"} or payload is None:
                     return unavailable()
                 history_warning = True
         if payload is None:
             return unavailable()
         if history_warning:
             payload["activity_history_warning"] = True
+        if connection_stop_warning:
+            payload["connection_stop_warning"] = True
         return response(payload)
 
     @router.post("/api/production/accounts/twitch/begin")
@@ -235,6 +253,18 @@ def create_platform_accounts_router(twitch_service, authorize_operator, *, vault
     @router.post("/api/production/accounts/twitch/cancel")
     async def cancel(request: Request):
         return await command(request, "cancel")
+
+    @router.post("/api/production/accounts/twitch/begin-streaming")
+    async def begin_streaming(request: Request):
+        return await command(request, "begin_streaming")
+
+    @router.post("/api/production/accounts/twitch/check")
+    async def check(request: Request):
+        return await command(request, "check")
+
+    @router.post("/api/production/accounts/twitch/disconnect")
+    async def disconnect(request: Request):
+        return await command(request, "disconnect")
 
     @router.post("/api/production/accounts/youtube/begin")
     async def youtube_begin(request: Request):

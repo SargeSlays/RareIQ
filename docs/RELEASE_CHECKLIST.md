@@ -1692,3 +1692,32 @@ Canonical gate: 3,910 Python and 798 JavaScript tests passed. Local-development
 build 0.1.0-20261119071429085 is open on the production PC; Start-menu target verified.
 The desktop-only update reused the running backend with no active show, recording,
 OBS stream or native transmission. No platform output was started.
+
+
+## November 18, 2026 — Saved Twitch streaming sign-in
+
+- [x] Explicit chat + stream-key scope upgrade, channel pinning, cancelled/denied
+  upgrade preservation, stale completion protection and encrypted-vault reopen.
+- [x] Validation/refresh, scope loss, local disconnect and audit-unavailable safety
+  covered by focused backend and route tests; helper is read-only and private-pipe.
+- [x] Linked destination persistence/retry/upsert, private key redaction, account
+  mismatch and reconnect-before-confirmation/reservation/encoder regressions.
+- [x] Account card dark/light desktop/mobile layout, keyboard/pointer controls,
+  stable retry, manual-draft preservation, linked editor guard and sending lock.
+- [x] Actual Twitch streaming permission saved and validated after owner browser
+  consent; fresh private helper reads the encrypted vault and retrieves the real
+  channel's key without emitting it to logs/IPC. Primary account card is ready.
+- [ ] Actual platform broadcast/VOD receipt and real-network endurance.
+- [ ] Google registration/streaming consent and other provider account integrations.
+
+Evidence is stored under F:/Temp/jonat/ProducerPlease-twitch-signin-20261118.
+Synthetic account names/codes in captures are fixtures; no password or token is
+archived. No real stream, recording, platform post or public deployment was used.
+
+- [x] Canonical isolated gate: 3,956 Python and 825 JavaScript checks passed.
+  Packaged original account IPC rejects untrusted requests before HTTP; synthetic
+  streaming authorization saves a real Windows-encrypted reference, reopens and
+  upserts without duplicates, and disconnect blocks its next use. No broadcast
+  controls were called. Primary saved chat authorization passed real Twitch
+  validation after the controlled restart; real streaming consent and private
+  stream-key retrieval subsequently passed. No broadcast was started.

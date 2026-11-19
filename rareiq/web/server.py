@@ -1086,7 +1086,7 @@ youtube_account_service = YouTubeAccountService(platform_credential_vault,
 def _platform_account_audit(*, action, outcome):
     platform, operation = action.split(".", 1)
     result = "requested" if outcome in {"pending", "requested"} else (
-        "succeeded" if outcome == "authorized" or operation == "cancel" and outcome == "not_authorized" else "failed")
+        "succeeded" if outcome == "authorized" or operation in {"cancel", "disconnect"} and outcome == "not_authorized" else "failed")
     return greenroom_service.record_production_event(
         "platform.account." + operation, platform, result, actor_kind="local_operator")
 
@@ -1160,7 +1160,8 @@ app.include_router(create_twitch_audience_router(twitch_audience_connector, _gre
 app.include_router(create_youtube_audience_router(youtube_audience_connector, _greenroom_operator, audit=_platform_chat_audit))
 app.include_router(create_kick_audience_router(kick_audience_connector, _greenroom_operator, audit=_platform_chat_audit))
 app.include_router(create_platform_accounts_router(twitch_account_service, _greenroom_operator,
-    vault=platform_credential_vault, youtube_service=youtube_account_service, audit=_platform_account_audit))
+    vault=platform_credential_vault, youtube_service=youtube_account_service, audit=_platform_account_audit,
+    twitch_disconnect=twitch_audience_connector.disconnect))
 app.include_router(create_viewer_chat_router(viewer_chat_service, _greenroom_operator, audit=_viewer_chat_audit,
     sources_provider=lambda: [connector.cached_status() for connector in
         (twitch_audience_connector, youtube_audience_connector, kick_audience_connector)]))

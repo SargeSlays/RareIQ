@@ -1168,3 +1168,45 @@ replacing per-destination video encoders with shared encoding.
   Ignore stale/lower-revision UI polls and preserve invalid drafts/focus.
 - Verify the actual encoded files, not only UI values: independent Live/VOD
   amplitude changes, one capture/encoder group, monotonic A/V and unchanged preset.
+
+
+## November 18, 2026 — Saved account references must not copy streaming credentials
+
+A chat-read login does not authorize a stream-key lookup. Preserve old grants
+during an explicit scope upgrade and pin an existing channel, so cancelled/stale
+consent cannot replace usable authorization. Resolve the saved destination's opaque
+client/channel reference against freshly validated credentials at every Start.
+Backend refresh is the only token writer; the native helper reads, validates and
+fetches through fixed Twitch endpoints without writing or importing the server.
+The stream key crosses only a Main-owned child pipe, never HTTP or renderer IPC.
+An account switch must never inherit a different channel's linked destination.
+
+A guardian found that a safe account failure was absent from the native broadcast
+reason allowlist; it became a generic start failure and hid reconnect guidance.
+The explicit public reason and regression now prove failure before confirmation,
+ownership reservation or encoding. Cancel may supersede a delayed Begin; stale
+settings navigation cannot complete a link. Persistence retries upsert the same
+reference and preserve old manual destination fingerprints. Local forget must
+remain available even when history fails, with an independent warning if chat
+shutdown could not be confirmed. Local forget is not provider-side revocation.
+
+Packaged acceptance also caught a producer history allowlist that had not been
+extended for begin_streaming/check/disconnect. Provider-unit and router-mock
+tests passed while the actual logging owner rejected sign-in. The durable guard
+exercises the mounted routes with the real Greenroom production-event allowlist
+and DB; transient validation failure is not logged as successful merely because
+a cached grant is still present, and local disconnect success is classified
+truthfully. Native acceptance must run against original handlers, not replacements.
+
+A second edge case appeared when Check connection refreshed a saved grant during
+pending consent: its updated expiry invalidated the pending stored-record snapshot.
+Owned validation/refresh now advances only the matching same-identity snapshot
+under the credential lock; external writes still reject stale approval. Regressions
+cover Check, refresh and a later external mutation during pending consent. Web
+Manage accounts also preserves the pending scope kind so a streaming upgrade is
+never described as read-only chat consent.
+
+Native bundled helpers must set PRODUCER_DESKTOP=1 alongside their installed data
+root. A data-root variable alone is deliberately ignored by the path boundary.
+A native spawn-contract regression now guards the opt-in flag, cwd and data root;
+local development explicitly drops a stale bundled data root.

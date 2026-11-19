@@ -158,3 +158,49 @@ def test_youtube_stored_authorization_uses_service_and_legacy_mode_is_explicit(m
     monkeypatch.setattr(server.youtube_account_service, "ensure_authorization", missing)
     with pytest.raises(ValueError, match="authorization_refresh_required"):
         asyncio.run(server._youtube_chat_authorization())
+
+
+@pytest.mark.parametrize('path,state,reason,outcome', [
+    ('begin-streaming', 'pending', 'authorization_pending', 'requested'),
+    ('check', 'authorized', 'account_authorized', 'succeeded'),
+    ('check', 'pending', 'authorization_pending', 'requested'),
+    ('check', 'not_authorized', 'authorization_rejected', 'failed'),
+    ('check', 'authorized', 'provider_unavailable', 'failed'),
+    ('disconnect', 'not_authorized', 'account_disconnected', 'succeeded'),
+])
+def test_account_routes_use_real_audit_whitelist_and_truthful_outcomes(tmp_path, monkeypatch, path, state, reason, outcome):
+    from fastapi import FastAPI
+    from rareiq.services.greenroom_service import GreenroomService
+    from rareiq.web.platform_accounts import create_platform_accounts_router
+    room = GreenroomService(tmp_path / 'account-history.sqlite3')
+    monkeypatch.setattr(server, 'greenroom_service', room)
+    calls = []
+    class Account:
+        def status(self):
+            value = {'state': state, 'reason': reason, 'authorized': state == 'authorized', 'app_configured': True}
+            if state == 'pending':
+                value.update(flow_id='a' * 32, user_code='TEST-1234', expires_at=1800000600)
+            return value
+        async def begin_streaming(self):
+            calls.append('begin_streaming')
+        async def check(self):
+            calls.append('check')
+        async def disconnect(self):
+            calls.append('disconnect')
+    async def stop():
+        calls.append('stop')
+    app = FastAPI()
+    app.include_router(create_platform_accounts_router(Account(), lambda _: True,
+        audit=server._platform_account_audit, twitch_disconnect=stop))
+    client = TestClient(app, base_url='http://127.0.0.1:8765', client=('127.0.0.1', 12000))
+    response = client.post('/api/production/accounts/twitch/' + path, json={},
+        headers={'Origin': 'http://127.0.0.1:8765'})
+    assert response.status_code == 200 and 'activity_history_warning' not in response.json()
+    operation = path.replace('-', '_')
+    assert calls == (['stop', operation] if path == 'disconnect' else [operation])
+    events = room.history()['events']
+    assert len(events) == 2 and all(event['action'] == 'platform.account.' + operation for event in events)
+    assert [event['outcome'] for event in events] == [outcome, 'requested']
+    assert all(event['target'] == 'twitch' and event['details'] == {} for event in events)
+    assert all(event['actor_id'] is None and not event['identity_verified'] for event in events)
+    assert room.snapshot()['revision'] == 0

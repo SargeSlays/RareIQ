@@ -997,3 +997,28 @@ identityVerified:false, without gain maps, source IDs, names or media. Audit fai
 warns separately after DSP confirmation. Rehearsal room is planned on the roadmap,
 not activated by this change. Platform delivery/Twitch archive and physical
 listening/echo remain separate acceptance layers.
+
+
+## November 18, 2026 — Saved Twitch streaming sign-in
+
+Broadcast setup now has an explicit Twitch account connection in addition to manual
+RTMPS destinations. A streaming upgrade requests user:read:chat and
+channel:read:stream_key through Twitch device consent; an existing chat-only grant
+stays usable if the upgrade is cancelled or rejected. Windows-user encrypted
+authorization survives reopening. Startup/hourly checks validate saved sessions;
+refresh has one backend writer. Passwords remain with Twitch.
+
+Saving a Twitch destination stores an encrypted channel reference, not a copied
+stream key. Start checks the linked identity, refreshes authorization if needed and
+privately retrieves the key through a Main-owned process pipe. No secret-returning
+HTTP/renderer API is added. Missing, revoked or changed authorization blocks Start
+with reconnect guidance before confirmation, capture or encoder reservation.
+Account connection never starts a stream. Disconnect forgets local authorization
+and stops the chat connector, retaining public app configuration; provider-side
+app revocation remains available in Twitch Connections.
+
+Local automated, synthetic UI and packaged IPC checks passed. The owner completed
+Twitch's streaming consent; the real saved grant and private stream-key lookup were
+verified. Actual platform broadcast receipt remains separate acceptance.
+YouTube sign-in remains read-only and needs Google app setup; other platforms
+retain manual destinations. Producer/team identity remains separate StackThis work.

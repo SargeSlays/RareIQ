@@ -19,24 +19,30 @@
     const platform=Object.hasOwn(NAMES,raw?.platform)?raw.platform:null;if(!platform)return null;
     const value={platform,state:['not_authorized','pending','authorized','unavailable'].includes(raw.state)?raw.state:'unavailable',reason:text(raw.reason,100),authorized:raw.authorized===true,app_configured:raw.app_configured===true};
     if(platform==='kick')return {...value,state:'unavailable',authorized:false,reason:'kick_public_callback_required'};
+    if(platform==='twitch'){value.streaming_authorized=value.authorized&&raw.streaming_authorized===true;value.authorization_kind=raw.authorization_kind==='streaming'?'streaming':'chat';}
+    const invalid=(reason,state='unavailable')=>({...value,state,authorized:false,reason,...(platform==='twitch'?{streaming_authorized:false}:{})});
     if(typeof raw.public_label==='string')value.public_label=raw.public_label.slice(0,80);
     if(typeof raw.expires_at==='number'&&Number.isFinite(raw.expires_at))value.expires_at=raw.expires_at;
     if(value.state==='pending'){
-      if(typeof raw.flow_id!=='string'||!/^[a-f0-9]{32}$/.test(raw.flow_id)||!value.expires_at)return {...value,state:'unavailable',authorized:false,reason:'invalid_provider_response'};
-      if(value.expires_at<=now)return {...value,state:'not_authorized',authorized:false,reason:'authorization_expired'};
+      if(typeof raw.flow_id!=='string'||!/^[a-f0-9]{32}$/.test(raw.flow_id)||!value.expires_at)return invalid('invalid_provider_response');
+      if(value.expires_at<=now)return invalid('authorization_expired','not_authorized');
       if(platform==='youtube')return {...value,flow_id:raw.flow_id};
-      if(raw.verification_url!==VERIFY_URL||typeof raw.user_code!=='string'||!/^[A-Za-z0-9-]{4,32}$/.test(raw.user_code))return {...value,state:'unavailable',authorized:false,reason:raw.verification_url!==VERIFY_URL?'invalid_provider_endpoint':'invalid_provider_response'};
+      if(raw.verification_url!==VERIFY_URL||typeof raw.user_code!=='string'||!/^[A-Za-z0-9-]{4,32}$/.test(raw.user_code))return invalid(raw.verification_url!==VERIFY_URL?'invalid_provider_endpoint':'invalid_provider_response');
       return {...value,flow_id:raw.flow_id,user_code:raw.user_code,verification_url:VERIFY_URL};
     }
-    if(value.state==='authorized'&&(!value.authorized||!value.expires_at||value.expires_at<=now))return {...value,state:'not_authorized',authorized:false,reason:'authorization_refresh_required'};
-    value.authorized=value.state==='authorized'&&value.authorized;return value;
+    if(value.state==='authorized'&&(!value.authorized||!value.expires_at||value.expires_at<=now))return invalid('authorization_refresh_required','not_authorized');
+    value.authorized=value.state==='authorized'&&value.authorized;if(platform==='twitch')value.streaming_authorized=value.authorized&&value.streaming_authorized;return value;
   }
   function normalize(payload,now){
     if(!Array.isArray(payload?.accounts))throw Error('invalid_response');
     return Object.keys(NAMES).map(platform=>account(payload.accounts.find(item=>item?.platform===platform)||{platform,state:'unavailable',reason:'account_unavailable'},now));
   }
+  function twitchScope(value){
+    return value?.state==='pending'&&value.authorization_kind==='streaming'?'Chat-reading and stream-key access. Review both permissions on Twitch. Saving the connection never starts a broadcast.':value?.streaming_authorized?'Chat-reading and stream-key access are saved. Broadcast setup checks this account before starting.':'Read-only chat permission. Complete sign-in and review consent on Twitch. This account permission does not grant streaming or message-sending access.';
+  }
   function explanation(value){
-    if(!value)return 'Account status is unavailable. Retry to check again.';if(value.state==='authorized'&&value.authorized)return 'Account ready. Choose Use account to connect viewer chat.';
+    if(!value)return 'Account status is unavailable. Retry to check again.';if(value.platform==='twitch'&&value.state==='pending'&&value.authorization_kind==='streaming')return 'Enter this code on Twitch and approve chat-reading and stream-key access. Nothing starts broadcasting.';
+    if(value.state==='authorized'&&value.authorized)return value.platform==='twitch'&&value.streaming_authorized?'Streaming and chat access are saved. Choose Use account to connect viewer chat; broadcast setup is separate.':'Account ready. Choose Use account to connect viewer chat.';
     if(value.platform==='youtube'){
       if(value.reason==='youtube_sign_in_setup_required')return REASONS.youtube_sign_in_setup_required;
       if(!value.app_configured||value.reason==='app_setup_required')return 'YouTube sign-in needs a one-time app setup. It is not ready on this computer yet.';
@@ -100,7 +106,7 @@
       const section=node('section','',dialog,{'data-account-platform':platform});node('h3',name,section);const label=node('p','',section,{class:'platform-account-label'}),note=node('p','',section,{'data-account-note':platform});
       if(platform==='kick'){rows.set(platform,{section,label,note});continue;}
       const key=platform==='twitch'?'':platform;
-      node('p',platform==='twitch'?'Read-only chat permission. Complete sign-in and review consent on Twitch. This account permission does not grant streaming or message-sending access.':'Read-only access to your YouTube channel and live chat. Review consent on Google. This account permission does not grant streaming or message-sending access.',section,{class:'platform-accounts-scope'});
+      const scope=node('p',platform==='twitch'?twitchScope(null):'Read-only access to your YouTube channel and live chat. Review consent on Google. This account permission does not grant streaming or message-sending access.',section,{class:'platform-accounts-scope'});
       const pending=node('div','',section,{class:'platform-accounts-pending','data-accounts-pending':key});let code,copy,link,authorize,googleNote;
       if(platform==='twitch'){
         node('p','Your Twitch sign-in code',pending);code=node('output','',pending,{tabindex:'0','aria-label':'Twitch sign-in code','data-accounts-code':''});copy=node('button','Copy code',pending,{type:'button','data-accounts-copy':''});link=node('a','Open Twitch sign-in',pending,{href:VERIFY_URL,target:'_blank',rel:'noopener noreferrer',referrerpolicy:'no-referrer','data-accounts-link':''});
@@ -108,15 +114,15 @@
       }else{
         googleNote=node('p','Continue in Google, then return here. This sign-in expires; Cancel sign-in stops the attempt.',pending);authorize=node('button','Open Google sign-in',pending,{type:'button','data-accounts-google-open':''});
       }
-      const actions=node('div','',section,{class:'platform-accounts-actions'}),begin=node('button','Sign in with '+name,actions,{type:'button','data-accounts-begin':key}),cancel=node('button','Cancel sign-in',actions,{type:'button','data-accounts-cancel':key}),use=node('button','Use account',actions,{type:'button','data-accounts-use':key});rows.set(platform,{section,label,note,pending,code,copy,link,authorize,googleNote,begin,cancel,use});
+      const actions=node('div','',section,{class:'platform-accounts-actions'}),begin=node('button','Sign in with '+name,actions,{type:'button','data-accounts-begin':key}),cancel=node('button','Cancel sign-in',actions,{type:'button','data-accounts-cancel':key}),use=node('button','Use account',actions,{type:'button','data-accounts-use':key});rows.set(platform,{section,label,note,scope,pending,code,copy,link,authorize,googleNote,begin,cancel,use});
     }
     const refresh=node('button','Retry account status',dialog,{type:'button','data-accounts-refresh':''});parent.append(dialog);let opener=null;
     const controller=createController({...options,onChange(state){
       if(status.textContent!==state.status)status.textContent=state.status;dialog.setAttribute('aria-busy',String(Boolean(state.busy)));refresh.hidden=!state.stale;refresh.disabled=Boolean(state.busy);
-      for(const [platform,row]of rows){const value=state.accounts.find(item=>item.platform===platform);row.note.textContent=value?explanation(value):'Loading account status…';row.label.textContent=value?.state==='authorized'&&value.authorized?value.public_label?'Account ready · '+value.public_label:'Account ready':'';
+      for(const [platform,row]of rows){const value=state.accounts.find(item=>item.platform===platform);row.note.textContent=value?explanation(value):'Loading account status…';row.label.textContent=value?.state==='authorized'&&value.authorized?value.public_label?(value.streaming_authorized?'Streaming access saved · ':'Account ready · ')+value.public_label:(value.streaming_authorized?'Streaming access saved':'Account ready'):'';
         if(platform==='kick')continue;const pending=value?.state==='pending',ready=value?.state==='authorized'&&value.authorized,ownBusy=state.busyPlatform===platform&&['begin','authorize'].includes(state.busy);
         row.pending.hidden=!pending;
-        if(platform==='twitch'){const code=pending?value.user_code:'';if(row.code.textContent!==code)row.code.textContent=code;row.copy.disabled=Boolean(state.busy)||!pending;row.link.hidden=!pending;}
+        if(platform==='twitch'){row.scope.textContent=twitchScope(value);const code=pending?value.user_code:'';if(row.code.textContent!==code)row.code.textContent=code;row.copy.disabled=Boolean(state.busy)||!pending;row.link.hidden=!pending;}
         else{const launched=pending&&state.googleOpenedFlow===value.flow_id,validating=value?.reason==='validating_authorization';row.authorize.disabled=Boolean(state.busy)||state.stale||!pending||launched||validating;row.authorize.textContent=launched?'Google sign-in opened':'Open Google sign-in';row.authorize.title=launched?'Finish sign-in in the browser window already opened.':validating?'Google sign-in is being checked.':'';row.googleNote.textContent=validating?'Google sign-in received. Checking your channel…':launched?'Finish sign-in in the opened browser window, then return here. Cancel sign-in stops this attempt.':'Continue in Google, then return here. This sign-in expires; Cancel sign-in stops the attempt.';}
         row.begin.hidden=pending||ready;row.begin.disabled=Boolean(state.busy)||!value?.app_configured||state.stale;row.begin.title=!value?.app_configured?explanation({...value,platform,app_configured:false}):state.stale?'Retry account status before starting sign-in.':'';
         row.cancel.hidden=!pending&&!ownBusy;row.cancel.disabled=Boolean(state.busy)&&!ownBusy;row.use.hidden=!ready;row.use.disabled=Boolean(state.busy)||state.stale;
@@ -127,5 +133,5 @@
     const api={element:dialog,controller,open(trigger){opener=trigger||doc.activeElement;if(!dialog.open)dialog.showModal();controller.open();},close(){controller.close();if(dialog.open)dialog.close();opener?.focus?.();},destroy(){controller.destroy();if(dialog.open)dialog.close();dialog.remove();}};
     close.addEventListener('click',()=>api.close());dialog.addEventListener('cancel',event=>{event.preventDefault();api.close();});dialog.addEventListener('close',()=>controller.close());return api;
   }
-  const api={mount,createController,normalize,account,explanation,googleAuthorizationUrl,VERIFY_URL};if(typeof module==='object'&&module.exports)module.exports=api;else host.ProducerPlatformAccounts=api;
+  const api={mount,createController,normalize,account,explanation,twitchScope,googleAuthorizationUrl,VERIFY_URL};if(typeof module==='object'&&module.exports)module.exports=api;else host.ProducerPlatformAccounts=api;
 })(typeof window==='undefined'?globalThis:window);

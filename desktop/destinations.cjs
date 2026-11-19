@@ -53,8 +53,9 @@ function validateServerUrl(value, { platform = 'custom', allowInsecureRtmp = fal
   return url.href.replace(/\/$/, '');
 }
 
-function normalizeInput(payload) {
-  if (!plain(payload) || Object.keys(payload).some(key => !FIELDS.has(key))) fail('invalid_destination_fields');
+function normalizeInput(payload, account = false) {
+  if (!plain(payload) || Object.keys(payload).some(key => !FIELDS.has(key) && !(account && key === 'accountRef'))) fail('invalid_destination_fields');
+  if (account && (payload.platform !== 'twitch' || typeof payload.accountRef !== 'string' || !/^[a-f0-9]{64}$/.test(payload.accountRef) || payload.streamKey || payload.clearKey || payload.allowInsecureRtmp || payload.serverUrl)) fail('invalid_linked_account');
   if (payload.id !== undefined && (typeof payload.id !== 'string' || !UUID.test(payload.id))) fail('invalid_destination_id');
   if (typeof payload.requestId !== 'string' || !REQUEST.test(payload.requestId)) fail('destination_request_id_required');
   if (typeof payload.name !== 'string' || !payload.name.trim() || payload.name.trim().length > 80 || /[\x00-\x1f\x7f]/.test(payload.name)) fail('invalid_destination_name');
@@ -66,18 +67,19 @@ function normalizeInput(payload) {
   if (payload.allowInsecureRtmp && payload.platform !== 'custom') fail('secure_destination_required');
   return { id: payload.id || null, requestId: payload.requestId, name: payload.name.trim(), platform: payload.platform,
     serverUrl: payload.serverUrl || null, streamKey: payload.streamKey || null, clearKey: payload.clearKey === true,
-    allowInsecureRtmp: payload.allowInsecureRtmp === true };
+    allowInsecureRtmp: payload.allowInsecureRtmp === true, ...(account ? { accountRef: payload.accountRef } : {}) };
 }
 
 class DestinationStore {
-  #directory; #file; #cipher; #fs; #platform; #state = null; #queue = Promise.resolve();
-  constructor({ directory, cipher, fileSystem = fs, platform = process.platform } = {}) {
+  #directory; #file; #cipher; #fs; #platform; #accountResolver; #state = null; #queue = Promise.resolve();
+  constructor({ directory, cipher, fileSystem = fs, platform = process.platform, accountResolver } = {}) {
     if (typeof directory !== 'string' || !path.isAbsolute(directory)) fail('destination_directory_required');
     this.#directory = directory;
     this.#file = path.join(directory, 'destinations.json');
     this.#cipher = cipher;
     this.#fs = fileSystem;
     this.#platform = platform;
+    this.#accountResolver = accountResolver;
   }
   #serial(action) {
     const result = this.#queue.then(action);
@@ -133,19 +135,20 @@ class DestinationStore {
           || typeof decoded.streamKey !== 'string' || decoded.streamKey.length > 4096 || /[\s\x00-\x1f\x7f]/.test(decoded.streamKey)
           || typeof decoded.allowInsecureRtmp !== 'boolean' || decoded.allowInsecureRtmp !== profile.allowInsecureRtmp) fail('destination_credentials_unavailable');
       decoded.serverUrl = validateServerUrl(decoded.serverUrl, profile);
+      if (decoded.accountRef !== undefined && (decoded.platform !== 'twitch' || !/^[a-f0-9]{64}$/.test(decoded.accountRef) || decoded.streamKey)) fail('destination_credentials_unavailable');
       return decoded;
     } catch (_) { fail('destination_credentials_unavailable'); }
   }
   async #publicProfile(profile, available) {
-    let keyConfigured = false, serverConfigured = false, locked = !available;
+    let keyConfigured = false, serverConfigured = false, locked = !available, linkedAccount = false;
     if (available) {
-      try { const secret = await this.#decode(profile); keyConfigured = Boolean(secret.streamKey); serverConfigured = Boolean(secret.serverUrl); }
+      try { const secret = await this.#decode(profile); linkedAccount = Boolean(secret.accountRef); keyConfigured = Boolean(secret.streamKey) || linkedAccount; serverConfigured = Boolean(secret.serverUrl); }
       catch (_) { locked = true; }
     }
     return { id: profile.id, name: profile.name, platform: profile.platform, updatedAt: profile.updatedAt,
       insecureTransport: profile.allowInsecureRtmp, keyConfigured, serverConfigured,
       configured: !locked && keyConfigured && serverConfigured, status: locked ? 'locked' : keyConfigured ? 'configured' : 'needs_key',
-      connected: false, verified: false, platformLive: false, networkVerified: false };
+      connected: false, verified: false, platformLive: false, networkVerified: false, ...(linkedAccount ? { linkedAccount: true } : {}) };
   }
   public() {
     return this.#serial(async () => {
@@ -173,9 +176,16 @@ class DestinationStore {
     this.#state = next;
   }
   save(payload) {
+    return this.#save(payload, false);
+  }
+  // Main-owned account coordinator only. Renderer destination-save never accepts accountRef.
+  saveAccount(payload) {
+    return this.#save(payload, true);
+  }
+  #save(payload, account) {
     // Snapshot caller input before entering the queue; no caller-owned object is retained.
     let input;
-    try { input = normalizeInput(payload); } catch (error) { return Promise.reject(error); }
+    try { input = normalizeInput(payload, account); } catch (error) { return Promise.reject(error); }
     return this.#serial(async () => {
       await this.#load();
       if (!await this.#available()) fail('secure_storage_unavailable');
@@ -187,17 +197,23 @@ class DestinationStore {
         if (!profile) fail('destination_request_retired');
         return { saved: true, replayed: true, destination: await this.#publicProfile(profile, true) };
       }
-      const previous = input.id ? this.#state.profiles.find(p => p.id === input.id) : null;
+      let previous = input.id ? this.#state.profiles.find(p => p.id === input.id) : null;
+      if (account && !input.id) {
+        for (const candidate of this.#state.profiles) {
+          if (candidate.platform === 'twitch' && (await this.#decode(candidate)).accountRef === input.accountRef) { previous = candidate; break; }
+        }
+      }
       if (input.id && !previous) fail('destination_not_found');
       if (!previous && this.#state.profiles.length >= MAX_PROFILES) fail('destination_library_full');
       const oldSecret = previous ? await this.#decode(previous) : null;
+      if (oldSecret?.accountRef && !account || account && oldSecret && oldSecret.accountRef !== input.accountRef) fail('account_destination_managed');
       const server = input.serverUrl || (previous?.platform === input.platform ? oldSecret.serverUrl : PRESETS.find(p => p.id === input.platform).serverUrl);
       const serverUrl = validateServerUrl(server, input);
       if (oldSecret?.streamKey && (oldSecret.serverUrl !== serverUrl || previous.platform !== input.platform)
           && !input.streamKey && !input.clearKey) fail('destination_key_replacement_required');
       const streamKey = input.clearKey ? '' : input.streamKey || oldSecret?.streamKey || '';
       const id = previous?.id || randomUUID();
-      const secret = { id, platform: input.platform, serverUrl, streamKey, allowInsecureRtmp: input.allowInsecureRtmp };
+      const secret = { id, platform: input.platform, serverUrl, streamKey, allowInsecureRtmp: input.allowInsecureRtmp, ...(account ? { accountRef: input.accountRef } : {}) };
       let encrypted;
       try {
         const bytes = await this.#cipher.encryptStringAsync(JSON.stringify(secret));
@@ -228,6 +244,13 @@ class DestinationStore {
       const profile = this.#state.profiles.find(p => p.id === id);
       if (!profile) fail('destination_not_found');
       const secret = await this.#decode(profile);
+      if (secret.accountRef) {
+        if (typeof this.#accountResolver !== 'function') fail('account_authorization_required');
+        let resolved;
+        try { resolved = await this.#accountResolver(secret.accountRef); } catch (error) { fail(error?.message === 'streaming_not_available' ? 'streaming_not_available' : 'account_authorization_required'); }
+        if (!plain(resolved) || resolved.accountRef !== secret.accountRef || typeof resolved.streamKey !== 'string' || !resolved.streamKey || resolved.streamKey.length > 4096 || /[\s\x00-\x1f\x7f]/.test(resolved.streamKey)) fail('account_authorization_required');
+        secret.streamKey = resolved.streamKey;
+      }
       if (!secret.streamKey) fail('destination_key_required');
       // Main encoder only: never log, return through IPC, or put in command previews.
       return { ...secret, name: profile.name, networkVerified: false };

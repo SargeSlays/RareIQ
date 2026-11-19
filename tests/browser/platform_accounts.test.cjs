@@ -41,6 +41,23 @@ test('accounts stay lazy until open and read status every five seconds without b
   const f=fixture();assert.equal(f.requests.length,0);await f.controller.open();assert.equal(f.requests.length,1);assert.equal(f.requests[0].url,'/api/production/accounts');await f.fire();assert.equal(f.requests.length,2);assert.equal(f.requests.some(request=>request.init.method==='POST'),false);f.controller.close();assert.equal(f.timers.size,0);
 });
 
+test('shared streaming consent keeps its scope and saved authorization through normalization and dialog rendering',async()=>{
+  const upgrade=pending({authorization_kind:'streaming',authorized:true,streaming_authorized:false}),normalized=account(upgrade,NOW);
+  assert.equal(normalized.authorization_kind,'streaming');assert.equal(normalized.authorized,true);assert.equal(normalized.streaming_authorized,false);
+  const ui=uiFixture({accountValue:upgrade});ui.api.open();await settle();
+  const scope=ui.all.find(node=>node.attributes.class==='platform-accounts-scope');assert.match(scope.textContent,/Chat-reading and stream-key access/);assert.doesNotMatch(scope.textContent,/does not grant streaming/);assert.match(ui.get('data-account-note','twitch').textContent,/approve chat-reading and stream-key access/);assert.equal(ui.get('data-accounts-begin').hidden,true);
+  const f=fixture();f.setHandler(async()=>response(accounts(upgrade)));await f.controller.open();assert.equal(f.controller.snapshot().accounts[0].authorization_kind,'streaming');
+  f.setHandler(async()=>response({account:authorized({streaming_authorized:true})}));await f.controller.run('cancel');assert.equal(f.controller.snapshot().accounts[0].streaming_authorized,true);assert.equal(f.requests.at(-1).url,'/api/production/accounts/twitch/cancel');
+  const saved=uiFixture({accountValue:authorized({streaming_authorized:true})});saved.api.open();await settle();assert.match(saved.all.find(node=>node.attributes.class==='platform-accounts-scope').textContent,/stream-key access are saved/);assert.match(saved.get('data-account-note','twitch').textContent,/Streaming and chat access are saved/);assert.match(saved.all.find(node=>node.attributes.class==='platform-account-label').textContent,/Streaming access saved/);
+  assert.equal(account(authorized({streaming_authorized:true,expires_at:NOW-1}),NOW).streaming_authorized,false);
+  assert.equal(account(upgrade,NOW+601).streaming_authorized,false);
+});
+
+test('web-only Begin remains chat consent and rejects a truthy nonboolean streaming flag',async()=>{
+  const f=fixture();await f.controller.open();f.setHandler(async()=>response({account:pending()}));await f.controller.run('begin');assert.equal(f.requests.at(-1).url,'/api/production/accounts/twitch/begin');assert.equal(f.requests.at(-1).init.body,'{}');assert.equal(f.controller.snapshot().accounts[0].authorization_kind,'chat');
+  const ui=uiFixture({accountValue:pending()});ui.api.open();await settle();assert.match(ui.all.find(node=>node.attributes.class==='platform-accounts-scope').textContent,/Read-only chat permission/);assert.match(ui.get('data-account-note','twitch').textContent,/approve read-only chat/);assert.equal(account(authorized({streaming_authorized:'true'}),NOW).streaming_authorized,false);
+});
+
 test('missing developer app setup blocks Begin and gives a plain explanation',async()=>{
   const f=fixture();f.setHandler(async()=>response(accounts(twitch({app_configured:false,reason:'app_setup_required'}))));await f.controller.open();assert.equal(await f.controller.run('begin'),false);assert.equal(f.requests.length,1);
   const ui=uiFixture({accountValue:twitch({app_configured:false,reason:'app_setup_required'})});ui.api.open();await settle();assert.equal(ui.get('data-accounts-begin').disabled,true);assert.match(ui.get('data-account-note','twitch').textContent,/one-time app setup/);assert.doesNotMatch(ui.get('data-account-note','twitch').textContent,/client.?id|environment|secret/i);

@@ -6,6 +6,7 @@ only a token verified against Twitch's fixed validation endpoint enters the vaul
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import math
 import re
@@ -25,6 +26,7 @@ class TwitchAccountService:
     VALIDATE_URL = "https://id.twitch.tv/oauth2/validate"
     VERIFICATION_URL = "https://www.twitch.tv/activate"
     SCOPE = "user:read:chat"
+    STREAM_SCOPE = "channel:read:stream_key"
     DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
     MAX_BYTES = 16384
     CLOSE_TIMEOUT_SECONDS = 2
@@ -40,6 +42,7 @@ class TwitchAccountService:
         "authorization_rejected", "account_identity_mismatch", "chat_scope_required",
         "account_storage_unavailable", "authorization_required", "authorization_expired",
         "authorization_denied", "authorization_refresh_required", "account_state_changed",
+        "streaming_scope_required", "account_disconnected",
     })
 
     def __init__(self, vault, *, client_id_provider=None, http_factory=None,
@@ -54,6 +57,16 @@ class TwitchAccountService:
         self._pending = self._task = None
         self._reason = None
         self._closed = False
+        self._validated_access = self._rejected_access = None
+        self._validated_until = 0
+
+    @staticmethod
+    def account_ref(record):
+        return hashlib.sha256((record["client_id"] + ":" + record["channel_id"]).encode("ascii")).hexdigest()
+
+    @staticmethod
+    def _access_ref(record):
+        return hashlib.sha256(record["access_token"].encode("ascii")).hexdigest()
 
     @staticmethod
     def _secret(value):
@@ -119,6 +132,8 @@ class TwitchAccountService:
             stored = self._stored()
             mismatch = self._app_mismatch(configured_id, stored)
             authorized = self._valid_record(stored) and not mismatch and not configuration_reason
+            if authorized and self._access_ref(stored) == self._rejected_access:
+                authorized = False
             storage_reason = None
         except _AccountError:
             stored, authorized, storage_reason = None, False, "account_storage_unavailable"
@@ -131,10 +146,12 @@ class TwitchAccountService:
         result = {"platform": "twitch", "state": "authorized" if authorized else "not_authorized",
                   "reason": storage_reason or configuration_reason or ("account_identity_mismatch" if mismatch else None)
                             or reason or ("account_authorized" if authorized else "authorization_required"),
-                  "authorized": authorized, "app_configured": configured_id is not None}
+                  "authorized": authorized, "streaming_authorized": bool(authorized and self.STREAM_SCOPE in stored["scopes"]),
+                  "app_configured": configured_id is not None}
         if authorized:
             # Public account metadata describes stored authorization, not a live chat socket.
-            result.update(public_label=stored["channel_login"], expires_at=stored["expires_at"])
+            result.update(public_label=stored["channel_login"], expires_at=stored["expires_at"],
+                          account_ref=self.account_ref(stored))
         pending = self._pending
         if pending is not None and pending["generation"] == self._generation:
             if self._clock() >= pending["expires_at"]:
@@ -143,6 +160,7 @@ class TwitchAccountService:
                 result.update(state="pending", reason="authorization_pending", flow_id=pending["flow_id"],
                               user_code=pending["user_code"], verification_url=self.VERIFICATION_URL,
                               expires_at=pending["expires_at"], poll_after=pending["interval"])
+                result["authorization_kind"] = pending["authorization_kind"]
         elif self._closed:
             result.update(state="unavailable", reason="account_service_closed")
         elif storage_reason:
@@ -189,7 +207,7 @@ class TwitchAccountService:
         return error if error in ("authorization_pending", "slow_down", "access_denied",
                                  "authorization_declined", "expired_token", "invalid_grant") else None
 
-    async def _verified_record(self, client_id, token, *, expected_channel=None):
+    async def _verified_record(self, client_id, token, *, expected_channel=None, required_scopes=None):
         access = self._secret(token.get("access_token"))
         refresh = self._secret(token.get("refresh_token"))
         expires = self._number(token.get("expires_in"), 60, 31536000)
@@ -208,17 +226,32 @@ class TwitchAccountService:
         if (not isinstance(scopes, list) or len(scopes) > 200 or self.SCOPE not in scopes
                 or any(not isinstance(scope, str) or len(scope) > 160 for scope in scopes)):
             raise _AccountError("chat_scope_required")
+        if required_scopes and not set(required_scopes).issubset(scopes):
+            raise _AccountError("streaming_scope_required")
         valid_expires = self._number(value.get("expires_in"), 60, 31536000)
         return {"client_id": client_id, "access_token": access, "refresh_token": refresh,
                 "token_type": "bearer", "expires_at": self._clock() + min(expires, valid_expires),
                 "scopes": list(scopes), "channel_login": value["login"],
                 "channel_id": value["user_id"], "public_label": value["login"]}
 
-    def _save(self, value):
+    def _save(self, value, *, previous=None):
         try:
             self._vault.set("twitch", value)
         except Exception:
             raise _AccountError("account_storage_unavailable") from None
+        # An owned validation/refresh is allowed to rotate the same saved login
+        # while its permission upgrade waits for consent. Advance only that
+        # exact pending snapshot; unrelated writers retain the stale-state guard.
+        pending = self._pending
+        if (isinstance(previous, dict) and pending is not None
+                and self._current(pending["generation"])
+                and pending["stored_before"] == previous
+                and value.get("client_id") == previous.get("client_id") == pending["client_id"]
+                and value.get("channel_id") == previous.get("channel_id")
+                and (pending["expected_channel"] is None or value.get("channel_id") == pending["expected_channel"])):
+            updated = {**previous, **value}
+            if self._stored() == updated:
+                pending["stored_before"] = updated
 
     def _current(self, generation):
         return not self._closed and generation == self._generation
@@ -243,6 +276,12 @@ class TwitchAccountService:
                 task.exception()
 
     async def begin(self):
+        return await self._begin(streaming=False)
+
+    async def begin_streaming(self):
+        return await self._begin(streaming=True)
+
+    async def _begin(self, *, streaming):
         if self._closed:
             return self.status()
         # Reserve this invocation's generation before waiting for old cleanup;
@@ -256,8 +295,12 @@ class TwitchAccountService:
             if not isinstance(client_id, str) or not self._ID.fullmatch(client_id):
                 raise _AccountError("app_setup_required")
             stored_before = self._stored()
+            scopes = [self.SCOPE]
+            if streaming or (self._valid_record(stored_before, allow_expired=True)
+                             and self.STREAM_SCOPE in stored_before["scopes"]):
+                scopes.append(self.STREAM_SCOPE)
             code, value = await self._request("POST", self.DEVICE_URL,
-                                              data={"client_id": client_id, "scopes": self.SCOPE})
+                                              data={"client_id": client_id, "scopes": " ".join(scopes)})
             if not self._current(generation):
                 return self.status()
             if code != 200:
@@ -271,7 +314,10 @@ class TwitchAccountService:
             self._pending = {"generation": generation, "flow_id": uuid.uuid4().hex,
                              "device_code": device_code, "client_id": client_id,
                              "user_code": user_code.upper(), "expires_at": self._clock() + expires,
-                             "interval": interval, "stored_before": stored_before}
+                             "interval": interval, "stored_before": stored_before, "scopes": scopes,
+                             "authorization_kind": "streaming" if streaming else "chat",
+                             "expected_channel": stored_before["channel_id"] if streaming
+                                 and self._valid_record(stored_before, allow_expired=True) else None}
             self._task = asyncio.create_task(self._poll(generation), name="twitch-account-authorization")
         except asyncio.CancelledError:
             if self._current(generation):
@@ -300,7 +346,7 @@ class TwitchAccountService:
                     raise _AccountError("authorization_expired")
                 code, value = await self._request("POST", self.TOKEN_URL, data={
                     "client_id": pending["client_id"], "device_code": pending["device_code"],
-                    "grant_type": self.DEVICE_GRANT, "scopes": self.SCOPE})
+                    "grant_type": self.DEVICE_GRANT, "scopes": " ".join(pending["scopes"])})
                 if not self._current(generation):
                     return
                 if self._clock() >= pending["expires_at"]:
@@ -319,7 +365,8 @@ class TwitchAccountService:
                     if error in ("expired_token", "invalid_grant"):
                         raise _AccountError("authorization_expired")
                     raise _AccountError("authorization_rejected")
-                record = await self._verified_record(pending["client_id"], value)
+                record = await self._verified_record(pending["client_id"], value,
+                    expected_channel=pending["expected_channel"], required_scopes=pending["scopes"])
                 async with self._credential_lock:
                     if not self._current(generation) or pending is not self._pending:
                         return
@@ -330,6 +377,7 @@ class TwitchAccountService:
                     if self._stored() != pending["stored_before"]:
                         raise _AccountError("account_state_changed")
                     self._save(record)
+                    self._mark_validated(record)
                     self._pending = None
                     self._reason = "account_authorized"
                 return
@@ -349,7 +397,16 @@ class TwitchAccountService:
         return {"client_id": record["client_id"], "channel_login": record["channel_login"],
                 "user_access_token": record["access_token"]}
 
-    async def ensure_credentials(self):
+    def _mark_validated(self, record):
+        self._validated_access = self._access_ref(record)
+        self._validated_until = min(self._clock() + 3600, record["expires_at"] - self.REFRESH_HEADROOM_SECONDS)
+        self._rejected_access = None
+
+    async def check(self):
+        await self.ensure_credentials(force_validate=True)
+        return self.status()
+
+    async def ensure_credentials(self, *, force_validate=False):
         """Internal only: explicitly load/refresh credentials for a chat connection."""
         if self._closed:
             return None
@@ -357,12 +414,27 @@ class TwitchAccountService:
             if self._closed:
                 return None
             try:
+                generation = self._generation
                 configured_id = self._configured_client_id()
                 stored = self._stored()
                 if self._app_mismatch(configured_id, stored):
                     raise _AccountError("account_identity_mismatch")
                 if self._valid_record(stored, headroom=self.REFRESH_HEADROOM_SECONDS):
-                    return self._connector_credentials(stored)
+                    if (not force_validate and self._validated_access == self._access_ref(stored)
+                            and self._clock() < self._validated_until):
+                        return self._connector_credentials(stored)
+                    remaining = max(60, int(stored["expires_at"] - self._clock()))
+                    record = await self._verified_record(stored["client_id"], {
+                        "access_token": stored["access_token"], "refresh_token": stored.get("refresh_token"),
+                        "token_type": "bearer", "expires_in": remaining}, expected_channel=stored["channel_id"])
+                    if not self._current(generation) or self._stored() != stored:
+                        return None
+                    if self._app_mismatch(self._configured_client_id(), record):
+                        raise _AccountError("account_identity_mismatch")
+                    self._save(record, previous=stored)
+                    self._mark_validated(record)
+                    self._reason = "account_authorized"
+                    return self._connector_credentials(record)
                 if not self._valid_record(stored, allow_expired=True):
                     raise _AccountError("authorization_required")
                 client_id = stored.get("client_id")
@@ -374,7 +446,7 @@ class TwitchAccountService:
                 if code != 200:
                     raise _AccountError("authorization_refresh_required")
                 record = await self._verified_record(client_id, value, expected_channel=stored.get("channel_id"))
-                if self._closed:
+                if not self._current(generation):
                     return None
                 configured_id = self._configured_client_id()
                 if self._app_mismatch(configured_id, record):
@@ -386,14 +458,44 @@ class TwitchAccountService:
                     if self._app_mismatch(configured_id, current):
                         raise _AccountError("account_identity_mismatch")
                     return self._connector_credentials(current) if self._valid_record(current) else None
-                self._save(record)
+                self._save(record, previous=stored)
+                self._mark_validated(record)
                 self._reason = "account_authorized"
                 return self._connector_credentials(record)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
+                if not self._current(generation):
+                    return None
                 self._reason = self._safe_reason(exc)
+                if self._reason in {"authorization_rejected", "authorization_refresh_required",
+                                    "chat_scope_required", "account_identity_mismatch"} and isinstance(locals().get("stored"), dict):
+                    try:
+                        self._rejected_access = self._access_ref(stored)
+                    except (KeyError, TypeError, ValueError):
+                        pass
                 return None
+
+    async def disconnect(self):
+        generation, task = self._invalidate("account_disconnected")
+        await self._stop_task(task)
+        async with self._credential_lock:
+            if not self._current(generation):
+                return self.status()
+            try:
+                stored = self._stored()
+                if stored:
+                    if self._valid_record(stored, allow_expired=True):
+                        self._rejected_access = self._access_ref(stored)
+                    # One atomic merge clears authorization while retaining public app setup.
+                    self._save({"access_token": "", "refresh_token": "", "client_secret": "", "channel_id": "",
+                        "channel_login": "", "public_label": "", "token_type": "", "scopes": [],
+                        "expires_at": 0, "client_id": stored.get("client_id", "")})
+                self._validated_access = self._rejected_access = None
+                self._validated_until = 0
+            except Exception as exc:
+                self._reason = self._safe_reason(exc)
+        return self.status()
 
     async def cancel(self):
         _, task = self._invalidate("authorization_cancelled")

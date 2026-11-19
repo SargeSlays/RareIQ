@@ -37,7 +37,7 @@ async function fixture(options={}){
 }
 test('stopped encoder failures override readiness and format hints without exposing unknown errors',async()=>{
   const f=await fixture();f.node('#outputFormat').value='portrait';
-  for(const [reason,expected] of [['encoder_backpressure',/could not keep up/],['encoder_failed',/encoder failed/],['rtmps://private/secret-key',/stopped unexpectedly/]]){
+  for(const [reason,expected] of [['encoder_backpressure',/could not keep up/],['encoder_failed',/encoder failed/],['account_authorization_required',/sign-in needs attention/],['streaming_not_available',/has not enabled streaming/],['rtmps://private/secret-key',/stopped unexpectedly/]]){
     f.state={...prepared,phase:'failed',reason};await f.poll();const text=f.node('#broadcastSummary').textContent;
     assert.match(text,expected);assert.doesNotMatch(text,/Ready to send|secret-key|format changed/);
   }

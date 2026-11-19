@@ -94,7 +94,8 @@ class Fixture:
             if response is not None:
                 return response
         if request.url.path == "/oauth2/device":
-            assert form == {"client_id": CLIENT, "scopes": "user:read:chat"}
+            assert form["client_id"] == CLIENT and form["scopes"] in (
+                "user:read:chat", "user:read:chat channel:read:stream_key") and set(form) == {"client_id", "scopes"}
             value = self.device
         elif request.url.path == "/oauth2/token":
             assert "client_secret" not in form
@@ -507,5 +508,161 @@ def test_device_approval_cannot_overwrite_a_newer_app_or_account(change):
         assert f.vault.value == (newer if change == "vault" else None)
         assert f.service.status()["reason"] == ("account_identity_mismatch" if change == "app" else "account_state_changed")
         assert_redacted(f.service.status())
+        await f.service.close()
+    asyncio.run(run())
+
+
+def test_streaming_upgrade_is_explicit_pins_existing_identity_and_reopens_saved_account():
+    async def run():
+        f = Fixture(stored=record())
+        previous = deepcopy(f.vault.value)
+        status = await f.service.begin_streaming()
+        assert status['authorized'] and not status['streaming_authorized']
+        assert status['authorization_kind'] == 'streaming' and f.vault.value == previous
+        assert f.calls[0][2]['scopes'] == 'user:read:chat channel:read:stream_key'
+        f.validation['scopes'].append('channel:read:stream_key')
+        f.tokens.append(token())
+        await f.tick()
+        status = f.service.status()
+        assert status['authorized'] and status['streaming_authorized'] and len(status['account_ref']) == 64
+        reopened = TwitchAccountService(f.vault, client_id_provider=lambda: CLIENT, clock=lambda: f.now)
+        assert reopened.status()['account_ref'] == status['account_ref']
+        assert reopened.status()['streaming_authorized']
+        assert_redacted(status)
+        await f.service.close()
+        await reopened.close()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('outcome', ['cancel', 'denied', 'scope', 'identity'])
+def test_failed_streaming_upgrade_preserves_prior_chat_grant(outcome):
+    async def run():
+        f = Fixture(stored=record())
+        previous = deepcopy(f.vault.value)
+        await f.service.begin_streaming()
+        if outcome == 'cancel':
+            await f.service.cancel()
+        else:
+            f.tokens.append((400, {'error': 'access_denied'}) if outcome == 'denied' else token())
+            if outcome == 'identity':
+                f.validation.update(user_id='999', scopes=['user:read:chat', 'channel:read:stream_key'])
+            await f.tick()
+        assert f.vault.value == previous and not f.vault.saves
+        assert f.service.status()['authorized'] and not f.service.status()['streaming_authorized']
+        expected = {'cancel': 'authorization_cancelled', 'denied': 'authorization_denied',
+                    'scope': 'streaming_scope_required', 'identity': 'account_identity_mismatch'}
+        assert f.service.status()['reason'] == expected[outcome]
+        await f.service.close()
+    asyncio.run(run())
+
+
+def test_saved_login_validates_on_first_use_and_hourly_and_explicit_check_can_detect_revocation():
+    async def run():
+        f = Fixture(stored=record(expires=NOW + 7200))
+        f.validation['expires_in'] = 7100
+        assert f.calls == []
+        assert await f.service.ensure_credentials()
+        assert [call[1] for call in f.calls] == ['/oauth2/validate']
+        assert await f.service.ensure_credentials()
+        assert len(f.calls) == 1
+        f.now += 3601
+        assert await f.service.ensure_credentials()
+        assert len(f.calls) == 2
+        f.validation = (401, {'message': 'private provider failure'})
+        status = await f.service.check()
+        assert not status['authorized'] and not status['streaming_authorized']
+        assert 'account_ref' not in status and status['reason'] == 'authorization_rejected'
+        assert_redacted(status)
+        await f.service.close()
+    asyncio.run(run())
+
+
+def test_refresh_detects_stream_scope_loss_without_falsely_removing_chat_access():
+    async def run():
+        saved = record(expires=NOW + 10)
+        saved['scopes'].append('channel:read:stream_key')
+        f = Fixture(stored=saved)
+        f.tokens.append(token())
+        assert await f.service.ensure_credentials()
+        assert f.service.status()['authorized'] and not f.service.status()['streaming_authorized']
+        assert f.vault.value['scopes'] == ['user:read:chat']
+        await f.service.close()
+    asyncio.run(run())
+
+
+def test_disconnect_preserves_app_setup_and_late_validation_cannot_restore_login():
+    async def run():
+        f = Fixture(stored=record())
+        entered, release = asyncio.Event(), asyncio.Event()
+        async def hook(request, form):
+            if request.url.path == '/oauth2/validate':
+                entered.set()
+                await release.wait()
+        f.hook = hook
+        checking = asyncio.create_task(f.service.check())
+        await entered.wait()
+        disconnecting = asyncio.create_task(f.service.disconnect())
+        await asyncio.sleep(.001)
+        release.set()
+        await checking
+        status = await disconnecting
+        assert not status['authorized'] and status['app_configured']
+        assert f.vault.value['client_id'] == CLIENT and f.vault.value['access_token'] == ''
+        assert not f.vault.value['refresh_token'] and f.vault.value['scopes'] == []
+        assert len(f.vault.saves) == 1 and status['reason'] == 'account_disconnected'
+        assert await f.service.ensure_credentials() is None
+        await f.service.close()
+    asyncio.run(run())
+
+
+def test_disconnect_failed_storage_still_invalidates_current_process_grant():
+    async def run():
+        f = Fixture(stored=record())
+        f.vault.fail_set = True
+        status = await f.service.disconnect()
+        assert not status['authorized'] and status['reason'] == 'account_storage_unavailable'
+        await f.service.close()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('operation', ['check', 'refresh'])
+def test_owned_check_or_refresh_during_pending_stream_upgrade_does_not_invalidate_consent(operation):
+    async def run():
+        f = Fixture(stored=record(expires=NOW + (10 if operation == 'refresh' else 3600)))
+        old = deepcopy(f.vault.value)
+        pending = await f.service.begin_streaming()
+        flow = pending['flow_id']
+        if operation == 'refresh':
+            f.tokens.append(token(access_token='rotated-access', refresh_token='rotated-refresh'))
+            assert await f.service.ensure_credentials()
+        else:
+            checked = await f.service.check()
+            assert checked['state'] == 'pending' and checked['flow_id'] == flow
+        assert f.vault.value != old
+        assert f.service._pending['stored_before'] == f.vault.value
+        assert not f.service.status()['streaming_authorized']
+        f.validation['scopes'] = ['user:read:chat', 'channel:read:stream_key']
+        f.tokens.append(token(access_token='upgraded-access', refresh_token='upgraded-refresh'))
+        await f.tick()
+        final = f.service.status()
+        assert final['reason'] == 'account_authorized' and final['streaming_authorized']
+        assert f.vault.value['access_token'] == 'upgraded-access' and len(f.vault.saves) == 2
+        await f.service.close()
+    asyncio.run(run())
+
+
+def test_external_vault_write_after_owned_check_still_invalidates_pending_upgrade():
+    async def run():
+        f = Fixture(stored=record())
+        await f.service.begin_streaming()
+        await f.service.check()
+        owned = deepcopy(f.vault.value)
+        external = record(access='external-newer-access')
+        f.vault.value = external
+        f.validation['scopes'] = ['user:read:chat', 'channel:read:stream_key']
+        f.tokens.append(token())
+        await f.tick()
+        assert f.service.status()['reason'] == 'account_state_changed'
+        assert f.vault.value == external and f.vault.saves == [owned]
         await f.service.close()
     asyncio.run(run())

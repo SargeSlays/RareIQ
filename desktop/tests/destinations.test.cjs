@@ -35,6 +35,36 @@ async function fixture(t, options = {}) {
 const payload = overrides => ({ requestId: 'first-save', name: 'My channel', platform: 'twitch', streamKey: 'synthetic-secret-9a82', ...overrides });
 const rejects = (promise, code) => assert.rejects(promise, error => error.code === code && error.message === code);
 
+test('linked accounts persist a reference, resolve a fresh private key at Start, and never expose it publicly', async t => {
+  const ref='a'.repeat(64); let calls=0;
+  const accountResolver=async accountRef=>{calls++;return {accountRef,streamKey:'private-derived-'+calls};};
+  const f=await fixture(t,{accountResolver}), input={requestId:'link-one',platform:'twitch',name:'Twitch account',accountRef:ref};
+  await rejects(f.store.save(input),'invalid_destination_fields');
+  const saved=await f.store.saveAccount(input);assert.equal(saved.destination.linkedAccount,true);
+  assert.equal((await f.store.saveAccount(input)).replayed,true);
+  const second=await f.store.saveAccount({...input,requestId:'link-two'});assert.equal(second.destination.id,saved.destination.id);
+  assert.equal((await f.store.public()).destinations.length,1);assert.equal(calls,0);
+  const reloaded=new DestinationStore({directory:f.directory,cipher:f.cipher,platform:'win32',accountResolver});
+  assert.equal((await reloaded.getPrivateDestination(saved.destination.id)).streamKey,'private-derived-1');
+  assert.equal((await reloaded.getPrivateDestination(saved.destination.id)).streamKey,'private-derived-2');
+  const disk=await fs.readFile(f.file,'utf8'), visible=JSON.stringify(await reloaded.public());
+  for(const value of [disk,visible])assert.equal(value.includes('private-derived'),false);
+  await rejects(reloaded.save(payload({id:saved.destination.id,requestId:'edit-account'})),'account_destination_managed');
+  await reloaded.remove(saved.destination.id);
+  await rejects(reloaded.saveAccount(input),'destination_request_retired');
+});
+
+test('linked destination fails closed after disconnect, wrong account, invalid keys or missing native resolver',async t=>{
+  let reply;const f=await fixture(t,{accountResolver:async()=>reply}), ref='b'.repeat(64);
+  const saved=await f.store.saveAccount({requestId:'link',name:'Linked channel',platform:'twitch',accountRef:ref});
+  for(reply of [null,{accountRef:'c'.repeat(64),streamKey:'wrong-account'},{accountRef:ref,streamKey:'bad key'},{accountRef:ref,streamKey:''}])await rejects(f.store.private(saved.destination.id),'account_authorization_required');
+  const offline=new DestinationStore({directory:f.directory,cipher:f.cipher,platform:'win32'});
+  await rejects(offline.private(saved.destination.id),'account_authorization_required');
+  const ineligible=new DestinationStore({directory:f.directory,cipher:f.cipher,platform:'win32',accountResolver:async()=>{throw Error('streaming_not_available');}});
+  await rejects(ineligible.private(saved.destination.id),'streaming_not_available');
+  for(const change of [{streamKey:'manual'},{platform:'youtube'},{serverUrl:'rtmps://provider.com/live'},{accountRef:'bad'}])await rejects(f.store.saveAccount({requestId:'bad',name:'Bad',platform:'twitch',accountRef:ref,...change}),'invalid_linked_account');
+});
+
 test('official Twitch secure preset; other platforms require their dashboard URL', () => {
   assert.equal(PRESETS.find(p => p.id === 'twitch').serverUrl, 'rtmps://ingest.global-contribute.live-video.net/app');
   assert.equal(PRESETS.find(p => p.id === 'youtube').serverUrl, '');
