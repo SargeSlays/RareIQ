@@ -1231,3 +1231,8 @@ Adding an account owner also extends lifespan cleanup. The extracted-lifespan te
 namespace now supplies Kick and asserts its close is awaited in desktop/web modes.
 The full gate initially exposed that missing test dependency; focused provider
 tests alone did not exercise the shared shutdown contract.
+
+Final native inspection caught a Kick setup hint using 127.0.0.1 while the registered
+callback and authorization boundary require localhost. Setup copy now uses the
+exact registered URL, and a regression feeds the visible callback into the native
+URL validator so differing loopback spellings cannot silently break consent.
