@@ -1928,3 +1928,11 @@ Rehearsal failed before media because the isolated interpreter omitted a package
 worker companion directory; a minimal bootstrap correction and regression are
 now implemented. Rebuilt native acceptance and primary data adoption remain
 pending; disconnected configured OBS must not be bypassed to force promotion.
+
+## November 19, 2026 — Shared shutdown admission
+
+159 focused lifecycle/native/controller tests passed. Both shutdown routes now
+refuse active or unknown production and atomically seal new clients/mutations.
+Explicit OBS-disabled state permits standalone idle shutdown only with false
+streaming/recording flags. Configured disconnected OBS remains a blocker; no
+primary settings were changed or shutdown forced during this checkpoint.

@@ -1428,3 +1428,17 @@ The package now explicitly includes only that installed directory; CWD and Pytho
 environment overrides remain ignored. A focused synthetic archive/path regression
 keeps an untrusted CWD companion out. Bundled acceptance captures authoritative
 Start/failure state before cleanup; actual rebuilt acceptance remains separate.
+
+## November 19, 2026 — One idle guard for every shutdown route
+
+The desktop stop route guarded production, but the older system/shutdown route
+used by the CLI could skip those checks. Both now share one asynchronous idle
+check and atomic admission seal, including legacy web mode. Refused shutdown
+returns ok:false so CLI control does not mistake a blocker for acknowledgement.
+Recheck closing after the OBS wait; concurrent requests schedule only one stop.
+
+An explicitly disabled OBS integration is outside standalone encoder ownership.
+It permits idle shutdown only when its output flags are explicitly false. Enabled
+but disconnected, missing or contradictory OBS state still blocks. Preserve local
+client, mutation, native encoder, session and recording guards in every case.
+Actual ASGI regressions cover races, failed scheduling and both entry routes.

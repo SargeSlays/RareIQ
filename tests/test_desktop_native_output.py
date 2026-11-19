@@ -102,14 +102,14 @@ def test_native_ownership_blocks_real_stop_before_any_obs_probe():
     guard = DesktopAdmission(True)
     guard.native_encoding = NativeEncodingState(pid_probe=lambda _pid: True)
     guard.native_encoding.update(active=True, owner_pid=42)
-    ns = functions({"_desktop_idle_reason", "desktop_stop"}, dict(
+    ns = functions({"_desktop_idle_reason", "_request_idle_shutdown", "desktop_stop"}, dict(
         DESKTOP_ADMISSION=guard, Request=object, os=os, SERVER_SESSION_ID="backend",
         is_loopback_client=lambda _host: True,
         _read_bounded_json=AsyncMock(return_value={"pid": os.getpid(), "server_session_id": "backend"}),
-        system_shutdown=AsyncMock()))
+        _schedule_system_shutdown=Mock()))
     result = asyncio.run(ns["desktop_stop"](SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"))))
     assert result["reason"] == "native_encoding_active" and not guard.closing
-    ns["system_shutdown"].assert_not_called()
+    ns["_schedule_system_shutdown"].assert_not_called()
 
 
 @pytest.mark.parametrize("changed,host,enabled,closing,reason", [

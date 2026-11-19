@@ -255,7 +255,7 @@ def test_cli_stdout_is_exactly_sanitized_json(backend, monkeypatch, capsys):
 
 def _idle(guard, **changes):
     values = {"session": {"active": False}, "recording": {"active": False},
-              "obs": {"connected": True, "streaming": False, "recording": False}}
+              "obs": {"enabled": True, "connected": True, "streaming": False, "recording": False}}
     values.update(changes)
     return guard.idle_reason(**values)
 
@@ -294,7 +294,7 @@ def test_clients_and_commands_reserve_before_dispatch_and_release_on_cancel(scop
     asyncio.run(exercise())
 
 
-def test_closing_rejects_new_output_and_mutation_but_web_mode_stays_unchanged():
+def test_closing_rejects_new_output_and_mutation_in_both_desktop_and_legacy_modes():
     async def exercise():
         application, send = AsyncMock(), AsyncMock()
         guard = DesktopAdmission(True)
@@ -307,7 +307,7 @@ def test_closing_rejects_new_output_and_mutation_but_web_mode_stays_unchanged():
         application.assert_not_called()
         guard.enabled = False
         await middleware({"type": "websocket", "path": "/guest/ws"}, AsyncMock(), send)
-        application.assert_awaited_once()
+        application.assert_not_called()
     asyncio.run(exercise())
 
 
@@ -376,10 +376,10 @@ def test_real_guarded_stop_rechecks_clients_after_slow_obs_and_seals_admission()
             os=os, Request=object, SERVER_SESSION_ID="session-one",
             DESKTOP_ADMISSION=guard, PRODUCTION_SESSION_LOCK=nullcontext(), PRODUCTION_SESSION={"active": False},
             recording=SimpleNamespace(status=lambda: {"active": False}),
-            obs=SimpleNamespace(status=lambda: {"connected": True, "streaming": False, "recording": False}),
+            obs=SimpleNamespace(status=lambda: {"enabled": True, "connected": True, "streaming": False, "recording": False}),
             is_loopback_client=lambda host: host == "127.0.0.1",
-            _read_bounded_json=AsyncMock(return_value=identity), system_shutdown=AsyncMock())
-        _server_functions({"_desktop_idle_reason", "desktop_stop"}, namespace)
+            _read_bounded_json=AsyncMock(return_value=identity), _schedule_system_shutdown=Mock())
+        _server_functions({"_desktop_idle_reason", "_request_idle_shutdown", "desktop_stop"}, namespace)
         request = SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"))
         stopping = asyncio.create_task(namespace["desktop_stop"](request))
         await entered.wait()
@@ -387,9 +387,9 @@ def test_real_guarded_stop_rechecks_clients_after_slow_obs_and_seals_admission()
         release.set()
         refused = await stopping
         assert refused["reason"] == "clients_connected" and not guard.closing
-        namespace["system_shutdown"].assert_not_called()
+        namespace["_schedule_system_shutdown"].assert_not_called()
         guard.clients = 0
         assert (await namespace["desktop_stop"](request))["stopping"] is True
         assert guard.closing
-        namespace["system_shutdown"].assert_awaited_once()
+        namespace["_schedule_system_shutdown"].assert_called_once()
     asyncio.run(exercise())

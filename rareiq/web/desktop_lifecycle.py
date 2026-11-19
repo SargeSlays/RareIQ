@@ -1,4 +1,4 @@
-"""Desktop-only admission and idle checks; no device or application imports."""
+"""Local shutdown admission and idle checks; no device or application imports."""
 from __future__ import annotations
 
 import ctypes
@@ -114,8 +114,8 @@ class DesktopAdmission:
         self.mutations = 0
         self.native_encoding = NativeEncodingState()
 
-    def idle_reason(self, *, session, recording, obs):
-        if not self.enabled:
+    def idle_reason(self, *, session, recording, obs, allow_non_desktop=False):
+        if not self.enabled and not allow_non_desktop:
             return "desktop_mode_required"
         if self.native_encoding.snapshot()["active"]:
             return "native_encoding_active"
@@ -127,9 +127,12 @@ class DesktopAdmission:
             return "session_not_idle"
         if recording.get("active") is not False or recording.get("stopping") is True:
             return "recording_not_idle"
-        if (obs.get("connected") is not True
-                or obs.get("streaming") is not False
-                or obs.get("recording") is not False):
+        # Explicitly disabled OBS is outside native control, but never override
+        # contradictory or unknown output state. A configured integration must
+        # still be reachable and idle; missing enabled metadata is not proof.
+        if (obs.get("streaming") is not False or obs.get("recording") is not False
+                or obs.get("enabled") is not False
+                and (obs.get("enabled") is not True or obs.get("connected") is not True)):
             return "obs_not_confirmed_idle"
         return None
 
@@ -147,10 +150,12 @@ class DesktopAdmissionMiddleware:
     async def __call__(self, scope, receive, send):
         guard = self.admission
         kind = scope["type"]
-        if not guard.enabled or kind not in {"http", "websocket"}:
+        # Legacy /api/system/shutdown needs the same race protection even when
+        # desktop-only APIs remain disabled. Normal requests are only counted.
+        if kind not in {"http", "websocket"}:
             return await self.app(scope, receive, send)
         path = scope.get("path", "")
-        desktop_control = path in {"/api/desktop/status", "/api/desktop/stop"}
+        desktop_control = path in {"/api/desktop/status", "/api/desktop/stop", "/api/system/shutdown"}
         if guard.closing and not desktop_control:
             if kind == "websocket":
                 await send({"type": "websocket.close", "code": 1012})

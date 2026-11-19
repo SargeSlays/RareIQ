@@ -1664,30 +1664,62 @@ async def camera_ready():
     }
 
 
-@app.post("/api/system/shutdown")
-async def system_shutdown():
-    """Gracefully stop the local RareIQ process after responding."""
+def _schedule_system_shutdown():
+    """Schedule process exit only after the caller has sealed idle admission."""
     def stop_process():
         time.sleep(0.35)
         os.kill(os.getpid(), signal.SIGINT)
 
     threading.Thread(target=stop_process, daemon=True).start()
-    return {"ok": True, "message": "RareIQ is shutting down."}
 
 
-async def _desktop_idle_reason():
-    if not DESKTOP_ADMISSION.enabled:
+async def _desktop_idle_reason(*, allow_non_desktop=False):
+    if not DESKTOP_ADMISSION.enabled and not allow_non_desktop:
         return "desktop_mode_required"
     if DESKTOP_ADMISSION.native_encoding.snapshot()["active"]:
         return "native_encoding_active"
     try:
-        # A disconnected/disabled OBS integration is unknown, never idle proof.
+        # Probe current state, then recheck all local reservations after the wait.
         current_obs = await asyncio.wait_for(asyncio.to_thread(obs.status), timeout=5.0)
         with PRODUCTION_SESSION_LOCK:
             return DESKTOP_ADMISSION.idle_reason(session=dict(PRODUCTION_SESSION),
-                recording=recording.status(), obs=current_obs)
+                recording=recording.status(), obs=current_obs, allow_non_desktop=allow_non_desktop)
     except Exception:
         return "idle_state_unknown"
+
+
+async def _request_idle_shutdown(*, allow_non_desktop=False):
+    if not DESKTOP_ADMISSION.enabled and not allow_non_desktop:
+        return {"ok": True, "stopping": False, "reason": "desktop_mode_required"}
+    if DESKTOP_ADMISSION.closing:
+        return {"ok": True, "stopping": True}
+    reason = await _desktop_idle_reason(allow_non_desktop=allow_non_desktop)
+    if reason:
+        return {"ok": True, "stopping": False, "reason": reason}
+    # No await between the final state/counter inspection and admission closure.
+    # Another idle stop may have sealed admission while the OBS probe awaited.
+    if DESKTOP_ADMISSION.closing:
+        return {"ok": True, "stopping": True}
+    DESKTOP_ADMISSION.closing = True
+    try:
+        _schedule_system_shutdown()
+    except Exception:
+        DESKTOP_ADMISSION.closing = False
+        return {"ok": False, "stopping": False, "reason": "shutdown_not_confirmed"}
+    return {"ok": True, "stopping": True}
+
+
+@app.post("/api/system/shutdown")
+async def system_shutdown(request: Request):
+    """Legacy shutdown keeps idle compatibility without bypassing production."""
+    if DESKTOP_ADMISSION.enabled and not is_loopback_client(request.client.host if request.client else None):
+        return {"ok": False, "stopping": False, "reason": "local_request_required"}
+    result = await _request_idle_shutdown(allow_non_desktop=True)
+    # Legacy server_control treats ok:true as shutdown acknowledgement, so an
+    # idle refusal must not look like an acknowledged stop to that caller.
+    if result.get("stopping") is not True:
+        return {**result, "ok": False}
+    return {**result, "message": "RareIQ is shutting down."}
 
 
 @app.get("/api/desktop/status")
@@ -1733,20 +1765,7 @@ async def desktop_stop(request: Request):
     if (identity.get("pid") != os.getpid()
             or identity.get("server_session_id") != SERVER_SESSION_ID):
         return {"ok": False, "stopping": False, "reason": "identity_mismatch"}
-    if DESKTOP_ADMISSION.closing:
-        return {"ok": True, "stopping": True}
-    reason = await _desktop_idle_reason()
-    if reason:
-        return {"ok": True, "stopping": False, "reason": reason}
-    # No await between final state/counter inspection and admission closure.
-    # New sockets, streams and commands can no longer race the stop decision.
-    DESKTOP_ADMISSION.closing = True
-    try:
-        await system_shutdown()
-    except Exception:
-        DESKTOP_ADMISSION.closing = False
-        return {"ok": False, "stopping": False, "reason": "shutdown_not_confirmed"}
-    return {"ok": True, "stopping": True}
+    return await _request_idle_shutdown()
 
 @app.get("/api/catalog/status")
 async def catalog_status():
