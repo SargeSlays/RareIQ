@@ -1479,3 +1479,12 @@ Canonical staged whitespace caught duplicate carriage returns after a Windows
 text rewrite; normalize owned source bytes once and retain UTF-8 on both sides.
 Bundled smoke probes now import both encoder companions and all account helpers
 so omitted immutable search paths fail before an interactive acceptance run.
+
+## November 19, 2026 — Verify provider metadata through the actual Main bridge
+
+A full Settings fixture supplied safe YouTube streaming fields directly, but the
+actual provider bridge still projected those fields for Kick only. Packaged Main
+therefore showed a saved account while leaving YouTube selection disabled. Extend
+the shared public projection to both providers, retain secret-field filtering and
+unauthorized-state guards, and cover the original status/check bridge. Browser
+fixtures must not replace the native boundary when claiming native acceptance.

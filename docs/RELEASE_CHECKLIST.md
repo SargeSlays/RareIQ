@@ -1950,3 +1950,21 @@ primary settings were changed or shutdown forced during this checkpoint.
 
 Evidence: F:/Temp/jonat/ProducerPlease-youtube-destination-20261119. Earlier failed
 bundled bootstrap evidence remains under ProducerPlease-primary-bundle-20261119.
+
+## November 19, 2026 — Actual bundled acceptance and provider bridge correction
+
+The composed source passed 4,474 Python / 1,039 JavaScript checks. Standalone
+build 0.1.0-20261119114947475 passed actual embedded imports/resource immutability
+and actual original Main/backend/capture/discard encoding: 68 H.264 frames and
+109,440 samples on each Live/VOD bus, visible first-frame watermark, independent
+-12/+3.25 dB gain update, Stop/checklist/Exit and owned process cleanup.
+Actual bundled private Twitch and Kick reads passed with existing saved accounts;
+helpers did not change their vault and no media was sent.
+
+Actual packaged YouTube acceptance caught a shared Main public-projection omission
+before Save. The original failure is retained; the small bridge correction and
+regression are implemented, with rebuilt native acceptance pending. Primary data
+adoption is still blocked by enabled, disconnected OBS; no guard was bypassed.
+Evidence: ProducerPlease-youtube-destination-20261119/native-rehearsal01, backend01,
+accounts-readonly01 and native-youtube01. Hardware and platform receipt remain
+unverified. No stream, recording, provider grant or metadata write was initiated.

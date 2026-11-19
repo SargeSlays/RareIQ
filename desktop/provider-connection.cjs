@@ -15,7 +15,7 @@ function createProviderConnection({origin,store,append=()=>{},trustedSender,muta
     const v=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(Buffer.concat(chunks))),raw=action==='status'?v.accounts?.find(a=>a.platform===platform):v.account;
     if(!plain(raw)||raw.platform!==platform||!['authorized','not_authorized','pending','unavailable'].includes(raw.state))throw Error('account_unavailable');
     const account={platform,state:raw.state,authorized:raw.authorized===true,metadata_authorized:raw.authorized===true&&raw.metadata_authorized===true,app_configured:raw.app_configured===true};
-    if(platform==='kick'){
+    if(['kick','youtube'].includes(platform)){
       account.streaming_authorized=account.authorized&&raw.streaming_authorized===true;
       if(account.authorized&&typeof raw.account_ref==='string'&&/^[a-f0-9]{64}$/.test(raw.account_ref))account.account_ref=raw.account_ref;
     }
