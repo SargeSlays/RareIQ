@@ -2,6 +2,33 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; object-src 'none'; base-uri 'none'"><title>Producer, Please — Broadcast setup</title><link rel="stylesheet" href="assets/producer-please.tokens.css"><link rel="stylesheet" href="settings.css"></head>
 <body class="pp-shell"><main><header><img src="assets/icon-192.png" alt=""><div><p class="eyebrow">PRODUCER, PLEASE · DESKTOP</p><h1>Broadcast setup</h1><p>Choose where your production will go.</p></div><button type="button" id="themeToggle">Light theme</button></header>
 <p class="notice">Saving a destination prepares it. Nothing goes live until you explicitly start a broadcast.</p>
+<details class="stream-info" id="streamInfo">
+  <summary>Stream info <span id="streamInfoBadge">Local drafts</span></summary>
+  <p id="streamInfoHelp">Prepare a title and details for each destination. These drafts stay on this computer. Update your platform dashboard before going live; saving here does not update a platform.</p>
+  <div class="stream-info-layout">
+  <div class="stream-info-fields stream-info-shared">
+    <label>Shared title<input id="streamInfoSharedTitle" maxlength="100" autocomplete="off" aria-describedby="streamInfoHelp"></label>
+    <label>Shared description<textarea id="streamInfoSharedDescription" maxlength="5000" rows="3"></textarea></label>
+  </div>
+  <div class="stream-info-destination">
+    <label>Destination<select id="streamInfoDestination" aria-describedby="streamInfoDestinationHint"></select></label>
+    <p id="streamInfoDestinationHint">Save a destination to customize its details.</p>
+    <label class="stream-info-check"><input type="checkbox" id="streamInfoCustomize"><span>Customize this destination</span></label>
+    <div class="stream-info-fields" id="streamInfoOverride" hidden>
+      <label>Destination title<input id="streamInfoTitle" maxlength="100" autocomplete="off"></label>
+      <label>Destination description<textarea id="streamInfoDescription" maxlength="5000" rows="3"></textarea></label>
+      <div class="stream-info-optional">
+        <label>Category or game<input id="streamInfoCategory" maxlength="100" autocomplete="off"><small>Draft name; select the matching category on the platform.</small></label>
+        <label>Tags<input id="streamInfoTags" maxlength="300" autocomplete="off"><small>Notes for tags to enter on the platform.</small></label>
+      </div>
+    </div>
+    <div class="actions"><button type="button" id="streamInfoDashboard">Open platform dashboard</button></div>
+    <p id="streamInfoDashboardHint">Choose a supported destination to open its dashboard.</p>
+  </div>
+  </div>
+  <div class="actions"><button type="button" class="primary" id="streamInfoSave">Save stream info</button><button type="button" id="streamInfoReload">Reload saved details</button></div>
+  <p id="streamInfoStatus" role="status" aria-live="polite">Loading local drafts…</p>
+</details>
 <section class="broadcast-steps" aria-label="Get ready to broadcast"><h2>Get ready in three steps</h2><ol><li><div><strong>Build your Program</strong><p>Add a camera, guest, image, video, text or browser page. Select sources in Preview, then Take when you’re ready.</p></div><div class="step-actions"><span id="programStep">Check Program</span><button type="button" id="chooseSources">Choose sources</button></div></li><li><div><strong>Check the clean output</strong><p>Choose Prepare output below. Check its picture and sound, and close any browser review.</p></div><span id="outputStep">Not prepared</span></li><li><div><strong>Save your destination</strong><p>Connect Twitch or add your platform’s stream key. Save the destination, then review before starting.</p></div><div class="step-actions"><span id="destinationStep">Not saved</span><button type="button" id="addDestination">Add destination</button></div></li></ol></section>
 <section class="output-profiles live-audio-mixer" id="liveAudioMixer" aria-labelledby="liveAudioMixerTitle" hidden>
   <h2 id="liveAudioMixerTitle">Live audio mixer</h2><p>Adjust this output while prepared or broadcasting. Changes fade into the running mix; your saved profile stays unchanged.</p>
@@ -68,4 +95,4 @@
 </div>
 <form id="destinationForm"><h2 id="destinationFormTitle">Add a destination manually</h2><p id="destinationFormHint">Your server address and stream key stay protected on this Windows account.</p><label>Name<input name="name" required maxlength="60" placeholder="My Twitch channel" autocomplete="off"></label><label>Platform<select name="platform"><option value="twitch">Twitch</option><option value="youtube">YouTube</option><option value="kick">Kick</option><option value="rumble">Rumble</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="x">X</option><option value="instagram">Instagram</option><option value="custom">Custom RTMPS</option></select></label><label id="serverLabel">Server URL<input name="serverUrl" type="url" maxlength="2048" placeholder="rtmps://…" autocomplete="off" spellcheck="false"><small id="serverHint">Each platform needs its own eligible account, secure RTMPS server and stream key from its dashboard.</small></label><label>Stream key<input name="streamKey" type="password" required maxlength="2048" autocomplete="new-password" spellcheck="false"><small id="keyHint">Stored with Windows account encryption. The app never displays a saved key.</small></label><div class="actions"><button type="submit" id="saveDestination" class="primary">Save destination</button><button type="button" id="cancelEdit" hidden>Cancel editing</button><button type="button" id="platformDashboard">Open platform dashboard</button></div></form>
 <p role="status" aria-live="polite" id="status">Checking protected storage…</p><footer><span>Configured, encoder sending, and platform live are separate states.</span><button type="button" id="closeSettings">Close setup</button></footer>
-</main><script src="settings-accounts.js"></script><script src="settings-provider-accounts.js"></script><script src="settings.js"></script></body></html>
+</main><script src="settings-accounts.js"></script><script src="settings-provider-accounts.js"></script><script src="settings-stream-info.js"></script><script src="settings.js"></script></body></html>

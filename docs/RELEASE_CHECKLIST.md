@@ -1767,3 +1767,35 @@ are repeated after the final UI recovery change. This tested setup-import build
 was packaged but has not replaced the primary app/server; its activation awaits
 owner steps and a responsive usage check. Last verified account usage was 53%,
 with an approved exclusive 56% ceiling.
+
+## November 19, 2026 — Local stream-info menu
+
+- [x] Shared details and destination overrides persist with bounded validation,
+  atomic writes, revision conflicts, exact retries and metadata-only history.
+- [x] Existing trusted mutation guard blocks Start during persistence and blocks
+  stream-info saves during transmission or uncertain ownership.
+- [x] Native Start review receives ordered destination IDs and distinguishes saved
+  local titles from unverified platform metadata.
+- [ ] Direct Twitch/Kick/YouTube metadata writes and editing consent, category
+  lookup, platform-specific broadcast/visibility selection and provider readback.
+- [x] Full Settings interaction and dark/light 390/860/1920/3840 layouts passed
+  with synthetic IPC: exact retry/conflict/reload, Start pause and available Stop.
+- [x] Original packaged IPC saved/reopened synthetic stream information and
+  rejected untrusted requests. Provider/media guards recorded zero actions.
+- [x] Updated primary desktop and Start-menu shortcut activated; menu presence
+  and local status observed. Primary menu expansion could not be automated because
+  the computer-control helper did not supply click geometry. Expanded layout and
+  interactions were verified separately in the running synthetic browser harness.
+- [x] Actual desktop reopened and fresh saved-Kick account check passed with the
+  existing backend. This does not verify backend token reload or rotation.
+- [ ] Direct provider metadata updates and real stream/VOD receipt.
+
+Local checks and synthetic visual evidence are recorded under
+F:/Temp/jonat/ProducerPlease-stream-info-20261119. These checks do not update a
+real platform, capture devices, start a public stream or create a recording.
+
+Canonical isolated gate: 3,993 Python checks passed; after the final renderer/store
+guards, the complete JavaScript behavior gate passed 869 checks. Native original
+IPC acceptance and ui02 captures passed separately. Primary local-development
+desktop build: 0.1.0-20261119091320505. Current account grants remain read-only for
+stream metadata; no platform title/category was changed by this checkpoint.

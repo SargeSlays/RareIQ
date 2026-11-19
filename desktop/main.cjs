@@ -74,6 +74,10 @@ app.whenReady().then(async()=>{
       return resolveTwitch(accountRef);
     }});
   const {OutputProfileStore}=require('./output-profiles.cjs');outputProfiles=new OutputProfileStore({directory:profile});
+  const {StreamInfoStore,createStreamInfoActions}=require('./stream-info.cjs');
+  const streamInfo=new StreamInfoStore({directory:profile});
+  const streamInfoActions=createStreamInfoActions({store:streamInfo,trustedSender:settingsEvent,mutate:changeDestination,
+    append:entry=>fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify(entry)+'\n',{mode:0o600})});
   const profileActions=require('./profile-actions.cjs').createProfileActions({store:outputProfiles,append:entry=>fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify(entry)+'\n',{mode:0o600})});
   studio=new BrowserWindow(windowOptions({webPreferences:{partition:'persist:producer-studio',preload:path.join(__dirname,'preload.cjs')}}));secureWindow(studio,origin);
   const {createCapturePicker}=require('./capture-picker.cjs');capturePicker=createCapturePicker({BrowserWindow,ipcMain,desktopCapturer,studio,origin});partition.setDisplayMediaRequestHandler(capturePicker.handler);
@@ -84,12 +88,14 @@ app.whenReady().then(async()=>{
   let lastPhase='';broadcast=new NativeBroadcast({destinations,outputProfiles,identity:backend?.started?.identity,ownerPid:process.pid,request,
     createCapture:dimensions=>createOutputCapture({BrowserWindow,ipcMain,origin,...dimensions,onError:code=>{if(broadcast?.active())broadcast.stop(code).catch(()=>{});}}),
     createEncoderGroup:onState=>new SharedEncoderGroup({python:runtime.python,workerPath:runtime.sharedEncoderWorker,pythonPackages:runtime.pythonPackages,onState}),
-    confirm:async (selection,output)=>{
+    confirm:async (selection,output,selectionInfo)=>{
       const chosen=Array.isArray(selection)?selection:[selection];
       const vodTargets=output.twitchVod?chosen.filter(target=>target.platform==='twitch').length:0;
       const upload=(chosen.length*(output.videoBitrateKbps+output.audioBitrateKbps)+vodTargets*output.audioBitrateKbps)/1000;
+      const info=await streamInfo.public();
+      const streamInfoReview='\n\nStream info saved on this computer (platform updates unverified):\n'+chosen.map((p,index)=>'• '+p.name+': '+((info.overrides[selectionInfo.destinationIds[index]]||info.shared).title.trim()||'No title drafted')).join('\n')+'\nReview the actual title, category and visibility in each platform dashboard before starting.';
       const detail='Your current Program picture and Live audio will be sent to:\n'+chosen.map(p=>'• '+p.name).join('\n')+'\n\n'+output.name+': '+output.fps+' fps, '+output.videoBitrateKbps+' kbps video, '+output.audioBitrateKbps+' kbps AAC. Approximate combined upload: '+upload.toFixed(1)+' Mbps before overhead.'+(output.twitchVod?'\nA separate VOD mix is sent to Twitch destinations; Twitch archive receipt is not yet verified.':'')+'\nCheck each platform dashboard to confirm receipt.';
-      const answer=await dialog.showMessageBox(settings&&!settings.isDestroyed()?settings:studio,{type:'warning',message:'Start a live broadcast?',detail,buttons:['Cancel','Start broadcast'],defaultId:0,cancelId:0});return answer.response===1;
+      const answer=await dialog.showMessageBox(settings&&!settings.isDestroyed()?settings:studio,{type:'warning',message:'Start a live broadcast?',detail:detail+streamInfoReview,buttons:['Cancel','Start broadcast'],defaultId:0,cancelId:0});return answer.response===1;
     },
     onAudioAudit:entry=>fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify({at:new Date().toISOString(),action:'audio_mix.set',actor:'Desktop operator',identityVerified:false,profileId:entry.profileId,requestId:entry.requestId,revision:entry.revision})+'\n',{mode:0o600}),
     onState:value=>{
@@ -132,6 +138,8 @@ app.whenReady().then(async()=>{
   ipcMain.handle('producer:destinations:save',(event,value)=>changeDestination(event,()=>destinations.save(value)));
   ipcMain.handle('producer:destinations:remove',(event,id)=>changeDestination(event,()=>destinations.remove(id)));
   ipcMain.handle('producer:profiles:list',event=>{if(!settingsEvent(event))throw Error('Untrusted request');return outputProfiles.public();});
+  ipcMain.handle('producer:stream-info:list',streamInfoActions.list);
+  ipcMain.handle('producer:stream-info:save',streamInfoActions.save);
   ipcMain.handle('producer:profiles:save',(event,value)=>changeDestination(event,()=>profileActions.save(value)));
   ipcMain.handle('producer:profiles:remove',(event,id)=>changeDestination(event,()=>profileActions.remove(id)));
   ipcMain.handle('producer:profiles:select',(event,id)=>changeDestination(event,()=>profileActions.select(id)));

@@ -6,6 +6,7 @@ let profileState=null,profileEditingId=null,profileDirty=false,profileBusy=false
 let liveMix={outputId:null,revision:0,routing:{},draft:{},dirty:false,busy:false,pending:null,blocked:'',message:'',serial:0,generation:0,timer:null,stamp:'',controls:[],invalid:new Set(),closed:false};
 const selectedDestinations=new Set(),destinationRows=new Map(),targetStops=new Set();
 let twitchAccountCard=null,providerAccountCards=[],accountBusy=false;
+let streamInfoEditor=null;
 const accountBusySources=new Set();
 function updateAccountBusy(platform,value){if(value)accountBusySources.add(platform);else accountBusySources.delete(platform);accountBusy=accountBusySources.size>0;renderBroadcast();}
 function busy(value){locked=value;renderBroadcast();}
@@ -20,6 +21,7 @@ async function refresh(){
   const operation=broadcastOperation,state=await producerSettings.status();if(operation===broadcastOperation)broadcastState=state.broadcast;storageAvailable=state.secureStorageAvailable===true;configuredDestinations=(state.destinations||[]).filter(item=>item.configured===true).length;list.replaceChildren();destinationRows.clear();
   if(state.outputProfiles)installProfiles(state.outputProfiles,profileDirty);
   const available=new Set((state.destinations||[]).filter(item=>item.configured===true).map(item=>item.id));for(const id of selectedDestinations)if(!available.has(id))selectedDestinations.delete(id);
+  streamInfoEditor?.setContext({destinations:state.destinations||[]});
   for(const item of state.destinations||[]){
     const row=document.createElement('article');row.className='destination';const copy=document.createElement('div'),title=document.createElement('strong'),note=document.createElement('p'),remove=document.createElement('button');title.textContent=item.name;note.textContent=String(item.platform).toUpperCase()+' · '+(item.configured?'Configured · broadcast not verified':'Stream key required');copy.append(title,note);remove.textContent='Remove';remove.type='button';remove.dataset.removeDestinationId=item.id;remove.setAttribute('aria-label','Remove '+item.name);
     remove.addEventListener('click',async()=>{if(destinationBusy()||editing)return;busy(true);try{await producerSettings.remove(item.id);await refresh();status.textContent='Destination removed.';}catch(_){status.textContent='The destination could not be removed. Confirm Stop if needed, then retry.';}finally{busy(false);}});
@@ -54,6 +56,7 @@ function renderBroadcast(){
   if(value.available===false&&value.phase!=='failed')summary.textContent='Broadcasting needs the managed desktop runtime. Open this studio from the installed desktop app.';
   const working=accountBusy||broadcastBusy||profileBusy||startPending||stopBusy;
   const mixWaiting=Boolean(liveMix.outputId&&(liveMix.dirty||liveMix.busy||liveMix.blocked||liveMix.invalid.size));
+  const infoWaiting=Boolean(streamInfoEditor&&(!streamInfoEditor.ready||streamInfoEditor.dirty||streamInfoEditor.busy));
   const stopRequired=value.active||value.ownershipPending===true;
   const profileMatches=profileMatchesOutput(value);
   const sending=value.phase==='sending',outputReady=(value.ready===true&&value.format===format.value&&profileMatches&&!profileDirty)||sending;
@@ -68,7 +71,7 @@ function renderBroadcast(){
   document.querySelector('#platformDashboard').disabled=locked||working;
   prepare.disabled=locked||working||stopRequired||profileDirty||value.available===false;prepare.title=profileDirty?'Save or discard profile changes before preparing output.':'';format.disabled=locked||working||stopRequired;stop.hidden=!stopRequired&&!startPending&&!stopBusy;stop.disabled=broadcastBusy||stopBusy||value.phase==='stopping';stop.textContent=startPending?'Cancel start':'Stop broadcast';
   document.querySelector('#viewOutput').disabled=locked||broadcastBusy||stopBusy||viewBusy||!value.prepared;
-  for(const button of document.querySelectorAll('[data-destination-id]')){button.disabled=locked||working||mixWaiting||Boolean(editing)||!storageAvailable||button.dataset.configured!=='true'||!value.ready||stopRequired||value.format!==format.value||!profileMatches||profileDirty;button.title=button.disabled?(mixWaiting?'Confirm the current audio mix before starting.':editing?'Save or cancel editing before starting.':profileDirty?'Save or discard profile changes before preparing output.':value.ownershipPending?'Confirm Stop before starting again.':'Prepare a ready output before starting.'):'A confirmation appears before anything is sent.';}
+  for(const button of document.querySelectorAll('[data-destination-id]')){button.disabled=locked||working||mixWaiting||infoWaiting||Boolean(editing)||!storageAvailable||button.dataset.configured!=='true'||!value.ready||stopRequired||value.format!==format.value||!profileMatches||profileDirty;button.title=button.disabled?(infoWaiting?'Open Stream info and save or discard your draft before starting.':mixWaiting?'Confirm the current audio mix before starting.':editing?'Save or cancel editing before starting.':profileDirty?'Save or discard profile changes before preparing output.':value.ownershipPending?'Confirm Stop before starting again.':'Prepare a ready output before starting.'):'A confirmation appears before anything is sent.';}
   if(value.phase!=='failed'&&value.prepared&&!value.active&&value.format!==format.value)summary.textContent='Output format changed. Choose Prepare output to apply it.';
   if(value.phase!=='failed'&&value.available!==false&&!value.reason&&!value.active&&profileState&&(!profileMatches||profileDirty))summary.textContent=profileDirty?'Save or discard profile changes, then prepare the output.':'Output profile changed. Choose Prepare output to apply it.';
   for(const selector of ['[data-remove-destination-id]','[data-edit-destination-id]'])for(const button of document.querySelectorAll(selector)){button.disabled=destinationBusy()||Boolean(editing)||!storageAvailable||button.dataset.accountLinked==='true';button.title=button.dataset.accountLinked==='true'?'Use Account to manage this signed-in destination.':!storageAvailable?'Windows protected storage is unavailable.':editing?'Save or cancel the current edit first.':locked||working?'Wait for the current action to finish.':stopRequired?'Confirm Stop before changing destinations.':'Edit or remove this saved destination.';}
@@ -79,14 +82,16 @@ function renderBroadcast(){
   for(const [id,row]of destinationRows){row.check.checked=selectedDestinations.has(id);row.check.disabled=destinationBusy()||Boolean(editing)||!row.configured;row.check.title=!row.configured?'Save a server and stream key before selecting this destination.':destinationBusy()?'Stop the broadcast or wait for the current action before changing selection.':'';const target=value.targets?.find(item=>item.destinationId===id),phase=target?.phase;row.note.textContent=String(row.platform).toUpperCase()+' · '+(phase==='failed'?'Transmission failed · '+(reasons[target.reason]||'Check the destination and retry when ready.'):phase==='sending'?'Sending · platform receipt unverified':phase==='starting'?'Starting transmission':phase==='stopped'?'Stopped':row.configured?(row.linkedAccount?'Saved account · checked again before broadcasting':'Configured · broadcast not verified'):(row.linkedAccount?'Account sign-in required':'Stream key required'));row.stopTarget.hidden=!['starting','sending'].includes(phase);row.stopTarget.disabled=stopBusy||startPending||targetStops.has(id)||typeof producerSettings.stopBroadcastTarget!=='function';row.stopTarget.title=row.stopTarget.disabled?'Wait for the current broadcast action to finish.':'Stop only this destination.';}
   document.querySelector('#destinationSelectionStatus').textContent=selectedDestinations.size+' selected · up to eight destinations. Each platform must confirm receipt separately.';
   document.querySelector('#selectAllDestinations').disabled=destinationBusy()||Boolean(editing)||!configuredDestinations;document.querySelector('#clearDestinationSelection').disabled=destinationBusy()||Boolean(editing)||!selectedDestinations.size;
-  const startSelected=document.querySelector('#startSelectedDestinations');startSelected.disabled=locked||working||mixWaiting||Boolean(editing)||!storageAvailable||!value.ready||stopRequired||!profileMatches||profileDirty||!selectedDestinations.size;startSelected.title=startSelected.disabled?(mixWaiting?'Confirm the current audio mix before starting.':'Select configured destinations and prepare the saved output profile before starting.'):'One confirmation lists every selected destination before sending.';
+  const startSelected=document.querySelector('#startSelectedDestinations');startSelected.disabled=locked||working||mixWaiting||infoWaiting||Boolean(editing)||!storageAvailable||!value.ready||stopRequired||!profileMatches||profileDirty||!selectedDestinations.size;startSelected.title=startSelected.disabled?(infoWaiting?'Open Stream info and save or discard your draft before starting.':mixWaiting?'Confirm the current audio mix before starting.':'Select configured destinations and prepare the saved output profile before starting.'):'One confirmation lists every selected destination before sending.';
   twitchAccountCard?.setLocked(Boolean(destinationBusy()||editing));
   for(const card of providerAccountCards)card.setLocked(Boolean(destinationBusy()||editing));
+  streamInfoEditor?.setContext({locked:Boolean(destinationBusy()||editing)});
   renderProfileControls();
   renderLiveMixer();
   renderAudioMeters();
 }
 async function startBroadcast(destinationId){
+  if(streamInfoEditor&&(!streamInfoEditor.ready||streamInfoEditor.dirty||streamInfoEditor.busy)){const section=document.querySelector('#streamInfo');section.open=true;document.querySelector('#streamInfoSharedTitle').focus();status.textContent='Save or discard the Stream info draft before starting.';return;}
   if(accountBusy||locked||broadcastBusy||profileBusy||profileDirty||startPending||stopBusy||editing||liveMix.outputId&&(liveMix.dirty||liveMix.busy||liveMix.blocked||liveMix.invalid.size)||broadcastState?.active||broadcastState?.ownershipPending||!broadcastState?.ready||!profileMatchesOutput(broadcastState))return;
   const operation=++broadcastOperation;startPending=true;renderBroadcast();
   try{
@@ -255,6 +260,8 @@ async function stopDestination(id){
 // Account controls keep their own status and never reset destination or profile drafts.
 twitchAccountCard=window.ProducerTwitchAccountUI?.mount({document,api:producerSettings,onDestinationsChanged:refresh,onBusyChange:value=>updateAccountBusy('twitch',value)})||null;
 providerAccountCards=window.ProducerProviderAccounts?.mount({document,api:producerSettings,onBusyChange:updateAccountBusy})||[];
+streamInfoEditor=window.ProducerStreamInfo?.create({root:document.querySelector('#streamInfo'),api:producerSettings,onBusy:value=>updateAccountBusy('stream-info',value),onChange:()=>renderBroadcast()})||null;
+if(streamInfoEditor){streamInfoEditor.setContext({destinations:[]});void streamInfoEditor.load();}
 twitchAccountCard?.start();
 for(const card of providerAccountCards)card.start();
-addEventListener('pagehide',()=>{twitchAccountCard?.close();for(const card of providerAccountCards)card.close();},{once:true});
+addEventListener('pagehide',()=>{twitchAccountCard?.close();for(const card of providerAccountCards)card.close();streamInfoEditor?.close();},{once:true});

@@ -130,7 +130,7 @@ class NativeBroadcast{
       await this.check();assertCurrent();if(!this.preflight?.ready)throw Error('output_not_ready');
       const generation=this.preflight.generation,profiles=[];
       for(const id of ids){profiles.push(await this.destinations.getPrivateDestination(id));assertCurrent();}
-      const approved=await this.confirm(profiles.length===1?profiles[0]:profiles,structuredClone(settings));assertCurrent();if(!approved){this.starting=false;return this.status();}
+      const approved=await this.confirm(profiles.length===1?profiles[0]:profiles,structuredClone(settings),{destinationIds:[...ids]});assertCurrent();if(!approved){this.starting=false;return this.status();}
       await this.check();assertCurrent();if(!this.preflight?.ready||this.preflight.generation!==generation)throw Error('output_generation_changed');
       this.targets=[];this.encoder=null;this.encoderGroup=null;this.selected=ids[0];this.phase='starting';this.failure=null;this.lastStats=safeStats();this.unreadySince=null;this.notify();await this.reserve(true);assertCurrent();
       if(this.createEncoderGroup){

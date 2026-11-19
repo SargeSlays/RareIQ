@@ -3,6 +3,8 @@ function fixture(){let captureState={peerId:'output-one',rendered:true,browserRe
 test('preparation is separate from transmission and requires the captured output identity',async()=>{const f=fixture();await f.app.prepare();assert.equal(f.starts,0);assert.equal(f.app.status().ready,true);assert.ok(f.calls[0].url.includes('output_peer_id=output-one'));f.captureState={rendered:true};await f.app.check();assert.equal(f.app.status().ready,false);});
 test('cancelled confirmation never reserves encoding or starts a worker',async()=>{const f=fixture();await f.app.prepare();f.confirmed=false;await f.app.start({destinationId:'one'});assert.equal(f.starts,0);assert.equal(f.calls.some(c=>c.body?.active===true),false);});
 
+test('pre-live review maps stream information to destination IDs even when names match',async()=>{const f=fixture();let selection;f.app.confirm=async(_profiles,_output,info)=>{selection=info;return false;};await f.app.prepare();await f.app.start({destinationIds:['first-channel','second-channel']});assert.deepEqual(selection.destinationIds,['first-channel','second-channel']);assert.equal(f.starts,0);});
+
 test('expired or disconnected linked account blocks confirmation and media with reconnect guidance',async()=>{
   const f=fixture();let confirmations=0;f.app.confirm=async()=>{confirmations++;return true;};
   f.app.destinations.getPrivateDestination=async()=>{throw Error('account_authorization_required');};

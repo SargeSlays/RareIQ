@@ -1258,3 +1258,18 @@ pair before a playback test body ran. The affected module then passed 75 checks.
 No networking/security settings or unrelated production code were changed; the
 owned native fixture was stopped before repeating the full gate. Keep resource
 failures distinct from product assertions and retain the failed-run evidence.
+
+## November 19, 2026 — Metadata drafts are not provider updates
+
+Current saved account scopes read account/channel/stream-key information; they
+must never be described as permission to edit public stream metadata. Local drafts
+have their own bounded store, atomic writes, revision checks and request receipts.
+Activity records contain revision/action metadata only, never titles/descriptions.
+Save and Start share the existing authoritative mutation guard; unsaved renderer
+drafts pause Start without disabling Stop. Exact retry cannot overwrite a newer
+saved revision. Storage corruption stays visible and does not reset user data.
+
+Private encoder destination records omit public destination UUIDs. Native Start
+review therefore receives a separate ordered destination-ID list, instead of
+matching names or assuming private records carry IDs. A regression uses multiple
+IDs with matching destination records to guard correct stream-info association.

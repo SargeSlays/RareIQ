@@ -1061,3 +1061,26 @@ without rewriting. Configuration is protected by the current Windows user vault;
 it is not account authorization or a streaming destination. Unsigned configured
 accounts retain an advanced App setup control so a mistaken file can be replaced.
 Real registrations and provider consent still require owner action.
+
+## November 19, 2026 — Pre-live stream information
+
+Broadcast setup now contains a compact Stream info editor with a shared title
+and description, destination-specific copies, and category/tag notes. Drafts are
+saved on this computer and survive reopening. Saving a draft does not update any
+platform. Twitch, YouTube and Kick dashboard handoffs remain explicit; other
+destinations explain that their dashboard must be opened separately. Current
+account grants do not authorize metadata writes. Direct application requires
+separate official provider integrations and owner-reviewed editing permission.
+Unsaved or unconfirmed stream-info drafts pause Start; Stop stays available.
+The native Start review includes the effective saved title for each destination
+and states that platform metadata is unverified. This does not change encoder
+settings, trigger a broadcast, or verify platform receipt.
+
+Provider setup status: the private app importer is activated in the primary
+backend/desktop. Owner-approved Kick registration and consent completed; a fresh
+Kick check confirmed the expected account and encrypted authorization is saved.
+Desktop reopening and another fresh Kick account check subsequently passed;
+the backend was reused, so this does not prove a new backend token reload/refresh.
+The dedicated Google project was created; YouTube API enablement was requested
+but not yet independently confirmed. Google OAuth client/consent remains pending.
+No billing, public app publication or stream was initiated by those setup steps.

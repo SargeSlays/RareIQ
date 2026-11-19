@@ -1044,3 +1044,22 @@ created by this checkpoint. Next: complete those owner steps, enable the needed
 Google API and prepare each app registration for approval, then import private
 configuration and verify actual consent, refresh and saved reopening. Do not
 attach billing, start a trial, publish an app or start media output implicitly.
+
+## November 19, 2026 — Stream info preparation and remaining platform writes
+
+Implemented local preparation: one Stream info menu in Broadcast setup, shared
+title/description, saved destination overrides and category/tag notes, explicit
+dashboard handoffs, save/retry/conflict recovery and pre-live draft review.
+Direct platform updates remain planned: map supported fields/category identifiers,
+request the minimum editing scopes through explicit consent, apply per destination,
+verify the provider result and preserve partial-failure/retry status. Include
+YouTube broadcast selection, visibility and scheduling as platform-specific
+controls rather than pretending those fields work identically everywhere.
+Never label a local draft or dashboard launch as a successful platform update.
+
+Kick real sign-in and fresh validation passed after owner-approved registration
+and consent. Actual desktop reopening retained the account and passed another
+fresh provider check; backend restart/token-refresh acceptance remains separate.
+Google project creation passed; confirm API enablement,
+then prepare its Desktop client/consent for review. Account-linked YouTube/Kick
+output selection, metadata writes and actual stream receipt remain separate work.

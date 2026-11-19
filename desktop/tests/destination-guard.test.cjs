@@ -10,8 +10,9 @@ function fixture(){
   const context={settings,broadcast,destinations,destinationMutation:false,path,pathToFileURL,__dirname:desktop,publicBroadcast:()=>({ready:true}),ipcMain:{handle:(name,handler)=>handlers.set(name,handler)}};
   vm.createContext(context);
   vm.runInContext(source.slice(source.indexOf('function settingsEvent('),source.indexOf('app.whenReady()')),context);
-  for(const line of source.split('\n'))if(/ipcMain.handle\('producer:(?:destinations:(?:save|remove)|broadcast:start)'/.test(line))vm.runInContext(line,context);
-  return {calls,event,context,broadcast,destinations,run:(name,value,request=event)=>handlers.get('producer:'+name)(request,value)};
+  const streamInfo={save:async()=>({revision:1})};context.streamInfoActions=require('../stream-info.cjs').createStreamInfoActions({store:streamInfo,trustedSender:context.settingsEvent,mutate:context.changeDestination,append:()=>{}});
+  for(const line of source.split('\n'))if(/ipcMain.handle\('producer:(?:destinations:(?:save|remove)|broadcast:start|stream-info:save)'/.test(line))vm.runInContext(line,context);
+  return {calls,event,context,broadcast,destinations,streamInfo,run:(name,value,request=event)=>handlers.get('producer:'+name)(request,value)};
 }
 
 test('only the exact settings main frame can mutate saved destinations',async()=>{
@@ -47,4 +48,11 @@ test('failed save and completed remove release the mutation lock for explicit re
   f.destinations.remove=()=>remove.promise;const pending=f.run('destinations:remove','profile');
   await assert.rejects(f.run('broadcast:start',{}),/destination_change_pending/);remove.resolve({removed:true});assert.equal((await pending).removed,true);
   await f.run('broadcast:start',{});assert.deepEqual(f.calls,['start']);
+});
+
+test('stream info persistence shares the trusted Start lock and leaves Stop independent',async()=>{
+  const f=fixture(),saved=deferred();f.streamInfo.save=()=>saved.promise;
+  await assert.rejects(f.run('stream-info:save',{},{}),/local_operator_required/);
+  f.broadcast.active=()=>true;await assert.rejects(f.run('stream-info:save',{}),/destination_broadcast_busy/);f.broadcast.active=()=>false;
+  const pending=f.run('stream-info:save',{});await assert.rejects(f.run('broadcast:start',{}),/destination_change_pending/);saved.resolve({revision:1});assert.equal((await pending).revision,1);await f.run('broadcast:start',{});assert.deepEqual(f.calls,['start']);
 });
