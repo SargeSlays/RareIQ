@@ -982,3 +982,36 @@ echo cancellation. The low-gain monitor receiver closed after its bounded pass;
 the guest's camera/mic publisher remains independent. Keep listening and two-way
 return acceptance open until actually exercised and reported by the owner. Store
 only numeric diagnostics; invitation material and captured media stay out of Git.
+
+## November 18, 2026 — Startup settings and media-aware desktop readiness
+
+Process-only guest variables disappear after restart. Persist only the explicitly
+approved non-secret listener/origin pair beside the desktop profile receipt;
+validate version, operator/guest ports and HTTPS origin together. Apply it only
+when spawning a fresh backend, never pretend reusing an existing backend applied
+new settings, and restore the controller environment even when spawning fails.
+An explicit empty listener port is an atomic disable for both guest variables,
+preserving the existing isolated QA launchers. Unit guards and three actual
+isolated launches cover persistence without touching the active production server.
+
+Initial loadURL completion is not desktop readiness when images or other media
+resources remain open. Reload then rejects that old promise with ERR_ABORTED and
+must not turn an already usable app into a startup failure. Bind initial readiness
+to the exact trusted top-level document's DOM-ready event; consume late resource
+rejections, but fail closed on wrong-document/frame navigation, genuine early
+failure, destruction, renderer exit or a bounded timeout. Remove owned listeners
+on every terminal path. Fake-event regressions and actual packaged Reload protect
+both the successful media case and failure paths.
+
+For wide rooms, give chat its own sidebar beside the entire main content rather
+than spanning a guessed number of CSS rows. Keep one controller and move existing
+nodes so media owners and listeners are preserved. A fixed maximum track inside
+auto-fit can unexpectedly stack two tiles even when their minimum widths fit;
+measure real desktop columns and retain narrower-screen overflow checks.
+
+Use explicit UTF-8 for Windows source-edit scripts. Cached-diff review caught a
+locale-decoded HTML rewrite before checkpointing; restoring exact HEAD text and
+changing only the intended asset token preserved typography. The failed local
+copy is retained outside Git. A screenshot test must scroll to the component
+before measuring sticky sidebar positions; offscreen guest coordinates cannot
+establish a bad sidebar layout. Earlier failed QA captures remain diagnostic only.

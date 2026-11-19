@@ -26,6 +26,7 @@ from rareiq.core.runtime_paths import desktop_data_root
 
 ORIGIN = "http://127.0.0.1:8765"
 RECEIPT_VERSION = 1
+GUEST_ENVIRONMENT = ("PRODUCER_GUEST_INGRESS_PORT", "PRODUCER_GUEST_HTTPS_ORIGIN")
 
 
 def _origin(port):
@@ -118,6 +119,52 @@ def _owned(receipt, project, status, port=8765):
             and receipt.get("identity") == _identity(status) and _valid_running(status, port))
 
 
+def _guest_ingress_environment(receipt_path, operator_port):
+    """Opt-in launch settings; never invitations, secrets or operator exposure."""
+    def validated(guest_port, origin):
+        if type(guest_port) is not int or not 1024 <= guest_port <= 65535 or guest_port == operator_port:
+            raise ValueError("invalid_guest_ingress_configuration")
+        from rareiq.web.guest_ingress import GuestOnlyIngress
+        try:
+            canonical = GuestOnlyIngress(lambda *_args: None, public_origin=origin).origin
+        except (ValueError, TypeError):
+            raise ValueError("invalid_guest_ingress_configuration") from None
+        return dict(zip(GUEST_ENVIRONMENT, (str(guest_port), canonical)))
+
+    supplied = [name in os.environ for name in GUEST_ENVIRONMENT]
+    # Existing QA launchers explicitly clear the listener port to disable ingress.
+    # Clear the origin as well so a saved/stale pair cannot re-enable the child.
+    if supplied[0] and os.environ[GUEST_ENVIRONMENT[0]] == "":
+        return dict.fromkeys(GUEST_ENVIRONMENT)
+    if any(supplied):
+        if not all(supplied):
+            raise ValueError("guest_ingress_environment_pair_required")
+        guest_port = os.environ[GUEST_ENVIRONMENT[0]]
+        if len(guest_port) > 5 or not guest_port.isascii() or not guest_port.isdecimal():
+            raise ValueError("invalid_guest_ingress_configuration")
+        return validated(int(guest_port), os.environ[GUEST_ENVIRONMENT[1]])
+
+    configuration = receipt_path.parent / "guest-ingress.json"
+    try:
+        with configuration.open("rb") as handle:
+            raw = handle.read(8193)
+    except FileNotFoundError:
+        return {}
+    if len(raw) > 8192:
+        raise ValueError("invalid_guest_ingress_configuration")
+    try:
+        value = json.loads(raw)
+    except (ValueError, UnicodeError):
+        raise ValueError("invalid_guest_ingress_configuration") from None
+    allowed = {"version", "enabled", "operator_port", "guest_port", "https_origin"}
+    if (not isinstance(value, dict) or set(value) - allowed
+            or type(value.get("version")) is not int or value["version"] != 1
+            or type(value.get("enabled")) is not bool
+            or type(value.get("operator_port")) is not int or value["operator_port"] != operator_port):
+        raise ValueError("invalid_guest_ingress_configuration")
+    return validated(value.get("guest_port"), value.get("https_origin")) if value["enabled"] else {}
+
+
 def start(project_root, state_path, *, timeout=90.0, port=8765):
     project, receipt_path = Path(project_root).resolve(), Path(state_path).resolve()
     # Resolve the existing canonical state so a browser-launched managed backend
@@ -136,8 +183,15 @@ def start(project_root, state_path, *, timeout=90.0, port=8765):
                 reasons = {"unmanaged": "unmanaged_server", "conflict": "server_identity_conflict",
                            "unhealthy": "managed_server_unhealthy"}
                 return _result(current, ok=False, reason=reasons.get(current.get("state"), "server_state_unknown"), port=port)
+            guest_environment = _guest_ingress_environment(receipt_path, port)
+            previous_guest = {name: os.environ.get(name) for name in GUEST_ENVIRONMENT}
             previous = os.environ.get("PRODUCER_DESKTOP")
             os.environ["PRODUCER_DESKTOP"] = "1"
+            for name, value in guest_environment.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
             try:
                 current = control.start_server(project, host="127.0.0.1", port=port,
                     timeout=timeout, open_browser=False, remote_access=False,
@@ -147,6 +201,11 @@ def start(project_root, state_path, *, timeout=90.0, port=8765):
                     os.environ.pop("PRODUCER_DESKTOP", None)
                 else:
                     os.environ["PRODUCER_DESKTOP"] = previous
+                for name, value in previous_guest.items():
+                    if value is None:
+                        os.environ.pop(name, None)
+                    else:
+                        os.environ[name] = value
             if not _valid_running(current, port):
                 return _result(current, ok=False, reason="startup_identity_unverified", port=port)
             owned = current.get("started") is True

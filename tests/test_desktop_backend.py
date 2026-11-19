@@ -20,6 +20,8 @@ SERVER = ROOT / "rareiq/web/server.py"
 
 @pytest.fixture
 def backend(tmp_path, monkeypatch):
+    for name in desktop.GUEST_ENVIRONMENT:
+        monkeypatch.delenv(name, raising=False)
     project = (tmp_path / "project").resolve()
     receipt = tmp_path / "desktop/owner.json"
     managed = tmp_path / "server/state.json"
@@ -58,6 +60,126 @@ def test_start_owns_only_new_managed_loopback_and_restores_environment(backend, 
     assert os.environ["PRODUCER_DESKTOP"] == "previous"
     assert desktop.status(backend.project, backend.receipt)["owned"] is True
     assert "private-path" not in json.dumps(result)
+
+
+def _guest_configuration(backend, **changes):
+    value = {"version": 1, "enabled": True, "operator_port": 8765,
+             "guest_port": 8766, "https_origin": "https://guests.example.test:8445"}
+    value.update(changes)
+    path = backend.receipt.parent / 'guest-ingress.json'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value), encoding='utf-8')
+    return path
+
+
+def test_saved_guest_pair_reaches_child_only_during_fresh_start(backend, monkeypatch):
+    _guest_configuration(backend)
+    original = desktop.control.start_server
+    observed = []
+    def child(*args, **kwargs):
+        observed.append({name: os.environ.get(name) for name in desktop.GUEST_ENVIRONMENT})
+        return original(*args, **kwargs)
+    monkeypatch.setattr(desktop.control, 'start_server', child)
+    assert desktop.start(backend.project, backend.receipt)['owned'] is True
+    assert observed == [dict(zip(desktop.GUEST_ENVIRONMENT, ('8766', 'https://guests.example.test:8445')))]
+    assert all(name not in os.environ for name in desktop.GUEST_ENVIRONMENT)
+    # Existing backends are reused, even if next-launch configuration is invalid.
+    _guest_configuration(backend, guest_port=8765)
+    monkeypatch.setenv(desktop.GUEST_ENVIRONMENT[0], 'partial')
+    assert desktop.start(backend.project, backend.receipt)['reason'] == 'reused'
+    assert len(observed) == 1
+
+
+@pytest.mark.parametrize('fail', [False, True])
+def test_explicit_guest_pair_overrides_file_and_is_restored_after_child(backend, monkeypatch, fail):
+    _guest_configuration(backend, operator_port=9999)
+    pair = dict(zip(desktop.GUEST_ENVIRONMENT, ('9876', 'https://explicit.example.test:8445/')))
+    for name, value in pair.items():
+        monkeypatch.setenv(name, value)
+    original = desktop.control.start_server
+    def child(*args, **kwargs):
+        assert os.environ[desktop.GUEST_ENVIRONMENT[0]] == '9876'
+        assert os.environ[desktop.GUEST_ENVIRONMENT[1]] == 'https://explicit.example.test:8445'
+        if fail:
+            raise RuntimeError('synthetic child failure')
+        return original(*args, **kwargs)
+    monkeypatch.setattr(desktop.control, 'start_server', child)
+    if fail:
+        with pytest.raises(RuntimeError):
+            desktop.start(backend.project, backend.receipt)
+    else:
+        desktop.start(backend.project, backend.receipt)
+    assert {name: os.environ.get(name) for name in desktop.GUEST_ENVIRONMENT} == pair
+
+
+def test_saved_guest_pair_is_removed_after_failed_child(backend, monkeypatch):
+    _guest_configuration(backend)
+    def child(*_args, **_kwargs):
+        assert os.environ[desktop.GUEST_ENVIRONMENT[0]] == '8766'
+        raise RuntimeError('synthetic child failure')
+    monkeypatch.setattr(desktop.control, 'start_server', child)
+    with pytest.raises(RuntimeError):
+        desktop.start(backend.project, backend.receipt)
+    assert all(name not in os.environ for name in desktop.GUEST_ENVIRONMENT)
+
+
+@pytest.mark.parametrize('origin,fail', [(None, False), ('', False), ('https://stale.example.test:8445', True)])
+def test_explicit_empty_guest_port_disables_saved_pair_and_restores_environment(backend, monkeypatch, origin, fail):
+    _guest_configuration(backend)
+    monkeypatch.setenv(desktop.GUEST_ENVIRONMENT[0], '')
+    if origin is not None:
+        monkeypatch.setenv(desktop.GUEST_ENVIRONMENT[1], origin)
+    previous = {name: os.environ.get(name) for name in desktop.GUEST_ENVIRONMENT}
+    original = desktop.control.start_server
+    def child(*args, **kwargs):
+        assert all(name not in os.environ for name in desktop.GUEST_ENVIRONMENT)
+        if fail:
+            raise RuntimeError('synthetic child failure')
+        return original(*args, **kwargs)
+    monkeypatch.setattr(desktop.control, 'start_server', child)
+    if fail:
+        with pytest.raises(RuntimeError):
+            desktop.start(backend.project, backend.receipt)
+    else:
+        desktop.start(backend.project, backend.receipt)
+    assert {name: os.environ.get(name) for name in desktop.GUEST_ENVIRONMENT} == previous
+
+
+@pytest.mark.parametrize('enabled', [None, False])
+def test_guest_configuration_absent_or_disabled_adds_no_environment(backend, monkeypatch, enabled):
+    if enabled is False:
+        _guest_configuration(backend, enabled=False)
+    original = desktop.control.start_server
+    def child(*args, **kwargs):
+        assert all(name not in os.environ for name in desktop.GUEST_ENVIRONMENT)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(desktop.control, 'start_server', child)
+    desktop.start(backend.project, backend.receipt)
+
+
+@pytest.mark.parametrize('name', desktop.GUEST_ENVIRONMENT)
+def test_partial_explicit_guest_pair_rejects_before_start(backend, monkeypatch, name):
+    _guest_configuration(backend)
+    monkeypatch.setenv(name, '8766' if name.endswith('PORT') else 'https://guests.example.test')
+    with pytest.raises(ValueError, match='pair_required'):
+        desktop.start(backend.project, backend.receipt)
+    backend.started.assert_not_called()
+
+
+@pytest.mark.parametrize('changes', [
+    {'operator_port': 8767}, {'operator_port': True}, {'version': True}, {'version': 2},
+    {'guest_port': 8765}, {'guest_port': 1023}, {'guest_port': 65536}, {'guest_port': True}, {'guest_port': '8766'},
+    {'enabled': 'yes'}, {'https_origin': 'http://guests.example.test'},
+    {'https_origin': 'https://user:password@guests.example.test'},
+    {'https_origin': 'https://guests.example.test/path'}, {'https_origin': 'https://guests.example.test?q=1'},
+    {'https_origin': 'https://guests.example.test#fragment'}, {'https_origin': 'https://guests.example.test:70000'},
+    {'https_origin': None}, {'unexpected': 'field'},
+])
+def test_invalid_saved_guest_configuration_never_spawns(backend, changes):
+    _guest_configuration(backend, **changes)
+    with pytest.raises(ValueError, match='invalid_guest_ingress_configuration'):
+        desktop.start(backend.project, backend.receipt)
+    backend.started.assert_not_called()
 
 
 def test_relaunch_reuses_and_never_inherits_old_shutdown_authority(backend):

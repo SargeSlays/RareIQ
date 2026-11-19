@@ -95,3 +95,19 @@ body.pp-shell .greenroom-ended p { color:var(--pp-text-muted);line-height:1.6; }
 body.pp-shell .greenroom-ended-row { display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--pp-border); }
 body.pp-shell .greenroom-ended-row strong { overflow-wrap:anywhere;min-width:0; }
 body.pp-shell .greenroom-ended-row button { flex-shrink:0; }
+
+/* A desktop room is a workspace, not a narrow stack of tool forms. */
+body.pp-shell .greenroom-main { display:grid; gap:16px; min-width:0; }
+@container greenroom (min-width:900px) {
+  body.pp-shell .greenroom-body { grid-template-columns:minmax(0,1fr) minmax(300px,380px); gap:14px 22px; }
+  body.pp-shell .greenroom-body > * { grid-column:1; min-width:0; }
+  body.pp-shell .greenroom-body > :is(.greenroom-room-bar,.greenroom-stage,.greenroom-invitations,.greenroom-activity,.greenroom-access-note) { grid-column:1/-1; }
+  body.pp-shell .greenroom-body > .greenroom-chat-slot { grid-column:2; grid-row:1; align-self:start; position:sticky; top:100px; }
+  body.pp-shell .greenroom-chat-slot .greenroom-chat { padding:16px; background:var(--pp-surface-sunken); }
+  body.pp-shell .greenroom-chat-slot .greenroom-chat-messages { max-height:240px; }
+  body.pp-shell .greenroom-chat-slot .greenroom-chat textarea { min-height:64px; }
+  body.pp-shell .greenroom-guests { grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr)); align-items:start; }
+  body.pp-shell .greenroom-stage { grid-template-columns:repeat(3,minmax(0,1fr)); padding-top:16px; }
+  body.pp-shell .greenroom-stage > * { grid-column:1/-1; min-width:0; }
+  body.pp-shell .greenroom-stage > :is(.production-image-library,.production-media-library,.production-browser-library) { grid-column:auto; align-self:start; padding:14px; border:1px solid var(--pp-border); border-radius:12px; background:var(--pp-surface-sunken); }
+}

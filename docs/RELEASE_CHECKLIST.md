@@ -1453,3 +1453,45 @@ source/backups. No raw audio/video recording was retained. Ending a receiver doe
 not stop the second PC's camera/mic publisher, which remains connected for the
 owner's continued use. No public stream, platform receipt or producer login
 acceptance is claimed. This is a first sizing pass, not the full visual refinish.
+
+## November 18, 2026 — Persistent private guests and desktop backstage acceptance
+
+- [x] 65 focused desktop backend tests; 11 new native startup regressions; focused
+  dock/chat/source navigation guards pass. Final canonical gate covers 3565 Python
+  and 633 JavaScript tests; see the checkpoint gate log.
+- [x] Saved-config rehearsal: three fresh real backends, two isolated restarts,
+  operator 8772/guest 8773; no explicit guest environment. Every launch returned
+  guest page 200 and operator route 404. Primary server identity stayed unchanged.
+  Conservative OBS-unknown shutdown guard stayed intact; only exact newly owned,
+  proven-idle QA processes were terminated. Isolated ports closed.
+- [x] Primary profile guest settings saved with owner-only Windows ACLs on F:;
+  existing private mapping retained and Tailscale automatic service observed.
+  Opening Studio is still required after boot. No Windows startup entry created.
+- [x] Wide default desktop green room, right sticky chat beside all main content,
+  horizontal source libraries and bounded responsive participant pictures. Final
+  browser evidence is visual06: dark/light producer 960, 1366, 1920 and 3840 widths,
+  guest 390, 960, 1920 and 3840 widths, no horizontal overflow. Isolated real WebRTC
+  verifies gallery privacy, wait/readmit, removal/reinvite and source selection.
+  Actual primary desktop was also inspected with the real guest and shared screen.
+- [x] Native development build 0.1.0-20261119025114745: actual EXE starts and Reload
+  survives; protected Windows storage, source navigation/draft preservation and
+  no-Take behavior pass with an isolated synthetic profile. No physical capture
+  or external destination was used by this native rehearsal.
+- [x] Actual second PC, owner-selected screen: 3840x2160 decoded, 872 additional
+  frames in a bounded 30-second receiving check; microphone transport remained
+  live, no host capture/recording and Program generation unchanged. Screen audio
+  was not shared. The test receiver closed; the guest publisher remains available.
+- [ ] Windows reboot and prior-session rejoin, screen/tab audio, physical Program/
+  platform receipt, host-mic/multi-guest acoustic echo and varied-noise calibration.
+- [ ] Separate bundled preview profile/update, verified remote producer sign-in,
+  installer/signing/update/public-release gates remain separate.
+
+Evidence: F:/Temp/jonat/ProducerPlease-backstage-desktop-20261118 contains restart01,
+visual06, native01 and release-gate-checkpoint-final.log. The screen-only numeric
+receiver evidence is under the earlier room-test folder's screen08. Earlier visual
+probes are preserved; visual01 found an insufficient cascade owner, visual04 used
+an invalid offscreen sticky-position assertion, and element captures were replaced
+by scrolled viewport captures. No private configuration, invite tokens or physical
+media captures enter Git or source backups. No real stream or recording started.
+
+Primary Start Menu shortcut was updated to the tested development build, with its prior link preserved on F:. The actual primary app also survived Reload and reopened backstage. A Windows network prompt appeared and was later no longer visible; its selected option is unknown, and the agent did not act on it. No claim is made about the resulting Windows firewall choice. Combined producer viewer chat is recorded as next work and remains unimplemented.

@@ -66,3 +66,13 @@ def test_input_tallies_reserve_space_beside_camera_labels():
     label = re.search(r'\.production-inputs button:is\(\.is-program,\.is-preview\) > strong \{([^}]+)\}', css).group(1)
     # Cover the badge plus a readable gap even when compact cards use 7px padding.
     assert 'padding-inline-end:40px!important' in label
+
+
+def test_desktop_greenroom_has_a_full_width_dock_and_side_by_side_chat():
+    shell = (STATIC / 'studio_shell.css').read_text(encoding='utf-8')
+    room = (STATIC / 'greenroom_controls.css').read_text(encoding='utf-8')
+    assert '.studio-dock-bottom > [data-studio-tool="production-greenroom"] { grid-column:1/-1!important; grid-row:1!important;' in shell
+    assert '@container greenroom (min-width:900px)' in room
+    assert '.greenroom-chat-slot { grid-column:2; grid-row:1;' in room
+    assert 'position:sticky; top:100px' in room
+    assert 'grid-template-columns:repeat(3,minmax(0,1fr))' in room

@@ -807,3 +807,33 @@ for the running studio. Guests still need individual invitations; producer
 controls stay local. Restart/startup provisioning for this private route is not
 yet implemented in the desktop app. No public stream or recording was started,
 and guest access remains distinct from producer sign-in.
+
+## November 18, 2026 — Persistent private guests and desktop backstage
+
+The primary development desktop now restores an explicitly enabled guest-only
+listener and its HTTPS invitation origin from an owner-only per-profile file on
+F: when starting a fresh backend. The existing private Tailscale Serve mapping
+is retained; the Tailscale service is already automatic. Open Producer, Please
+after a PC restart to start Studio. No Windows startup entry, public hosting,
+firewall rule, new account access or remote producer login is enabled. The
+separate bundled preview profile is unchanged. Three actual isolated launches
+and two restarts restored the saved listener with no explicit guest environment;
+guest routes remained available and operator routes remained blocked. Windows
+reboot and reconnection of a prior live capture session were not exercised.
+
+Desktop backstage now spans the default bottom dock, with a dedicated sticky
+right chat sidebar beside guests and sources. Guest tiles fit desktop columns;
+image, video/text and browser libraries use a horizontal source row. Joined guest
+pages use right-side chat and one bounded self-picture instead of a second giant
+camera preview. Narrow screens retain a single-column flow. This is an incremental
+layout pass, not the completed visual redesign. Existing guests are not reloaded
+while their camera, microphone or screen is being shared.
+
+After the owner selected a screen in Chrome on the second PC, an actual producer
+receiver decoded 3840x2160 screen video and 872 additional frames over its bounded
+30-second check. The physical webcam and mic stayed enabled; screen audio was
+not shared or verified. Screen sources remain backstage until explicitly selected
+and Taken; real Program generation stayed unchanged and no broadcast or recording
+was started. Producer authentication remains separate from guest invitations.
+
+Producer-side combined viewer chat for Twitch, YouTube and Kick is the next owner-requested priority. It is separate from shared/private backstage chat. Implement platform labels, filters and truthful connection states around actual authorized platform message ingestion; no live audience connector or account connection is claimed by this checkpoint.

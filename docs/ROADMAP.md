@@ -830,3 +830,30 @@ separate work. Keep individual invitations and operator isolation. Private
 configuration and invitation material stay outside Git. Verified remote producer
 login remains blocked on the actual StackThis identity registration/callback
 agreement.
+
+## November 18, 2026 — Private restart and wider backstage checkpoint
+
+Implemented and locally exercised: versioned per-profile guest ingress settings,
+fresh-start environment restoration, explicit-disable and invalid-pair guards,
+and three actual isolated launches/two restarts. The primary development desktop
+profile is opted in to the already approved private route. Opening the app starts
+the backend; no automatic Windows app launch is configured. The current operator
+and guest sessions were preserved during the restart rehearsal.
+
+Implemented and inspected: full-width default desktop green room, sticky right
+chat beside the whole room, side-by-side source libraries, responsive guest tiles,
+and a compact joined guest view. Baselines cover dark/light, narrow desktop,
+1080p/4K and mobile guest pages. This reduces the long tool-column layout; further
+stage-focused interaction and visual refinement remain open.
+
+Actual second-PC screen video reception passed at 4K without Take. Remaining:
+screen/tab audio, physical Program composition and platform delivery, host-mic/
+multi-guest conversation, varied-noise calibration, Windows reboot/rejoin, updated
+bundled preview acceptance, and the real StackThis producer identity agreement.
+
+Also corrected initial desktop readiness: persistent media resources could leave
+loadURL pending even after usable UI, so Reload aborted the initial promise and
+incorrectly exited the app. The new desktop build completes startup on the exact
+trusted document's DOM-ready event and preserves genuine pre-ready failures.
+
+Next bounded phase: combined producer viewer chat across Twitch, YouTube and Kick, with platform labels/filtering and connection health. Verify the actual authorized message-ingestion paths before claiming live delivery. The owner retains the 34% usage ceiling; this new phase requires a separate usage approval before substantial work.
