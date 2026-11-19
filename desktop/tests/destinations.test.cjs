@@ -33,6 +33,52 @@ async function fixture(t, options = {}) {
   return { store, cipher, directory, file: path.join(directory, 'destinations.json') };
 }
 const payload = overrides => ({ requestId: 'first-save', name: 'My channel', platform: 'twitch', streamKey: 'synthetic-secret-9a82', ...overrides });
+
+test('linked Kick saves only an encrypted account reference and privately refreshes its secure ingest settings',async t=>{
+  const ref='c'.repeat(64),calls=[];
+  const accountResolver=async(accountRef,options)=>{calls.push({accountRef,options});return {platform:'kick',accountRef,serverUrl:'rtmps://ingest.provider.com:443/private-live',streamKey:'private-kick-key-'+calls.length};};
+  const f=await fixture(t,{accountResolver}),input={requestId:'kick-link',name:'Kick account',platform:'kick',accountRef:ref};
+  await rejects(f.store.save(input),'invalid_destination_fields');
+  const saved=await f.store.saveAccount(input),pub=saved.destination;assert.equal(pub.linkedAccount,true);assert.equal(pub.configured,true);assert.equal(pub.serverConfigured,false);
+  for(const key of ['connected','verified','platformLive','networkVerified'])assert.equal(pub[key],false);
+  assert.equal(calls.length,0,'saving a link never fetches private settings');
+  const disk=await fs.readFile(f.file,'utf8'),stored=JSON.parse(disk),decoded=JSON.parse((await f.cipher.decryptStringAsync(Buffer.from(stored.profiles[0].encrypted,'base64'))).result);
+  assert.deepEqual(decoded,{id:pub.id,platform:'kick',allowInsecureRtmp:false,accountRef:ref});
+  const first=await f.store.getPrivateDestination(pub.id);assert.equal(first.serverUrl,'rtmps://ingest.provider.com/private-live');assert.equal(first.streamKey,'private-kick-key-1');assert.deepEqual(calls,[{accountRef:ref,options:{platform:'kick'}}]);
+  const reloaded=new DestinationStore({directory:f.directory,cipher:f.cipher,platform:'win32',accountResolver});assert.equal((await reloaded.private(pub.id)).streamKey,'private-kick-key-2');
+  assert.equal(await fs.readFile(f.file,'utf8'),disk,'resolved settings are never persisted');
+  for(const value of [disk,JSON.stringify(await reloaded.public()),JSON.stringify(saved)])for(const sensitive of [ref,'private-kick-key','private-live','rtmps://ingest.provider.com'])assert.equal(value.includes(sensitive),false);
+});
+
+test('linked accounts deduplicate by provider and reference and cannot silently change providers',async t=>{
+  const ref='d'.repeat(64),f=await fixture(t),input={name:'Same identity hash',accountRef:ref};
+  const twitch=await f.store.saveAccount({...input,platform:'twitch',requestId:'twitch-account'}),kick=await f.store.saveAccount({...input,platform:'kick',requestId:'kick-account'});
+  assert.notEqual(twitch.destination.id,kick.destination.id);const repeated=await f.store.saveAccount({...input,platform:'kick',requestId:'kick-account-again'});assert.equal(repeated.destination.id,kick.destination.id);assert.equal((await f.store.public()).destinations.length,2);
+  assert.equal((await f.store.saveAccount({...input,platform:'kick',requestId:'kick-account'})).replayed,true);
+  await rejects(f.store.saveAccount({...input,id:twitch.destination.id,platform:'kick',requestId:'cross-provider'}),'account_destination_managed');
+  await rejects(f.store.saveAccount({...input,id:kick.destination.id,platform:'kick',accountRef:'e'.repeat(64),requestId:'cross-account'}),'account_destination_managed');
+  await rejects(f.store.save(payload({id:kick.destination.id,platform:'kick',requestId:'manual-kick',serverUrl:'rtmps://ingest.provider.com/app'})),'account_destination_managed');
+});
+
+test('Kick linked input accepts no URL, key or insecure transport fields even when empty',async t=>{
+  const f=await fixture(t),input={name:'Kick account',platform:'kick',accountRef:'f'.repeat(64),requestId:'kick-input'};
+  for(const change of [{serverUrl:''},{streamKey:''},{clearKey:false},{allowInsecureRtmp:false},{streamKey:'private'},{serverUrl:'rtmps://ingest.provider.com/app'},{accountRef:'bad'},{platform:'youtube'}])await rejects(f.store.saveAccount({...input,...change}),'invalid_linked_account');
+  assert.equal((await f.store.public()).destinations.length,0);
+});
+
+test('Kick resolution requires the pinned provider, account and a validated RTMPS endpoint with no guessed upgrade',async t=>{
+  const ref='c'.repeat(64);let reply={platform:'kick',accountRef:ref,serverUrl:'rtmps://ingest.provider.com/app',streamKey:'private-kick-key'};
+  const f=await fixture(t,{accountResolver:async()=>reply}),id=(await f.store.saveAccount({name:'Kick',platform:'kick',accountRef:ref,requestId:'kick-resolve'})).destination.id,valid={...reply};
+  for(const change of [{platform:'twitch'},{platform:undefined},{accountRef:'d'.repeat(64)},{streamKey:''},{streamKey:'bad\nkey'},{access_token:'private'},{publicLabel:'unrequested'}]){reply={...valid,...change};await rejects(f.store.private(id),'account_authorization_required');}
+  for(const serverUrl of ['rtmp://ingest.provider.com/app','https://ingest.provider.com/app','rtmps://127.0.0.1/app','rtmps://private.local/app','rtmps://user:secret@ingest.provider.com/app','rtmps://ingest.provider.com/app?key=secret']){reply={...valid,serverUrl};await assert.rejects(f.store.private(id),error=>error.name==='DestinationError');}
+  reply={...valid};assert.equal((await f.store.private(id)).serverUrl,valid.serverUrl);
+});
+
+test('a linked Kick ciphertext containing a cached endpoint is rejected instead of silently reusing credentials',async t=>{
+  const f=await fixture(t),id=(await f.store.saveAccount({name:'Kick',platform:'kick',accountRef:'c'.repeat(64),requestId:'kick-cipher'})).destination.id;
+  const value=JSON.parse(await fs.readFile(f.file,'utf8')),profile=value.profiles[0],secret=JSON.parse((await f.cipher.decryptStringAsync(Buffer.from(profile.encrypted,'base64'))).result);secret.serverUrl='rtmps://ingest.provider.com/app';profile.encrypted=(await f.cipher.encryptStringAsync(JSON.stringify(secret))).toString('base64');const malformed=JSON.stringify(value);await fs.writeFile(f.file,malformed);
+  const reloaded=new DestinationStore({directory:f.directory,cipher:f.cipher,platform:'win32'});assert.equal((await reloaded.public()).destinations[0].status,'locked');await rejects(reloaded.private(id),'destination_credentials_unavailable');assert.equal(await fs.readFile(f.file,'utf8'),malformed);
+});
 const rejects = (promise, code) => assert.rejects(promise, error => error.code === code && error.message === code);
 
 test('linked accounts persist a reference, resolve a fresh private key at Start, and never expose it publicly', async t => {
@@ -225,4 +271,10 @@ test('additional platform labels require the operator supplied secure server and
     assert.equal(validateServerUrl('rtmps://ingest.provider.com/app',{platform}),'rtmps://ingest.provider.com/app');
     assert.throws(()=>validateServerUrl('rtmp://ingest.provider.com/app',{platform}));
   }
+});
+
+
+test('origin-only Kick ingest is used without inventing a path and unavailable secure transport stays actionable',async t=>{
+ const ref='a'.repeat(64);let unavailable=false;const f=await fixture(t,{accountResolver:async()=>{if(unavailable)throw Error('secure_ingest_unavailable');return {platform:'kick',accountRef:ref,serverUrl:'rtmps://ingest.provider.com:443',streamKey:'app/synthetic-private-key'};}});
+ const saved=await f.store.saveAccount({name:'Kick origin only',platform:'kick',accountRef:ref,requestId:'origin-only'});const value=await f.store.private(saved.destination.id);assert.equal(value.serverUrl,'rtmps://ingest.provider.com');assert.equal(value.streamKey,'app/synthetic-private-key');unavailable=true;await rejects(f.store.private(saved.destination.id),'secure_ingest_unavailable');
 });

@@ -1,4 +1,4 @@
-# Producer, Please desktop checkpoint — November 18, 2026
+# Producer, Please desktop - current setup and acceptance history
 
 Producer, Please now has a Windows Electron shell and a native output/encoding
 path that does not require OBS. The complete path has been exercised locally
@@ -13,7 +13,7 @@ There are now **two private build types**, neither a public installer release.
 
 | Build | Runtime and current entry point |
 | --- | --- |
-| Primary development app | The existing Start Menu entry and `F:\Apps\ProducerPlease\latest-build.json` remain unchanged. This thin shell requires the C: RareIQ checkout and its `.venv\Scripts\python.exe`. Keep those in place. |
+| Primary development app | The current Start Menu entry and `F:\Apps\ProducerPlease\latest-build.json` identify the primary app. This thin shell requires the C: RareIQ checkout and its `.venv\Scripts\python.exe`. Keep those in place. |
 | Bundled runtime candidate | `F:\Apps\ProducerPlease\latest-bundled-build.json` identifies a separate build with embedded Python, approved backend source/static assets, encoder and dependencies in its own resources. Its tested backend does not require the development checkout or Python environment. Packaged Program has local acceptance; clean-machine acceptance remains separate. |
 
 Desktop profile, browser state and logs default to
@@ -120,24 +120,42 @@ reopen Broadcast setup to continue. **Add destination** moves to the saved-key f
 A changed output format requires preparing that format again. A securely saved
 destination is not a verified connected account or proof of platform delivery.
 
-1. Open **Broadcast setup**, choose Twitch, YouTube, Kick or Custom, and enter the
-   stream key from that platform's dashboard. Twitch has a secure server preset;
-   YouTube, Kick and Custom require the dashboard's server URL as well. The native
-   encoder requires RTMPS. Saving settings does not start transmission.
-2. Select the output format and **Prepare output**. The separate Studio Output
-   window owns the actual Program picture and public audio. Review any browser
-   sources there, then close review before starting.
-3. Choose **Start broadcast** and explicitly confirm the named destination.
-   Local sending/encoding status is not proof of platform receipt. Confirm the
-   picture, audio and delivery in the platform's own dashboard.
-4. Use **Stop broadcast** before closing. If encoder shutdown is not confirmed,
-   the desktop keeps the application open rather than discarding that ownership.
+1. Open **Broadcast setup**. Connect Twitch or Kick, review the requested account
+   permissions, then choose **Save Twitch destination** or **Save Kick destination**.
+   The existing saved connection is reused. YouTube/Custom and optional manual
+   Twitch/Kick destinations still accept dashboard server/key settings; RTMPS is
+   required. YouTube app registration/real sign-in remains pending owner review.
+2. Save your shared or destination-specific **Stream info** draft. Applying it to a
+   platform is separate: check the connected channel, enable its editing permission,
+   choose an existing YouTube broadcast when relevant, then explicitly Apply.
+   A saved local draft does not prove the platform was updated.
+3. Select the saved output profile and **Prepare output**. The separate Studio
+   Output owns the Program picture and public audio. Review browser sources there,
+   then close review before starting. Live/VOD faders remain adjustable while
+   encoding; saved profile settings remain separate from the running mix.
+4. Choose **Start broadcast** and explicitly confirm every named destination.
+   Local sending/encoding does not prove platform receipt. Confirm picture, audio
+   and delivery on each platform. Linked accounts are checked again before private
+   key retrieval; Kick uses its current secure ingest without caching it.
+5. Use **Stop broadcast** before closing. Unconfirmed shutdown keeps the app open
+   until ownership can be safely released.
 
-There is no platform OAuth login, connected-account client, client-ID setup or
-verified online operator identity in this checkpoint. Destination names/keys are
-manual configuration. Activity is attributed to a local desktop operator, not an
-authenticated Twitch/YouTube/Kick account. No real platform credentials or account
-changes were used during acceptance.
+**Rehearsal room** blocks publishing, recording, replay export and platform metadata
+writes while you practice. Enter, prepare output and optionally Start local encoding
+for real H.264/AAC encoding into a discard sink. Choose Off/Live/VOD monitoring
+explicitly; Off is the default. The output watermark is present before the first
+local capture. Manual checks and a metadata-only report do not claim a recording,
+hardware test or platform delivery. Configured OBS must be reachable and idle;
+resolve an unavailable integration before entry rather than bypassing the guard.
+Leave rehearsal separately, then a public Start still requires confirmation.
+
+Twitch and Kick saved authorization and Kick private secure-ingest retrieval have
+actual read-only acceptance. YouTube controls and private connection persistence
+have local/synthetic acceptance, with Google consent/client setup still pending.
+No real broadcast, recording or provider metadata change was initiated by these
+November 19 checks. Desktop action attribution remains a local operator label;
+platform sign-in does not establish shared producer identity. Remote team sign-in
+still requires the StackThis identity contract.
 
 Windows account encryption (Electron safeStorage/DPAPI) protects the saved server
 URL and stream key. Public status never returns saved secrets; plaintext keys do

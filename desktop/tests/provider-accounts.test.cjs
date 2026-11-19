@@ -5,8 +5,8 @@ const NOW=1800000000;
 const saved=platform=>({platform,state:'authorized',authorized:true,app_configured:true,reason:'account_authorized',public_label:'Fixture channel',expires_at:NOW+3600});
 const pending=platform=>({...saved(platform),state:'pending',reason:'authorization_pending',flow_id:'a'.repeat(32),expires_at:NOW+600});
 function fixture(platform='youtube'){
-  const f={calls:[],imports:[],messages:[],timers:new Map(),result:{ok:true,account:saved(platform)},importResult:{ok:true,configured:true,platform},approved:true};let timer=0;
-  f.controller=createController({platform,request:async value=>{f.calls.push(value);return typeof f.result==='function'?f.result():f.result;},importApp:async value=>{f.imports.push(value);return typeof f.importResult==='function'?f.importResult():f.importResult;},confirmDisconnect:async()=>f.approved,onChange:value=>f.messages.push(value),schedule:(fn,ms)=>{assert.equal(ms,2000);f.timers.set(++timer,fn);return timer;},unschedule:id=>f.timers.delete(id),now:()=>NOW});return f;
+  const f={calls:[],imports:[],messages:[],timers:new Map(),result:{ok:true,account:saved(platform)},importResult:{ok:true,configured:true,platform},approved:true,changed:0,refreshError:false};let timer=0,requestSerial=0;
+  f.controller=createController({platform,request:async value=>{f.calls.push(value);return typeof f.result==='function'?f.result():f.result;},importApp:async value=>{f.imports.push(value);return typeof f.importResult==='function'?f.importResult():f.importResult;},onDestinationsChanged:async()=>{f.changed++;if(f.refreshError)throw Error('private refresh error');},randomId:()=>`fixture-link-${++requestSerial}`,confirmDisconnect:async()=>f.approved,onChange:value=>f.messages.push(value),schedule:(fn,ms)=>{assert.equal(ms,2000);f.timers.set(++timer,fn);return timer;},unschedule:id=>f.timers.delete(id),now:()=>NOW});return f;
 }
 const deferred=()=>{let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};};
 test('saved identity reopens through public status without credentials or authorization URLs',async()=>{
@@ -69,4 +69,29 @@ test('saved configuration with failed metadata refresh is reported separately an
 });
 test('app file errors use constant recovery messages and status check enables a safe retry',async()=>{
   const f=fixture('kick');f.result={ok:true,account:notConfigured('kick')};await f.controller.start();f.importResult={ok:false,reason:'invalid_app_configuration',path:'private-file.json'};assert.equal(await f.controller.run('setup'),false);assert.match(f.controller.snapshot().message,/not a valid provider app setup file/);assert.doesNotMatch(JSON.stringify(f.controller.snapshot()),/private-file/);assert.equal(await f.controller.run('setup'),false);await f.controller.run('status');f.importResult={ok:true,cancelled:true,platform:'kick'};assert.equal(await f.controller.run('setup'),true);
+});
+
+const kickStreaming=(extra={})=>({...saved('kick'),streaming_authorized:true,account_ref:'b'.repeat(64),...extra});
+test('Kick destination requires fresh authorized streaming access and a strict opaque account reference',async()=>{
+  for(const extra of [{streaming_authorized:false},{streaming_authorized:'true'},{account_ref:'private-ingest-url'},{account_ref:'B'.repeat(64)},{state:'pending',flow_id:'a'.repeat(32)},{expires_at:NOW-1},{authorized:false}]){
+    const f=fixture('kick');f.result={ok:true,account:kickStreaming(extra)};await f.controller.start();assert.equal(await f.controller.run('link'),false);assert.equal(f.calls.length,1);
+  }
+  const f=fixture('youtube');f.result={ok:true,account:{...saved('youtube'),streaming_authorized:true,account_ref:'b'.repeat(64)}};await f.controller.start();assert.equal(await f.controller.run('link'),false);assert.equal(f.controller.snapshot().account.streaming_authorized,undefined);
+});
+test('Kick saves only platform and stable retry receipt after an ambiguous response and same-account read',async()=>{
+  const f=fixture('kick');f.result={ok:true,account:kickStreaming()};await f.controller.start();f.result=()=>{throw Error('private key must not display');};await f.controller.run('link');const first=f.calls.at(-1);assert.deepEqual(first,{platform:'kick',action:'link',requestId:'fixture-link-1'});assert.equal(f.controller.snapshot().stale,true);assert.equal(f.controller.snapshot().linkRetry,true);assert.equal(await f.controller.run('link'),false);assert.doesNotMatch(f.controller.snapshot().message,/private key/);f.result={ok:true,account:kickStreaming()};await f.controller.run('status');await f.controller.run('link');assert.deepEqual(f.calls.at(-1),first);assert.equal(f.changed,1);assert.equal(f.controller.snapshot().linkRetry,false);assert.match(f.controller.snapshot().message,/Kick destination saved/);assert.match(f.controller.snapshot().message,/platform receipt remains unverified/);await f.controller.run('link');assert.notEqual(f.calls.at(-1).requestId,first.requestId);
+});
+test('Kick account change retires old retry and lock preserves read-only status without sending Link',async()=>{
+  const f=fixture('kick');f.result={ok:true,account:kickStreaming()};await f.controller.start();f.result={ok:false,reason:'account_state_changed'};await f.controller.run('link');const first=f.calls.at(-1).requestId;f.result={ok:true,account:kickStreaming({account_ref:'c'.repeat(64)})};await f.controller.run('check');assert.equal(f.controller.snapshot().linkRetry,false);f.controller.setLocked(true);assert.equal(await f.controller.run('link'),false);const before=f.calls.length;assert.equal(await f.controller.run('status'),true);assert.equal(f.calls.length,before+1);f.controller.setLocked(false);await f.controller.run('link');assert.notEqual(f.calls.at(-1).requestId,first);
+});
+test('double Kick save is suppressed and late close response cannot refresh destination state',async()=>{
+  const f=fixture('kick');f.result={ok:true,account:kickStreaming()};await f.controller.start();const link=deferred();f.result=()=>link.promise;const saving=f.controller.run('link');assert.equal(await f.controller.run('link'),false);assert.equal(f.calls.filter(call=>call.action==='link').length,1);f.controller.close();const before=f.messages.length;link.resolve({ok:true,account:kickStreaming()});await saving;assert.equal(f.changed,0);assert.equal(f.messages.length,before);
+});
+test('confirmed Kick save distinguishes list refresh/history warnings from an unconfirmed save',async()=>{
+  const f=fixture('kick');f.result={ok:true,account:kickStreaming()};await f.controller.start();f.refreshError=true;f.result={ok:true,account:kickStreaming(),activity_history_warning:true};assert.equal(await f.controller.run('link'),true);const state=f.controller.snapshot();assert.equal(state.stale,false);assert.equal(state.linkRetry,false);assert.equal(state.historyWarning,true);assert.match(state.message,/destination saved/);assert.match(state.message,/destination list could not refresh/);assert.doesNotMatch(state.message,/private refresh error/);
+});
+
+
+test('definitive Kick destination conflict retires its receipt while ambiguous retries remain exact',async()=>{
+ for(const reason of ['destination_request_conflict','destination_request_retired']){const f=fixture('kick');f.result={ok:true,account:kickStreaming()};await f.controller.start();f.result={ok:false,reason};await f.controller.run('link');const first=f.calls.at(-1).requestId;assert.equal(f.controller.snapshot().linkRetry,false);assert.equal(await f.controller.run('link'),false);f.result={ok:true,account:kickStreaming()};await f.controller.run('check');await f.controller.run('link');assert.notEqual(f.calls.at(-1).requestId,first);assert.equal(f.changed,1);f.controller.close();}
 });

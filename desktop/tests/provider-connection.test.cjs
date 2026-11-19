@@ -25,3 +25,21 @@ test('provider metadata upgrade maps to a separate protected action without expo
     assert.equal(f.calls.at(-1).url,origin+'/api/production/accounts/'+platform+'/begin-metadata');assert.equal(JSON.stringify(result).includes('private'),false);
   }
 });
+
+
+function linkFixture(){
+ const event={senderFrame:{url:'file:///settings.html'}},calls=[],saved=[],audits=[],account={platform:'kick',state:'authorized',authorized:true,streaming_authorized:true,app_configured:true,account_ref:'a'.repeat(64),public_label:'Synthetic channel',access_token:'private-provider-value'};
+ const f={event,calls,saved,audits,account,wait:null,blocked:false,auditFailure:false};
+ f.run=createProviderConnection({origin,trustedSender:value=>value===event,mutate:async(_event,action)=>{if(f.blocked)throw Error('destination_broadcast_busy');return action();},authorize:async()=>({ok:true}),store:{saveAccount:async value=>{saved.push(value);return {destination:{id:'synthetic-destination',platform:'kick',linkedAccount:true},replayed:false};}},append:async value=>{if(f.auditFailure)throw Error('private path');audits.push(value);},fetchImpl:async(url,options)=>{calls.push({url,options});if(url.endsWith('/kick/check')&&f.wait)await f.wait;const response=new Response(JSON.stringify({ok:true,account}),{headers:{'Content-Type':'application/json'}});Object.defineProperty(response,'url',{value:url});return response;}});return f;
+}
+test('Kick linking saves only a checked opaque identity and returns public destination metadata',async()=>{
+ const f=linkFixture(),result=await f.run(f.event,{platform:'kick',action:'link',requestId:'same-link'});assert.equal(result.ok,true);assert.equal(f.calls[0].url,origin+'/api/production/accounts/kick/check');assert.deepEqual(f.saved,[{platform:'kick',name:'Kick \u00b7 Synthetic channel',accountRef:'a'.repeat(64),requestId:'same-link'}]);assert.equal(result.destination.linkedAccount,true);assert.doesNotMatch(JSON.stringify(result),/private-provider-value|access_token|streamKey|serverUrl/);assert.equal(f.audits[0].action,'account_destination.link');assert.equal(f.audits[0].identityVerified,false);
+});
+test('Kick link rejects missing permission/identity, YouTube, caller credentials and busy production before saving',async()=>{
+ for(const change of [{authorized:false},{streaming_authorized:false},{account_ref:'wrong'},{state:'pending'}]){const f=linkFixture();Object.assign(f.account,change);assert.equal((await f.run(f.event,{platform:'kick',action:'link',requestId:'bad-link'})).ok,false);assert.equal(f.saved.length,0);}
+ const f=linkFixture();for(const value of [{platform:'youtube',action:'link',requestId:'bad-link'},{platform:'kick',action:'link',requestId:'bad-link',accountRef:'a'.repeat(64)},{platform:'kick',action:'link',requestId:'bad-link',flowId:flow}])assert.equal((await f.run(f.event,value)).reason,'invalid_account_request');assert.equal(f.calls.length,0);f.blocked=true;assert.equal((await f.run(f.event,{platform:'kick',action:'link',requestId:'blocked-link'})).reason,'destination_broadcast_busy');assert.equal(f.saved.length,0);
+});
+test('cancellation and stale native navigation prevent an awaited Kick check from linking',async()=>{
+ for(const cancel of [false,true]){const f=linkFixture();let release;f.wait=new Promise(resolve=>{release=resolve;});const pending=f.run(f.event,{platform:'kick',action:'link',requestId:'stale-link'});await new Promise(resolve=>setImmediate(resolve));if(cancel)await f.run(f.event,{platform:'kick',action:'cancel'});else f.event.senderFrame.url='file:///other.html';release();assert.equal((await pending).ok,false);assert.equal(f.saved.length,0);}
+});
+test('Kick link preserves a successful save when only local activity append fails',async()=>{const f=linkFixture();f.auditFailure=true;const value=await f.run(f.event,{platform:'kick',action:'link',requestId:'history-link'});assert.equal(value.ok,true);assert.equal(value.activity_history_warning,true);assert.equal(f.saved.length,1);});

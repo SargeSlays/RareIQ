@@ -1,9 +1,9 @@
 'use strict';
 const {studioOrigin}=require('./policy.cjs');
 const plain=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
-const ACTIONS=new Set(['status','begin','begin_metadata','cancel','check','disconnect','authorize']);
-const SAFE=new Set(['destination_change_pending','destination_broadcast_busy','local_operator_required','authorization_flow_unavailable','authorization_unavailable','authorization_open_failed','authorization_open_pending']);
-function createProviderConnection({origin,trustedSender,mutate,authorize,fetchImpl=globalThis.fetch}={}){
+const ACTIONS=new Set(['status','begin','begin_metadata','cancel','check','disconnect','authorize','link']);
+const SAFE=new Set(['destination_change_pending','destination_broadcast_busy','local_operator_required','authorization_flow_unavailable','authorization_unavailable','authorization_open_failed','authorization_open_pending','account_authorization_required','streaming_scope_required','account_state_changed','secure_ingest_unavailable','secure_storage_unavailable','destination_library_full','destination_request_conflict','destination_request_retired','account_destination_managed','account_storage_unavailable']);
+function createProviderConnection({origin,store,append=()=>{},trustedSender,mutate,authorize,fetchImpl=globalThis.fetch}={}){
   const base=studioOrigin(origin),pending=new Map();
   const trusted=e=>{try{return trustedSender(e)===true;}catch(_){return false;}};
   async function request(platform,action){
@@ -15,6 +15,10 @@ function createProviderConnection({origin,trustedSender,mutate,authorize,fetchIm
     const v=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(Buffer.concat(chunks))),raw=action==='status'?v.accounts?.find(a=>a.platform===platform):v.account;
     if(!plain(raw)||raw.platform!==platform||!['authorized','not_authorized','pending','unavailable'].includes(raw.state))throw Error('account_unavailable');
     const account={platform,state:raw.state,authorized:raw.authorized===true,metadata_authorized:raw.authorized===true&&raw.metadata_authorized===true,app_configured:raw.app_configured===true};
+    if(platform==='kick'){
+      account.streaming_authorized=account.authorized&&raw.streaming_authorized===true;
+      if(account.authorized&&typeof raw.account_ref==='string'&&/^[a-f0-9]{64}$/.test(raw.account_ref))account.account_ref=raw.account_ref;
+    }
     if(typeof raw.reason==='string'&&/^[a-z_]{1,80}$/.test(raw.reason))account.reason=raw.reason;
     if(typeof raw.public_label==='string'&&raw.public_label.length<=80&&!/[\x00-\x1f\x7f]/.test(raw.public_label))account.public_label=raw.public_label;
     if(typeof raw.expires_at==='number'&&Number.isFinite(raw.expires_at))account.expires_at=raw.expires_at;
@@ -27,7 +31,8 @@ function createProviderConnection({origin,trustedSender,mutate,authorize,fetchIm
   }
   return async(e,v)=>{
     if(!trusted(e))return {ok:false,reason:'local_operator_required'};
-    if(!plain(v)||!['youtube','kick'].includes(v.platform)||!ACTIONS.has(v.action)||Object.keys(v).some(k=>!['platform','action','flowId'].includes(k))||v.action==='authorize'&&!(typeof v.flowId==='string'&&/^[a-f0-9]{32}$/.test(v.flowId)))return {ok:false,reason:'invalid_account_request'};
+    if(!plain(v)||!['youtube','kick'].includes(v.platform)||!ACTIONS.has(v.action)||Object.keys(v).some(k=>!(v.action==='authorize'?['platform','action','flowId']:v.action==='link'?['platform','action','requestId']:['platform','action']).includes(k))||v.action==='authorize'&&!(typeof v.flowId==='string'&&/^[a-f0-9]{32}$/.test(v.flowId)))return {ok:false,reason:'invalid_account_request'};
+    if(v.action==='link'&&(v.platform!=='kick'||typeof v.requestId!=='string'||!/^[A-Za-z0-9_-]{1,80}$/.test(v.requestId)))return {ok:false,reason:'invalid_account_request'};
     if(pending.has(v.platform)&&!['status','cancel'].includes(v.action))return {ok:false,reason:'destination_change_pending'};
     const token=Symbol(),frame=e.senderFrame,frameUrl=frame?.url;
     const run=async()=>{
@@ -36,6 +41,16 @@ function createProviderConnection({origin,trustedSender,mutate,authorize,fetchIm
         if(opened?.ok!==true)return {ok:false,reason:SAFE.has(opened?.reason)?opened.reason:'authorization_unavailable'};
         if(!trusted(e)||e.senderFrame!==frame||frame?.url!==frameUrl)return {ok:false,reason:'local_operator_required'};
         return {...await request(v.platform,'status'),authorization_opened:true};
+      }
+      if(v.action==='link'){
+        const result=await request('kick','check'),account=result.account;
+        if(!trusted(e)||e.senderFrame!==frame||frame?.url!==frameUrl||pending.get(v.platform)!==token)throw Error('local_operator_required');
+        if(!account.authorized||account.state!=='authorized'||!account.streaming_authorized||!account.account_ref||!account.public_label)throw Error('account_authorization_required');
+        if(typeof store?.saveAccount!=='function')throw Error('account_unavailable');
+        const saved=await store.saveAccount({platform:'kick',name:('Kick \u00b7 '+account.public_label).slice(0,80),accountRef:account.account_ref,requestId:v.requestId});
+        let warning=result.activity_history_warning===true;
+        try{await append({at:new Date().toISOString(),action:'account_destination.link',actor:'Desktop operator',identityVerified:false,destinationId:saved.destination.id,platform:'kick',replayed:saved.replayed});}catch(_){warning=true;}
+        return {ok:true,account,destination:saved.destination,...(warning?{activity_history_warning:true}:{})};
       }
       return request(v.platform,v.action);
     };

@@ -1868,3 +1868,28 @@ refused entry while configured OBS was disconnected. No integration setting was
 silently disabled. Resolve that encoder connection before a physical rehearsal.
 Private guest HTTPS still returns 200 for guest/badge/assets and 404 for producer
 controls, account setup, metadata Apply and private rehearsal commands.
+
+## November 19, 2026 — Saved Kick destination
+
+- [x] Safe public provider reference/streaming scope metadata, strict private child
+  helper and no helper refresh/write authority; identity/expiry/scope and changed
+  record guards covered with synthetic provider responses.
+- [x] Encrypted reference-only Kick destinations, provider-bound deduplication,
+  reload, manual/Twitch compatibility and private fresh RTMPS resolution.
+- [x] Native account Link trust/mutation guards, stable retry, cancellation/stale
+  frame rejection, definitive conflict recovery and history-warning preservation.
+- [x] Full Settings Kick card flow at eight dark/light viewport baselines; draft
+  preservation, account focus, sending/rehearsal locks and read-only status.
+- [x] Packaged original Main/router/store saving, encrypted-content checks, reopen
+  and repeated-link deduplication with isolated synthetic account metadata.
+- [x] Actual saved Kick account check and read-only private secure-ingest retrieval.
+- [ ] Actual media transport/platform receipt, Google saved sign-in, YouTube linked
+  stream selection and new metadata editing grants remain separate acceptance.
+
+Evidence: F:/Temp/jonat/ProducerPlease-kick-destination-20261119. native01/results.json
+uses synthetic account metadata; real-readonly-proof.json contains flags only.
+Neither test starts a broadcast/recording, changes provider metadata or creates a
+new account permission. Canonical gate passed 4,345 Python and 990 JavaScript checks.
+The tested local-development candidate is 0.1.0-20261119104449532; primary activation
+is being combined with the subsequent backed-up standalone-runtime adoption so
+that the idle guest backend needs only one further controlled transition.

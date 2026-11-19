@@ -17,7 +17,7 @@ import threading
 from types import ModuleType
 
 
-def main(*, rehearsal=False):
+def main(*, rehearsal=False, extra_setup=None, extra_api_paths=()):
     if len(sys.argv) not in {2, 3}:
         raise SystemExit("Supply a NEW isolated directory on F: and optional port")
     root = Path(sys.argv[1]).resolve()
@@ -77,16 +77,17 @@ def main(*, rehearsal=False):
     (root / "isolation.json").write_text(json.dumps({"synthetic_only": True,
         "external_network": False, "hardware": False, "constructor_workers_suppressed": suppressed}, indent=2), encoding="utf-8")
     sys.argv = [sys.argv[0], str(root / "fixture"), os.environ["RAREIQ_PORT"]]
-    if rehearsal:
-        def setup(server, fixture_root):
+    def setup(server, fixture_root):
+        if rehearsal:
             # The original room service/router already uses this isolated runtime.
             assert root in server.rehearsal_service.path.parents
             server.obs.status = lambda: {"enabled": False, "connected": False,
                 "streaming": False, "recording": False}
-        qa_greenroom_fixture.main(native_desktop=True, extra_setup=setup,
-            extra_api_paths=("/api/production/rehearsal", "/api/guest/rehearsal"))
-    else:
-        qa_greenroom_fixture.main(native_desktop=True)
+        if extra_setup is not None:
+            extra_setup(server, fixture_root)
+    rehearsal_paths = ("/api/production/rehearsal", "/api/guest/rehearsal") if rehearsal else ()
+    qa_greenroom_fixture.main(native_desktop=True, extra_setup=setup,
+        extra_api_paths=rehearsal_paths + tuple(extra_api_paths))
 
 
 if __name__ == "__main__":

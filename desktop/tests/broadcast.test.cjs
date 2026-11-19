@@ -271,3 +271,8 @@ test('Stop cancels a pending first publishing check before profile or destinatio
   const f=fixture(),pending=deferred();let lookups=0;f.app.canPublish=()=>pending.promise;f.app.destinations.getPrivateDestination=async()=>{lookups++;};
   const starting=f.app.start({destinationId:'one'});await f.app.stop();pending.resolve(true);await assert.rejects(starting,/broadcast_cancelled/);assert.equal(lookups,0);assert.equal(f.starts,0);
 });
+
+
+test('missing secure Kick ingest blocks before confirmation, ownership or media transport',async()=>{
+ const f=fixture();let confirmations=0;f.app.confirm=async()=>{confirmations++;return true;};f.app.destinations={getPrivateDestination:async()=>{throw Error('secure_ingest_unavailable');}};await f.app.prepare();await assert.rejects(f.app.start({destinationId:'one'}),{message:'secure_ingest_unavailable'});assert.equal(f.app.status().reason,'secure_ingest_unavailable');assert.equal(confirmations,0);assert.equal(f.starts,0);assert.equal(f.calls.some(call=>call.body?.active===true),false);
+});

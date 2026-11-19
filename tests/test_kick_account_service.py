@@ -93,6 +93,43 @@ def test_status_is_offline_and_missing_configuration_never_opens_a_listener():
     asyncio.run(run())
 
 
+def test_saved_streaming_capability_and_reference_are_provider_bound_offline_metadata():
+    async def run():
+        f = Fixture(stored=record())
+        status = f.service.status()
+        assert status['streaming_authorized'] and status['account_ref'] == hashlib.sha256(
+            ('kick:' + CONFIG['client_id'] + ':123').encode('ascii')).hexdigest()
+        assert f.calls == [] and not f.vault.saves
+        encoded = json.dumps(status)
+        assert all(value not in encoded for value in (ACCESS, REFRESH, CONFIG['client_id'], CONFIG['client_secret']))
+        assert 'channel_id' not in status and 'channel_slug' not in status
+        f.service._rejected_access = f.service._access_ref(f.vault.value)
+        rejected = f.service.status()
+        assert not rejected['authorized'] and not rejected['streaming_authorized'] and 'account_ref' not in rejected
+        await f.service.close()
+        assert not f.service.status()['streaming_authorized'] and 'account_ref' not in f.service.status()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize('change', ['scope', 'expiry', 'configuration', 'disconnect'])
+def test_invalidated_kick_login_never_exposes_streaming_capability_or_reference(change):
+    async def run():
+        f = Fixture(stored=record())
+        if change == 'scope':
+            f.vault.value['scopes'].remove('streamkey:read')
+        elif change == 'expiry':
+            f.now += 3600
+        elif change == 'configuration':
+            f.config = CONFIG | {'client_id': 'different-app'}
+        else:
+            await f.service.disconnect()
+        status = f.service.status()
+        assert not status['streaming_authorized'] and 'account_ref' not in status
+        assert f.calls == []
+        await f.service.close()
+    asyncio.run(run())
+
+
 def test_pkce_callback_verifies_identity_and_stores_only_after_introspection():
     async def run():
         f = Fixture()

@@ -1101,3 +1101,18 @@ headphone monitoring and two-PC guest/screen/audio rehearsal, real destination
 receipt and Twitch VOD archives. Provider metadata editing still awaits the
 previously listed owner permission reviews; Google sign-in/client setup and
 StackThis remote producer identity remain pending.
+
+## November 19, 2026 — Kick saved-destination checkpoint
+
+Implemented Kick Save destination, encrypted reference-only persistence, private
+Start-time secure-ingest retrieval, fresh provider-bound validation, account-card
+navigation, stable uncertain retries and definitive conflict recovery. Existing
+Twitch/manual profiles are preserved. Packaged original Main/backend/store checks
+passed saving, private encrypted contents, reopen and duplicate-link deduplication;
+actual Kick read-only ingest retrieval passed separately. No media was sent.
+
+Next external acceptance remains approved live receipt/VOD tests, Google consent
+and Desktop registration, new metadata editing permission and StackThis producer
+identity. YouTube account-linked output needs an explicit existing owned stream or
+bound-broadcast selection, auto-start awareness and fresh private retrieval; it
+must not create/bind/transition a YouTube broadcast as a side effect of signing in.

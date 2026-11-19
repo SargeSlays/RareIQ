@@ -55,7 +55,8 @@ function validateServerUrl(value, { platform = 'custom', allowInsecureRtmp = fal
 
 function normalizeInput(payload, account = false) {
   if (!plain(payload) || Object.keys(payload).some(key => !FIELDS.has(key) && !(account && key === 'accountRef'))) fail('invalid_destination_fields');
-  if (account && (payload.platform !== 'twitch' || typeof payload.accountRef !== 'string' || !/^[a-f0-9]{64}$/.test(payload.accountRef) || payload.streamKey || payload.clearKey || payload.allowInsecureRtmp || payload.serverUrl)) fail('invalid_linked_account');
+  if (account && (!['twitch','kick'].includes(payload.platform) || typeof payload.accountRef !== 'string' || !/^[a-f0-9]{64}$/.test(payload.accountRef) || payload.streamKey || payload.clearKey || payload.allowInsecureRtmp || payload.serverUrl
+      || payload.platform === 'kick' && Object.keys(payload).some(key => !['id','requestId','name','platform','accountRef'].includes(key)))) fail('invalid_linked_account');
   if (payload.id !== undefined && (typeof payload.id !== 'string' || !UUID.test(payload.id))) fail('invalid_destination_id');
   if (typeof payload.requestId !== 'string' || !REQUEST.test(payload.requestId)) fail('destination_request_id_required');
   if (typeof payload.name !== 'string' || !payload.name.trim() || payload.name.trim().length > 80 || /[\x00-\x1f\x7f]/.test(payload.name)) fail('invalid_destination_name');
@@ -132,8 +133,13 @@ class DestinationStore {
       if (!plain(result) || typeof result.result !== 'string') fail('destination_credentials_unavailable');
       decoded = JSON.parse(result.result);
       if (!plain(decoded) || decoded.id !== profile.id || decoded.platform !== profile.platform
-          || typeof decoded.streamKey !== 'string' || decoded.streamKey.length > 4096 || /[\s\x00-\x1f\x7f]/.test(decoded.streamKey)
           || typeof decoded.allowInsecureRtmp !== 'boolean' || decoded.allowInsecureRtmp !== profile.allowInsecureRtmp) fail('destination_credentials_unavailable');
+      if (decoded.platform === 'kick' && decoded.accountRef !== undefined) {
+        if (typeof decoded.accountRef !== 'string' || !/^[a-f0-9]{64}$/.test(decoded.accountRef) || decoded.allowInsecureRtmp
+            || Object.keys(decoded).some(key => !['id','platform','accountRef','allowInsecureRtmp'].includes(key))) fail('destination_credentials_unavailable');
+        return decoded;
+      }
+      if (typeof decoded.streamKey !== 'string' || decoded.streamKey.length > 4096 || /[\s\x00-\x1f\x7f]/.test(decoded.streamKey)) fail('destination_credentials_unavailable');
       decoded.serverUrl = validateServerUrl(decoded.serverUrl, profile);
       if (decoded.accountRef !== undefined && (decoded.platform !== 'twitch' || !/^[a-f0-9]{64}$/.test(decoded.accountRef) || decoded.streamKey)) fail('destination_credentials_unavailable');
       return decoded;
@@ -147,7 +153,8 @@ class DestinationStore {
     }
     return { id: profile.id, name: profile.name, platform: profile.platform, updatedAt: profile.updatedAt,
       insecureTransport: profile.allowInsecureRtmp, keyConfigured, serverConfigured,
-      configured: !locked && keyConfigured && serverConfigured, status: locked ? 'locked' : keyConfigured ? 'configured' : 'needs_key',
+      // A Kick account link stores no endpoint. It resolves privately only at Start.
+      configured: !locked && keyConfigured && (serverConfigured || linkedAccount && profile.platform === 'kick'), status: locked ? 'locked' : keyConfigured ? 'configured' : 'needs_key',
       connected: false, verified: false, platformLive: false, networkVerified: false, ...(linkedAccount ? { linkedAccount: true } : {}) };
   }
   public() {
@@ -200,20 +207,21 @@ class DestinationStore {
       let previous = input.id ? this.#state.profiles.find(p => p.id === input.id) : null;
       if (account && !input.id) {
         for (const candidate of this.#state.profiles) {
-          if (candidate.platform === 'twitch' && (await this.#decode(candidate)).accountRef === input.accountRef) { previous = candidate; break; }
+          if (candidate.platform === input.platform && (await this.#decode(candidate)).accountRef === input.accountRef) { previous = candidate; break; }
         }
       }
       if (input.id && !previous) fail('destination_not_found');
       if (!previous && this.#state.profiles.length >= MAX_PROFILES) fail('destination_library_full');
       const oldSecret = previous ? await this.#decode(previous) : null;
-      if (oldSecret?.accountRef && !account || account && oldSecret && oldSecret.accountRef !== input.accountRef) fail('account_destination_managed');
+      if (oldSecret?.accountRef && !account || account && oldSecret && (oldSecret.accountRef !== input.accountRef || oldSecret.platform !== input.platform)) fail('account_destination_managed');
+      const linkedKick = account && input.platform === 'kick';
       const server = input.serverUrl || (previous?.platform === input.platform ? oldSecret.serverUrl : PRESETS.find(p => p.id === input.platform).serverUrl);
-      const serverUrl = validateServerUrl(server, input);
+      const serverUrl = linkedKick ? undefined : validateServerUrl(server, input);
       if (oldSecret?.streamKey && (oldSecret.serverUrl !== serverUrl || previous.platform !== input.platform)
           && !input.streamKey && !input.clearKey) fail('destination_key_replacement_required');
       const streamKey = input.clearKey ? '' : input.streamKey || oldSecret?.streamKey || '';
       const id = previous?.id || randomUUID();
-      const secret = { id, platform: input.platform, serverUrl, streamKey, allowInsecureRtmp: input.allowInsecureRtmp, ...(account ? { accountRef: input.accountRef } : {}) };
+      const secret = { id, platform: input.platform, ...(linkedKick ? {} : { serverUrl, streamKey }), allowInsecureRtmp: input.allowInsecureRtmp, ...(account ? { accountRef: input.accountRef } : {}) };
       let encrypted;
       try {
         const bytes = await this.#cipher.encryptStringAsync(JSON.stringify(secret));
@@ -247,8 +255,13 @@ class DestinationStore {
       if (secret.accountRef) {
         if (typeof this.#accountResolver !== 'function') fail('account_authorization_required');
         let resolved;
-        try { resolved = await this.#accountResolver(secret.accountRef); } catch (error) { fail(error?.message === 'streaming_not_available' ? 'streaming_not_available' : 'account_authorization_required'); }
+        try { resolved = await this.#accountResolver(secret.accountRef, { platform: secret.platform }); } catch (error) { fail(['streaming_not_available','secure_ingest_unavailable'].includes(error?.message) ? error.message : 'account_authorization_required'); }
         if (!plain(resolved) || resolved.accountRef !== secret.accountRef || typeof resolved.streamKey !== 'string' || !resolved.streamKey || resolved.streamKey.length > 4096 || /[\s\x00-\x1f\x7f]/.test(resolved.streamKey)) fail('account_authorization_required');
+        if (secret.platform === 'kick') {
+          if (resolved.platform !== 'kick' || Object.keys(resolved).some(key => !['platform','accountRef','serverUrl','streamKey'].includes(key))) fail('account_authorization_required');
+          // Never upgrade an API-provided rtmp: endpoint by guessing rtmps: support.
+          secret.serverUrl = validateServerUrl(resolved.serverUrl, { platform: 'kick' });
+        }
         secret.streamKey = resolved.streamKey;
       }
       if (!secret.streamKey) fail('destination_key_required');

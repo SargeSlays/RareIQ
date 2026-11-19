@@ -57,3 +57,8 @@ test('unconfirmed chat shutdown remains warned across polling and blocks a new a
   const f=fixture();f.result={account:streaming};await f.controller.start();f.result={account:{...streaming,authorized:false,streaming_authorized:false,state:'not_authorized',reason:'authorization_required'},connection_stop_warning:true};await f.controller.run('disconnect');assert.equal(f.controller.snapshot().stopWarning,true);
   f.result={account:streaming};await f.controller.run('status');assert.equal(f.controller.snapshot().stopWarning,true);assert.equal(await f.controller.run('begin'),false);assert.equal(await f.controller.run('link'),false);
 });
+
+
+test('definitive Twitch destination conflict retires its retry receipt only after an operator check',async()=>{
+ for(const reason of ['destination_request_conflict','destination_request_retired']){const f=fixture();f.result={account:streaming};await f.controller.start();f.result={ok:false,reason};await f.controller.run('link');const first=f.calls.at(-1).requestId;assert.equal(await f.controller.run('link'),false);assert.match(f.controller.snapshot().message,/Check connection/);f.result={account:streaming};await f.controller.run('check');await f.controller.run('link');assert.notEqual(f.calls.at(-1).requestId,first);assert.equal(f.changed,1);f.controller.close();}
+});

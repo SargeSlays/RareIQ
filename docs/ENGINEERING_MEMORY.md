@@ -1353,3 +1353,31 @@ The playback renderer now loads a nonce-bound fixed document from an ephemeral
 loopback listener with strict navigation/device/CSP restrictions. Exact-zero PCM
 initialized, was consumed and acknowledged, then Stop removed the renderer and
 listener. This proves the playback path without claiming a listening test.
+
+## November 19, 2026 — Saved provider destinations and Kick ingest shape
+
+One backend owns token refresh. Main checks the pinned provider/account before a
+read-only child helper opens the encrypted authorization; the helper validates the
+provider and rereads the stored record after network waits. Kick destinations save
+only an encrypted opaque reference, never cached ingest URLs/keys. Provider identity
+is part of deduplication and resolution so a hash cannot cross account families.
+
+Real Kick retrieval exposed a valid origin-only RTMPS URL. Requiring an application
+path rejected it despite valid authorization. Accept that secure form unchanged
+and retain the separate provider key verbatim; do not invent /app or silently
+upgrade an RTMP URL. Keep actual shape coverage synthetic without retaining a real
+host, channel, key or response. Unsupported secure ingest fails before confirmation,
+encoder reservation or media transport and retains an actionable safe reason.
+
+A request conflict or retired destination receipt is definitive, unlike an unknown
+response. Keeping that receipt forever traps Save in an unrecoverable retry after
+a derived display name changes or the earlier destination was removed. Twitch and
+Kick controllers now retire only those definitive receipts, require an operator
+connection check, and use a fresh receipt on the next explicit Save. Ambiguous
+failures retain their exact request. Provider/reference deduplication prevents a
+second destination. Account-row navigation must open the matching provider card.
+
+Windows Python file reads and writes must both specify UTF-8. A default-codepage
+read followed by a UTF-8 write can silently transcode an otherwise valid existing
+document. Rebuild the intended edit from the UTF-8 Git source, inspect its diff,
+and guard the desktop setup guide against replacement/mojibake punctuation.

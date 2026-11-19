@@ -48,7 +48,7 @@
       const payload={action};if(action==='link')payload.requestId=linkRequest||(linkRequest=randomId());emit();
       try{
         const result=await request(payload);if(closed||own!==epoch)return false;
-        if(!plain(result)||result.ok===false){state.stale=true;state.message=REASONS[result?.reason]||'The action could not be confirmed. Your saved connection is kept; check before trying again.';return false;}
+        if(!plain(result)||result.ok===false){state.stale=true;if(action==='link'&&['destination_request_conflict','destination_request_retired'].includes(result?.reason)){linkRequest=null;state.message='This destination request has changed or expired. Check connection, then choose Save destination again.';return false;}state.message=REASONS[result?.reason]||'The action could not be confirmed. Your saved connection is kept; check before trying again.';return false;}
         install(result,action);if(action==='link')linkRequest=null;
         if(action==='link'||action==='disconnect')try{await onDestinationsChanged();}catch(_){if(!closed&&own===epoch)state.message+=' The destination list could not refresh; reopen setup to check it.';}
         return true;

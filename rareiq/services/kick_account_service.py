@@ -62,6 +62,10 @@ class KickAccountService(YouTubeAccountService):
     def _access_ref(record):
         return hashlib.sha256(record["access_token"].encode("ascii")).hexdigest()
 
+    @staticmethod
+    def account_ref(record):
+        return hashlib.sha256(("kick:" + record["client_id"] + ":" + record["channel_id"]).encode("ascii")).hexdigest()
+
     def _valid_record(self, value, *, headroom=0, allow_expired=False):
         try:
             if (not isinstance(value, dict) or self._configuration_record(value) is None
@@ -83,11 +87,18 @@ class KickAccountService(YouTubeAccountService):
     def status(self):
         result = super().status()
         result["platform"] = "kick"
+        result["streaming_authorized"] = False
         if result["authorized"]:
             try:
-                if self._access_ref(self._stored()) == self._rejected_access:
-                    result.update(authorized=False, metadata_authorized=False, state="pending" if self._pending else "not_authorized")
+                stored = self._stored()
+                config = self._configuration(stored)
+                if (self._closed or config is None or self._mismatch(config, stored)
+                        or not self._valid_record(stored) or self._access_ref(stored) == self._rejected_access):
+                    result.update(authorized=False, metadata_authorized=False,
+                                  state="unavailable" if self._closed else "pending" if self._pending else "not_authorized")
                     result.pop("public_label", None)
+                else:
+                    result.update(streaming_authorized=True, account_ref=self.account_ref(stored))
             except Exception:
                 result.update(authorized=False, metadata_authorized=False, state="unavailable", reason="account_storage_unavailable")
         return result

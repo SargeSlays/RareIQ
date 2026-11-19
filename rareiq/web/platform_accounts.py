@@ -138,6 +138,10 @@ def _kick_status(raw):
         value["reason"] = "authorization_required"
     result = _youtube_status(value)
     result.update(platform="kick", reason=reason)
+    result["streaming_authorized"] = result["authorized"] and raw.get("streaming_authorized") is True
+    account_ref = raw.get("account_ref")
+    if result["authorized"] and isinstance(account_ref, str) and re.fullmatch(r"[a-f0-9]{64}", account_ref):
+        result["account_ref"] = account_ref
     return result
 
 

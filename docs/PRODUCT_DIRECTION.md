@@ -1137,3 +1137,22 @@ encoding, blocked public Start before destination access, Stop and return to
 production setup. Full Settings synthetic interactions and baseline theme/viewport
 checks passed. Physical monitoring quality, guest echo and real platform delivery
 remain separate acceptance; no actual stream or recording was initiated.
+
+## November 19, 2026 — Saved Kick streaming destination
+
+Connected Kick streaming accounts can now save an account-linked destination in
+Broadcast setup, alongside the existing Twitch workflow. Native storage encrypts
+only its provider-bound account reference; no Kick ingest address or key is saved
+in that destination. Every Start asks the backend credential owner to refresh/check
+the same account, then retrieves current Kick ingest details over a private child
+pipe. Credentials never enter renderer IPC or HTTP. Existing Twitch profiles and
+manual destinations remain compatible.
+
+The read-only helper pins client/channel/scopes/expiry, accepts only a secure public
+RTMPS ingest, rechecks the saved record after network waits and never refreshes or
+writes authorization itself. Kick can return an origin-only ingest URL; the exact
+provider key owns any application path and neither is guessed. Rehearsal and final
+broadcast confirmation still apply. Synthetic native/browser/store checks passed,
+and actual saved Kick authorization plus private secure-ingest retrieval passed
+without starting media. YouTube destinations still use manual settings pending its
+registration/sign-in and an explicit existing-stream selection workflow.

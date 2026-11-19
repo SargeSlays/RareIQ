@@ -64,15 +64,10 @@ app.whenReady().then(async()=>{
   });
   const {createTwitchResolver,createTwitchConnection}=require('./twitch-connection.cjs');
   const resolveTwitch=createTwitchResolver({runtime});
+  const resolveKick=require('./kick-connection.cjs').createKickResolver({runtime});
+  const accountResolver=require('./saved-account-resolver.cjs').createSavedAccountResolver({origin,resolveTwitch,resolveKick});
   const {DestinationStore}=require('./destinations.cjs');destinations=new DestinationStore({directory:profile,cipher:require('electron').safeStorage,
-    accountResolver:async accountRef=>{
-      // The backend is the sole token-refresh writer. Its HTTP response contains metadata only.
-      const response=await fetch(origin+'/api/production/accounts/twitch/check',{method:'POST',redirect:'error',headers:{'Content-Type':'application/json',Origin:origin},body:'{}',signal:AbortSignal.timeout(20000)});
-      if(!response.ok)throw Error('account_authorization_required');
-      const value=await response.json();
-      if(value.account?.authorized!==true||value.account?.streaming_authorized!==true||value.account?.account_ref!==accountRef)throw Error('account_authorization_required');
-      return resolveTwitch(accountRef);
-    }});
+    accountResolver});
   const {OutputProfileStore}=require('./output-profiles.cjs');outputProfiles=new OutputProfileStore({directory:profile});
   const {StreamInfoStore,createStreamInfoActions}=require('./stream-info.cjs');
   const streamInfo=new StreamInfoStore({directory:profile});
@@ -125,7 +120,7 @@ app.whenReady().then(async()=>{
   const twitchConnection=createTwitchConnection({origin,store:destinations,trustedSender:settingsEvent,mutate:changeDestination,
     append:entry=>fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify(entry)+'\n',{mode:0o600})});
   ipcMain.handle('producer:accounts:twitch',twitchConnection);
-  const providerConnection=require('./provider-connection.cjs').createProviderConnection({origin,trustedSender:settingsEvent,mutate:changeDestination,authorize:authorizeAccount});
+  const providerConnection=require('./provider-connection.cjs').createProviderConnection({origin,store:destinations,trustedSender:settingsEvent,mutate:changeDestination,authorize:authorizeAccount,append:entry=>fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify(entry)+'\n',{mode:0o600})});
   ipcMain.handle('producer:accounts:provider',providerConnection);
   const streamMetadata=require('./stream-metadata.cjs').createStreamMetadataHandler({origin,store:streamInfo,destinations,
     trustedSender:settingsEvent,mutate:changeDestination,
