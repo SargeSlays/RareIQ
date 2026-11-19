@@ -1,24 +1,36 @@
 'use strict';
 // Explicit local synthetic media only: no real destination, camera or microphone.
 const fs=require('node:fs/promises'),path=require('node:path'),assert=require('node:assert/strict');
-const {setTimeout:pause}=require('node:timers/promises');
+const {waitUntil}=require('./benchmark-clock.cjs');
 const {NativeBroadcast}=require('../broadcast.cjs'),{Encoder}=require('../encoder.cjs');
 async function main(){
   const root=process.argv[2]?path.resolve(process.argv[2]):null;
   if(!root||!path.isAbsolute(root)||path.parse(root).root.toLowerCase()!=='f:\\')throw Error('New F: evidence directory required');
   const targetCount=process.argv[3]===undefined?2:Number(process.argv[3]),seconds=process.argv[4]===undefined?2.4:Number(process.argv[4]);
   if(!Number.isInteger(targetCount)||targetCount<2||targetCount>8||!Number.isFinite(seconds)||seconds<2||seconds>15)throw Error('invalid_synthetic_options');
+  const shared=process.argv.includes('--shared'),stopOne=process.argv.includes('--stop-one');
+  const runtimeArg=process.argv.find(arg=>arg.startsWith('--runtime='));
+  let runtime={};if(runtimeArg){const file=runtimeArg.slice('--runtime='.length);if(!path.isAbsolute(file))throw Error('invalid_runtime_fixture');runtime=require('../runtime.cjs').resolveRuntime(JSON.parse(await fs.readFile(file,'utf8')),path.dirname(file),path.join(root,'profile'));}
   const destinationIds=['twitch','youtube','kick','rumble','facebook','tiktok','x','instagram'].slice(0,targetCount);
   await fs.mkdir(path.dirname(root),{recursive:true});await fs.mkdir(root);
   const profiles={id:'synthetic-dual',name:'Synthetic output',format:'hd',fps:30,videoBitrateKbps:4000,codec:'auto',keyframeSeconds:2,audioBitrateKbps:192,twitchVod:true,audioRouting:{}};
-  const ownership=[],workers=[],outputs=[];let captureRun=null,captureCount=0;
+  const ownership=[],workers=[],outputs=[],sharedTargets=[];let captureRun=null,captureCount=0;
   const capture={prepare:async()=>{},review:async()=>{},close:async()=>{},status:()=>({peerId:'synthetic-peer',generation:1,rendered:true,prepared:true,browserReviewOpen:false,audioBlocked:false,audioReady:true}),
     startCapture:async(video,audio)=>{captureCount++;captureRun={video,audio};},stopCapture:async()=>{captureRun=null;}};
   const app=new NativeBroadcast({destinations:{getPrivateDestination:async id=>({name:id,platform:id==='twitch'?'twitch':'youtube',serverUrl:'rtmps://synthetic.invalid/app',streamKey:'not-a-real-key'})},outputProfiles:{getProfile:async()=>structuredClone(profiles)},
     createCapture:()=>capture,identity:{pid:1,server_session_id:'synthetic-only'},ownerPid:2,confirm:async()=>true,
     request:async(url,body)=>{if(body)ownership.push(body.active);return {preflight:{ready:true,generation:1,blockers:[]}};},
+    createEncoderGroup:shared?onState=>{
+      const {SharedEncoderGroup}=require('../shared-encoder.cjs');
+      const group=new SharedEncoderGroup({python:runtime.python||path.resolve(__dirname,'../../.venv/Scripts/python.exe'),workerPath:runtime.sharedEncoderWorker||path.resolve(__dirname,'../shared_encoder_worker.py'),pythonPackages:runtime.pythonPackages||'F:/Caches/ProducerPlease/python-packages',artifactRoot:root,onState});
+      const start=group.start.bind(group),createTarget=group.createTarget.bind(group);
+      group.createTarget=(...args)=>{const target=createTarget(...args);sharedTargets.push(target);return target;};
+      group.start=value=>start({...value,targets:value.targets.map((target,index)=>{
+        const file=path.join(root,'target-'+index+'-'+Date.now()+'.flv');outputs.push(file);const {destination,...safe}=target;return {...safe,testOutput:file};
+      })});workers.push(group);return group;
+    }:undefined,
     createEncoder:onState=>{
-      const worker=new Encoder({python:path.resolve(__dirname,'../../.venv/Scripts/python.exe'),workerPath:path.resolve(__dirname,'../encoder_worker.py'),pythonPackages:'F:/Caches/ProducerPlease/python-packages',artifactRoot:root,onState});
+      const worker=new Encoder({python:runtime.python||path.resolve(__dirname,'../../.venv/Scripts/python.exe'),workerPath:runtime.encoderWorker||path.resolve(__dirname,'../encoder_worker.py'),pythonPackages:runtime.pythonPackages||'F:/Caches/ProducerPlease/python-packages',artifactRoot:root,onState});
       const target=path.join(root,'target-'+workers.length+'-'+Date.now()+'.flv'),start=worker.start.bind(worker);
       worker.start=value=>start({...value,testOutput:target});workers.push(worker);outputs.push(target);return worker;
     }});
@@ -28,6 +40,7 @@ async function main(){
     const feedStarted=performance.now();let maxScheduleLagMs=0;
     let videoIndex=-1;
     for(let block=0;block<Math.round(seconds*100);block++){
+      if(stopOne&&block===Math.round(seconds*50)){await app.stopTarget(destinationIds[1]);assert.equal(app.active(),true);assert.equal(app.status().targets[1].phase,'stopped');}
       assert.ok(captureRun,'Shared capture remains active');
       maxScheduleLagMs=Math.max(maxScheduleLagMs,performance.now()-feedStarted-block*10);
       const pts=block*10000,live=Buffer.alloc(3840),vod=Buffer.alloc(3840);
@@ -36,13 +49,13 @@ async function main(){
         for(const offset of [n*8,n*8+4]){live.writeFloatLE(voice+music,offset);vod.writeFloatLE(voice,offset);}
       }
       const frameIndex=Math.floor(block*30/100);if(frameIndex>videoIndex){videoIndex=frameIndex;video[0]=block;captureRun.video(video,Math.round(frameIndex*1e6/30));}
-      captureRun.audio(live,pts,vod);await pause(Math.max(0,(block+1)*10-(performance.now()-feedStarted)));
+      captureRun.audio(live,pts,vod);await waitUntil(feedStarted+(block+1)*10);
     }
     const feedWallSeconds=(performance.now()-feedStarted)/1000;
     const realTimeCapacityPassed=feedWallSeconds<=seconds+.25&&maxScheduleLagMs<=250;
     const before=app.status();assert.equal(before.targets.length,targetCount);assert.ok(before.targets.every(t=>t.frames>0));
     await app.stop();assert.equal(app.active(),false);assert.deepEqual(ownership,[true,false]);assert.equal(workers.every(w=>!w.status().running),true);
-    const result={complete:true,syntheticOnly:true,hardware:false,externalBroadcast:false,sharedCaptureCount:captureCount,targetCount,seconds,feedWallSeconds,maxScheduleLagMs,realTimeCapacityPassed,outputs,targets:before.targets,stopped:workers.map(w=>w.status()),platformLiveVerified:false,vodPlatformVerified:false};
+    const result={complete:true,syntheticOnly:true,hardware:false,externalBroadcast:false,sharedCaptureCount:captureCount,targetCount,seconds,sharedEncoding:shared,stoppedOneMidway:stopOne,workerCount:workers.length,sharedEncoder:shared?workers[0].status():null,feedWallSeconds,maxScheduleLagMs,realTimeCapacityPassed,outputs,targets:before.targets,stopped:(shared?sharedTargets:workers).map(w=>w.status()),platformLiveVerified:false,vodPlatformVerified:false};
     await fs.writeFile(path.join(root,'results.json'),JSON.stringify(result,null,2));console.log(JSON.stringify({complete:true,outputs,captureCount,realTimeCapacityPassed,feedWallSeconds,maxScheduleLagMs}));
   }finally{await app.close();}
 }

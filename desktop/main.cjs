@@ -67,16 +67,17 @@ app.whenReady().then(async()=>{
   studio=new BrowserWindow(windowOptions({webPreferences:{partition:'persist:producer-studio',preload:path.join(__dirname,'preload.cjs')}}));secureWindow(studio,origin);
   const {createCapturePicker}=require('./capture-picker.cjs');capturePicker=createCapturePicker({BrowserWindow,ipcMain,desktopCapturer,studio,origin});partition.setDisplayMediaRequestHandler(capturePicker.handler);
   studio.on('close',event=>{if(backend&&!quit?.finished){event.preventDefault();app.quit();}});
-  const {NativeBroadcast}=require('./broadcast.cjs'),{Encoder}=require('./encoder.cjs'),{createOutputCapture}=require('./output-capture.cjs');
+  const {NativeBroadcast}=require('./broadcast.cjs'),{SharedEncoderGroup}=require('./shared-encoder.cjs'),{createOutputCapture}=require('./output-capture.cjs');
   const outputSession=session.fromPartition('persist:producer-output');policy.applySessionPolicy(outputSession,origin);
   const request=async(url,body)=>{const response=await fetch(origin+url,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(8000)});const value=await response.json();const preflight=!body&&url.startsWith('/api/production/native-preflight?')&&value.preflight&&typeof value.preflight.ready==='boolean';if(!response.ok||(value.ok===false&&!preflight))throw Error('studio_unavailable');return value;};
   let lastPhase='';broadcast=new NativeBroadcast({destinations,outputProfiles,identity:backend?.started?.identity,ownerPid:process.pid,request,
     createCapture:dimensions=>createOutputCapture({BrowserWindow,ipcMain,origin,...dimensions,onError:code=>{if(broadcast?.active())broadcast.stop(code).catch(()=>{});}}),
-    createEncoder:onState=>new Encoder({python:runtime.python,workerPath:runtime.encoderWorker,pythonPackages:runtime.pythonPackages,onState}),
+    createEncoderGroup:onState=>new SharedEncoderGroup({python:runtime.python,workerPath:runtime.sharedEncoderWorker,pythonPackages:runtime.pythonPackages,onState}),
     confirm:async (selection,output)=>{
       const chosen=Array.isArray(selection)?selection:[selection];
-      const upload=chosen.length*(output.videoBitrateKbps+output.audioBitrateKbps)/1000;
-      const detail='Your current Program picture and Live audio will be sent to:\n'+chosen.map(p=>'• '+p.name).join('\n')+'\n\n'+output.name+': '+output.fps+' fps, '+output.videoBitrateKbps+' kbps video, '+output.audioBitrateKbps+' kbps AAC. Approximate combined upload: '+upload.toFixed(1)+' Mbps before overhead.'+(output.twitchVod?'\nA separate VOD mix is sent to Twitch destinations; Twitch archive receipt is not yet verified.':'')+'\nCheck each platform dashboard to confirm receipt.';
+      const vodTargets=output.twitchVod?chosen.filter(target=>target.platform==='twitch').length:0;
+      const upload=(chosen.length*(output.videoBitrateKbps+output.audioBitrateKbps)+vodTargets*output.audioBitrateKbps)/1000;
+      const detail='Your current Program picture and Live audio will be sent to:\n'+chosen.map(p=>'â€¢ '+p.name).join('\n')+'\n\n'+output.name+': '+output.fps+' fps, '+output.videoBitrateKbps+' kbps video, '+output.audioBitrateKbps+' kbps AAC. Approximate combined upload: '+upload.toFixed(1)+' Mbps before overhead.'+(output.twitchVod?'\nA separate VOD mix is sent to Twitch destinations; Twitch archive receipt is not yet verified.':'')+'\nCheck each platform dashboard to confirm receipt.';
       const answer=await dialog.showMessageBox(settings&&!settings.isDestroyed()?settings:studio,{type:'warning',message:'Start a live broadcast?',detail,buttons:['Cancel','Start broadcast'],defaultId:0,cancelId:0});return answer.response===1;
     },
     onState:value=>{
@@ -85,7 +86,7 @@ app.whenReady().then(async()=>{
     }
   });
   polling=setInterval(()=>broadcast.check().catch(()=>{}),1000);polling.unref();
-  const publicBroadcast=()=>({...broadcast.status(),available:Boolean(runtime.encoderWorker&&fs.existsSync(runtime.encoderWorker)&&backend?.started?.identity)});
+  const publicBroadcast=()=>({...broadcast.status(),available:Boolean(runtime.encoderWorker&&fs.existsSync(runtime.encoderWorker)&&runtime.sharedEncoderWorker&&fs.existsSync(runtime.sharedEncoderWorker)&&backend?.started?.identity)});
   const {createAccountAuthorization}=require('./account-authorization.cjs');
   const authorizeAccount=createAccountAuthorization({origin,
     trustedSender:event=>Boolean(studio&&!studio.isDestroyed()&&policy.trustedMain(event,studio.webContents,origin)

@@ -180,3 +180,41 @@ test('one saturated destination stops alone while seven destinations keep receiv
   f.taps[0].video(Buffer.alloc(4),1);assert.equal(f.runs.filter((_,i)=>i!==3).every(run=>run.video===1),true);assert.equal(f.runs[3].video,0);
   await f.app.stop();assert.equal(f.runs.every(run=>run.stops===1),true);assert.equal(f.calls.filter(c=>c.body?.active===false).length,1);assert.equal(f.app.active(),false);
 });
+
+function sharedFixture(){
+  const f=runningFixture();f.groups=[];
+  f.app.createEncoderGroup=notify=>{
+    const group={running:false,targets:new Map(),video:0,audio:0,vod:0,stops:0,state:'idle',config:null,
+      status(){return {running:this.running,state:this.state,videoFrames:this.video,audioSamples:this.audio*480,codec:'libx264'};},
+      createTarget(id,observe){const target={running:false,stops:0,state:'starting',frames:0,status(){return {running:this.running,state:this.state,videoFrames:this.frames};},async stop(){this.stops++;this.running=false;this.state='stopped';return this.status();},emit(value){Object.assign(this,value);observe(this.status());}};this.targets.set(id,target);return target;},
+      async start(value){this.config=value;this.running=true;this.state='starting';for(const target of this.targets.values())target.running=true;if(this.waitStart)await this.waitStart;},
+      sendVideo(){this.video++;for(const target of this.targets.values())if(target.running)target.emit({state:'active',frames:this.video});return true;},sendAudio(){this.audio++;return true;},sendVodAudio(){this.vod++;return true;},
+      async stop(){this.stops++;if(!this.holdRunning)this.running=false;for(const target of this.targets.values())target.running=false;this.state='stopped';return this.status();},fail(){this.state='failed';notify({state:'failed',code:'encoder_input_failed'});}};
+    f.groups.push(group);return group;
+  };
+  f.app.destinations.getPrivateDestination=async id=>({platform:id==='one'?'twitch':'youtube',name:id,serverUrl:'rtmps://example.net/app',streamKey:'synthetic'});
+  return f;
+}
+test('eight targets use one shared video and paired audio submission, with independent Stop',async()=>{
+  const f=sharedFixture();f.app.outputProfiles={getProfile:async()=>({id:'saved',name:'Saved',format:'hd',fps:30,videoBitrateKbps:4000,codec:'auto',keyframeSeconds:2,audioBitrateKbps:192,twitchVod:true,audioRouting:{}})};
+  await f.app.prepare({profileId:'saved'});await f.app.start({profileId:'saved',destinationIds:['one','two','three','four','five','six','seven','eight']});
+  assert.equal(f.groups.length,1);assert.equal(f.runs.length,0);const group=f.groups[0];
+  f.taps[0].video(Buffer.alloc(4),0);f.taps[0].audio(Buffer.alloc(8),0,Buffer.alloc(8));
+  assert.equal(group.video,1);assert.equal(group.audio,1);assert.equal(group.vod,1);assert.equal(group.config.targets.filter(t=>t.twitchVod).length,1);
+  await f.app.stopTarget('one');assert.equal(group.running,true);assert.equal(group.stops,0);assert.equal(f.app.ownsEncoding,true);assert.equal([...group.targets.values()].filter(t=>t.running).length,7);
+  await f.app.stop();assert.equal(group.stops,1);assert.equal(f.app.ownsEncoding,false);assert.equal(f.calls.filter(c=>c.body?.active===false).length,1);
+});
+test('shared input failure stops every destination before releasing the session',async()=>{
+  const f=sharedFixture();await f.app.prepare();await f.app.start({destinationIds:['one','two']});f.taps[0].video(Buffer.alloc(4),0);f.groups[0].fail();await settle();
+  assert.equal(f.groups[0].stops,1);assert.equal(f.groups[0].running,false);assert.equal(f.app.status().reason,'encoder_input_failed');assert.equal(f.app.ownsEncoding,false);
+});
+test('Stop during shared worker startup rejects the late Start and never captures afterward',async()=>{
+  const f=sharedFixture(),pending=deferred(),factory=f.app.createEncoderGroup;f.app.createEncoderGroup=notify=>{const g=factory(notify);g.waitStart=pending.promise;return g;};
+  await f.app.prepare();const start=f.app.start({destinationIds:['one','two']});for(let i=0;i<200&&!f.groups[0]?.running;i++)await Promise.resolve();assert.equal(f.groups[0].running,true);
+  await f.app.stop();pending.resolve();await assert.rejects(start,/broadcast_cancelled/);assert.equal(f.taps.length,0);assert.equal(f.groups[0].stops,1);assert.equal(f.app.ownsEncoding,false);
+});
+test('shared child ownership is retained even when every destination reports stopped',async()=>{
+  const f=sharedFixture();await f.app.prepare();await f.app.start({destinationIds:['one','two']});const g=f.groups[0];g.holdRunning=true;
+  await f.app.stop();assert.equal([...g.targets.values()].every(t=>!t.running),true);assert.equal(f.app.active(),true);assert.equal(f.app.status().reason,'encoder_stop_unconfirmed');assert.equal(f.app.ownsEncoding,true);assert.equal(f.calls.some(c=>c.body?.active===false),false);assert.equal(await f.app.close(),false);
+  g.holdRunning=false;await f.app.stop();assert.equal(f.app.ownsEncoding,false);assert.equal(f.app.active(),false);
+});

@@ -1104,3 +1104,27 @@ outputs decoded correctly but required 11.41seconds for 10 seconds of media; ret
 that failing timing evidence rather than calling the capacity verified. Preserve
 eighth-start cancellation and one-saturated/seven-continuing regressions when
 replacing per-destination video encoders with shared encoding.
+
+
+## November 18, 2026 — Shared encode and timing corrections
+
+- A successful benchmark needs an independently checked clock. Windows short waits
+  included a full timer quantum even when requested as zero. A timer-only 2.4-second
+  run took 3.626 seconds. The old encoder-limit conclusion was therefore unsupported.
+  Use absolute deadlines and an immediate I/O yield when already late; a simulated
+  coarse-timer regression prevents cumulative delay. Rebenchmark both paths with
+  the same clock and retain the old observations/correction in history.
+- PyAV19 add_mux_stream silently ignores extradata/layout kwargs here. The proven
+  seam is add_stream_from_template(shared_stream,opaque=True), with finalized
+  shared codec metadata. Assert target codec contexts remain unopened, and create
+  a fresh packet per target preserving PTS/DTS/duration/timebase/keyframe flag.
+- Actual saved destinations include a bound UUID id. Strict shared-controller
+  validation initially rejected that legitimate shape. Validate its binding to
+  target.id, strip it before worker stdin, and test through real DestinationStore
+  save/private access with a synthetic cipher rather than incomplete mock objects.
+- Track shared child ownership separately from target thread ownership. Stop one
+  confirms its thread; Stop all must confirm the child exit before releasing the
+  native encoding reservation. Bounded target queues never block peers.
+- A non-UTF8 bullet in Main survived permissive JavaScript parsing and could garble
+  confirmation text. The source is now UTF8 and the packaging regression strictly
+  decodes every desktop UI/launcher source before acceptance.

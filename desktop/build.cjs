@@ -16,7 +16,8 @@ async function build(){
   }
   const pythonPackages=path.join(destinations[0],'resources','python-packages');await fs.cp('F:/Caches/ProducerPlease/python-packages',pythonPackages,{recursive:true,errorOnExist:true});
   const encoderWorker=path.join(destinations[0],'resources','encoder_worker.py');await fs.copyFile(path.join(__dirname,'encoder_worker.py'),encoderWorker);
-  await fs.writeFile(path.join(destinations[0],'resources','runtime.json'),JSON.stringify({projectRoot:root,python:path.join(root,'.venv','Scripts','python.exe'),encoderWorker,pythonPackages,ffmpeg,buildKind:'local-development-runtime'},null,2));
+  const sharedEncoderWorker=path.join(destinations[0],'resources','shared_encoder_worker.py');await fs.copyFile(path.join(__dirname,'shared_encoder_worker.py'),sharedEncoderWorker);
+  await fs.writeFile(path.join(destinations[0],'resources','runtime.json'),JSON.stringify({projectRoot:root,python:path.join(root,'.venv','Scripts','python.exe'),encoderWorker,sharedEncoderWorker,pythonPackages,ffmpeg,buildKind:'local-development-runtime'},null,2));
   await fs.writeFile('F:/Apps/ProducerPlease/latest-build.json',JSON.stringify({executable,buildKind:'local-development-runtime',runtimeBundled:false},null,2));
   console.log(JSON.stringify({executable,buildKind:'local-development-runtime',runtimeBundled:false}));
 }

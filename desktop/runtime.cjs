@@ -12,6 +12,6 @@ function resolveRuntime(value,resources,profile,{port}={}){
   };
   const backendPort=port??value.port??8765;if(!Number.isSafeInteger(backendPort)||backendPort<1024||backendPort>65535)throw Error('Studio port is invalid.');
   if(!path.isAbsolute(profile))throw Error('Desktop data folder must be absolute.');
-  return {...value,projectRoot:inside(value.projectRoot,true),python:inside(value.python),encoderWorker:inside(value.encoderWorker),pythonPackages:inside(value.pythonPackages,true),ffmpeg:value.ffmpeg?inside(value.ffmpeg):null,dataRoot:path.join(profile,'backend'),port:backendPort};
+  return {...value,projectRoot:inside(value.projectRoot,true),python:inside(value.python),encoderWorker:inside(value.encoderWorker),...(value.sharedEncoderWorker?{sharedEncoderWorker:inside(value.sharedEncoderWorker)}:{}),pythonPackages:inside(value.pythonPackages,true),ffmpeg:value.ffmpeg?inside(value.ffmpeg):null,dataRoot:path.join(profile,'backend'),port:backendPort};
 }
 module.exports={resolveRuntime};

@@ -101,7 +101,8 @@ def build(resources, *, cache=Path("F:/Caches/ProducerPlease/embedded-python")):
     packages = vendor_dependencies(python / "Lib/site-packages",
         [PROJECT / ".venv/Lib/site-packages"], PROJECT / "requirements.txt",
         [Path("F:/Caches/ProducerPlease/python-packages")])
-    shutil.copyfile(PROJECT / "desktop/encoder_worker.py", resources / "encoder_worker.py")
+    for worker in ("encoder_worker.py", "shared_encoder_worker.py"):
+        shutil.copyfile(PROJECT / "desktop" / worker, resources / worker)
     ffmpeg = shutil.which("ffmpeg")
     binaries = []
     if ffmpeg:
@@ -121,6 +122,7 @@ def build(resources, *, cache=Path("F:/Caches/ProducerPlease/embedded-python")):
                 shutil.copyfile(file, notices / name)
     manifest = {"buildKind": "bundled-runtime", "projectRoot": "backend",
         "python": "python/python.exe", "encoderWorker": "encoder_worker.py",
+        "sharedEncoderWorker": "shared_encoder_worker.py",
         "pythonPackages": "python/Lib/site-packages",
         "ffmpeg": "bin/ffmpeg.exe" if binaries else None, "port": 8765}
     (resources / "runtime.json").write_text(json.dumps(manifest, indent=2)+"\n", encoding="utf-8")

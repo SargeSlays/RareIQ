@@ -921,3 +921,21 @@ scheduling lag. No encoder packets were reported dropped, but the test did not
 maintain real time. Prioritize one shared video encode with independent transport
 ownership/failure paths before claiming eight-target live capacity. This short
 local test is neither network delivery nor endurance acceptance.
+
+
+## November 18, 2026 — Shared video encoding checkpoint
+
+Completed locally: one NVIDIA H.264 encode supplies 8 independent mux outputs with
+identical video/Live audio packets and timing; only the Twitch-format target has
+the second AAC mix. Stop one midway preserves the other 7 outputs. Shared input
+failure, target failure/queue bounds, late startup, uncertain shutdown, saved
+destination binding, redaction and constructor-only fixture seams have guards.
+
+The corrected clock shows both legacy and shared paths maintain the short 10-second
+feed. Withdraw the earlier claim that the 11.41-second result established encoder
+throughput limits: coarse Windows sleep waits contaminated it. Shared encoding
+reduces the operational video encoder count from 8 to 1; no 8x throughput claim is made.
+
+Remaining: actual platform/live/Twitch archive acceptance, longer secure-network
+and hardware endurance, separate guest soundboard stems, RTMP-only transports and
+broader OBS/Streamlabs output parity.

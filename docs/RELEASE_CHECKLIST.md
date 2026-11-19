@@ -1608,3 +1608,32 @@ restart. No new real chat-message receipt was verified.
 Evidence: F:/Temp/jonat/ProducerPlease-output-capacity-20261118/eight02-paced
 (results.json and decoded-proof.json), plus boundary-tests01.log. No real
 broadcast, production recording, physical capture or app/backend restart occurred.
+
+
+## November 18, 2026 — Shared encode acceptance
+
+- [x] One opened NVIDIA video encoder, 8 mux-only targets, 300 decoded frames each;
+  video/Live AAC payloads and packet timing identical across targets. VOD AAC is
+  present only in the Twitch-format output and excludes the 880 Hz music tone.
+- [x] Corrected absolute clock: shared feed 10.0085 seconds/max lag 14.83 ms; legacy
+  feed 10.0121 seconds/max lag 20.47 ms. Both pass this short local timing criterion.
+  Previous 11.41-second encoder-limit interpretation is explicitly withdrawn.
+- [x] Real shared Stop one: stopped target 58 frames, seven surviving targets 120
+  frames each; all threads and the one child close after Stop all.
+- [x] Worker-level target mux failure/redaction and shared-failure cleanup, bounded
+  queues, separate Live/VOD bytes, real saved-destination binding, stale callbacks
+  and unconfirmed-child reservation retention.
+- [x] Packaged workers/imported helper execute generated two-output encoding; actual
+  packaged profile UI save/select/reload and untrusted-write rejection pass.
+- [ ] Platform/live/VOD receipt, secure-network and physical/hardware endurance.
+
+Evidence: F:/Temp/jonat/ProducerPlease-shared-encoder-20261118 (eight02-clockfixed,
+eight03-legacy-clockfixed,eight04-stop-one,packaged-two01,native-profiles01).
+One-encode template proof: F:/Temp/jonat/ProducerPlease-shared-encode-probe-20261119/probe01.
+No public stream, production recording or device capture was started.
+
+Canonical gate: 3,910 Python and 753 JavaScript tests passed. Primary local-development
+build 0.1.0-20261119045648134 is open with broadcast setup visible; Start-menu shortcut
+target verified. The backend was reused, not restarted. Private HTTPS guest 200 and
+producer 404 were rechecked. No active show, recording, OBS stream or native encoding
+was present before the desktop-only update.

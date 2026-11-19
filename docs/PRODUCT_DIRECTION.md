@@ -928,3 +928,24 @@ feeding ten seconds of media took 11.41 seconds with 1.41 seconds maximum input 
 This is a measured local throughput limit, not verified live multistream capacity.
 The next optimization is shared video encoding with independent destination
 transports; preserve Twitch-only archive audio and target failure isolation.
+
+
+## November 18, 2026 — Shared encoder and corrected capacity evidence
+
+The current desktop path opens one shared H.264 encoder and one encoder for each
+required Live/VOD audio mix. Each destination owns a bounded mux queue and secure
+transport, receiving immutable encoded packet copies rather than raw video.
+Stop/failure of one destination is isolated; failure of shared input stops all.
+Shared process ownership remains reserved until the actual child closes, even if
+all destination threads have already stopped. No automatic retry is added.
+
+Correction to the preceding capacity note: the earlier timing test accumulated
+coarse Windows zero-duration timer waits. A timer-only test reproduced the delay.
+With the corrected absolute-deadline clock, both the prior and shared paths kept
+short-run real time. The earlier encoder-throughput-limit interpretation is
+withdrawn; its original evidence remains preserved. The shared path encodes 300
+video frames once, compared with 2400 frames across 8 prior encoders, and all 8 local
+outputs contain 300 identical decoded frames. Ten seconds fed in 10.009 seconds,
+with 14.83 ms maximum observed scheduling lag in this generated test. This is
+short local acceptance, not platform delivery or endurance. Twitch VOD remains
+experimental until actual live/archive acceptance.
