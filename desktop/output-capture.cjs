@@ -4,10 +4,12 @@ const {loadInitialOutput}=require('./startup.cjs');
 const {emptyMeters,cleanMeterHealth}=require('./audio-meters.cjs');
 const { randomUUID } = require('node:crypto');
 const {normalizeAudioRouting,normalizeSourceManifest}=require('./audio-routing.cjs');
-const CHANNELS = Object.freeze({ health: 'producer:output:health', pcm: 'producer:output:pcm', sync: 'producer:output:sync', control: 'producer:output:control', ack: 'producer:output:ack' });
+const {createLocalMonitor}=require('./local-monitor.cjs');
+const CHANNELS = Object.freeze({ health: 'producer:output:health', pcm: 'producer:output:pcm', sync: 'producer:output:sync', control: 'producer:output:control', ack: 'producer:output:ack',monitorPcm:'producer:output:monitor-pcm',monitorAck:'producer:output:monitor-ack' });
 const SIZES = new Set(['1280x720', '1920x1080', '720x1280']);
 const RATE = 48000, AUDIO_FRAMES = 480;
 const SNAPSHOT = `(()=>{try{const f=document.querySelector('iframe.program');if(!f||f.contentWindow.location.origin!==location.origin||f.contentWindow.location.pathname!=='/program')return null;return f.contentWindow.ProducerProgramOutput?.snapshot()||null;}catch(_){return null;}})()`;
+const rehearsalVisible=generation=>`(()=>{const root=document.documentElement,badge=document.querySelector('[data-rehearsal-badge].rehearsal-output-watermark');if(root.dataset.rehearsalMode!=='active'||root.dataset.rehearsalGeneration!==${JSON.stringify(generation)}||!badge||badge.hidden||badge.dataset.state!=='ready'||!badge.textContent.startsWith('REHEARSAL')||typeof badge.checkVisibility==='function'&&!badge.checkVisibility({checkOpacity:true,checkVisibilityCSS:true}))return false;const style=getComputedStyle(badge),box=badge.getBoundingClientRect();return style.display!=='none'&&style.visibility==='visible'&&Number(style.opacity)>0&&box.width>0&&box.height>0&&box.bottom>0&&box.right>0&&box.top<innerHeight&&box.left<innerWidth;})()`;
 
 function cleanSnapshot(value) {
   if (!value || typeof value !== 'object' || typeof value.peerId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value.peerId)
@@ -16,18 +18,53 @@ function cleanSnapshot(value) {
   const readySources = Array.isArray(value.readySources) ? value.readySources.filter(s => typeof s === 'string' && /^(camera:[1-4]|guest:[a-f0-9]{32}:(camera|screen|audio)|(image|video|text|browser):[a-f0-9-]{36})$/.test(s)).slice(0, 6) : [];
   return { peerId: value.peerId, generation: value.generation, rendered: value.rendered, browserReviewOpen: value.browserReviewOpen, reviewOpen: value.browserReviewOpen, audioBlocked: value.audioBlocked, readySources };
 }
-function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirname, width = 1280, height = 720, fps = 30, audioRouting = {}, requireVod = false, clockUs = () => Number(process.hrtime.bigint() / 1000n), routingTimeoutMs=1500,partition = 'persist:producer-output', onError = () => {} } = {}) {
+function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirname, width = 1280, height = 720, fps = 30, audioRouting = {}, requireVod = false, clockUs = () => Number(process.hrtime.bigint() / 1000n), routingTimeoutMs=1500,rehearsalTimeoutMs=6500,createMonitor=createLocalMonitor,partition = 'persist:producer-output', onError = () => {} } = {}) {
   if (!BrowserWindow || !ipcMain || !SIZES.has(width + 'x' + height) || ![30,60].includes(fps) || !path.isAbsolute(baseDir)||!Number.isInteger(routingTimeoutMs)||routingTimeoutMs<10||routingTimeoutMs>5000) throw Error('output_capture_configuration_invalid');
   audioRouting=normalizeAudioRouting(audioRouting);
   const trusted = new URL(origin); if (trusted.origin !== origin || !/^https?:$/.test(trusted.protocol)) throw Error('output_capture_origin_invalid');
   let window = null, windowClosing = false, preparing = null, closed = false, active = null, starting = false, captureVersion = 0, captureUi = null, latest = null, polling = null, snapshotPending = null;
   let snapshot = null, snapshotAt = 0, audioAt = 0, meterAt = 0, meters=emptyMeters(), audio = { ready: false, contextState: 'unavailable', sourceCount: 0, unavailableCount: 0 }, fault = null;
   let pendingRouting=null,routingGeneration=0,routingContext=randomUUID();const routingRecords=new Map();
+  let pendingRehearsal=null,rehearsalReady=null;
+  let localMonitor=null,monitorBus='off',monitorSupported=true,pendingMonitor=null,monitorVersion=0,monitorTail=null,monitorId=null,monitorSequence=-1,monitorBusy=false;
   const now = clockUs;
   const allowed = value => { try { const u = new URL(value); return u.origin === origin && u.pathname === '/output/studio' && !u.username && !u.password; } catch (_) { return false; } };
   function owned(event) { try { return window && !window.isDestroyed() && event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame && allowed(event.senderFrame.url) && allowed(window.webContents.getURL()); } catch (_) { return false; } }
   function report(code) { fault = code; try { onError(code); } catch (_) {} }
   const routingError=code=>Object.assign(Error(code),{code});
+  function forceMonitorOff(){
+    ++monitorVersion;monitorBus='off';monitorId=null;monitorSequence=-1;monitorBusy=false;localMonitor?.stop();const pending=pendingMonitor;pendingMonitor=null;if(pending){clearTimeout(pending.timer);pending.reject(routingError('rehearsal_monitor_cancelled'));}
+    try{if(window&&!window.isDestroyed())window.webContents.send(CHANNELS.control,{type:'monitor',bus:'off',monitorNonce:randomUUID(),monitorContext:routingContext});}catch(_){}
+  }
+  function setMonitor(bus){
+    if(!['off','live','vod'].includes(bus)||bus==='vod'&&!requireVod)return Promise.reject(routingError('rehearsal_monitor_unavailable'));
+    if(bus==='off')forceMonitorOff();const version=monitorVersion,previous=monitorTail;
+    const work=(async()=>{
+      if(previous){try{await previous;}catch(_){} }
+      if(bus==='off'&&(!window||window.isDestroyed()||closed||!audio.ready||audio.contextState!=='running'))return {ok:true,monitor:{bus:'off',available:false}};
+      if(version!==monitorVersion||closed||windowClosing||!window||window.isDestroyed()||!allowed(window.webContents.getURL())||!audio.ready||audio.contextState!=='running')throw routingError('rehearsal_monitor_unavailable');
+      const target=window,contents=target.webContents,frame=contents.mainFrame,context=routingContext,nonce=randomUUID();
+      if(bus!=='off'){
+        localMonitor=localMonitor||createMonitor({BrowserWindow,ipcMain,baseDir,timeoutMs:routingTimeoutMs});
+        try{await localMonitor.prepare();}catch(_){monitorSupported=false;localMonitor.stop();throw routingError('rehearsal_monitor_unavailable');}
+        if(version!==monitorVersion||target!==window||context!==routingContext){localMonitor.stop();throw routingError('rehearsal_monitor_cancelled');}
+      }
+      const result=await new Promise((resolve,reject)=>{const pending={target,contents,frame,context,nonce,bus,version,resolve,reject,timer:null};pendingMonitor=pending;pending.timer=setTimeout(()=>{if(pendingMonitor!==pending)return;pendingMonitor=null;monitorSupported=false;localMonitor?.stop();reject(routingError('rehearsal_monitor_unavailable'));},routingTimeoutMs);pending.timer.unref?.();try{contents.send(CHANNELS.control,{type:'monitor',bus,monitorNonce:nonce,monitorContext:context});}catch(_){clearTimeout(pending.timer);pendingMonitor=null;localMonitor?.stop();reject(routingError('rehearsal_monitor_unavailable'));}});
+      if(version!==monitorVersion)throw routingError('rehearsal_monitor_cancelled');monitorBus=bus;monitorId=bus==='off'?null:nonce;monitorSequence=-1;if(bus!=='off')monitorSupported=true;return result;
+    })();monitorTail=work;return work.finally(()=>{if(monitorTail===work)monitorTail=null;});
+  }
+  function cancelRehearsal(reason='output_rehearsal_cancelled'){const pending=pendingRehearsal;pendingRehearsal=null;rehearsalReady=null;if(pending){clearTimeout(pending.timer);pending.reject(routingError(reason));try{void pending.target.webContents.executeJavaScript(`(()=>{const root=document.documentElement;if(root.dataset.nativeRehearsalWait===${JSON.stringify(pending.owner)})delete root.dataset.nativeRehearsalWait;})()`,false).catch(()=>{});}catch(_){}}}
+  function waitForRehearsal(generation){
+    if(typeof generation!=='string'||!/^[a-f0-9]{32}$/.test(generation)||!Number.isInteger(rehearsalTimeoutMs)||rehearsalTimeoutMs<10||rehearsalTimeoutMs>10000)return Promise.reject(routingError('output_rehearsal_not_ready'));
+    if(closed||windowClosing||!window||window.isDestroyed()||!allowed(window.webContents.getURL()))return Promise.reject(routingError('output_rehearsal_not_ready'));
+    if(pendingRehearsal){if(pendingRehearsal.generation===generation)return pendingRehearsal.promise;cancelRehearsal();}
+    const target=window,version=captureVersion,owner=randomUUID();let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});
+    const pending={target,generation,version,owner,promise,reject,timer:null};pendingRehearsal=pending;
+    pending.timer=setTimeout(()=>{if(pendingRehearsal===pending)cancelRehearsal('output_rehearsal_not_ready');},rehearsalTimeoutMs);pending.timer.unref?.();
+    const script=`(()=>{const root=document.documentElement;root.dataset.nativeRehearsalWait=${JSON.stringify(owner)};return new Promise(resolve=>{let timer,expiry,done=false;const finish=value=>{if(done)return;done=true;clearTimeout(timer);clearTimeout(expiry);if(root.dataset.nativeRehearsalWait===${JSON.stringify(owner)})delete root.dataset.nativeRehearsalWait;resolve(value);};const check=()=>{if(root.dataset.nativeRehearsalWait!==${JSON.stringify(owner)})return finish(false);if(${rehearsalVisible(generation)})return requestAnimationFrame(()=>requestAnimationFrame(()=>finish(${rehearsalVisible(generation)})));timer=setTimeout(check,25);};expiry=setTimeout(()=>finish(false),${rehearsalTimeoutMs});check();});})()`;
+    Promise.resolve().then(()=>pendingRehearsal===pending?target.webContents.executeJavaScript(script,false):false).then(ready=>{if(pendingRehearsal!==pending)return;clearTimeout(pending.timer);pendingRehearsal=null;if(ready!==true||closed||version!==captureVersion||target!==window||target.isDestroyed())return reject(routingError('output_rehearsal_not_ready'));rehearsalReady={generation,target,version};resolve({ok:true,generation,visible:true});},()=>{if(pendingRehearsal===pending){clearTimeout(pending.timer);pendingRehearsal=null;reject(routingError('output_rehearsal_not_ready'));}});
+    return promise;
+  }
   function invalidateRouting(){
     routingGeneration++;routingRecords.clear();
     const pending=pendingRouting;pendingRouting=null;
@@ -69,6 +106,7 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
       ...(fresh ? snapshot : { peerId: null, generation: null, rendered: false, browserReviewOpen: false, reviewOpen: false, audioBlocked: true, readySources: [] }),
       audioReady: audio.ready && now() - audioAt < 2000000 && audio.contextState === 'running' && audio.unavailableCount === 0, audioSources: audio.sourceCount,audioSourcesAvailable:audio.sources||[],audioMeters:window&&!window.isDestroyed()&&audio.ready&&audio.contextState==='running'&&!fault&&now()-meterAt<750000?meters:emptyMeters(),
       locallyMuted: Boolean(window && !window.isDestroyed() && window.webContents.isAudioMuted()), error: fault,
+      monitor:{bus:monitorBus,available:monitorSupported&&Boolean(window&&!window.isDestroyed()&&audio.ready),vodAvailable:monitorSupported&&requireVod},
       capturedFrames: active?.frames || 0, droppedFrames: active?.droppedVideo || 0, audioPackets: active?.audioPackets || 0, droppedAudioPackets: (active?.droppedAudio || 0) + (active?.workletDropped || 0) };
   }
   function readSnapshot() {
@@ -98,7 +136,7 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
   async function prepare() {
     if (closed) throw Error('output_capture_closed');
     if (preparing) return preparing;
-    if (window && !window.isDestroyed()) { invalidateRouting();window.webContents.send(CHANNELS.control,{type:'routing',audioRouting,routingContext});window.show(); return status(); }
+    if (window && !window.isDestroyed()) { invalidateRouting();window.webContents.send(CHANNELS.control,{type:'routing',audioRouting,routingContext,monitorVodAllowed:requireVod});window.show(); return status(); }
     preparing = (async () => {
       invalidateRouting();routingContext=randomUUID();fault = null; audio.ready = false; windowClosing = false;
       window = new BrowserWindow({ width, height, useContentSize: true, resizable: false, maximizable: false, fullscreenable: false, show: true,
@@ -116,16 +154,16 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
       contents.on('will-navigate', (event, url) => { if (!allowed(url)) event.preventDefault(); if (active) { stopCapture(); report('output_navigated'); } });
       contents.on('will-redirect', (event, url, _inPlace, main) => { if (main !== false && !allowed(url)) event.preventDefault(); });
       contents.on('will-attach-webview', event => event.preventDefault());
-      contents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main !== false) { invalidateRouting();routingContext=randomUUID();snapshot = null; audio.ready = false; if (active) { stopCapture(); report('output_navigated'); } } });
+      contents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main !== false) { forceMonitorOff();cancelRehearsal();invalidateRouting();routingContext=randomUUID();snapshot = null; audio.ready = false; if (active) { stopCapture(); report('output_navigated'); } } });
       contents.on('render-process-gone', () => { stopCapture(); audio.ready = false; report('output_renderer_unavailable'); });
-      target.on('close', () => { if (window === target){windowClosing = true;invalidateRouting();} });
+      target.on('close', () => { if (window === target){windowClosing = true;forceMonitorOff();cancelRehearsal();invalidateRouting();} });
       target.on('closed', () => { const wasActive = Boolean(active); stopCapture(); if (window === target) window = null; audio.ready = false; latest = null; clearInterval(polling); polling = null; if (wasActive) report('output_closed'); });
       await loadInitialOutput(contents,origin + '/output/studio?browser-review=1',{timeoutMs:8000});
       const deadline = now() + 8000000;
       while (!audio.ready && !fault && now() < deadline && !target.isDestroyed()) await new Promise(resolve => setTimeout(resolve, 25));
       if (closed || target.isDestroyed() || target !== window) throw Error('output_capture_closed');
       if (!audio.ready) throw Error(fault || 'output_audio_not_prepared');
-      contents.send(CHANNELS.control,{type:'routing',audioRouting,routingContext});
+      contents.send(CHANNELS.control,{type:'routing',audioRouting,routingContext,monitorVodAllowed:requireVod});
       await readSnapshot();
       polling = setInterval(() => { void readSnapshot(); }, 250); polling.unref?.();
       return status();
@@ -147,6 +185,7 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
     const cleanUi = `(()=>{const root=document.documentElement;root.dataset.nativeCapture='active';root.dataset.nativeCaptureOwner=${JSON.stringify(ui.owner)};return new Promise(resolve=>{const timeout=setTimeout(()=>resolve(false),1500);requestAnimationFrame(()=>requestAnimationFrame(()=>{clearTimeout(timeout);resolve(root.dataset.nativeCaptureOwner===${JSON.stringify(ui.owner)});}));});})()`;
     const marked = await target.webContents.executeJavaScript(cleanUi, false);
     if (marked !== true || closed || version !== captureVersion || target !== window || target.isDestroyed()) throw Error('output_capture_cancelled');
+    if(rehearsalReady&&(rehearsalReady.target!==target||rehearsalReady.version!==version||await target.webContents.executeJavaScript(rehearsalVisible(rehearsalReady.generation),false)!==true))throw routingError('output_rehearsal_not_ready');
     // Review can remain open for minutes; seed from the actual current compositor,
     // never from prepare()'s earlier picture, then recheck the reviewed receiver.
     storeFrame(await window.webContents.capturePage()); await readSnapshot();
@@ -183,6 +222,8 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
     finally { starting = false; }
   }
   function stopCapture() {
+    forceMonitorOff();
+    cancelRehearsal();
     invalidateRouting();
     captureVersion++;
     const run = active; active = null;
@@ -194,8 +235,12 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
   }
   const onHealth = (event, value) => {
     if (!owned(event) || !value || typeof value !== 'object') return;
-    if (value.error) { meters=emptyMeters();meterAt=0;audio.ready = false; if (active) stopCapture(); report('output_audio_unavailable'); return; }
+    if (value.error) { forceMonitorOff();meters=emptyMeters();meterAt=0;audio.ready = false; if (active) stopCapture(); report('output_audio_unavailable'); return; }
     if (typeof value.ready !== 'boolean' || !['running', 'suspended', 'closed'].includes(value.contextState)) return;
+    const monitorPending=pendingMonitor;
+    if(monitorPending&&value.monitorNonce===monitorPending.nonce&&value.monitorContext===monitorPending.context&&monitorPending.context===routingContext&&monitorPending.target===window&&monitorPending.contents===event.sender&&monitorPending.frame===event.senderFrame&&monitorPending.version===monitorVersion){
+      clearTimeout(monitorPending.timer);pendingMonitor=null;if(value.monitorApplied===true&&value.monitorAvailable===true&&value.monitorBus===monitorPending.bus&&(monitorPending.bus==='off'||value.ready&&value.contextState==='running')){monitorPending.resolve({ok:true,monitor:{bus:monitorPending.bus,available:true}});}else{monitorSupported=false;localMonitor?.stop();monitorPending.reject(routingError('rehearsal_monitor_unavailable'));}
+    }
     const pending=pendingRouting;
     if(pending&&value.routingApplied===true&&value.routingRequestId===pending.id&&value.routingNonce===pending.nonce&&pending.target===window&&pending.contents===event.sender&&pending.frame===event.senderFrame&&pending.generation===routingGeneration&&value.ready&&value.contextState==='running'){
       clearTimeout(pending.timer);pendingRouting=null;audioRouting=pending.routing;
@@ -206,8 +251,17 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
       unavailableCount: Number.isInteger(value.unavailableCount) ? Math.min(64, Math.max(0, value.unavailableCount)) : 0 };
     meters=cleanMeterHealth(value.audioMeters);meterAt=meters.fresh?now():0;
     audioAt = now();
+    if(monitorBus!=='off'&&!pendingMonitor&&value.monitorBus==='off')forceMonitorOff();
+    if(monitorBus!=='off'&&(!audio.ready||audio.contextState!=='running'||audio.unavailableCount>0))forceMonitorOff();
     if (active && (!audio.ready || audio.contextState !== 'running' || audio.unavailableCount > 0)) { stopCapture(); report('output_audio_unavailable'); return; }
     if (active && value.captureId === active.id && value.started === true) active.audioStarted = true;
+  };
+  const onMonitorPcm=async(event,value)=>{
+    if(!owned(event)||!monitorId||monitorBus==='off'||value?.monitorId!==monitorId)return;
+    if(monitorBusy||!Number.isSafeInteger(value.seq)||value.seq<=monitorSequence||!(value.pcm instanceof Uint8Array)||value.pcm.byteLength!==3840){forceMonitorOff();monitorSupported=false;return;}
+    const bytes=Buffer.from(value.pcm.buffer,value.pcm.byteOffset,value.pcm.byteLength),id=monitorId;monitorBusy=true;monitorSequence=value.seq;
+    let accepted=false;try{accepted=await localMonitor?.write(bytes)===true;}catch(_){}
+    if(id!==monitorId)return;monitorBusy=false;if(!accepted){forceMonitorOff();monitorSupported=false;return;}if(owned(event))event.sender.send(CHANNELS.monitorAck,{monitorId:id,seq:value.seq});
   };
   const onPcm = async (event, value) => {
     const run = active;
@@ -226,9 +280,9 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
     catch (_) { if (active === run) { stopCapture(); report('output_audio_sink_failed'); } }
     finally { run.audioBusy = false; if (active === run && owned(event)) event.sender.send(CHANNELS.ack, { captureId: run.id, seq: value.seq }); }
   };
-  ipcMain.on(CHANNELS.health, onHealth); ipcMain.on(CHANNELS.pcm, onPcm);
+  ipcMain.on(CHANNELS.health, onHealth); ipcMain.on(CHANNELS.pcm, onPcm);ipcMain.on(CHANNELS.monitorPcm,onMonitorPcm);
   ipcMain.handle(CHANNELS.sync, event => { if (!active || !owned(event)) throw Error('output_capture_untrusted'); return { captureId: active.id, epochUs: now() - active.epoch }; });
-  return { prepare, startCapture, stopCapture,updateAudioRouting,status, get window() { return window; },
+  return { prepare, startCapture, stopCapture,updateAudioRouting,waitForRehearsal,setMonitor,status, get window() { return window; },
     show() {
       const target = window;
       const check = () => {
@@ -246,7 +300,7 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
       await window.webContents.executeJavaScript('window.ProducerStudioOutput?.reviewBrowserSources()', false);
       await readSnapshot(); return status();
     },
-    close() { if (closed) return; closed = true; stopCapture(); clearInterval(polling); polling = null; ipcMain.removeListener(CHANNELS.health, onHealth); ipcMain.removeListener(CHANNELS.pcm, onPcm); ipcMain.removeHandler(CHANNELS.sync); if (window && !window.isDestroyed()) window.destroy(); window = null; latest = null; },
+    close() { if (closed) return; closed = true; stopCapture();localMonitor?.close();localMonitor=null; clearInterval(polling); polling = null; ipcMain.removeListener(CHANNELS.health, onHealth); ipcMain.removeListener(CHANNELS.pcm, onPcm);ipcMain.removeListener(CHANNELS.monitorPcm,onMonitorPcm); ipcMain.removeHandler(CHANNELS.sync); if (window && !window.isDestroyed()) window.destroy(); window = null; latest = null; },
   };
 }
 module.exports = { createOutputCapture, cleanSnapshot, CHANNELS };

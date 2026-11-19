@@ -1083,3 +1083,21 @@ Owner direction while asleep: continue independent implementation/verification u
 to the explicit 100% usage ceiling, leave personal sign-in/security/permission
 reviews pending, and move to another safe item. Planned next major slice after
 this tested checkpoint is the isolated Rehearsal room. No public output is authorized.
+
+## November 19, 2026 — Rehearsal implementation checkpoint
+
+Implemented the previously planned local Rehearsal room: durable publishing latch,
+private operator commands, guest/output mode indicators, discard-only native
+encoding, explicit public-bus monitoring, manual readiness checklist, safe report
+export and independent Stop/recovery. Enter refuses active/unknown production
+state; configured-but-disconnected OBS needs operator attention. No automatic
+stream start is part of entry, exit, recovery or restart.
+
+Generated-media original-module integration and complete Settings interactions
+passed locally. The primary desktop build is activated and its private guest link survived
+restart. Its configured disconnected OBS integration correctly blocks entry;
+resolve that connection before physical rehearsal. Remaining acceptance: physical
+headphone monitoring and two-PC guest/screen/audio rehearsal, real destination
+receipt and Twitch VOD archives. Provider metadata editing still awaits the
+previously listed owner permission reviews; Google sign-in/client setup and
+StackThis remote producer identity remain pending.

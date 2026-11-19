@@ -13,8 +13,10 @@ import json
 import uuid
 from pathlib import Path
 from typing import Any
+from contextlib import nullcontext
 
 from rareiq.services.media_storage import atomic_json
+from rareiq.services.rehearsal_service import RehearsalError
 
 
 class RecordingService:
@@ -27,6 +29,7 @@ class RecordingService:
     }
 
     def __init__(self, output_dir: Path, command_template: str | None = None, *, minimum_free_gb: float = 2.0, config_path: Path | None = None) -> None:
+        self._publishing_guard = nullcontext
         self.output_dir = output_dir.expanduser().resolve()
         self.config_path = config_path or output_dir.parent / "recording_settings.json"
         self.command_template = (command_template or os.getenv("RAREIQ_RECORDING_COMMAND", "")).strip()
@@ -192,7 +195,17 @@ class RecordingService:
                 "last_error": self._last_error or ("Recording storage is unavailable." if not available else ""),
             }
 
+    def set_publishing_guard(self, guard) -> None:
+        self._publishing_guard = guard
+
     def start(self, session_id: str) -> dict[str, Any]:
+        try:
+            with self._publishing_guard():
+                return self._start(session_id)
+        except RehearsalError as error:
+            return {"started": False, "reason": error.reason, **self.status()}
+
+    def _start(self, session_id: str) -> dict[str, Any]:
         with self._lock:
             current = self.status()
             if current["active"] or self._stopping:

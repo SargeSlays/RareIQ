@@ -23,6 +23,7 @@ PUBLIC_GUEST_PATHS = frozenset({"/guest", "/guest/join", "/guest/leave", "/guest
                               "/guest/assets/guest.css", "/guest/assets/guest.js",
                               "/guest/assets/greenroom_chat.js", "/guest/assets/greenroom_chat.css",
                               "/guest/assets/guest_room.js", "/guest/assets/guest_room.css",
+                              "/guest/assets/rehearsal_room.js", "/guest/assets/rehearsal_room.css", "/api/guest/rehearsal",
                               "/guest/assets/guest_microphone.js", "/guest/assets/guest_audio_dsp.js", "/guest/assets/studio_noise_gate.js",
                               "/guest/assets/studio_noise_gate.worklet.js", "/guest/assets/greenroom_media.js", "/guest/assets/theme.css", "/guest/assets/mark.svg"})
 
@@ -192,7 +193,7 @@ class GreenroomHub:
                        "mark.svg": "brand/producer-please-v2/favicon.svg"}
             if name in aliases:
                 return FileResponse(self.static_dir / aliases[name], headers={"Cache-Control": "no-cache"})
-            if name not in {"guest.css", "guest.js", "guest_room.js", "guest_room.css", "greenroom_chat.js", "greenroom_chat.css", "greenroom_media.js", "guest_microphone.js", "guest_audio_dsp.js", "studio_noise_gate.js", "studio_noise_gate.worklet.js"}:
+            if name not in {"guest.css", "guest.js", "guest_room.js", "guest_room.css", "rehearsal_room.js", "rehearsal_room.css", "greenroom_chat.js", "greenroom_chat.css", "greenroom_media.js", "guest_microphone.js", "guest_audio_dsp.js", "studio_noise_gate.js", "studio_noise_gate.worklet.js"}:
                 return self._error("asset_not_found", 404)
             return FileResponse(self.static_dir / name, headers={"Cache-Control": "no-cache", "Referrer-Policy": "no-referrer"})
 

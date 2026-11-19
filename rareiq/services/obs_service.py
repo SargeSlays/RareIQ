@@ -7,7 +7,7 @@ import re
 import threading
 import socket
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -115,6 +115,7 @@ class ObsService:
     }
 
     def __init__(self, config_path: Path) -> None:
+        self._publishing_guard = nullcontext
         self.config_path = config_path
         self._lock = threading.RLock()
         self._config: dict[str, Any] = {"host": "127.0.0.1", "port": 4455, "password": "", "enabled": False, "scene_map": {}}
@@ -329,6 +330,15 @@ class ObsService:
         return {"code": "ready", "message": "OBS WebSocket port is reachable", "action": "Authenticating"}
 
     def command(self, action: str, scene: str | None = None) -> dict[str, Any]:
+        if action in {"start-stream", "start-record"}:
+            with self._publishing_guard():
+                return self._command(action, scene)
+        return self._command(action, scene)
+
+    def set_publishing_guard(self, guard) -> None:
+        self._publishing_guard = guard
+
+    def _command(self, action: str, scene: str | None = None) -> dict[str, Any]:
         if action not in {"start-stream", "stop-stream", "start-record", "stop-record", "set-scene"} or (action == "set-scene" and not scene):
             raise ValueError("unsupported_obs_action")
         with self._connection() as client:

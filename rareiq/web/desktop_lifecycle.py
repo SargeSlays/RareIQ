@@ -44,6 +44,8 @@ class NativeEncodingState:
     def __init__(self, *, pid_probe=process_alive):
         self._pid_probe = pid_probe
         self._owner_pid = None
+        self._mode = "broadcast"
+        self._rehearsal_generation = None
 
     def _alive(self, pid):
         try:
@@ -55,15 +57,21 @@ class NativeEncodingState:
         alive = self._alive(self._owner_pid) if self._owner_pid is not None else None
         if alive is False:
             self._owner_pid = None
+            self._mode, self._rehearsal_generation = "broadcast", None
         return {"active": self._owner_pid is not None, "owner_pid": self._owner_pid,
-                "owner_alive": alive if self._owner_pid is not None else None}
+                "owner_alive": alive if self._owner_pid is not None else None,
+                **({"mode": "rehearsal", "rehearsal_generation": self._rehearsal_generation} if self._owner_pid is not None and self._mode == "rehearsal" else {})}
 
-    def update(self, *, active, owner_pid=None):
+    def update(self, *, active, owner_pid=None, mode="broadcast", rehearsal_generation=None):
         current = self.snapshot()
         reason = None
         if type(active) is not bool or type(owner_pid) is not int or not 0 < owner_pid < 2**32:
             reason = "invalid_encoding_status"
+        elif type(mode) is not str or mode not in {"broadcast", "rehearsal"} or (mode == "rehearsal" and (not isinstance(rehearsal_generation, str) or len(rehearsal_generation) != 32 or any(c not in "0123456789abcdef" for c in rehearsal_generation))):
+            reason = "invalid_encoding_status"
         elif current["active"] and owner_pid != self._owner_pid:
+            reason = "encoding_owner_mismatch"
+        elif current["active"] and self._mode == "rehearsal" and (mode != "rehearsal" or rehearsal_generation != self._rehearsal_generation):
             reason = "encoding_owner_mismatch"
         elif active:
             alive = self._alive(owner_pid)
@@ -71,8 +79,10 @@ class NativeEncodingState:
                 reason = "owner_not_running" if alive is False else "owner_state_unknown"
             else:
                 self._owner_pid = owner_pid
+                self._mode, self._rehearsal_generation = mode, rehearsal_generation if mode == "rehearsal" else None
         else:
             self._owner_pid = None
+            self._mode, self._rehearsal_generation = "broadcast", None
         result = {"ok": reason is None, "native_encoding": self.snapshot()}
         if reason:
             result["reason"] = reason

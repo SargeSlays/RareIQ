@@ -48,7 +48,7 @@ test('old encoder events and capture callbacks cannot stop or feed a confirmed r
 
 test('cancelling a pending encoder Start stops its worker and never starts capture afterward',async()=>{
   const f=runningFixture(),pending=deferred();f.setupWorker=run=>{run.start=async()=>{run.starts++;run.state.running=true;await pending.promise;};};
-  await f.app.prepare();const starting=f.app.start({destinationId:'one'});await settle();assert.equal(f.runs.length,1);
+  await f.app.prepare();const starting=f.app.start({destinationId:'one'});for(let index=0;index<200&&!f.runs.length;index++)await Promise.resolve();assert.equal(f.runs.length,1);
   await f.app.stop();assert.equal(f.runs[0].stops,1);assert.equal(f.runs[0].state.running,false);
   pending.resolve();await assert.rejects(starting,/broadcast_cancelled/);assert.equal(f.taps.length,0);assert.equal(f.app.status().active,false);assert.equal(f.app.status().reason,null);
 });
@@ -247,4 +247,27 @@ test('pending live mix prevents a concurrent Start and old output requests canno
 test('live audio audit failure does not undo a confirmed level change or stop transmission',async()=>{
   const f=sharedFixture();f.capture.updateAudioRouting=async value=>({requestId:value.requestId,applied:true});f.app.onAudioAudit=()=>{throw Error('private history path');};await f.app.prepare();await f.app.start({destinationIds:['one','two']});const mix=f.app.status().audioMix;
   await f.app.setLiveAudio({outputId:mix.outputId,expectedRevision:0,requestId:'history',audioRouting:{'voice:default':{live:true,vod:true,liveGainDb:-4}}});assert.equal(f.app.status().audioMix.historyWarning,true);assert.equal(f.groups[0].stops,0);assert.equal(f.app.status().active,true);assert.doesNotMatch(JSON.stringify(f.app.status()),/private history/);await f.app.stop();
+});
+
+test('publishing policy blocks profile reads, private destination reads and confirmation before side effects',async()=>{
+  for(const policy of [async()=>false,async()=>{throw Error('private status body');}]){
+    const f=fixture();let lookups=0,profiles=0,confirmed=0;f.app.canPublish=policy;f.app.outputProfiles={getProfile:async()=>{profiles++;throw Error('must not read');}};f.app.destinations.getPrivateDestination=async()=>{lookups++;throw Error('must not read');};f.app.confirm=async()=>{confirmed++;return true;};
+    await assert.rejects(f.app.start({profileId:'saved',destinationId:'one'}),/rehearsal_(active|status_unavailable)/);assert.equal(lookups+profiles+confirmed,0);assert.equal(f.calls.length,0);assert.equal(f.starts,0);
+  }
+});
+
+test('policy is refreshed between every private destination and after confirmation before reservation',async()=>{
+  const f=fixture();await f.app.prepare();let allowed=true,lookups=0,confirmations=0;f.app.canPublish=async()=>allowed;f.app.destinations.getPrivateDestination=async()=>{lookups++;allowed=false;return {serverUrl:'rtmps://provider.net/live',streamKey:'synthetic'};};f.app.confirm=async()=>{confirmations++;return true;};
+  await assert.rejects(f.app.start({destinationIds:['one','two']}),/rehearsal_active/);assert.equal(lookups,1);assert.equal(confirmations,0);assert.equal(f.calls.some(call=>call.body?.active===true),false);
+  allowed=true;f.app.destinations.getPrivateDestination=async()=>({serverUrl:'rtmps://provider.net/live',streamKey:'synthetic'});f.app.confirm=async()=>{allowed=false;return true;};await assert.rejects(f.app.start({destinationId:'one'}),/rehearsal_active/);assert.equal(f.calls.some(call=>call.body?.active===true),false);assert.equal(f.starts,0);
+});
+
+test('policy change during reservation closes ownership without creating an encoder',async()=>{
+  const f=fixture();await f.app.prepare();let allowed=true;const request=f.app.request;f.app.canPublish=async()=>allowed;f.app.request=async(url,body)=>{if(body?.active===true)allowed=false;return request(url,body);};
+  await assert.rejects(f.app.start({destinationId:'one'}),/rehearsal_active/);assert.equal(f.starts,0);assert.equal(f.calls.at(-1).body.active,false);assert.equal(f.app.ownsEncoding,false);
+});
+
+test('Stop cancels a pending first publishing check before profile or destination access',async()=>{
+  const f=fixture(),pending=deferred();let lookups=0;f.app.canPublish=()=>pending.promise;f.app.destinations.getPrivateDestination=async()=>{lookups++;};
+  const starting=f.app.start({destinationId:'one'});await f.app.stop();pending.resolve(true);await assert.rejects(starting,/broadcast_cancelled/);assert.equal(lookups,0);assert.equal(f.starts,0);
 });

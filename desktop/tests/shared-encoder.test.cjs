@@ -67,3 +67,33 @@ test('real DestinationStore private records bind their saved id and strip metada
   const {DestinationStore}=require('../destinations.cjs'),store=new DestinationStore({directory,cipher,platform:'win32'}),saved=await store.save({name:'Synthetic channel',platform:'twitch',streamKey:'synthetic-store-key',requestId:'store-save'}),destination=await store.getPrivateDestination(saved.destination.id);assert.equal(destination.id,saved.destination.id);const f=fixture();await ready(f,config({targets:[{id:destination.id,destination}]}));const sent=JSON.parse(f.child.writes[0].toString()).targets[0].destination;assert.equal(sent.streamKey,'synthetic-store-key');for(const name of ['id','name','allowInsecureRtmp','networkVerified'])assert.equal(Object.hasOwn(sent,name),false);await close(f);
   const other=fixture();await assert.rejects(other.group.start(config({targets:[{id:'00000000-0000-0000-0000-000000000000',destination}]})),{message:'invalid_destination'});assert.equal(other.children.length,0);
 });
+
+const rehearsal=(extra={})=>config({rehearsal:true,targets:[{id:'rehearsal-local',rehearsal:true,twitchVod:false}],...extra});
+
+test('rehearsal is an exclusive local target, normalized on stdin and truthful throughout Stop',async()=>{
+  const f=fixture({artifactRoot:undefined}),target=f.group.createTarget('rehearsal-local');
+  await ready(f,rehearsal({twitchVod:true,targets:[{id:'rehearsal-local',rehearsal:true,twitchVod:true}]}));
+  const sent=JSON.parse(f.child.writes[0].toString());assert.equal(sent.rehearsal,true);assert.deepEqual(sent.targets,[{id:'rehearsal-local',twitchVod:true,rehearsal:true}]);assert.equal(Object.hasOwn(sent,'artifactRoot'),false);
+  f.message({event:'stats',videoFrames:3,packets:9,bytesMuxed:100,bytesDiscarded:200,tlsVerified:true,networkVerified:true,twitchVodWireVerified:true,platformVerified:true});
+  f.message({event:'stats',targetId:'rehearsal-local',bytesDiscarded:200,tlsVerified:true,twitchVodWireVerified:true});
+  for(const status of [f.group.status(),target.status()]){assert.equal(status.rehearsal,true);assert.equal(status.localDiscard,true);assert.equal(status.bytesDiscarded,200);for(const key of ['networkVerified','tlsVerified','twitchVodWireVerified','platformVerified','platformLiveVerified','vodPlatformVerified'])assert.equal(status[key],false);}
+  assert.equal(f.group.sendVideo(Buffer.alloc(64*64*4),0),true);assert.equal(f.group.sendAudio(Buffer.alloc(8),0),true);assert.equal(f.group.sendVodAudio(Buffer.alloc(8),0),true);
+  const stopping=target.stop();assert.equal(target.stop(),stopping);f.message({event:'stopped',targetId:'rehearsal-local',bytesDiscarded:240});assert.equal((await stopping).running,false);assert.equal(f.group.status().running,true);assert.equal(f.child.kills,0);
+  await close(f);assert.equal(f.group.status().running,false);
+});
+
+test('rehearsal rejects every publishing and artifact combination before spawn',async()=>{
+  const f=fixture({artifactRoot:undefined}),local=rehearsal().targets[0];
+  const mutations=[...['destination','testOutput','testTransport','serverUrl','streamKey','artifactRoot','transport','networkVerified'].map(key=>rehearsal({targets:[{...local,[key]:null}]})),...['destination','testOutput','testTransport','artifactRoot','serverUrl','streamKey'].map(key=>rehearsal({[key]:null})),rehearsal({targets:[local,target('other')]}),rehearsal({targets:[{...local,id:'other'}]}),rehearsal({targets:[{id:'rehearsal-local'}]}),rehearsal({twitchVod:true}),config({targets:[local]}),config({targets:[{...target('one'),rehearsal:false}]})];
+  for(const flag of [false,null,1,0,'true',{},[]]){mutations.push(rehearsal({rehearsal:flag}),rehearsal({targets:[{...local,rehearsal:flag}]}));}
+  for(const value of mutations)await assert.rejects(f.group.start(value),{message:'invalid_encoder_config'});
+  assert.equal(f.children.length,0);
+  for(const options of [{},{testTransports:{'rehearsal-local':{port:19000,caFile:path.join(root,'ca.pem'),serverName:'localhost'}}}]){const withArtifacts=fixture(options);await assert.rejects(withArtifacts.group.start(rehearsal()),{message:'invalid_encoder_config'});assert.equal(withArtifacts.children.length,0);}
+});
+
+test('rehearsal rejects unsafe counters and retains process ownership after failed shutdown',async()=>{
+  const f=fixture({artifactRoot:undefined,closeOnKill:false,stopTimeoutMs:15,killGraceMs:15});await ready(f,rehearsal());
+  for(const bytesDiscarded of [-1,Infinity,Number.MAX_SAFE_INTEGER+1,'8'])f.message({event:'stats',bytesDiscarded});
+  assert.equal(f.group.status().bytesDiscarded,undefined);f.message({event:'stats',bytesDiscarded:8});assert.equal(f.group.status().bytesDiscarded,8);
+  const stopped=await deadline(f.group.stop());assert.equal(stopped.running,true);assert.equal(stopped.code,'encoder_stop_timeout');assert.equal(stopped.localDiscard,true);f.child.emit('close',1);assert.equal(f.group.status().running,false);
+});

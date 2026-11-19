@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from fractions import Fraction
-from io import BytesIO
+from io import BytesIO, RawIOBase
 import json
 import os
 import queue
@@ -51,20 +51,31 @@ def safe_code(error):
 
 def validate_config(value):
     allowed = {"width", "height", "fps", "bitrate", "codec", "audioBitrateKbps", "keyframeSeconds",
-               "twitchVod", "targets", "artifactRoot"}
+               "twitchVod", "targets", "artifactRoot", "rehearsal"}
     if not isinstance(value, dict) or set(value) - allowed:
         base.fail("invalid_encoder_config")
+    if "rehearsal" in value and value["rehearsal"] is not True:
+        base.fail("invalid_encoder_config")
     config = base.validate_config(value)
+    rehearsal = value.get("rehearsal") is True
     targets = value.get("targets")
     if not isinstance(targets, list) or not 1 <= len(targets) <= MAX_TARGETS:
         base.fail("invalid_encoder_config")
+    if rehearsal and (len(targets) != 1 or "artifactRoot" in value):
+        base.fail("invalid_encoder_config")
     seen, normalized = set(), []
     for target in targets:
-        if (not isinstance(target, dict) or set(target) - {"id", "destination", "testOutput", "testTransport", "twitchVod"}
+        allowed_target = {"id", "rehearsal", "twitchVod"} if rehearsal else {"id", "destination", "testOutput", "testTransport", "twitchVod"}
+        if (not isinstance(target, dict) or set(target) - allowed_target
                 or not isinstance(target.get("id"), str) or not _ID.fullmatch(target["id"]) or target["id"] in seen
                 or type(target.get("twitchVod", False)) is not bool):
             base.fail("invalid_encoder_config")
         seen.add(target["id"])
+        if rehearsal:
+            if target["id"] != "rehearsal-local" or target.get("rehearsal") is not True:
+                base.fail("invalid_encoder_config")
+            normalized.append({"id": target["id"], "rehearsal": True, "twitchVod": target.get("twitchVod", False)})
+            continue
         modes = set(target) & {"destination", "testOutput", "testTransport"}
         if len(modes) != 1:
             base.fail("invalid_encoder_config")
@@ -81,6 +92,25 @@ def validate_config(value):
     if config["twitchVod"] != any(target["twitchVod"] for target in normalized):
         base.fail("invalid_encoder_config")
     return {**config, "targets": normalized}
+
+
+class DiscardWriter(RawIOBase):
+    """Non-seekable mux destination retaining only a bounded byte counter."""
+    def __init__(self):
+        super().__init__()
+        self.bytes_written = 0
+
+    def writable(self):
+        return True
+
+    def write(self, value):
+        if self.closed:
+            raise ValueError("discard_writer_closed")
+        size = len(value)
+        if size > (2 ** 53 - 1) - self.bytes_written:
+            base.fail("encoder_failed")
+        self.bytes_written += size
+        return size
 
 
 @dataclass(frozen=True, repr=False)
@@ -115,12 +145,16 @@ class TargetMux:
         self.ready, self.abort, self.drain = threading.Event(), threading.Event(), threading.Event()
         self.error = None
         self.relay = None
+        self.discard = None
         self.interrupted = self.error_reported = self.closed_reported = False
         self.counts = {"videoFrames": 0, "audioSamples": 0, "vodAudioSamples": 0, "packets": 0, "bytesMuxed": 0}
         self.thread = threading.Thread(target=self.run, daemon=True, name="shared-target-mux")
 
     def public(self):
-        return {**self.counts, "twitchVodWireVerified": self.spec["twitchVod"] and self.wire_verified}
+        return {**self.counts, "twitchVodWireVerified": self.spec["twitchVod"] and self.wire_verified,
+                **({"rehearsal": True, "localDiscard": True, "networkVerified": False,
+                    "bytesDiscarded": self.discard.bytes_written if self.discard else 0}
+                   if self.spec.get("rehearsal") is True else {})}
 
     def enqueue(self, packet):
         if packet.kind == "B" and not self.spec["twitchVod"]:
@@ -155,7 +189,16 @@ class TargetMux:
     def run(self):
         output = handle = None
         try:
-            if "testOutput" in self.spec:
+            if self.config.get("rehearsal") is True or "rehearsal" in self.spec:
+                # Validate again at the output selection boundary: never let a
+                # malformed target silently choose the credential/network path.
+                if (self.config.get("rehearsal") is not True or self.spec.get("rehearsal") is not True
+                        or set(self.spec) != {"id", "rehearsal", "twitchVod"}
+                        or self.spec["id"] != "rehearsal-local" or "artifactRoot" in self.config):
+                    base.fail("invalid_encoder_config")
+                handle = self.discard = DiscardWriter()
+                output = self.av.open(handle, "w", format="flv", options={"flvflags": "no_duration_filesize"})
+            elif "testOutput" in self.spec:
                 target = base.test_path({**self.spec, "artifactRoot": self.config["artifactRoot"]})
                 handle = target.open("xb")
                 output = self.av.open(handle, "w", format="flv")
@@ -207,7 +250,7 @@ class TargetMux:
                 except Exception:
                     if not self.abort.is_set() and self.error is None:
                         self.error = "encoder_failed"
-            if handle:
+            if handle is not None:
                 handle.close()
             if self.relay:
                 self.relay.close()
@@ -260,9 +303,13 @@ def run(value, stream):
     for key in list(os.environ):
         if key.lower() in {"http_proxy", "https_proxy", "all_proxy"}:
             os.environ.pop(key, None)
-    wire_verified = base.probe_twitch_vod_mux(av, np) if config["twitchVod"] else False
+    rehearsal = config.get("rehearsal") is True
+    # The existing wire probe stores its synthetic output for inspection. A
+    # rehearsal only discards mux bytes and therefore makes no wire claim.
+    wire_verified = base.probe_twitch_vod_mux(av, np) if config["twitchVod"] and not rehearsal else False
     codec = base.select_codec(av, np, config)
-    template = av.open(BytesIO(), "w", format="flv")
+    template_handle = DiscardWriter() if rehearsal else BytesIO()
+    template = av.open(template_handle, "w", format="flv", options={"flvflags": "no_duration_filesize"} if rehearsal else {})
     templates = {"V": template.add_stream(codec, rate=config["fps"]), "A": template.add_stream("aac", rate=48000)}
     base.configure_video(templates["V"], config, codec)
     base.configure_audio(templates["A"], config["audioBitrateKbps"])
@@ -272,6 +319,10 @@ def run(value, stream):
     targets, monitor, monitor_stop = {}, None, threading.Event()
     counts = {"videoFrames": 0, "audioSamples": 0, "audioSilenceSamples": 0,
               "vodAudioSamples": 0, "vodAudioSilenceSamples": 0, "packets": 0, "bytesMuxed": 0}
+    def local_stats():
+        return ({"rehearsal": True, "localDiscard": True, "networkVerified": False,
+                 "bytesDiscarded": sum(target.discard.bytes_written for target in targets.values() if target.discard)}
+                if rehearsal else {})
     def dispatch(kind, packets):
         for packet in packets:
             frozen = EncodedPacket.capture(kind, packet)
@@ -281,7 +332,7 @@ def run(value, stream):
                 target.enqueue(frozen)
     try:
         template.start_encoding()
-        targets = {spec["id"]: TargetMux(spec, config, templates, av, certifi.where(), codec=codec, wire_verified=wire_verified)
+        targets = {spec["id"]: TargetMux(spec, config, templates, av, None if rehearsal else certifi.where(), codec=codec, wire_verified=wire_verified)
                    for spec in config["targets"]}
         for target in targets.values():
             target.thread.start()
@@ -298,7 +349,7 @@ def run(value, stream):
         if encoder_count != 1:
             base.fail("shared_mux_unavailable")
         emit("ready", running=True, codec=codec, hardwareVerified=codec == "h264_nvenc", twitchVodWireVerified=wire_verified,
-             videoEncoderInstances=encoder_count, audioEncoderCount=len(templates) - 1, targetMuxerCount=len(targets), **counts)
+             videoEncoderInstances=encoder_count, audioEncoderCount=len(templates) - 1, targetMuxerCount=len(targets), **local_stats(), **counts)
         last = {kind: -1 for kind in templates}
         next_sample = {kind: None for kind in templates if kind != "V"}
         first_pts, last_report = None, 0.0
@@ -354,7 +405,7 @@ def run(value, stream):
                 dispatch(kind, templates[kind].encode(frame))
                 counts["vodAudioSamples" if kind == "B" else "audioSamples"] += frame.samples
             if time.monotonic() - last_report >= 1:
-                emit("stats", running=True, **counts)
+                emit("stats", running=True, **local_stats(), **counts)
                 last_report = time.monotonic()
         for kind, encoder in templates.items():
             dispatch(kind, encoder.encode(None))
@@ -362,7 +413,7 @@ def run(value, stream):
         monitor.join(STOP_TIMEOUT_SECONDS)
         if monitor.is_alive():
             base.fail("shared_encoder_shutdown_unconfirmed")
-        emit("stopped", running=False, **counts)
+        emit("stopped", running=False, **local_stats(), **counts)
     finally:
         try:
             if targets:
@@ -374,16 +425,23 @@ def run(value, stream):
                 monitor.join(STOP_TIMEOUT_SECONDS)
             monitor_stop.set()
             template.close()
+            template_handle.close()
 
 
 def main():
-    with open(os.devnull, "w") as null:
-        os.dup2(null.fileno(), 2)
     try:
         raw = sys.stdin.buffer.readline(MAX_CONFIG + 1)
         if len(raw) > MAX_CONFIG or not raw.endswith(b"\n"):
             base.fail("invalid_encoder_config")
-        run(json.loads(raw), sys.stdin.buffer)
+        value = json.loads(raw)
+        if isinstance(value, dict) and value.get("rehearsal") is True:
+            # No media-file handle, even a null-device file, is needed here.
+            # Native diagnostics remain on the parent's drained stderr pipe.
+            run(value, sys.stdin.buffer)
+        else:
+            with open(os.devnull, "w") as null:
+                os.dup2(null.fileno(), 2)
+            run(value, sys.stdin.buffer)
         return 0
     except ModuleNotFoundError:
         emit("error", code="encoder_dependency_missing", running=False)

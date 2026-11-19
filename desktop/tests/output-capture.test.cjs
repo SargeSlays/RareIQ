@@ -1,31 +1,33 @@
 'use strict';
 const test = require('node:test'), assert = require('node:assert/strict'), vm = require('node:vm'), { EventEmitter } = require('node:events');
 const { createOutputCapture, cleanSnapshot, CHANNELS } = require('../output-capture.cjs');
+const {createLocalMonitor,CHANNELS:MONITOR_CHANNELS}=require('../local-monitor.cjs');
 const ORIGIN = 'http://127.0.0.1:54321';
 const goodSnapshot = () => ({ peerId: 'fixture-peer', generation: 2, rendered: true, browserReviewOpen: false, audioBlocked: false, readySources: ['camera:1'] });
 function fixture(options = {}) {
   const ipc = new EventEmitter(); ipc.handlers = new Map(); ipc.handle = (channel, fn) => ipc.handlers.set(channel, fn); ipc.removeHandler = channel => ipc.handlers.delete(channel);
-  const errors = [], sent = []; let instance;
+  const errors = [], sent = [],windows=[]; let instance;
   class Window extends EventEmitter {
     constructor(config) {
-      super(); instance = this; this.config = config; this.destroyed = false;
+      super(); this.isMonitor=config.webPreferences.preload.endsWith('monitor-preload.cjs');if(!this.isMonitor)instance = this;windows.push(this); this.config = config; this.destroyed = false;
       const wc = this.webContents = new EventEmitter(); wc.mainFrame = { url: '' }; wc.url = ''; wc.muted = false;
       wc.getURL = () => wc.url;wc.isDestroyed=()=>this.destroyed;wc.loadURL=url=>this.loadURL(url); wc.setAudioMuted = value => { wc.muted = value; }; wc.isAudioMuted = () => wc.muted;
       wc.setWindowOpenHandler = fn => { wc.openHandler = fn; };
       wc.session = { setPermissionCheckHandler(fn) { this.check = fn; }, setPermissionRequestHandler(fn) { this.request = fn; }, setDisplayMediaRequestHandler(fn) { this.display = fn; } };
-      wc.document = { documentElement: { dataset: {} } }; wc.frames = []; wc.events = [];
+      wc.badge={hidden:true,dataset:{state:'ready'},textContent:'REHEARSAL — not broadcasting',getBoundingClientRect:()=>({width:100,height:30,top:5,left:5,right:105,bottom:35}),style:{display:'block',visibility:'visible',opacity:'1'}};
+      wc.document = { documentElement: { dataset: {} },querySelector:()=>wc.badge }; wc.frames = []; wc.events = [];
       wc.scripts = []; wc.executeJavaScript = async code => {
         wc.scripts.push(code);
-        if (code.includes('nativeCapture')) {
+        if (code.includes('nativeCapture')||code.includes('nativeRehearsalWait')||code.includes('rehearsalMode')) {
           if (code.includes("nativeCapture='active'")) wc.events.push('hide-controls'); else wc.events.push('restore-controls');
-          return vm.runInNewContext(code, { document: wc.document, setTimeout, clearTimeout, requestAnimationFrame: fn => options.paint ? options.paint(fn) : queueMicrotask(fn) });
+          return vm.runInNewContext(code, { document: wc.document,getComputedStyle:badge=>badge.style,innerWidth:config.width,innerHeight:config.height, setTimeout, clearTimeout, requestAnimationFrame: fn => options.paint ? options.paint(fn) : queueMicrotask(fn) });
         }
         if (code.includes('ProducerStudioOutput')) { options.onReview?.(); return null; } return options.snapshot || goodSnapshot();
       };
       wc.capturePage = async () => { const clean = wc.document.documentElement.dataset.nativeCapture === 'active'; wc.frames.push(clean); wc.events.push('capture'); return { isEmpty: () => false, getSize: () => ({ width: config.width, height: config.height }), toBitmap: () => Buffer.alloc(config.width * config.height * 4, clean ? 25 : 199) }; };
       wc.beginFrameSubscription = (dirty, callback) => { if (options.failSubscription) throw Error('subscription failed'); wc.events.push('subscribe'); wc.dirty = dirty; wc.frameCallback = callback; };
       wc.endFrameSubscription = () => { wc.events.push('unsubscribe'); wc.frameCallback = null; wc.ended = true; };
-      wc.send = (channel, value) => { sent.push({ channel, value }); if (channel === CHANNELS.control && value.type === 'start') queueMicrotask(() => health({ captureId: value.captureId, started: true }));if(channel===CHANNELS.control&&value.type==='routing'&&value.requestId&&options.routingAck!==false)queueMicrotask(()=>health({routingRequestId:value.requestId,routingNonce:value.routingNonce,routingApplied:true})); };
+      wc.send = (channel, value) => { sent.push({ channel, value }); if (channel === CHANNELS.control && value.type === 'start') queueMicrotask(() => health({ captureId: value.captureId, started: true }));if(channel===CHANNELS.control&&value.type==='routing'&&value.requestId&&options.routingAck!==false)queueMicrotask(()=>health({routingRequestId:value.requestId,routingNonce:value.routingNonce,routingApplied:true}));if(channel===CHANNELS.control&&value.type==='monitor'&&options.monitorAck!==false)queueMicrotask(()=>health({monitorNonce:value.monitorNonce,monitorContext:value.monitorContext,monitorApplied:true,monitorAvailable:true,monitorBus:value.bus}));if(this.isMonitor&&channel===MONITOR_CHANNELS.pcm&&options.monitorPlaybackAck!==false)queueMicrotask(()=>ipc.emit(MONITOR_CHANNELS.ack,{sender:wc,senderFrame:wc.mainFrame},{nonce:value.nonce,seq:value.seq})); };
     }
     isDestroyed() { return this.destroyed; }
     isMinimized() { return this.minimized === true; }
@@ -33,13 +35,14 @@ function fixture(options = {}) {
     show() { (this.visibilityCalls ||= []).push('show'); }
     focus() { (this.visibilityCalls ||= []).push('focus'); }
     setMenu() {}
-    async loadURL(url) { this.webContents.url = url; this.webContents.mainFrame.url = url; health();this.webContents.emit('dom-ready');if (options.loadWait) await options.loadWait; }
+    async loadURL(url) { this.webContents.url = url; this.webContents.mainFrame.url = url;if(this.isMonitor){const nonce=this.config.webPreferences.additionalArguments[0].split('=').at(-1);queueMicrotask(()=>ipc.emit(MONITOR_CHANNELS.health,{sender:this.webContents,senderFrame:this.webContents.mainFrame},{nonce,ready:options.monitorUnsupported!==true}));}else health();this.webContents.emit('dom-ready');if (options.loadWait) await options.loadWait; }
     destroy() { this.destroyed = true; this.emit('closed'); }
   }
   const event = () => ({ sender: instance.webContents, senderFrame: instance.webContents.mainFrame });
   const health = extra => ipc.emit(CHANNELS.health, event(), { ready: true, contextState: 'running', sourceCount: 1, unavailableCount: 0, ...extra });
-  const capture = createOutputCapture({ BrowserWindow: Window, ipcMain: ipc, origin: ORIGIN, clockUs:options.clockUs,routingTimeoutMs:options.routingTimeoutMs??1500,fps:options.fps??30,requireVod:options.requireVod??false,audioRouting:options.audioRouting||{},width: options.width || 1280, height: options.height || 720, onError: code => errors.push(code) });
-  return { capture, ipc, errors, sent, event, health, get window() { return instance; },
+  const createMonitor=value=>createLocalMonitor({...value,createServer:()=>{const server=new EventEmitter();server.listen=(_port,_host,fn)=>queueMicrotask(fn);server.address=()=>({port:19001});server.close=()=>{};return server;}});
+  const capture = createOutputCapture({ BrowserWindow: Window, ipcMain: ipc, origin: ORIGIN,createMonitor, clockUs:options.clockUs,routingTimeoutMs:options.routingTimeoutMs??1500,rehearsalTimeoutMs:options.rehearsalTimeoutMs??6500,fps:options.fps??30,requireVod:options.requireVod??false,audioRouting:options.audioRouting||{},width: options.width || 1280, height: options.height || 720, onError: code => errors.push(code) });
+  return { capture, ipc, errors, sent, event, health,windows, get window() { return instance; },
     packet(extra = {}) { return { captureId: sent.filter(s => s.channel === CHANNELS.control && s.value.type === 'start').at(-1).value.captureId, seq: 0, ptsUs: 100, pcm: new Uint8Array(3840), ...extra }; },
     async pcm(value, from = event()) { await ipc.listeners(CHANNELS.pcm)[0](from, value); },
   };
@@ -270,4 +273,42 @@ test('invalid live routing requests never reach the output or stop capture',asyn
   const f=fixture();t.after(()=>f.capture.close());await f.capture.prepare();await f.capture.startCapture(()=>true,()=>true);const before=f.sent.length;
   for(const value of [null,[],{requestId:'missing-map'},{requestId:'bad id',audioRouting:{}},{requestId:'map',audioRouting:{'voice:default':{live:true,vod:true,liveGainDb:Infinity}}}])await assert.rejects(f.capture.updateAudioRouting(value));
   assert.equal(f.sent.length,before);assert.equal(f.capture.status().capturing,true);assert.deepEqual(f.errors,[]);
+});
+
+const rehearsalGeneration='a'.repeat(32);
+function showRehearsal(f,generation=rehearsalGeneration){const wc=f.window.webContents;wc.document.documentElement.dataset.rehearsalMode='active';wc.document.documentElement.dataset.rehearsalGeneration=generation;wc.badge.hidden=false;return wc;}
+
+test('rehearsal waits for the matching visible badge and painted frame before any capture',async t=>{
+  const f=fixture(),frames=[];t.after(()=>f.capture.close());await f.capture.prepare();const wc=f.window.webContents,pending=f.capture.waitForRehearsal(rehearsalGeneration);let settled=false;pending.then(()=>{settled=true;});
+  showRehearsal(f,'b'.repeat(32));await new Promise(resolve=>setTimeout(resolve,35));assert.equal(settled,false);assert.deepEqual(wc.frames,[]);
+  showRehearsal(f);await pending;await f.capture.startCapture(buffer=>frames.push(buffer[0]),()=>true);assert.equal(frames[0],25);assert.equal(wc.frames.length,1);
+});
+
+test('hidden, warning, transparent or wrong-generation badges time out without capturing',async()=>{
+  for(const change of ['hidden','warning','transparent','generation']){const f=fixture({rehearsalTimeoutMs:30});try{await f.capture.prepare();const wc=showRehearsal(f);if(change==='hidden')wc.badge.hidden=true;if(change==='warning')wc.badge.dataset.state='warning';if(change==='transparent')wc.badge.style.opacity='0';if(change==='generation')wc.document.documentElement.dataset.rehearsalGeneration='b'.repeat(32);await assert.rejects(f.capture.waitForRehearsal(rehearsalGeneration),/output_rehearsal_not_ready/);assert.deepEqual(wc.frames,[]);}finally{f.capture.close();}}
+});
+
+test('Stop, close and navigation promptly cancel a badge wait and late paint cannot authorize capture',async()=>{
+  for(const action of [f=>f.capture.stopCapture(),f=>f.capture.close(),f=>f.window.webContents.emit('did-start-navigation',{},ORIGIN+'/output/studio',false,true)]){const f=fixture();try{await f.capture.prepare();const pending=f.capture.waitForRehearsal(rehearsalGeneration),rejected=assert.rejects(pending,/output_rehearsal_cancelled/);action(f);await rejected;assert.deepEqual(f.window?.webContents.frames||[],[]);}finally{f.capture.close();}}
+  const f=fixture();try{await f.capture.prepare();const wc=showRehearsal(f);await f.capture.waitForRehearsal(rehearsalGeneration);wc.badge.hidden=true;await assert.rejects(f.capture.startCapture(()=>assert.fail('unmarked first frame'),()=>true),/output_rehearsal_not_ready/);assert.deepEqual(wc.frames,[]);}finally{f.capture.close();}
+});
+
+test('selected public PCM uses a separate protected speaker window and never unmutes original sources',async t=>{
+  const f=fixture({requireVod:true});t.after(()=>f.capture.close());await f.capture.prepare();const original=f.window;assert.equal(f.capture.status().monitor.bus,'off');await f.capture.setMonitor('vod');assert.equal(f.capture.status().monitor.bus,'vod');assert.equal(original.webContents.isAudioMuted(),true);
+  const speaker=f.windows.find(window=>window.isMonitor);assert.equal(speaker.config.show,false);assert.equal(speaker.config.webPreferences.sandbox,true);assert.equal(speaker.config.webPreferences.contextIsolation,true);assert.equal(speaker.webContents.session.check(),false);assert.deepEqual(speaker.webContents.openHandler(),{action:'deny'});
+  const selection=f.sent.filter(item=>item.value.type==='monitor'&&item.value.bus==='vod').at(-1).value,pcm=new Uint8Array(3840);new Float32Array(pcm.buffer).fill(.2);
+  const packet={monitorId:selection.monitorNonce,seq:0,pcm};await f.ipc.listeners(CHANNELS.monitorPcm)[0]({sender:original.webContents,senderFrame:{url:original.webContents.getURL()}},packet);assert.equal(f.sent.some(item=>item.channel===MONITOR_CHANNELS.pcm),false);
+  await f.ipc.listeners(CHANNELS.monitorPcm)[0](f.event(),packet);assert.equal(f.sent.filter(item=>item.channel===MONITOR_CHANNELS.pcm).length,1);assert.equal(f.sent.at(-1).channel,CHANNELS.monitorAck);assert.equal(f.capture.status().capturing,false);
+  await f.capture.setMonitor('off');assert.equal(speaker.isDestroyed(),true);assert.equal(f.capture.status().monitor.bus,'off');assert.equal(original.webContents.isAudioMuted(),true);await f.ipc.listeners(CHANNELS.monitorPcm)[0](f.event(),{...packet,seq:1});assert.equal(f.sent.filter(item=>item.channel===MONITOR_CHANNELS.pcm).length,1);
+});
+
+test('monitor selection requires matching top-frame nonce/context ACK and Stop drops pending playback/ACK ownership',async t=>{
+  const f=fixture({monitorAck:false,monitorPlaybackAck:false});t.after(()=>f.capture.close());await f.capture.prepare();const selecting=f.capture.setMonitor('live');await new Promise(resolve=>setImmediate(resolve));const value=f.sent.at(-1).value;
+  let settled=false;selecting.then(()=>{settled=true;});f.health({monitorNonce:'stale',monitorContext:value.monitorContext,monitorApplied:true,monitorAvailable:true,monitorBus:'live'});f.health({monitorNonce:value.monitorNonce,monitorContext:'wrong',monitorApplied:true,monitorAvailable:true,monitorBus:'live'});await Promise.resolve();assert.equal(settled,false);
+  f.health({monitorNonce:value.monitorNonce,monitorContext:value.monitorContext,monitorApplied:true,monitorAvailable:true,monitorBus:'live'});await selecting;
+  const delivery=f.ipc.listeners(CHANNELS.monitorPcm)[0](f.event(),{monitorId:value.monitorNonce,seq:0,pcm:new Uint8Array(3840)});await f.capture.stopCapture();await delivery;assert.equal(f.capture.status().monitor.bus,'off');assert.equal(f.windows.find(window=>window.isMonitor).destroyed,true);assert.equal(f.sent.some(item=>item.channel===CHANNELS.monitorAck),false);
+});
+
+test('unsupported speaker audio is reported unavailable and VOD cannot be selected for a Live-only profile',async t=>{
+  const f=fixture({monitorUnsupported:true});t.after(()=>f.capture.close());await f.capture.prepare();await assert.rejects(f.capture.setMonitor('vod'),/rehearsal_monitor_unavailable/);await assert.rejects(f.capture.setMonitor('live'),/rehearsal_monitor_unavailable/);assert.equal(f.capture.status().monitor.available,false);assert.equal(f.capture.status().monitor.bus,'off');assert.equal(f.window.webContents.isAudioMuted(),true);
 });

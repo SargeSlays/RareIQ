@@ -9,7 +9,7 @@ const profile=process.env.PRODUCER_DESKTOP_QA_PROFILE||process.env.PRODUCER_DESK
 if(!path.isAbsolute(profile))throw Error('Desktop data must use an absolute directory');
 for(const directory of [profile,path.join(profile,'browser'),path.join(profile,'logs'),path.join(profile,'crashes')])fs.mkdirSync(directory,{recursive:true});
 app.setPath('userData',profile);app.setPath('sessionData',path.join(profile,'browser'));app.setPath('logs',path.join(profile,'logs'));app.setPath('crashDumps',path.join(profile,'crashes'));
-let studio,settings,backend,origin,destinations,outputProfiles,capturePicker,quit,runtime,broadcast,polling,choosingSources,destinationMutation=false;
+let studio,settings,backend,origin,destinations,outputProfiles,capturePicker,quit,runtime,broadcast,rehearsal,polling,choosingSources,destinationMutation=false;
 if(!app.requestSingleInstanceLock())app.exit(0);
 app.on('second-instance',()=>{if(studio){if(studio.isMinimized())studio.restore();studio.show();studio.focus();}});
 function windowOptions(extra={}){return {width:1600,height:1000,minWidth:800,minHeight:600,title:'Producer, Please',icon:path.join(__dirname,'assets','icon-512.png'),backgroundColor:'#101318',autoHideMenuBar:false,...extra,webPreferences:{contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true,allowRunningInsecureContent:false,webviewTag:false,backgroundThrottling:false,...extra.webPreferences}};}
@@ -18,7 +18,7 @@ function settingsEvent(event){return settings&&!settings.isDestroyed()&&event.se
 async function changeDestination(event,action){
   if(!settingsEvent(event))throw Error('Untrusted request');
   if(destinationMutation)throw Error('destination_change_pending');
-  if(!broadcast||broadcast.active()||broadcast.status().ownershipPending)throw Error('destination_broadcast_busy');
+  if(!broadcast||broadcast.active()||broadcast.preparing||broadcast.status().ownershipPending||rehearsal?.active())throw Error('destination_broadcast_busy');
   destinationMutation=true;
   try{return await action();}finally{destinationMutation=false;}
 }
@@ -83,10 +83,12 @@ app.whenReady().then(async()=>{
   const {createCapturePicker}=require('./capture-picker.cjs');capturePicker=createCapturePicker({BrowserWindow,ipcMain,desktopCapturer,studio,origin});partition.setDisplayMediaRequestHandler(capturePicker.handler);
   studio.on('close',event=>{if(backend&&!quit?.finished){event.preventDefault();app.quit();}});
   const {NativeBroadcast}=require('./broadcast.cjs'),{SharedEncoderGroup}=require('./shared-encoder.cjs'),{createOutputCapture}=require('./output-capture.cjs');
+  const {RehearsalCoordinator,sanitizeSourceCallbackCode}=require('./rehearsal.cjs');
   const outputSession=session.fromPartition('persist:producer-output');policy.applySessionPolicy(outputSession,origin);
-  const request=async(url,body)=>{const response=await fetch(origin+url,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(8000)});const value=await response.json();const preflight=!body&&url.startsWith('/api/production/native-preflight?')&&value.preflight&&typeof value.preflight.ready==='boolean';if(!response.ok||(value.ok===false&&!preflight))throw Error('studio_unavailable');return value;};
+  const request=async(url,body)=>{const response=await fetch(origin+url,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json',Origin:origin}:{},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(8000)});const value=await response.json();const preflight=!body&&url.startsWith('/api/production/native-preflight?')&&value.preflight&&typeof value.preflight.ready==='boolean';if(!response.ok||(value.ok===false&&!preflight)){const code=sanitizeSourceCallbackCode(value.reason,'studio_unavailable');throw Object.assign(Error(code),{code});}return value;};
   let lastPhase='';broadcast=new NativeBroadcast({destinations,outputProfiles,identity:backend?.started?.identity,ownerPid:process.pid,request,
-    createCapture:dimensions=>createOutputCapture({BrowserWindow,ipcMain,origin,...dimensions,onError:code=>{if(broadcast?.active())broadcast.stop(code).catch(()=>{});}}),
+    canPublish:()=>rehearsal?rehearsal.canPublish():Promise.reject(Error('rehearsal_status_unavailable')),
+    createCapture:dimensions=>createOutputCapture({BrowserWindow,ipcMain,origin,...dimensions,onError:code=>{if(rehearsal?.active())rehearsal.stop(code).catch(()=>{});else if(broadcast?.active())broadcast.stop(code).catch(()=>{});}}),
     createEncoderGroup:onState=>new SharedEncoderGroup({python:runtime.python,workerPath:runtime.sharedEncoderWorker,pythonPackages:runtime.pythonPackages,onState}),
     confirm:async (selection,output,selectionInfo)=>{
       const chosen=Array.isArray(selection)?selection:[selection];
@@ -103,12 +105,16 @@ app.whenReady().then(async()=>{
       if(state!==lastPhase){lastPhase=state;try{fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify({at:new Date().toISOString(),action:'broadcast.'+value.phase,actor:'Desktop operator',identityVerified:false,profileId:value.profileId,destinationIds:value.destinationIds,targets:value.targets.map(t=>({destinationId:t.destinationId,phase:t.phase,reason:t.reason})),reason:value.reason||null})+'\n');}catch(_){}}
     }
   });
+  rehearsal=new RehearsalCoordinator({broadcast,identity:backend?.started?.identity,ownerPid:process.pid,request,
+    createEncoderGroup:onState=>new SharedEncoderGroup({python:runtime.python,workerPath:runtime.sharedEncoderWorker,pythonPackages:runtime.pythonPackages,onState})});
+  await rehearsal.refresh().catch(()=>{});
   let nextAccountCheck=0,accountChecking=false;
   polling=setInterval(()=>{
     broadcast.check().catch(()=>{});
+    rehearsal.check().catch(()=>{});
     if(!accountChecking&&Date.now()>=nextAccountCheck){accountChecking=true;nextAccountCheck=Date.now()+3600000;twitchConnection.checkSaved().catch(()=>{nextAccountCheck=Date.now()+60000;}).finally(()=>{accountChecking=false;});}
   },1000);polling.unref();
-  const publicBroadcast=()=>({...broadcast.status(),available:Boolean(runtime.encoderWorker&&fs.existsSync(runtime.encoderWorker)&&runtime.sharedEncoderWorker&&fs.existsSync(runtime.sharedEncoderWorker)&&backend?.started?.identity)});
+  const publicBroadcast=()=>({...broadcast.status(),rehearsal:rehearsal.status(),publishingAllowed:rehearsal.publishingAllowed(),available:Boolean(runtime.encoderWorker&&fs.existsSync(runtime.encoderWorker)&&runtime.sharedEncoderWorker&&fs.existsSync(runtime.sharedEncoderWorker)&&backend?.started?.identity)});
   const {createAccountAuthorization}=require('./account-authorization.cjs');
   const authorizeAccount=createAccountAuthorization({origin,
     trustedSender:event=>settingsEvent(event)||Boolean(studio&&!studio.isDestroyed()&&policy.trustedMain(event,studio.webContents,origin)
@@ -136,6 +142,58 @@ app.whenReady().then(async()=>{
       return answer.response===1;
     }});
   ipcMain.handle('producer:stream-metadata',streamMetadata);
+  ipcMain.handle('producer:rehearsal',async(event,value)=>{
+    if(!settingsEvent(event))return {ok:false,reason:'local_operator_required'};
+    const envelope=value&&typeof value==='object'&&!Array.isArray(value)&&[Object.prototype,null].includes(Object.getPrototypeOf(value));
+    const fields={status:['action'],enter:['action','requestId','revision','generation'],start:['action','requestId','revision','generation','profileId'],stop:['action','requestId','revision','generation'],exit:['action','requestId','revision','generation'],recover:['action','requestId','revision','generation'],mark:['action','requestId','revision','generation','checkId','checkState'],monitor:['action','requestId','revision','generation','bus'],export_report:['action','requestId','revision','generation']};
+    if(!envelope||typeof value.action!=='string'||!Object.hasOwn(fields,value.action)||Object.keys(value).some(key=>!fields[value.action].includes(key)))return {ok:false,reason:'invalid_rehearsal_command'};
+    if(!['status','stop'].includes(value.action)&&!(value.action==='monitor'&&value.bus==='off')&&(typeof value.requestId!=='string'||!/^[A-Za-z0-9_-]{1,80}$/.test(value.requestId)||!Number.isSafeInteger(value.revision)||value.revision<0||value.revision>=Number.MAX_SAFE_INTEGER-2||value.action!=='enter'&&(typeof value.generation!=='string'||!/^[a-f0-9]{32}$/.test(value.generation))))return {ok:false,reason:'invalid_rehearsal_command'};
+    if(value.action==='start'&&value.profileId!==undefined&&(typeof value.profileId!=='string'||!/^[A-Za-z0-9_-]{1,80}$/.test(value.profileId))||value.action==='monitor'&&!['off','live','vod'].includes(value.bus)||value.action==='mark'&&(!['video','audio_live','audio_vod','guests','screens','transitions','recovery'].includes(value.checkId)||!['not_tested','passed','needs_attention'].includes(value.checkState)))return {ok:false,reason:'invalid_rehearsal_command'};
+    const status=()=>({ok:true,...rehearsal.status()}),action=value.action;
+    try{
+      if(action==='status'){await rehearsal.refresh();return status();}
+      // Stop must supersede a pending local Start or setup mutation.
+      if(action==='stop'){await rehearsal.stop();return status();}
+      if(action==='monitor'&&value.bus==='off'){await rehearsal.monitor({bus:'off'});return status();}
+      if(destinationMutation)throw Error('destination_change_pending');
+      destinationMutation=true;
+      try{
+        if(action==='exit'||action==='recover'){
+          const answer=await dialog.showMessageBox(settings,{type:'warning',message:action==='recover'?'Restore production setup?':'Leave rehearsal?',detail:action==='recover'?'The interrupted rehearsal state will be preserved in a recovery copy. Publishing becomes available only after local encoding has stopped and recovery succeeds. No broadcast or recording will start.':'Local encoding will stop and monitoring will turn off. Publishing becomes available after you leave rehearsal; starting a broadcast still requires its separate confirmation.',buttons:['Cancel',action==='recover'?'Restore production setup':'Leave rehearsal'],defaultId:0,cancelId:0});
+          if(answer.response!==1)return {...status(),cancelled:true};
+          if(!settingsEvent(event))throw Error('rehearsal_cancelled');
+        }
+        if(action==='export_report'){
+          await rehearsal.refresh();const snapshot=rehearsal.status();
+          if(!snapshot.room?.active)throw Error('rehearsal_not_active');
+          if(value.revision!==snapshot.room.revision)throw Error('rehearsal_revision_conflict');
+          if(value.generation!==snapshot.room.generation)throw Error('rehearsal_generation_conflict');
+          const directory=path.join('F:/Users',os.userInfo().username,'Documents','ProducerPlease','Rehearsals');
+          fs.mkdirSync(directory,{recursive:true});
+          const stamp=new Date().toISOString().replace(/[:.]/g,'-'),choice=await dialog.showSaveDialog(settings,{title:'Save rehearsal report',defaultPath:path.join(directory,'rehearsal-'+stamp+'.json'),filters:[{name:'Rehearsal report',extensions:['json']}],properties:['createDirectory','showOverwriteConfirmation']});
+          if(choice.canceled||!choice.filePath)return {...status(),cancelled:true};
+          if(!settingsEvent(event))throw Error('rehearsal_cancelled');
+          // Deliberately omit source names, destinations, account identities and media.
+          const report={schema:1,createdAt:new Date().toISOString(),kind:'local_rehearsal',platformDeliveryVerified:false,hardwareVerified:false,room:{mode:snapshot.room.mode,revision:snapshot.room.revision,checks:snapshot.room.checks.map(check=>({id:check.id,label:check.label,status:check.status,operatorObservation:true}))},local:snapshot.local,monitor:{bus:snapshot.monitor.bus}};
+          try{fs.writeFileSync(choice.filePath,JSON.stringify(report,null,2)+'\n',{encoding:'utf8',mode:0o600,flag:'wx'});}catch(_){throw Error('rehearsal_report_not_saved');}
+          return {...status(),reportSaved:true};
+        }
+        const command={requestId:value.requestId,revision:value.revision,generation:value.generation};
+        if(action==='enter')await rehearsal.enter({requestId:value.requestId,revision:value.revision});
+        else if(action==='start')await rehearsal.start({...command,profileId:value.profileId??broadcast.outputProfile?.id??'current-output'});
+        else if(action==='mark')await rehearsal.mark({...command,checkId:value.checkId,status:value.checkState});
+        else if(action==='monitor'){
+          await rehearsal.refresh();const room=rehearsal.status().room;
+          if(room?.mode!=='rehearsal')throw Error('rehearsal_not_active');
+          if(room.revision!==value.revision)throw Error('rehearsal_revision_conflict');
+          if(room.generation!==value.generation)throw Error('rehearsal_generation_conflict');
+          await rehearsal.monitor({bus:value.bus});
+        }
+        else await rehearsal[action](command);
+        return status();
+      }finally{destinationMutation=false;}
+    }catch(error){const reason=['destination_change_pending','rehearsal_report_not_saved'].includes(error?.message)?error.message:sanitizeSourceCallbackCode(error,'rehearsal_status_unavailable');return {ok:false,reason,...rehearsal.status()};}
+  });
   const importAppSetup=require('./app-setup-import.cjs').createAppSetupImporter({origin,trustedSender:settingsEvent,
     chooseFile:async({platform,defaultPath})=>{
       const choice=await dialog.showOpenDialog(settings,{title:'Load '+(platform==='youtube'?'Google Desktop':'Kick private app')+' setup',defaultPath,properties:['openFile'],filters:[{name:'App setup JSON',extensions:['json']}]});
@@ -165,9 +223,9 @@ app.whenReady().then(async()=>{
     catch(error){const codes=new Set(['invalid_audio_session','invalid_audio_request','invalid_audio_routing','audio_output_changed','audio_revision_conflict','audio_request_conflict','audio_routing_conflict','audio_routing_busy','audio_routing_uncertain','audio_routing_timeout','audio_routing_cancelled','audio_routing_unavailable']);return {...publicBroadcast(),audioMixResult:{ok:false,requestId,code:codes.has(error?.code)?error.code:'audio_routing_unavailable'}};}
   });
   ipcMain.handle('producer:broadcast:stop-target',async(event,id)=>{if(!settingsEvent(event))throw Error('Untrusted request');await broadcast.stopTarget(id);return publicBroadcast();});
-  ipcMain.handle('producer:broadcast:prepare',async(event,value)=>{if(!settingsEvent(event))throw Error('Untrusted request');await broadcast.prepare(value);return publicBroadcast();});
+  ipcMain.handle('producer:broadcast:prepare',async(event,value)=>changeDestination(event,async()=>{await rehearsal.monitor({bus:'off'});await broadcast.prepare(value);return publicBroadcast();}));
   ipcMain.handle('producer:broadcast:start',async(event,value)=>{if(!settingsEvent(event))throw Error('Untrusted request');if(destinationMutation)throw Error('destination_change_pending');await broadcast.start(value);return publicBroadcast();});
-  ipcMain.handle('producer:broadcast:stop',async event=>{if(!settingsEvent(event))throw Error('Untrusted request');await broadcast.stop();return publicBroadcast();});
+  ipcMain.handle('producer:broadcast:stop',async event=>{if(!settingsEvent(event))throw Error('Untrusted request');if(rehearsal.active())await rehearsal.stop();else await broadcast.stop();return publicBroadcast();});
   ipcMain.handle('producer:broadcast:status',event=>{if(!policy.trustedMain(event,studio.webContents,origin)&&!settingsEvent(event))throw Error('Untrusted request');return publicBroadcast();});
   ipcMain.handle('producer:platform',(event,value)=>{if(!settingsEvent(event)||!policy.allowedExternal(value))throw Error('Untrusted address');return shell.openExternal(value);});
   Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Producer, Please',submenu:[{label:'Broadcast setup…',accelerator:'CmdOrCtrl+,',click:openSettings},{type:'separator'},{label:'Quit',click:()=>app.quit()}]},{label:'View',submenu:[{role:'reload'},{role:'togglefullscreen'},{role:'resetzoom'},{role:'zoomin'},{role:'zoomout'}]},{role:'editMenu'},{label:'Help',submenu:[{label:'About Producer, Please',click:()=>dialog.showMessageBox(studio,{message:'Producer, Please',detail:'Standalone desktop production studio. Configuring a destination, sending media, and verified platform receipt are separate states. '+(runtime?.buildKind==='bundled-runtime'?'This build includes its own backend runtime.':'This local build uses the existing project runtime.')})}]}]));
@@ -178,10 +236,12 @@ quit=createQuitCoordinator({
   active:async()=>{
     const responses=await Promise.all(['/api/production/session','/api/production/obs'].map(url=>fetch(origin+url,{signal:AbortSignal.timeout(3000)})));
     const [value,encoder]=await Promise.all(responses.map(r=>r.json()));
-    return broadcast?.active()||responses.some(r=>!r.ok)||value.session?.active!==false||value.session?.recording?.active!==false||encoder.obs?.streaming!==false||encoder.obs?.recording!==false;
+    return rehearsal?.active()||broadcast?.active()||responses.some(r=>!r.ok)||value.session?.active!==false||value.session?.recording?.active!==false||encoder.obs?.streaming!==false||encoder.obs?.recording!==false;
   },
   confirm:async()=>{const options={type:'warning',message:'Close the desktop studio?',detail:'A production may still be active. Closing this window can disconnect your local microphone or guest controls. Background production will stay running when its safety cannot be confirmed.',buttons:['Keep studio open','Close window'],defaultId:0,cancelId:0};const answer=studio&&!studio.isDestroyed()?await dialog.showMessageBox(studio,options):await dialog.showMessageBox(options);return answer.response===1;},
   release:async()=>{
+    let rehearsalClosed=false;try{rehearsalClosed=await rehearsal?.close()!==false;}catch(_){}
+    if(!rehearsalClosed){await dialog.showMessageBox(studio,{type:'warning',message:'Local rehearsal shutdown is not confirmed',detail:'The studio will stay open. Try Stop local encoding again before quitting.'});return false;}
     if(await broadcast?.close()===false){await dialog.showMessageBox(studio,{type:'warning',message:'Broadcast shutdown is not confirmed',detail:'The studio will stay open. Try Stop broadcast again before quitting.'});return false;}clearInterval(polling);capturePicker?.close();for(const window of BrowserWindow.getAllWindows())window.destroy();
     let result;try{result=await backend.close();}catch(_){result={running:null,reason:'shutdown_unconfirmed'};}
     fs.writeFileSync(path.join(profile,'last-close.json'),JSON.stringify({backendRunning:result?.running??null,reason:result?.reason||null}));

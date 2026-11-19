@@ -5,6 +5,7 @@ import asyncio
 import inspect
 import json
 import re
+from contextlib import nullcontext
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Request
@@ -28,6 +29,7 @@ unsupported_platform invalid_broadcast_id receipt_capacity_reached provider_reje
 broadcast_unavailable invalid_provider_endpoint authorization_refresh_required account_storage_unavailable
 metadata_precondition_required unsupported_broadcast_selection readback_unavailable readback_mismatch
 metadata_recovery_storage_invalid metadata_recovery_storage_unavailable
+rehearsal_publishing_blocked
 '''.split())
 
 
@@ -35,7 +37,7 @@ async def _result(value):
     return await value if inspect.isawaitable(value) else value
 
 
-def create_stream_metadata_router(service, authorize_operator, *, audit=None, can_apply=lambda: True):
+def create_stream_metadata_router(service, authorize_operator, *, audit=None, can_apply=lambda: True, publication_guard=nullcontext):
     router = APIRouter()
 
     def response(value, status=200):
@@ -98,8 +100,9 @@ def create_stream_metadata_router(service, authorize_operator, *, audit=None, ca
                 elif action == 'categories':
                     result = await service.categories(platform, payload.get('query', ''))
                 else:
-                    result = await service.apply(platform, payload['values'], payload['request_id'],
-                                                 payload['expected_channel_id'], broadcast_id=payload.get('broadcast_id'))
+                    with publication_guard():
+                        result = await service.apply(platform, payload['values'], payload['request_id'],
+                                                     payload['expected_channel_id'], broadcast_id=payload.get('broadcast_id'))
             except ValueError as error:
                 reason = str(error) if str(error) in SAFE_REASONS else 'provider_unavailable'
                 if action == 'apply' and audit is not None:

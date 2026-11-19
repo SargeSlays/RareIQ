@@ -2,6 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const source=fs.readFileSync(path.join(__dirname,'../settings.js'),'utf8');
 const prepared={phase:'prepared',active:false,ready:true,prepared:true,format:'hd',available:true};
+const rehearsalStatus=(mode='rehearsal',running=false,revision=2)=>({room:{mode,active:mode!=='production',publishing_allowed:mode==='production',revision,generation:'a'.repeat(32),checks:[]},local:{state:running?'encoding':'idle',running,ownershipPending:false,frames:running?90:0,audioSamples:0},monitor:{bus:'off',available:true},outputPrepared:true});
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 const settle=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
 class Element{
@@ -223,4 +224,14 @@ test('reloaded uncertain sessions retry their original request, and Restore uses
 });
 test('invalid live drafts cancel queued changes and successful history warnings survive polling',async()=>{
   const f=await fixture({profiles:true,live:true}),gain=mixerInput(f);gain.focus();gain.value='-7';gain.fire('input');gain.value='';gain.fire('input');await f.flushMix();assert.equal(f.calls.mix.length,0);f.node('#restoreLiveAudio').focus();await f.poll();assert.equal(gain.value,'');assert.equal(gain.attributes['aria-invalid'],'true');gain.value='12';gain.fire('input');const original=f.api.setLiveAudio;f.api.setLiveAudio=async value=>{const result=await original(value);result.audioMix.historyWarning=true;return result;};await f.flushMix();assert.match(f.node('#liveAudioStatus').textContent,/applied, but local activity history/);await f.poll();assert.match(f.node('#liveAudioStatus').textContent,/history/);f.hide();gain.value='1';gain.fire('input');await f.flushMix();assert.equal(f.calls.mix.length,1);
+});
+
+test('Rehearsal blocks both transmission starts while idle setup and saved-profile edits remain available',async()=>{
+  const f=await fixture({profiles:true});f.state={...f.state,publishingAllowed:false,rehearsal:rehearsalStatus()};await f.poll();assert.equal(f.start.disabled,true);assert.match(f.start.title,/blocked in rehearsal/);assert.equal(f.node('#prepareOutput').disabled,false);assert.equal(f.node('#outputProfileName').disabled,false);assert.equal(f.edit.disabled,false);await f.start.fire();await f.node('#selectAllDestinations').fire();await f.node('#startSelectedDestinations').fire();assert.equal(f.calls.start,0);assert.match(f.node('#broadcastSummary').textContent,/REHEARSAL — not broadcasting/);assert.doesNotMatch(f.node('#outputStep').textContent,/Sending/);
+});
+test('local rehearsal ownership protects output and destinations while Live and VOD faders still work',async()=>{
+  const f=await fixture({profiles:true,live:true});f.state={...f.state,phase:'rehearsing',active:false,publishingAllowed:false,rehearsal:rehearsalStatus('rehearsal',true)};await f.poll();assert.equal(f.node('#prepareOutput').disabled,true);assert.equal(f.node('#outputProfileName').disabled,true);assert.equal(f.edit.disabled,true);assert.match(f.node('#broadcastSummary').textContent,/local encoding · not broadcasting/);assert.equal(f.node('#outputStep').textContent,'Local encoding');const controls=f.descendants(f.node('#liveAudioCategories'));const live=controls.find(node=>node.dataset.liveAudioSource==='voice:default'&&node.dataset.liveAudioGain==='live'),vod=controls.find(node=>node.dataset.liveAudioSource==='voice:default'&&node.dataset.liveAudioGain==='vod');assert.equal(live.disabled,false);assert.equal(vod.disabled,false);live.value='-8';live.fire('input');vod.value='-12';vod.fire('input');await f.flushMix();assert.equal(f.calls.mix.length,1);assert.equal(f.calls.profileSave,0);
+});
+test('unknown publishing status and stale production reads cannot bypass a newer rehearsal latch',async()=>{
+  const f=await fixture();f.state={...f.state,publishingAllowed:false};await f.poll();await f.start.fire();assert.equal(f.calls.start,0);assert.match(f.node('#broadcastSummary').textContent,/until production status is confirmed/);f.state={...f.state,publishingAllowed:false,rehearsal:rehearsalStatus('rehearsal',false,8)};await f.poll();f.state={...prepared,publishingAllowed:true,rehearsal:rehearsalStatus('production',false,7)};await f.poll();assert.equal(f.start.disabled,true);await f.start.fire();assert.equal(f.calls.start,0);assert.match(f.node('#broadcastSummary').textContent,/REHEARSAL/);
 });

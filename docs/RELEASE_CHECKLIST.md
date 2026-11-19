@@ -1837,3 +1837,34 @@ Provider contracts checked against the official references:
 - https://docs.kick.com/apis/categories
 - https://developers.google.com/youtube/data/reference/rest/v3/videos/update
 - https://developers.google.com/youtube/data/live/reference/rest/v3/liveBroadcasts/list
+
+## November 19, 2026 — Rehearsal room
+
+- [x] Durable entry/exit/restart/corruption recovery, bounded metadata and strict
+  private HTTP commands; guest ingress exposes only the public mode indicator.
+- [x] Recording/OBS/replay/queued automation/metadata/native reservation guards
+  exercised before side effects, including Stop and uncertain cleanup.
+- [x] Real local H.264/AAC discard mux, separate Live/VOD inputs, no network or
+  saved media, truthful local-only counters.
+- [x] Original native output/coordinator/encoder plus original Python room API
+  exercised with generated video/audio; first-frame warning, live gain edits,
+  blocked public Start, local Stop, manual check and room exit passed.
+- [x] Complete Settings synthetic flow, independent Stop, disabled public Start,
+  usable faders/read-only metadata, dark/light desktop/narrow/portrait layouts.
+- [x] Primary runtime activation, private guest-only ingress after restart and
+  canonical gate: 4,275 Python / 957 JavaScript checks passed.
+- [ ] Owner headphone listening, guest echo/screen-share, actual provider receipt
+  and Twitch VOD acceptance. These were not simulated into a stronger claim.
+
+Evidence: F:/Temp/jonat/ProducerPlease-rehearsal-20261119. Native generated-media
+proof: native-output02/results.json. Full Settings: ui-integrated-01/results.json.
+No real platform metadata update, stream, recording or account grant was tested.
+
+Packaged original Main plus original backend routes passed in packaged02, including
+entry, a manual checklist result, native cancelled report export and confirmed
+exit. The primary local-development app and Start-menu shortcut now use build
+0.1.0-20261119102511083. Primary status is Production; the expected idle guard
+refused entry while configured OBS was disconnected. No integration setting was
+silently disabled. Resolve that encoder connection before a physical rehearsal.
+Private guest HTTPS still returns 200 for guest/badge/assets and 404 for producer
+controls, account setup, metadata Apply and private rehearsal commands.

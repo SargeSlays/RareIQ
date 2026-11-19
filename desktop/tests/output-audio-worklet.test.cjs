@@ -52,3 +52,11 @@ test('stop clears queued samples; restart creates a fresh tagged epoch; non-fini
   const p = f.packets.at(-1), samples = new Float32Array(p.pcm); assert.equal(p.captureId, 'second'); assert.equal(p.dropped, 0);
   assert.ok(samples.every((sample, i) => sample === (i % 2 ? 1 : 0)));
 });
+
+test('monitor taps only its selected existing postmix bus, with one credit and two queued chunks',()=>{
+  const f=fixture();f.message({type:'monitor',bus:'vod',monitorId:'first'});for(let index=0;index<50;index++)assert.ok(f.tick(.8,-.7,.2,-.1).every(channel=>channel.every(value=>value===0)));
+  assert.equal(f.packets.length,1);assert.equal(f.packets[0].type,'monitor');assert.equal(f.packets[0].monitorId,'first');assert.ok(new Float32Array(f.packets[0].pcm).every((value,index)=>Math.abs(value-(index%2?-.1:.2))<1e-7));assert.equal(f.processor.monitorQueue.length,2);assert.equal(f.processor.queue.length,0,'monitor does not enable recording/capture');
+  f.message({type:'monitor-credit',monitorId:'other'});assert.equal(f.packets.length,1);f.message({type:'monitor-credit',monitorId:'first'});assert.equal(f.packets.length,2);
+  f.message({type:'monitor',bus:'off'});assert.equal(f.processor.monitorQueue.length,0);assert.equal(f.processor.monitor,null);for(let index=0;index<10;index++)f.tick();assert.equal(f.packets.length,2);
+  f.message({type:'monitor',bus:'live',monitorId:'second'});for(let index=0;index<4;index++)f.tick(Infinity,2,.2,.3);const samples=new Float32Array(f.packets.at(-1).pcm);assert.ok(samples.every((value,index)=>value===(index%2?1:0)));
+});

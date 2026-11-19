@@ -1311,3 +1311,45 @@ in synthetic regressions without recording identity, text or credential payloads
 When a fixture substitutes HTTP/account owners, every newly added persistent
 collaborator must also use the fixture root. Native acceptance now asserts its
 recovery store is isolated and contains no provider metadata or credentials.
+
+## November 19, 2026 — Rehearsal isolation and public audio monitoring
+
+A UI flag cannot make a production test safe. Persist the entering latch before
+awaiting idle checks, reserve publishing work through awaits, and enforce policy
+at recording/OBS/replay services and the final native encoding reservation.
+Recheck queued automation at execution. Stops retain their original owner and
+generation and remain possible even after room state changes or becomes corrupt.
+A crash/tampered store stays blocked; explicit recovery preserves evidence and
+writes a sibling recovery-intent marker before moving an invalid main file.
+
+Never implement bus monitoring by unmuting the source output window: original
+media elements can then play outside their Live/VOD exclusions and double audio.
+Keep it muted and send only the selected post-mix public PCM bus to an isolated
+local playback renderer. Bound queues/credits, bind acknowledgements to the exact
+owned frame/context/nonce, and invalidate pending selection/PCM on Off or Stop.
+Private backstage audio must never become a monitoring source.
+
+A one-second badge poll alone cannot protect the first encoded frame. Require a
+visible, painted watermark bound to the durable rehearsal generation before
+capture, and recheck before the first image. Capture cancellation must interrupt
+that wait. Invalid or failed later badge reads retain the warning.
+
+Canonical checks use an isolated runtime outside source. An example configuration
+pointing inside the checkout is deliberately rejected by the room store's source
+containment guard; configure QA storage explicitly rather than weakening it or
+copying the production configuration. Component styles belong before the fixed
+operator override chain to preserve its tested cascade ownership.
+
+Guardian review found and fixed missing native HTTP Origin, stale monitor room
+selection and an exit/local-claim race. Native commands now carry the exact local
+Origin. Non-Off monitoring checks a fresh generation/revision; Off bypasses setup
+mutations. The backend holds an atomic local encoding lease and rejects new claims
+while an exit/recovery receipt is pending, including after interrupted restart.
+Regression checks cover each boundary. Invalid configured storage keeps the
+operator dashboard readable while publishing and unsafe recovery stay blocked.
+
+A silent native probe found AudioWorklet unavailable on an opaque data document.
+The playback renderer now loads a nonce-bound fixed document from an ephemeral
+loopback listener with strict navigation/device/CSP restrictions. Exact-zero PCM
+initialized, was consumed and acknowledged, then Stop removed the renderer and
+listener. This proves the playback path without claiming a listening test.

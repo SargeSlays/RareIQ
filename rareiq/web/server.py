@@ -62,6 +62,8 @@ from rareiq.services.platform_app_setup import PlatformAppSetupService
 from rareiq.web.platform_app_setup import create_platform_app_setup_router
 from rareiq.web.stream_metadata import create_stream_metadata_router
 from rareiq.services.stream_metadata_service import StreamMetadataService
+from rareiq.services.rehearsal_service import RehearsalService, RehearsalError
+from rareiq.web.rehearsal import create_rehearsal_router
 from rareiq.web.twitch_audience import create_twitch_audience_router
 from rareiq.services.youtube_audience_connector import YouTubeAudienceConnector
 from rareiq.services.youtube_account_service import YouTubeAccountService
@@ -1191,7 +1193,8 @@ stream_metadata_service = StreamMetadataService({'twitch': twitch_account_servic
     'youtube': youtube_account_service, 'kick': kick_account_service},
     receipt_path=storage.get_path('config_path') / 'stream_metadata_receipts.json')
 app.include_router(create_stream_metadata_router(stream_metadata_service, _greenroom_operator,
-    can_apply=lambda: not DESKTOP_ADMISSION.native_encoding.snapshot()['active'],
+    can_apply=lambda: not DESKTOP_ADMISSION.native_encoding.snapshot()['active'] and rehearsal_service.publishing_allowed(),
+    publication_guard=lambda: rehearsal_service.publishing_lease(),
     audit=lambda platform, outcome: greenroom_service.record_production_event(
         'platform.metadata.apply', platform, outcome, actor_kind='local_operator')))
 app.include_router(create_viewer_chat_router(viewer_chat_service, _greenroom_operator, audit=_viewer_chat_audit,
@@ -1266,6 +1269,54 @@ recording = RecordingService(
     config_path=storage.get_path("config_path") / "recording_settings.json",
 )
 obs = ObsService(BASE_DIR.parent.parent / "obs_settings.json")
+
+
+async def _rehearsal_idle():
+    encoding = DESKTOP_ADMISSION.native_encoding.snapshot()
+    if encoding['active']:
+        return {'ready': False, 'reason': 'encoding_active'}
+    with PRODUCTION_SESSION_LOCK:
+        if PRODUCTION_SESSION.get('active') is not False:
+            return {'ready': False, 'reason': 'production_busy'}
+    recorder = recording.status()
+    if recorder.get('active') is not False or recorder.get('stopping') is True:
+        return {'ready': False, 'reason': 'recording_active'}
+    current_obs = await asyncio.wait_for(asyncio.to_thread(obs.status), timeout=5)
+    # Disabled OBS is outside this native studio's control. Configured OBS must
+    # be reachable and idle; a disconnected configured integration is unknown.
+    if current_obs.get('enabled') is not False:
+        if current_obs.get('connected') is not True:
+            return {'ready': False, 'reason': 'obs_active'}
+        if current_obs.get('streaming') is not False or current_obs.get('recording') is not False:
+            return {'ready': False, 'reason': 'obs_active'}
+    # Recheck after the network wait so a completed native reservation wins.
+    if DESKTOP_ADMISSION.native_encoding.snapshot()['active']:
+        return {'ready': False, 'reason': 'encoding_active'}
+    with PRODUCTION_SESSION_LOCK:
+        if PRODUCTION_SESSION.get('active') is not False:
+            return {'ready': False, 'reason': 'production_busy'}
+    if recording.status().get('active') is not False:
+        return {'ready': False, 'reason': 'recording_active'}
+    return {'ready': True}
+
+
+def _rehearsal_exit_idle():
+    return {'ready': not DESKTOP_ADMISSION.native_encoding.snapshot()['active'], 'reason': 'encoding_active'}
+
+
+rehearsal_service = RehearsalService(storage.get_path('config_path') / 'rehearsal_state.json',
+    idle_provider=_rehearsal_idle, exit_idle_provider=_rehearsal_exit_idle)
+recording.set_publishing_guard(rehearsal_service.publishing_lease)
+obs.set_publishing_guard(rehearsal_service.publishing_lease)
+instant_replay.set_publishing_guard(rehearsal_service.publishing_lease)
+app.include_router(create_rehearsal_router(rehearsal_service, _greenroom_operator))
+
+
+@app.exception_handler(RehearsalError)
+async def rehearsal_policy_error(_request: Request, error: RehearsalError):
+    return JSONResponse(status_code=error.status, content={'ok': False, 'reason': error.reason})
+
+
 soundboard_output = SoundboardOutputService(settings_path=storage.get_path("config_path") / "soundboard_output_settings.json")
 set_chase = SetChaseService(storage.get_path("config_path") / "set_chase.json")
 app.include_router(create_set_chase_router(set_chase, orchestrator.recognition.global_visual_index, _read_bounded_json, STATIC_DIR))
@@ -1659,8 +1710,17 @@ async def desktop_encoding_status(request: Request):
         return {"ok": False, "reason": "identity_mismatch"}
     if DESKTOP_ADMISSION.closing:
         return {"ok": False, "reason": "desktop_closing"}
-    return DESKTOP_ADMISSION.native_encoding.update(active=payload.get("active"),
-        owner_pid=payload.get("owner_pid"))
+    mode = payload.get('mode', 'broadcast')
+    generation = payload.get('rehearsal_generation')
+    if payload.get('active') is True:
+        if mode == 'rehearsal':
+            with rehearsal_service.local_encoding_lease(generation):
+                return DESKTOP_ADMISSION.native_encoding.update(active=True, owner_pid=payload.get('owner_pid'),
+                    mode=mode, rehearsal_generation=generation)
+        with rehearsal_service.publishing_lease():
+            return DESKTOP_ADMISSION.native_encoding.update(active=True, owner_pid=payload.get('owner_pid'), mode=mode)
+    return DESKTOP_ADMISSION.native_encoding.update(active=payload.get('active'), owner_pid=payload.get('owner_pid'),
+        mode=mode, rehearsal_generation=generation)
 
 
 @app.post("/api/desktop/stop")
@@ -2211,7 +2271,8 @@ async def download_replay_clip(highlight_id: str):
         return JSONResponse(status_code=404, content={"ok": False, "reason": "clip_video_not_found"})
     return FileResponse(path, media_type="video/mp4", filename=f"RareIQ-{highlight_id}.mp4", headers={"Cache-Control": "no-store"})
 
-production_actions = ProductionActions()
+production_actions = ProductionActions(capability_guard=lambda _action, capability:
+    rehearsal_service.publishing_allowed() or capability in {'program.camera', 'program.scene'})
 voice_commands = VoiceCommandService(WindowsSpeechRecognizer(), production_actions,
     rules=VoiceRuleStore(storage.get_path("config_path") / "voice_rules.sqlite3", production_actions.validate_parameters))
 app.include_router(voice_rules_router(voice_commands))
@@ -3472,7 +3533,7 @@ async def check_obs_sources(request: ObsSourceAuditRequest):
 
 @app.post("/api/production/session/start")
 async def start_production_session(request: ProductionSessionMetadataRequest):
-    with PRODUCTION_SESSION_LOCK:
+    with rehearsal_service.publishing_lease(), PRODUCTION_SESSION_LOCK:
         if PRODUCTION_SESSION["active"]: return {"ok": True, "session": dict(PRODUCTION_SESSION), "already_active": True}
         encoder_status = recording.status()
         if encoder_status.get("active") or encoder_status.get("stopping"):
@@ -3484,12 +3545,15 @@ async def start_production_session(request: ProductionSessionMetadataRequest):
 
 @app.post("/api/production/show/start")
 async def start_production_show(request: StartShowRequest):
-    async with PRODUCTION_SHOW_START_LOCK:
-        return await _start_production_show(request)
+    with rehearsal_service.publishing_lease():
+        async with PRODUCTION_SHOW_START_LOCK:
+            return await _start_production_show(request)
 
 
 async def _start_production_show(request: StartShowRequest):
     """Run the guarded, operator-initiated show startup sequence."""
+    if not rehearsal_service.publishing_allowed():
+        return JSONResponse(status_code=409, content={'ok': False, 'reason': 'rehearsal_publishing_blocked', 'steps': []})
     # Do not reset a running show's scene or issue duplicate encoder commands.
     with PRODUCTION_SESSION_LOCK:
         if PRODUCTION_SESSION.get("active"):

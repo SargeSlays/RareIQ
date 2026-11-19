@@ -179,7 +179,7 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
         "/static/viewer_chat.css?v=20261118-1",
         "/static/production_vision.css?v=20261115-1",
     ]
-    assert len(styles) == 27
+    assert len(styles) == 28
     assert not any("studiox_60.css" in style for style in styles)
     assert not any("studiox_604.css" in style for style in styles)
 

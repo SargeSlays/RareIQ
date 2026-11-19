@@ -31,7 +31,8 @@ class ActionSpec:
 
 
 class ProductionActions:
-    def __init__(self, *, capacity: int = 2, retained: int = 128) -> None:
+    def __init__(self, *, capacity: int = 2, retained: int = 128, capability_guard=None) -> None:
+        self._capability_guard = capability_guard or (lambda _action, _capability: True)
         self._specs: dict[str, ActionSpec] = {}
         self._requests: OrderedDict[str, tuple[str, Future, float]] = OrderedDict()
         self._lock = threading.RLock()
@@ -90,6 +91,12 @@ class ProductionActions:
             return self._result("rejected", "invalid_action_parameters")
         if practice:
             return {"ok": True, "state": "validated", "executed": False, "action_id": action_id}
+        try:
+            allowed = self._capability_guard(action_id, spec.capability) is True
+        except Exception:
+            allowed = False
+        if not allowed:
+            return self._result("rejected", "rehearsal_action_blocked")
         key = request_id or uuid.uuid4().hex
         if not isinstance(key, str) or not 1 <= len(key) <= 80 or not all(c.isalnum() or c in "_-" for c in key):
             return self._result("rejected", "invalid_request_id")
@@ -111,6 +118,12 @@ class ProductionActions:
                     token = _ACTION_ORIGIN.set(origin)
                     request_token = _ACTION_REQUEST.set(key)
                     try:
+                        try:
+                            allowed = self._capability_guard(action_id, spec.capability) is True
+                        except Exception:
+                            allowed = False
+                        if not allowed:
+                            return {"ok": False, "reason": "rehearsal_action_blocked"}
                         return {"ok": False, "reason": "action_cancelled"} if cancelled() else spec.execute(normalized)
                     finally:
                         _ACTION_REQUEST.reset(request_token)

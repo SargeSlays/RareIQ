@@ -5,7 +5,11 @@ from io import BytesIO
 import importlib.util
 import json
 from pathlib import Path
+import builtins
+import io
+import socket
 import sys
+import threading
 
 import pytest
 
@@ -162,3 +166,173 @@ def test_shared_input_failure_closes_all_targets_without_claiming_global_stopped
     output = events(capsys)
     assert {event["targetId"] for event in output if event["event"] == "stopped"} == {"first", "second"}
     assert not any(event["event"] == "stopped" and "targetId" not in event for event in output)
+
+
+def rehearsal_config(*, vod=False):
+    return {"width": 64, "height": 64, "fps": 30, "codec": "libx264", "bitrate": 500000,
+            "audioBitrateKbps": 96, "keyframeSeconds": 1, "twitchVod": vod, "rehearsal": True,
+            "targets": [{"id": "rehearsal-local", "rehearsal": True, "twitchVod": vod}]}
+
+
+@pytest.mark.parametrize("vod", [False, True])
+def test_rehearsal_config_is_a_distinct_local_contract(vod):
+    value = rehearsal_config(vod=vod)
+    assert worker.validate_config(value) == value
+
+
+@pytest.mark.parametrize("flag", [False, None, 0, 1, "true", {}, []])
+@pytest.mark.parametrize("location", ["group", "target"])
+def test_rehearsal_flags_are_true_only(flag, location):
+    value = rehearsal_config()
+    (value if location == "group" else value["targets"][0])["rehearsal"] = flag
+    with pytest.raises(worker.base.EncoderError, match="invalid_encoder_config"):
+        worker.validate_config(value)
+
+
+@pytest.mark.parametrize("key", ["destination", "testOutput", "testTransport", "artifactRoot", "serverUrl", "streamKey", "transport", "networkVerified"])
+@pytest.mark.parametrize("location", ["group", "target"])
+def test_rehearsal_rejects_all_destination_artifact_and_transport_fields_even_null(key, location):
+    value = rehearsal_config()
+    (value if location == "group" else value["targets"][0])[key] = None
+    with pytest.raises(worker.base.EncoderError, match="invalid_encoder_config"):
+        worker.validate_config(value)
+
+
+@pytest.mark.parametrize("change", ["mixed", "two_local", "other_id", "missing_target_flag", "missing_group_flag", "target_in_production", "vod_mismatch"])
+def test_rehearsal_rejects_cross_mode_and_mismatched_targets(tmp_path, change):
+    value = rehearsal_config()
+    if change == "mixed": value["targets"].append(config(tmp_path)["targets"][0])
+    if change == "two_local": value["targets"] *= 2
+    if change == "other_id": value["targets"][0]["id"] = "other"
+    if change == "missing_target_flag": value["targets"][0].pop("rehearsal")
+    if change == "missing_group_flag": value.pop("rehearsal")
+    if change == "target_in_production":
+        value = config(tmp_path)
+        value["targets"][0]["rehearsal"] = True
+    if change == "vod_mismatch": value["twitchVod"] = True
+    with pytest.raises(worker.base.EncoderError, match="invalid_encoder_config"):
+        worker.validate_config(value)
+
+
+def test_discard_writer_never_retains_media_and_has_bounded_counts():
+    writer = worker.DiscardWriter()
+    assert writer.writable() and not writer.seekable() and not writer.readable()
+    assert writer.write(b"synthetic") == 9 and writer.bytes_written == 9
+    assert not hasattr(writer, "getvalue") and not hasattr(writer, "buffer")
+    writer.bytes_written = 2 ** 53 - 2
+    assert writer.write(b"x") == 1
+    with pytest.raises(worker.base.EncoderError, match="encoder_failed"):
+        writer.write(b"x")
+    writer.close()
+    with pytest.raises(ValueError, match="discard_writer_closed"):
+        writer.write(b"x")
+
+
+def forbid_rehearsal_outputs(monkeypatch, av):
+    """After dependencies load, forbid all Python media-file/network paths.
+
+    av.open is restricted to our file-like discard writer, so native FFmpeg
+    cannot receive a filename or URL/protocol through that boundary either.
+    """
+    import certifi
+    opened = []
+    original = av.open
+    def denied(*args, **kwargs):
+        raise AssertionError("rehearsal_output_side_effect")
+    def discard_only(value, *args, **kwargs):
+        assert isinstance(value, worker.DiscardWriter)
+        opened.append(value)
+        return original(value, *args, **kwargs)
+    for owner, name in ((builtins, "open"), (io, "open"), (Path, "open"),
+                        (socket, "socket"), (socket, "create_connection"), (socket, "getaddrinfo"),
+                        (worker.base, "network_target"), (worker.base, "fixture_transport"),
+                        (worker.base, "test_path"), (worker.base, "VerifiedTlsRelay"),
+                        (worker.base, "probe_twitch_vod_mux"), (certifi, "where")):
+        monkeypatch.setattr(owner, name, denied)
+    monkeypatch.setattr(av, "open", discard_only)
+    return opened
+
+
+@pytest.mark.parametrize("vod", [False, True])
+def test_actual_rehearsal_encodes_and_muxes_live_vod_without_files_network_or_stored_media(monkeypatch, capsys, vod):
+    av, np = libraries(monkeypatch)
+    import certifi  # Warm dependency imports before guarding all file opens.
+    source = generated(np, frames=30, vod=vod)
+    threads_before = set(threading.enumerate())
+    with monkeypatch.context() as guarded:
+        opened = forbid_rehearsal_outputs(guarded, av)
+        worker.run(rehearsal_config(vod=vod), source)
+    output = events(capsys)
+    ready = next(event for event in output if event["event"] == "ready" and "targetId" not in event)
+    stopped = output[-1]
+    local = next(event for event in output if event["event"] == "stopped" and event.get("targetId") == "rehearsal-local")
+    assert ready["videoEncoderInstances"] == ready["targetMuxerCount"] == 1
+    assert ready["audioEncoderCount"] == (2 if vod else 1)
+    assert ready["twitchVodWireVerified"] is False
+    assert stopped["event"] == "stopped" and stopped["running"] is False
+    assert stopped["videoFrames"] == local["videoFrames"] == 30
+    assert stopped["audioSamples"] == 48000 and local["audioSamples"] >= 48000
+    assert stopped["vodAudioSamples"] == (48000 if vod else 0)
+    assert (local["vodAudioSamples"] >= 48000) if vod else local["vodAudioSamples"] == 0
+    assert stopped["packets"] == local["packets"] > 30
+    assert stopped["bytesMuxed"] == local["bytesMuxed"] > 0
+    assert stopped["bytesDiscarded"] == local["bytesDiscarded"] > local["bytesMuxed"]
+    assert len(opened) == 2 and all(writer.closed and writer.bytes_written > 0 for writer in opened)
+    assert all(event["rehearsal"] and event["localDiscard"] and event["networkVerified"] is False for event in output)
+    assert all(not event["platformVerified"] and not event["platformLiveVerified"] and not event["vodPlatformVerified"] for event in output)
+    assert set(threading.enumerate()) <= threads_before
+
+
+@pytest.mark.parametrize("ending", ["eof", "malformed", "missing_vod"])
+def test_rehearsal_input_failure_closes_owned_discard_mux_without_success_receipt(monkeypatch, capsys, ending):
+    av, np = libraries(monkeypatch)
+    import certifi
+    source = generated(np, frames=3, vod=ending != "missing_vod").getvalue()
+    if ending == "eof": source = source[:-worker.base.HEADER.size]
+    if ending == "malformed": source = worker.base.HEADER.pack(ord("X"), 0, 0)
+    threads_before = set(threading.enumerate())
+    expected = {"eof": "encoder_input_ended", "malformed": "invalid_encoder_packet", "missing_vod": "twitch_vod_audio_missing"}[ending]
+    with monkeypatch.context() as guarded:
+        opened = forbid_rehearsal_outputs(guarded, av)
+        with pytest.raises(worker.base.EncoderError, match=expected):
+            worker.run(rehearsal_config(vod=True), BytesIO(source))
+    output = events(capsys)
+    assert any(event["event"] == "stopped" and event.get("targetId") == "rehearsal-local" for event in output)
+    assert not any(event["event"] == "stopped" and "targetId" not in event for event in output)
+    assert len(opened) == 2 and all(writer.closed for writer in opened)
+    assert set(threading.enumerate()) <= threads_before
+
+
+def test_rehearsal_mux_failure_is_truthful_redacted_and_does_not_fall_back_to_transport(monkeypatch, capsys):
+    av, np = libraries(monkeypatch)
+    import certifi
+    original = worker.TargetMux.mux_packet
+    def failing(self, output, packet, stream):
+        if self.counts["packets"] >= 2:
+            raise RuntimeError("private synthetic diagnostic")
+        return original(self, output, packet, stream)
+    with monkeypatch.context() as guarded:
+        opened = forbid_rehearsal_outputs(guarded, av)
+        guarded.setattr(worker.TargetMux, "mux_packet", failing)
+        # Let startup finish before the generated packets reach the mux.
+        worker.run(rehearsal_config(), generated(np, frames=20))
+    output = events(capsys)
+    failed = next(event for event in output if event["event"] == "error")
+    stopped = next(event for event in output if event["event"] == "stopped" and "targetId" in event)
+    assert failed["targetId"] == "rehearsal-local" and failed["code"] == stopped["code"] == "encoder_failed"
+    assert stopped["running"] is False and stopped["packets"] == 2
+    assert "private" not in json.dumps(output)
+    assert len(opened) == 2 and all(writer.closed for writer in opened)
+
+
+@pytest.mark.parametrize("spec", [
+    {"id": "rehearsal-local", "twitchVod": False, "destination": {}},
+    {"id": "rehearsal-local", "twitchVod": False, "rehearsal": True, "testOutput": "forbidden.flv"},
+    {"id": "other", "twitchVod": False, "rehearsal": True},
+])
+def test_mux_boundary_independently_refuses_malformed_rehearsal_spec(spec):
+    target = worker.TargetMux(spec, {"rehearsal": True}, {}, None, None, codec="libx264", wire_verified=False)
+    target.thread.start()
+    target.thread.join(1)
+    assert not target.thread.is_alive() and not target.ready.is_set()
+    assert target.error == "invalid_encoder_config" and target.relay is None and target.discard is None

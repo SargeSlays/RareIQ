@@ -3,12 +3,13 @@
 const { ipcRenderer } = require('electron');
 if (process.isMainFrame) {
   const origin = process.argv.find(arg => arg.startsWith('--producer-output-origin='))?.slice('--producer-output-origin='.length);
-  const CHANNELS = { health: 'producer:output:health', pcm: 'producer:output:pcm', sync: 'producer:output:sync', control: 'producer:output:control', ack: 'producer:output:ack' };
+  const CHANNELS = { health: 'producer:output:health', pcm: 'producer:output:pcm', sync: 'producer:output:sync', control: 'producer:output:control', ack: 'producer:output:ack',monitorPcm:'producer:output:monitor-pcm',monitorAck:'producer:output:monitor-ack' };
   const worklet = `class PublicOutputTap extends AudioWorkletProcessor {
     constructor() {
       super(); this.enabled = false; this.credit = 0; this.offset = 0;
       this.samples = new Float32Array(960); this.vodSamples = new Float32Array(960); this.queue = []; this.dropped = 0;
       this.meterFrames=0;this.meterPeaks=[0,0];this.meterSums=[0,0];this.meterClips=[0,0];
+      this.monitor=null;this.monitorOffset=0;this.monitorQueue=[];this.monitorCredit=0;
       this.port.onmessage = event => {
         const data = event.data;
         if (data.type === 'start') {
@@ -18,9 +19,14 @@ if (process.isMainFrame) {
           this.enabled = false; this.offset = 0; this.queue = [];
         } else if (data.type === 'credit' && data.captureId === this.captureId) {
           this.credit = Math.min(1, this.credit + 1); this.flush();
+        } else if(data.type==='monitor'){
+          this.monitor=['live','vod'].includes(data.bus)?{id:data.monitorId,bus:data.bus,samples:new Float32Array(960)}:null;this.monitorOffset=0;this.monitorQueue=[];this.monitorCredit=this.monitor?1:0;
+        } else if(data.type==='monitor-credit'&&this.monitor?.id===data.monitorId){
+          this.monitorCredit=1;this.flushMonitor();
         }
       };
     }
+    flushMonitor(){if(!this.monitor||!this.monitorCredit||!this.monitorQueue.length)return;this.monitorCredit=0;const pcm=this.monitorQueue.shift();this.port.postMessage({type:'monitor',monitorId:this.monitor.id,pcm},[pcm]);}
     flush() {
       if (!this.enabled || !this.credit || !this.queue.length) return;
       this.credit--; const packet = this.queue.shift();
@@ -39,8 +45,10 @@ if (process.isMainFrame) {
             this.meterPeaks[bus]=Math.max(this.meterPeaks[bus],Math.abs(value));this.meterSums[bus]+=value*value;
             if(Number.isFinite(raw)&&Math.abs(raw)>1)this.meterClips[bus]++;
             if(this.enabled)(bus===0?this.samples:this.vodSamples)[this.offset*2+c]=value;
+            if(this.monitor&&this.monitor.bus===(bus===0?'live':'vod'))this.monitor.samples[this.monitorOffset*2+c]=value;
           }
         }
+        if(this.monitor&&++this.monitorOffset===480){if(this.monitorQueue.length===2)this.monitorQueue.shift();this.monitorQueue.push(this.monitor.samples.buffer);this.monitor.samples=new Float32Array(960);this.monitorOffset=0;this.flushMonitor();}
         if(++this.meterFrames===4800){
           const level=bus=>({peak:this.meterPeaks[bus],rms:Math.sqrt(this.meterSums[bus]/9600),clipCount:this.meterClips[bus]});
           this.port.postMessage({type:'meters',frame:currentFrame+i,meters:{live:level(0),vod:level(1)}});
@@ -58,7 +66,7 @@ if (process.isMainFrame) {
   }
   registerProcessor('public-output-tap', PublicOutputTap);`;
   const frames = [['iframe.program', '/program','program'], ['iframe.audio', '/output/soundboard','soundboard'], ['iframe.graphics', '/overlay/graphics','graphics'], ['iframe.audience', '/overlay/audience','audience']];
-  let context, node, mixer, vodMixer, stopped = false, capture = null, poll, healthTimer, token = 0, audioRouting={},routingEpoch=0,routingContext=null;
+  let context, node, mixer, vodMixer, stopped = false, capture = null, poll, healthTimer, token = 0, audioRouting={},routingEpoch=0,routingContext=null,monitor=null,monitorVodAllowed=false;
   let meterAt=null,latestMeters=null;const clipAt={live:null,vod:null};
   const entries = new Map(), documents = new Map();
   // Sandbox preloads cannot require application modules. Main validates saved
@@ -113,6 +121,7 @@ if (process.isMainFrame) {
       unavailableCount: [...entries.values()].filter(entry => entry.failed && !entry.element.paused && !entry.element.muted).length,
       sources:[...new Map([...entries.values()].map(entry=>[entry.descriptor.id,entry.descriptor])).values()].slice(0,64),
       audioMeters:audioMeters(error),
+      monitorBus:monitor?.bus||'off',
       ...(routingAck||{}),
       ...(error ? { error: true } : {}), ...(capture ? { captureId: capture.id, started: true } : {}) });
   }
@@ -151,6 +160,7 @@ if (process.isMainFrame) {
   }
   function scan() {
     if (stopped || !context || !validTop()) return;
+    if(monitor&&document.documentElement?.dataset.rehearsalMode!=='active'){monitor=null;node?.port.postMessage({type:'monitor',bus:'off'});sendHealth();}
     const allowedDocs = new Set(), media = new Map();
     for (const [selector, pathname,group] of frames) {
       try {
@@ -195,12 +205,19 @@ if (process.isMainFrame) {
         if(hasId&&(!routingContext||value.routingContext!==routingContext))return;
         if(!hasId&&value.routingContext!==undefined&&(typeof value.routingContext!=='string'||!/^[a-f0-9-]{36}$/.test(value.routingContext)))throw Error('invalid_audio_routing');
         applyRouting(value.audioRouting);const epoch=routingEpoch;
-        if(!hasId&&value.routingContext!==undefined)routingContext=value.routingContext;
+        if(!hasId&&value.routingContext!==undefined){if(routingContext!==value.routingContext){monitor=null;node?.port.postMessage({type:'monitor',bus:'off'});}routingContext=value.routingContext;monitorVodAllowed=value.monitorVodAllowed===true;}
         if(hasId)setTimeout(()=>{if(validTop()&&!stopped&&routingEpoch===epoch&&context?.state==='running')sendHealth(false,{routingRequestId:value.requestId,routingApplied:true,routingNonce:value.routingNonce});},15);
       }catch(_){sendHealth();}
     }
-    else if (value?.type === 'stop') { ++token;++routingEpoch;capture = null; node?.port.postMessage({ type: 'stop' }); }
+    else if(value?.type==='monitor'){
+      if(!validTop()||stopped||!context||!node||value.monitorContext!==routingContext||typeof value.monitorNonce!=='string'||!/^[a-f0-9-]{36}$/.test(value.monitorNonce)||!['off','live','vod'].includes(value.bus)||Object.keys(value).some(key=>!['type','bus','monitorNonce','monitorContext'].includes(key)))return;
+      const available=value.bus==='off'||context.state==='running'&&document.documentElement?.dataset.rehearsalMode==='active'&&(value.bus!=='vod'||monitorVodAllowed);
+      monitor=available&&value.bus!=='off'?{id:value.monitorNonce,bus:value.bus,seq:0,outstanding:null}:null;node.port.postMessage({type:'monitor',bus:monitor?.bus||'off',monitorId:monitor?.id});
+      sendHealth(false,{monitorNonce:value.monitorNonce,monitorContext:routingContext,monitorBus:monitor?.bus||'off',monitorApplied:available,monitorAvailable:available});
+    }
+    else if (value?.type === 'stop') { ++token;++routingEpoch;capture = null;monitor=null; node?.port.postMessage({ type: 'stop' });node?.port.postMessage({type:'monitor',bus:'off'}); }
   });
+  ipcRenderer.on(CHANNELS.monitorAck,(_event,value)=>{if(monitor&&value?.monitorId===monitor.id&&value.seq===monitor.outstanding){monitor.outstanding=null;node.port.postMessage({type:'monitor-credit',monitorId:monitor.id});}});
   ipcRenderer.on(CHANNELS.ack, (_event, value) => { if (capture && value?.captureId === capture.id && value.seq === capture.outstanding) { capture.outstanding = null; node.port.postMessage({ type: 'credit', captureId: capture.id }); } });
   async function prepare() {
     if (!validTop()) return;
@@ -216,6 +233,7 @@ if (process.isMainFrame) {
       node.port.onmessage = event => {
         const current = capture, data = event.data;
         if(data?.type==='meters'){updateMeters(data.meters);return;}
+        if(data?.type==='monitor'){const currentMonitor=monitor;if(!currentMonitor||currentMonitor.id!==data.monitorId||currentMonitor.outstanding!==null||!(data.pcm instanceof ArrayBuffer)||data.pcm.byteLength!==3840)return;const seq=currentMonitor.seq++;currentMonitor.outstanding=seq;ipcRenderer.send(CHANNELS.monitorPcm,{monitorId:currentMonitor.id,seq,pcm:new Uint8Array(data.pcm)});return;}
         if (!current || data?.captureId !== current.id || current.outstanding !== null || !(data?.pcm instanceof ArrayBuffer) || data.pcm.byteLength !== 3840 || !(data.vodPcm instanceof ArrayBuffer)||data.vodPcm.byteLength!==3840|| !Number.isInteger(data.frame)) return;
         const ptsUs = Math.max(0, Math.round(current.epochUs + (data.frame / 48000 - current.contextTime) * 1000000)), seq = current.seq++;
         current.outstanding = seq;
@@ -225,5 +243,5 @@ if (process.isMainFrame) {
     } catch (_) { sendHealth(true); }
   }
   if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', prepare, { once: true }); else void prepare();
-  window.addEventListener('pagehide', () => { stopped = true; ++token; capture = null; clearInterval(poll); clearInterval(healthTimer); for (const entry of entries.values()) detach(entry); for (const observer of documents.values()) observer.disconnect(); documents.clear(); node?.disconnect(); mixer?.disconnect();vodMixer?.disconnect();void context?.close(); }, { once: true });
+  window.addEventListener('pagehide', () => { stopped = true; ++token; capture = null;monitor=null;node?.port.postMessage({type:'monitor',bus:'off'}); clearInterval(poll); clearInterval(healthTimer); for (const entry of entries.values()) detach(entry); for (const observer of documents.values()) observer.disconnect(); documents.clear(); node?.disconnect(); mixer?.disconnect();vodMixer?.disconnect();void context?.close(); }, { once: true });
 }

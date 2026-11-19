@@ -14,6 +14,7 @@ const PUBLIC_ENCODER_FAILURE_CODES=Object.freeze([
 ]);
 const ENCODER_FAILURES=new Set(PUBLIC_ENCODER_FAILURE_CODES);
 const PUBLIC_FAILURE_CODES=Object.freeze([...PUBLIC_ENCODER_FAILURE_CODES,
+  'rehearsal_active','rehearsal_status_unavailable',
   'account_authorization_required','streaming_not_available',
   'audio_mix_not_ready','audio_mix_unconfirmed','prepare_output','output_not_ready','output_generation_changed','broadcast_cancelled','desktop_backend_required','desktop_mode_required','desktop_closing',
   'close_browser_review','studio_unavailable','another_broadcast_active','output_lost','encoder_backpressure','capture_stop_unconfirmed','encoder_stop_unconfirmed','studio_status_unconfirmed','broadcast_start_failed',
@@ -29,11 +30,12 @@ const safeStats=value=>({codec:['h264_nvenc','libx264'].includes(value?.codec)?v
   frames:Number.isSafeInteger(value?.frames??value?.videoFrames)&&(value.frames??value.videoFrames)>=0?(value.frames??value.videoFrames):0,
   audioSamples:Number.isSafeInteger(value?.audioSamples)&&value.audioSamples>=0?value.audioSamples:0});
 class NativeBroadcast{
-  constructor({destinations,outputProfiles,createCapture,createEncoder,createEncoderGroup,request,identity,ownerPid,confirm=async()=>false,onState=()=>{},onAudioAudit=()=>{},clock=()=>Date.now()}={}){
-    Object.assign(this,{destinations,outputProfiles,createCapture,createEncoder,createEncoderGroup,request,identity,ownerPid,confirm,onState,onAudioAudit,clock});
+  constructor({destinations,outputProfiles,createCapture,createEncoder,createEncoderGroup,request,identity,ownerPid,confirm=async()=>false,canPublish=async()=>true,onState=()=>{},onAudioAudit=()=>{},clock=()=>Date.now()}={}){
+    Object.assign(this,{destinations,outputProfiles,createCapture,createEncoder,createEncoderGroup,request,identity,ownerPid,confirm,canPublish,onState,onAudioAudit,clock});
+    this.rehearsing=false;
     this.audioSession=null;this.targets=[];this.outputProfile=null;this.profileSignature=null;this.capture=null;this.encoder=null;this.encoderGroup=null;this.format='hd';this.phase='idle';this.failure=null;this.selected=null;this.preflight=null;this.operation=0;this.starting=false;this.preparing=false;this.stopping=null;this.reserving=null;this.ownsEncoding=false;this.unreadySince=null;this.lastStats=safeStats();
   }
-  active(){return this.encoderGroup?.status?.().running===true||this.starting||['starting','sending','stopping'].includes(this.phase)||this.targets.some(t=>t.encoder?.status?.().running===true);}
+  active(){return this.rehearsing||this.encoderGroup?.status?.().running===true||this.starting||['starting','sending','stopping'].includes(this.phase)||this.targets.some(t=>t.encoder?.status?.().running===true);}
   audioMixReady(){const state=this.audioSession?.status();return typeof this.capture?.updateAudioRouting!=='function'||Boolean(state?.outputId&&!state.uncertain&&!state.applying);}
   status(){
     const encoder=this.encoderGroup?.status?.()||this.encoder?.status?.(),own=this.capture?.status?.(),blocker=this.preflight?.blockers?.[0];
@@ -120,6 +122,7 @@ class NativeBroadcast{
     if(!value||Object.keys(value).some(key=>!START_FIELDS.has(key))||(value.destinationId!==undefined&&value.destinationIds!==undefined))throw Error('invalid_broadcast_request');
     const ids=value.destinationIds??[value.destinationId];
     if(!Array.isArray(ids)||ids.length<1||ids.length>8||ids.some(id=>typeof id!=='string'||!id||id.length>128)||new Set(ids).size!==ids.length)throw Error('invalid_broadcast_request');
+    const policyOperation=this.operation;await this.assertPublishing();if(policyOperation!==this.operation)throw Error('broadcast_cancelled');
     if(this.active()||this.preparing)throw Error('broadcast_busy');if(this.ownsEncoding)throw Error('studio_status_unconfirmed');if(!this.audioMixReady())throw Error('audio_mix_unconfirmed');
     this.starting=true;const operation=++this.operation;let runFailure=null;
     const current=()=>operation===this.operation;
@@ -129,10 +132,12 @@ class NativeBroadcast{
       if(!this.capture||this.profileSignature!==JSON.stringify(settings))throw Error('prepare_output');
       await this.check();assertCurrent();if(!this.preflight?.ready)throw Error('output_not_ready');
       const generation=this.preflight.generation,profiles=[];
-      for(const id of ids){profiles.push(await this.destinations.getPrivateDestination(id));assertCurrent();}
-      const approved=await this.confirm(profiles.length===1?profiles[0]:profiles,structuredClone(settings),{destinationIds:[...ids]});assertCurrent();if(!approved){this.starting=false;return this.status();}
+      for(const id of ids){await this.assertPublishing();assertCurrent();profiles.push(await this.destinations.getPrivateDestination(id));assertCurrent();}
+      await this.assertPublishing();assertCurrent();
+      const approved=await this.confirm(profiles.length===1?profiles[0]:profiles,structuredClone(settings),{destinationIds:[...ids]});assertCurrent();await this.assertPublishing();assertCurrent();if(!approved){this.starting=false;return this.status();}
       await this.check();assertCurrent();if(!this.preflight?.ready||this.preflight.generation!==generation)throw Error('output_generation_changed');
-      this.targets=[];this.encoder=null;this.encoderGroup=null;this.selected=ids[0];this.phase='starting';this.failure=null;this.lastStats=safeStats();this.unreadySince=null;this.notify();await this.reserve(true);assertCurrent();
+      await this.assertPublishing();assertCurrent();
+      this.targets=[];this.encoder=null;this.encoderGroup=null;this.selected=ids[0];this.phase='starting';this.failure=null;this.lastStats=safeStats();this.unreadySince=null;this.notify();await this.reserve(true);assertCurrent();await this.assertPublishing();assertCurrent();
       if(this.createEncoderGroup){
         const group=this.createEncoderGroup(snapshot=>{
           if(!current()||this.encoderGroup!==group)return;
@@ -183,6 +188,10 @@ class NativeBroadcast{
       if(!cancelled)await this.stop(reason);else if(this.stopping)await this.stopping;
       throw Error(reason);
     }finally{this.starting=false;this.notify();}
+  }
+  async assertPublishing(){
+    let allowed;try{allowed=await this.canPublish();}catch(_){throw Error('rehearsal_status_unavailable');}
+    if(allowed!==true||this.rehearsing)throw Error('rehearsal_active');
   }
   async stopTarget(destinationId,reason=null){
     if(typeof destinationId!=='string')throw Error('invalid_broadcast_request');

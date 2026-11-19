@@ -1,0 +1,16 @@
+'use strict';
+// No bridge, source discovery, capture, or page-controlled audio.
+const {ipcRenderer}=require('electron');
+if(process.isMainFrame){
+  const nonce=process.argv.find(value=>value.startsWith('--producer-monitor-nonce='))?.slice('--producer-monitor-nonce='.length);
+  const origin=process.argv.find(value=>value.startsWith('--producer-monitor-origin='))?.slice('--producer-monitor-origin='.length);
+  const HEALTH='producer:monitor:health',PCM='producer:monitor:pcm',ACK='producer:monitor:ack';
+  let context,node,closed=false,last=-1;
+  const valid=()=>window.top===window&&location.origin===origin&&location.protocol==='http:'&&location.hostname==='127.0.0.1'&&location.pathname==='/monitor/'+nonce&&!location.search&&!location.hash&&typeof nonce==='string'&&/^[a-f0-9-]{36}$/.test(nonce)&&!closed;
+  const worklet=`class PublicMixSpeaker extends AudioWorkletProcessor{constructor(){super();this.packet=null;this.offset=0;this.port.onmessage=event=>{const value=event.data;if(value?.type==='stop'){this.packet=null;this.offset=0;}else if(!this.packet&&value?.pcm instanceof ArrayBuffer&&value.pcm.byteLength===3840&&Number.isSafeInteger(value.seq)){this.packet={seq:value.seq,samples:new Float32Array(value.pcm)};this.offset=0;}};}process(_inputs,outputs){for(const output of outputs)for(const channel of output)channel.fill(0);const output=outputs[0]||[];for(let index=0;index<(output[0]?.length||128);index++){if(!this.packet)break;for(let channel=0;channel<Math.min(2,output.length);channel++){const value=this.packet.samples[this.offset*2+channel];output[channel][index]=Number.isFinite(value)?Math.max(-1,Math.min(1,value)):0;}if(++this.offset===480){const seq=this.packet.seq;this.packet=null;this.offset=0;this.port.postMessage({seq});}}return true;}}registerProcessor('public-mix-speaker',PublicMixSpeaker);`;
+  const health=ready=>{if(valid())ipcRenderer.send(HEALTH,{nonce,ready});};
+  async function prepare(){if(!valid())return;try{context=new AudioContext({sampleRate:48000});if(context.sampleRate!==48000)throw Error();const url=URL.createObjectURL(new Blob([worklet],{type:'text/javascript'}));try{await context.audioWorklet.addModule(url);}finally{URL.revokeObjectURL(url);}if(!valid())return;node=new AudioWorkletNode(context,'public-mix-speaker',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]});node.connect(context.destination);node.port.onmessage=event=>{if(valid()&&Number.isSafeInteger(event.data?.seq))ipcRenderer.send(ACK,{nonce,seq:event.data.seq});};await context.resume();health(context.state==='running');}catch(_){health(false);}}
+  ipcRenderer.on(PCM,(_event,value)=>{if(!valid()||!node||context?.state!=='running'||value?.nonce!==nonce||!Number.isSafeInteger(value.seq)||value.seq<=last||!(value.pcm instanceof Uint8Array)||value.pcm.byteLength!==3840)return;const bytes=new Uint8Array(value.pcm);const floats=new Float32Array(bytes.buffer);if(!floats.every(sample=>Number.isFinite(sample)&&Math.abs(sample)<=1)){health(false);return;}last=value.seq;node.port.postMessage({seq:last,pcm:bytes.buffer},[bytes.buffer]);});
+  if(document.readyState==='loading')window.addEventListener('DOMContentLoaded',prepare,{once:true});else void prepare();
+  window.addEventListener('pagehide',()=>{closed=true;node?.port.postMessage({type:'stop'});node?.disconnect();void context?.close();},{once:true});
+}

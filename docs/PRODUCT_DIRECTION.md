@@ -1113,3 +1113,27 @@ pending. Kick's existing app edit form has Update channel information selected
 but Save is awaiting explicit approval. Google YouTube Data API enablement is
 confirmed in the dedicated Producer Please project; consent/client setup remains
 in progress. No new provider grant or public metadata write is claimed here.
+
+## November 19, 2026 — Isolated Rehearsal room
+
+Broadcast setup now has a Rehearsal room for preparing the existing Program
+picture, guests, sources, transitions and independent Live/VOD mixes. A durable
+backend latch blocks studio broadcasting, recording, replay exports, session/show
+startup and platform metadata mutations. Program camera/scene cues remain useful;
+unclassified automation actions fail closed. Configured OBS must be reachable
+and idle before entry; disabled OBS is outside the native studio control scope.
+
+Optional local encoding runs the real H.264/AAC pipeline into an in-memory discard
+sink, with no destination, relay, media file or platform receipt claim. Local
+encoder ownership is separate from public broadcasting. Monitoring is explicit
+Off/Live/VOD and uses only post-mix public audio through an isolated playback
+renderer; the source output stays muted. Stop, restart recovery, manual checklist
+results and metadata-only report export are part of the room. Every local capture
+starts only after a visible matching-generation REHEARSAL watermark has painted.
+
+The original native capture/coordinator/encoder and original Python room service
+passed a generated-media integration run, including changing Live/VOD gains while
+encoding, blocked public Start before destination access, Stop and return to
+production setup. Full Settings synthetic interactions and baseline theme/viewport
+checks passed. Physical monitoring quality, guest echo and real platform delivery
+remain separate acceptance; no actual stream or recording was initiated.

@@ -10,14 +10,17 @@ import uuid
 from collections import deque
 from pathlib import Path
 from typing import Any, Callable
+from contextlib import nullcontext
 
 from rareiq.services.media_storage import atomic_json
+from rareiq.services.rehearsal_service import RehearsalError
 
 
 class InstantReplayService:
     MAX_HIGHLIGHTS = 25
 
     def __init__(self, root: Path, frame_provider: Callable[[int], bytes | None], program_slot_provider: Callable[[], int], *, fps: int = 5, buffer_seconds: int = 20, frame_context_provider: Callable[[int], dict[str, Any]] | None = None) -> None:
+        self._publishing_guard = nullcontext
         if not 1 <= fps <= 60 or not 2 <= buffer_seconds <= 120:
             raise ValueError("invalid_replay_buffer_limits")
         self.root, self.frame_provider, self.program_slot_provider = root, frame_provider, program_slot_provider
@@ -121,6 +124,16 @@ class InstantReplayService:
             return {"epoch": self._buffer_epoch, "frames": [item for item in self._frames if start <= item[0] <= end]}
 
     def save_frames(self, frames: list[tuple[float, int, bytes]], name: str, *, auto_clip: dict[str, Any] | None = None, export_video: bool = False, cancelled: Callable[[], bool] = lambda: False) -> dict[str, Any]:
+        try:
+            with self._publishing_guard():
+                return self._save_frames(frames, name, auto_clip=auto_clip, export_video=export_video, cancelled=cancelled)
+        except RehearsalError as error:
+            return {"created": False, "reason": error.reason}
+
+    def set_publishing_guard(self, guard) -> None:
+        self._publishing_guard = guard
+
+    def _save_frames(self, frames: list[tuple[float, int, bytes]], name: str, *, auto_clip: dict[str, Any] | None = None, export_video: bool = False, cancelled: Callable[[], bool] = lambda: False) -> dict[str, Any]:
         """Manual and automatic highlights share one atomic store and retention limit."""
         if not frames: return {"created": False, "reason": "replay_buffer_empty"}
         highlight_id = uuid.uuid4().hex[:12]

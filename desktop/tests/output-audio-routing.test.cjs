@@ -9,7 +9,7 @@ function media(id,{volume=.5,sourceId='',src=''}={}){
     addEventListener(name,fn){listeners.set(name,fn);},removeEventListener(name){listeners.delete(name);},emit(name){listeners.get(name)?.();}};
 }
 async function fixture(groups){
-  const controls=new Map(),events=new Map(),intervals=[],sent=[],sources=[],gains=[],delays=[];let now=0,worklet;
+  const controls=new Map(),events=new Map(),intervals=[],sent=[],sources=[],gains=[],delays=[],queries=[];let now=0,worklet;
   class Node{constructor(){this.connections=[];this.gain={value:0,ramps:[],sets:[],cancelAndHoldAtTime:at=>{this.gain.heldAt=at;},cancelScheduledValues:()=>{},linearRampToValueAtTime:(value,at)=>{this.gain.ramps.push({value,at});this.gain.value=value;},setValueAtTime:(value,at)=>{this.gain.sets.push({value,at});this.gain.value=value;}};}connect(node,...ports){this.connections.push({node,ports});}disconnect(){this.connections=[];this.disconnected=true;}}
   class Context{constructor(){this.state='running';this.sampleRate=48000;this.currentTime=0;this.destination=new Node();this.audioWorklet={addModule:async()=>{}};}createGain(){const n=new Node();gains.push(n);return n;}createMediaStreamSource(stream){const n=new Node();n.track=stream.getAudioTracks()[0];sources.push(n);return n;}resume(){return Promise.resolve();}close(){this.state='closed';return Promise.resolve();}}
   const selectors={'program':['iframe.program','/program'],'soundboard':['iframe.audio','/output/soundboard'],'graphics':['iframe.graphics','/overlay/graphics'],'audience':['iframe.audience','/overlay/audience']},frames={};
@@ -17,11 +17,11 @@ async function fixture(groups){
   class Worklet extends Node{constructor(_c,_name,options){super();worklet=this;this.options=options;this.port={messages:[],postMessage:value=>this.port.messages.push(value)};}}
   const window={addEventListener:(name,fn)=>events.set(name,fn)};window.top=window;
   const context={require:name=>{assert.equal(name,'electron');return {ipcRenderer:{on:(name,fn)=>controls.set(name,fn),send:(channel,value)=>sent.push({channel,value}),invoke:async()=>({captureId:'run',epochUs:0})}};},
-    process:{isMainFrame:true,argv:['--producer-output-origin='+origin]},window,location:{origin,pathname:'/output/studio'},document:{readyState:'loading',querySelector:selector=>frames[selector]},
+    process:{isMainFrame:true,argv:['--producer-output-origin='+origin]},window,location:{origin,pathname:'/output/studio'},document:{readyState:'loading',documentElement:{dataset:{rehearsalMode:'active'}},querySelector:selector=>{queries.push(selector);return frames[selector];}},
     AudioContext:Context,AudioWorkletNode:Worklet,MediaStream:class{constructor(tracks){this.tracks=tracks;}getAudioTracks(){return this.tracks;}},MutationObserver:class{observe(){}disconnect(){}},
     URL:class extends URL{static createObjectURL(){return 'blob:synthetic';}static revokeObjectURL(){}},Blob:class{},setTimeout:(fn,delay)=>{delays.push({fn,delay});return delays.length;},setInterval:fn=>{intervals.push(fn);return intervals.length;},clearInterval(){},performance:{now:()=>now},console,ArrayBuffer,Uint8Array};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../output-preload.cjs'),'utf8'),context);await events.get('DOMContentLoaded')();
-  return {sent,gains,sources,scan:intervals[0],health:intervals[1],controls,close:()=>events.get('pagehide')(),advance(ms){now+=ms;},flush(){while(delays.length)delays.shift().fn();},meter(value){worklet.port.onmessage({data:{type:'meters',meters:value}});},route(value,extra={}){controls.get('producer:output:control')(null,{type:'routing',audioRouting:value,...extra});},
+  return {sent,gains,sources,queries,frames,context,worklet,scan:intervals[0],health:intervals[1],controls,close:()=>events.get('pagehide')(),advance(ms){now+=ms;},flush(){while(delays.length)delays.shift().fn();},meter(value){worklet.port.onmessage({data:{type:'meters',meters:value}});},route(value,extra={}){controls.get('producer:output:control')(null,{type:'routing',audioRouting:value,...extra});},monitor(value){controls.get('producer:output:control')(null,{type:'monitor',...value});},
     parameters(element){return sources.findLast(s=>s.track===element.track&&!s.disconnected).connections.map(c=>c.node.gain);},
     bus(element){const source=sources.findLast(s=>s.track===element.track&&!s.disconnected);return source.connections.map(c=>c.node.gain.value);}};
 }
@@ -99,4 +99,17 @@ test('unidentified or forged voice metadata stays out of VOD and manifests conta
   const unknown=media('unknown'),forged=media('forged',{sourceId:'https://private.invalid'});forged.dataset.audioCategory='voice';
   const f=await fixture({program:[unknown,forged],audience:[media('alert',{src:'https://outside.invalid/private'})]});
   try{assert.deepEqual(f.bus(unknown),[.5,0]);assert.deepEqual(f.bus(forged),[.5,0]);f.health();const manifest=JSON.parse(JSON.stringify(f.sent.at(-1).value.sources));assert.equal(normalizeSourceManifest(manifest).length,2);assert.ok(!JSON.stringify(manifest).includes('private'));}finally{f.close();}
+});
+
+test('monitor controls require current context, real rehearsal marker and VOD eligibility without private source discovery',async()=>{
+  const f=await fixture({program:[media('mic',{sourceId:mic})]}),routingContext='00000000-1234-1234-1234-123456789abc',monitorNonce='11111111-1234-1234-1234-123456789abc';
+  try{
+    f.frames['iframe.backstage']={contentDocument:{querySelectorAll:()=>assert.fail('private audio discovery')}};
+    f.route({}, {routingContext,monitorVodAllowed:false});f.monitor({bus:'vod',monitorNonce,monitorContext:routingContext});assert.equal(f.sent.at(-1).value.monitorApplied,false);assert.equal(f.worklet.port.messages.at(-1).bus,'off');
+    f.route({}, {routingContext,monitorVodAllowed:true});f.monitor({bus:'vod',monitorNonce,monitorContext:'stale'});assert.equal(f.worklet.port.messages.at(-1).bus,'off');
+    f.monitor({bus:'vod',monitorNonce,monitorContext:routingContext});assert.equal(f.sent.at(-1).value.monitorApplied,true);assert.equal(f.worklet.port.messages.at(-1).bus,'vod');assert.equal(f.worklet.port.messages.at(-1).monitorId,monitorNonce);
+    const pcm=new ArrayBuffer(3840);f.worklet.port.onmessage({data:{type:'monitor',monitorId:monitorNonce,pcm}});assert.equal(f.sent.at(-1).channel,'producer:output:monitor-pcm');assert.equal(f.sent.at(-1).value.seq,0);const count=f.sent.length;f.worklet.port.onmessage({data:{type:'monitor',monitorId:monitorNonce,pcm}});assert.equal(f.sent.length,count,'one packet can be outstanding');
+    f.controls.get('producer:output:monitor-ack')(null,{monitorId:monitorNonce,seq:0});assert.equal(f.worklet.port.messages.at(-1).type,'monitor-credit');assert.equal(f.sources.length,1);assert.equal(f.queries.some(selector=>/backstage|private/.test(selector)),false);
+    f.context.document.documentElement.dataset.rehearsalMode='production';f.monitor({bus:'live',monitorNonce,monitorContext:routingContext});assert.equal(f.sent.at(-1).value.monitorApplied,false);assert.equal(f.worklet.port.messages.at(-1).bus,'off');
+  }finally{f.close();}
 });

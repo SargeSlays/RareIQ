@@ -7,7 +7,7 @@
     if(!root)return null;
     const node=name=>root.querySelector('#streamMetadata'+name);
     const account=node('Account'),status=node('Status'),check=node('Check'),permission=node('Permission'),apply=node('Apply'),broadcast=node('Broadcast'),category=node('Category'),query=node('Query'),search=node('Search');
-    let destination=null,revision=null,locked=false,dirty=true,info=null,loading='',mutating=false,closed=false,generation=0,pending=null,outcome='',message='',lastNotification='';
+    let destination=null,revision=null,locked=false,publishingBlocked=false,dirty=true,info=null,loading='',mutating=false,closed=false,generation=0,pending=null,outcome='',message='',lastNotification='';
     const supported=()=>Boolean(PLATFORMS[destination?.platform]);
     const busy=()=>Boolean(loading)||mutating;
     const editable=()=>info?.authorized===true&&info?.editable===true&&Boolean(bounded(info.channel_id,128));
@@ -15,6 +15,7 @@
     const hasCategory=()=>Boolean(info?.capabilities?.category_id||info?.capabilities?.category);
     const blocked=()=>closed||locked||busy()||!supported();
     function applyBlocker(){
+      if(publishingBlocked)return 'Public channel updates are blocked in rehearsal or until production status is confirmed. Connection and category checks remain available.';
       if(locked)return 'Stop broadcasting or finish the current action before updating stream info.';
       if(busy())return 'Wait for the current stream info action to finish.';
       if(!supported())return 'Choose a Twitch, YouTube or Kick destination.';
@@ -40,7 +41,7 @@
       const capabilities=info?.capabilities||{},fields=['title','description','tags'].filter(key=>capabilities[key]);
       node('Fields').textContent=info?`Applies your saved ${fields.length?fields.join(', '):'supported details'}${hasCategory()?' and the category selected here':''}. ${capabilities.description?'':'Description stays local. '}${capabilities.tags?'':'Tag notes stay local. '}This does not start a broadcast.`:'Save your local draft before applying its supported fields.';
       status.dataset.state=outcome||loading||'ready';
-      const contextBlock=!busy()&&(locked||dirty||!Number.isSafeInteger(revision));
+      const contextBlock=!busy()&&(publishingBlocked||locked||dirty||!Number.isSafeInteger(revision));
       status.textContent=contextBlock?`${outcome==='unconfirmed'?'The previous update remains unconfirmed. ':''}${why}`:message||(why||'Ready to update the connected channel from your saved draft.');
       root.dataset.busy=String(busy());const value={busy:mutating,state:outcome||loading||'ready'},signature=JSON.stringify(value);if(signature!==lastNotification){lastNotification=signature;onChange(value);}
     }
@@ -144,7 +145,7 @@
       const next=Object.hasOwn(value,'destination')?value.destination:destination,nextRevision=Object.hasOwn(value,'revision')?value.revision:revision;
       const targetChanged=next?.id!==destination?.id||next?.platform!==destination?.platform,revisionChanged=nextRevision!==revision;
       destination=next&&typeof next.id==='string'?{id:next.id,name:bounded(next.name),platform:next.platform}:null;revision=nextRevision;
-      if(typeof value.locked==='boolean')locked=value.locked;if(typeof value.dirty==='boolean')dirty=value.dirty;
+      if(typeof value.locked==='boolean')locked=value.locked;if(typeof value.publishingBlocked==='boolean')publishingBlocked=value.publishingBlocked;if(typeof value.dirty==='boolean')dirty=value.dirty;
       if(targetChanged){++generation;loading='';info=null;pending=null;outcome='';message='';resetBroadcasts();resetCategories();}
       else if(revisionChanged){pending=null;outcome='';message='';}
       render();if(targetChanged&&supported()&&!locked&&!mutating)inspect();
