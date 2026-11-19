@@ -16,7 +16,8 @@
     if(raw.state==='authorized'&&(!value.authorized||!value.expires_at||value.expires_at<=now)){value.state='not_authorized';value.authorized=false;value.reason='authorization_refresh_required';}
     return value;
   }
-  function createController({platform,request,onChange=()=>{},confirmDisconnect=async()=>false,schedule=setTimeout,unschedule=clearTimeout,now=()=>Date.now()/1000}={}){
+  const SETUP_ERRORS={disconnect_before_app_setup:'Disconnect or cancel sign-in before changing app setup.',external_app_configuration_active:'App setup is managed outside this dialog. Keep that setup or review it before importing a file.',activity_history_unavailable:'App setup was not changed because activity history is unavailable. Retry after history is available.',account_storage_unavailable:'Protected account storage is unavailable. Your saved setup is kept.',app_setup_unavailable:'App setup could not be loaded. Check connection, then retry.',invalid_app_configuration:'This file is not a valid provider app setup file. Check connection, then choose the correct file.',invalid_app_provider:'Choose YouTube or Kick app setup from its own card.',app_setup_pending:'An app setup action is already running. Finish it before retrying.',local_operator_required:'Load the setup file from the desktop studio.'};
+  function createController({platform,request,importApp=null,onChange=()=>{},confirmDisconnect=async()=>false,schedule=setTimeout,unschedule=clearTimeout,now=()=>Date.now()/1000}={}){
     if(!Object.hasOwn(NAMES,platform)||typeof request!=='function')throw Error('invalid_provider');
     let state={platform,account:null,busy:'',stale:false,locked:false,message:'Checking '+NAMES[platform]+'…',historyWarning:false,stopWarning:false,openedFlow:null},closed=false,epoch=0,timer=null;
     const snapshot=()=>({...state,account:state.account?{...state.account}:null}),emit=()=>onChange(snapshot());
@@ -28,24 +29,38 @@
       state.message=!value.app_configured?'One-time '+NAMES[platform]+' app setup is needed before signing in.':action==='disconnect'?'Saved '+NAMES[platform]+' sign-in removed from this computer.':action==='check'&&value.state==='authorized'&&value.reason==='account_authorized'?'Saved '+NAMES[platform]+' connection checked.':REASONS[value.reason]||'The account status is unavailable. Check the connection and retry.';
     }
     async function run(action){
-      if(closed||!['status','begin','cancel','check','disconnect','authorize'].includes(action))return false;
+      if(closed||!['status','begin','cancel','check','disconnect','authorize','setup'].includes(action))return false;
       if(state.busy&&!(action==='cancel'&&['begin','authorize'].includes(state.busy)))return false;
       if(state.locked&&!['status','cancel'].includes(action))return false;
+      if(action==='setup'&&(typeof importApp!=='function'||!state.account||state.account.authorized||state.account.state==='pending'||state.stale||state.stopWarning))return false;
       if(action==='begin'&&(!state.account?.app_configured||state.stale||state.stopWarning))return false;
       if(action==='authorize'&&(state.account?.state!=='pending'||state.stale||state.openedFlow===state.account.flow_id||state.account.reason==='validating_authorization'))return false;
       if(action==='disconnect'){
         const account=state.account;if(!account||!await confirmDisconnect(platform)||closed||state.locked||state.busy||state.account!==account)return false;
       }
       const own=++epoch,payload={platform,action};if(action==='authorize')payload.flowId=state.account.flow_id;
-      stopTimer();state.busy=action;if(action!=='status'){state.historyWarning=false;state.message=({begin:'Preparing sign-in…',cancel:'Cancelling sign-in…',check:'Checking the saved connection…',disconnect:'Removing saved sign-in…',authorize:'Opening provider sign-in…'})[action];}emit();
+      stopTimer();state.busy=action;if(action!=='status'){if(action!=='setup')state.historyWarning=false;state.message=({begin:'Preparing sign-in…',cancel:'Cancelling sign-in…',check:'Checking the saved connection…',disconnect:'Removing saved sign-in…',authorize:'Opening provider sign-in…',setup:'Choose the provider app setup file in the file picker…'})[action];}emit();
+      let setupSaved=false;
       try{
+        if(action==='setup'){
+          const imported=await importApp(platform);if(closed||own!==epoch)return false;
+          if(!plain(imported)||imported.ok!==true||imported.platform!==platform){state.stale=true;state.message=SETUP_ERRORS[imported?.reason]||'The app setup file could not be loaded. Your saved setup is kept. Check connection, then retry loading the file.';return false;}
+          if(imported.activity_history_warning===true)state.historyWarning=true;
+          if(imported.cancelled===true){state.message='No app setup file loaded. Your previous setup is kept.';return true;}
+          if(imported.configured!==true){state.stale=true;state.message='App setup could not be confirmed. Your saved setup is kept. Check connection before retrying.';return false;}
+          setupSaved=true;
+          let refreshed;try{refreshed=await request({platform,action:'status'});}catch(_){}
+          if(closed||own!==epoch)return false;
+          if(!plain(refreshed)||refreshed.ok!==true){state.stale=true;state.message='App setup was saved, but account status could not refresh. Check connection or reopen setup.';return false;}
+          install(refreshed,action);state.message=state.account.app_configured?'App setup loaded securely.'+(!state.account.authorized&&state.account.state!=='pending'?' Sign in with '+NAMES[platform]+' to connect your account.':''):'App setup was saved, but provider setup is still unavailable. Check connection before continuing.';return true;
+        }
         const result=await request(payload);if(closed||own!==epoch)return false;
         if(!plain(result)||result.ok!==true){state.stale=true;state.message=REASONS[result?.reason]||'The action could not be confirmed. Your previous saved connection is kept; check and retry.';return false;}
         if(action==='authorize'){
           if(result.account)install(result,action);state.openedFlow=payload.flowId;state.message='Finish signing in on '+NAMES[platform]+' in the opened browser, then return here.';
         }else install(result,action);
         return true;
-      }catch(_){if(!closed&&own===epoch){state.stale=true;state.message='The action could not be confirmed. Your saved connection is kept. Check and retry.';}return false;}
+      }catch(_){if(!closed&&own===epoch){state.stale=true;state.message=action==='setup'?(setupSaved?'App setup was saved, but account status could not refresh. Check connection or reopen setup.':'The app setup file could not be loaded. Your saved setup is kept. Check connection, then retry loading the file.'):'The action could not be confirmed. Your saved connection is kept. Check and retry.';}return false;}
       finally{if(!closed&&own===epoch){state.busy='';emit();poll();}}
     }
     return {run,snapshot,setLocked(value){if(state.locked!==(value===true)){state.locked=value===true;emit();}},start(){closed=false;return run('status');},close(){closed=true;++epoch;stopTimer();}};
@@ -54,16 +69,20 @@
     if(typeof api?.providerAccount!=='function')return [];
     return Object.keys(NAMES).map(platform=>{
       const root=doc.querySelector('#'+platform+'Account');if(!root)return null;
-      const node=suffix=>doc.querySelector('#'+platform+suffix),buttons=Object.fromEntries(['begin','authorize','check','cancel','disconnect'].map(action=>[action,node(action[0].toUpperCase()+action.slice(1))]));let lastBusy=false;
-      const controller=createController({platform,request:value=>api.providerAccount(value),confirmDisconnect:()=>host.confirm('Disconnect '+NAMES[platform]+' on this computer? This removes the saved sign-in. Manual streaming destinations remain separate. Provider-side app access can also be revoked on the provider website.'),onChange(state){
+      const node=suffix=>doc.querySelector('#'+platform+suffix),buttons=Object.fromEntries(['begin','authorize','check','cancel','disconnect'].map(action=>[action,node(action[0].toUpperCase()+action.slice(1))]));buttons.setup=node('LoadSetup');let lastBusy=false,restoreSetupFocus=false;
+      const controller=createController({platform,request:value=>api.providerAccount(value),importApp:typeof api.importProviderApp==='function'?value=>api.importProviderApp(value):null,confirmDisconnect:()=>host.confirm('Disconnect '+NAMES[platform]+' on this computer? This removes the saved sign-in. Manual streaming destinations remain separate. Provider-side app access can also be revoked on the provider website.'),onChange(state){
         const a=state.account,pending=a?.state==='pending',working=Boolean(state.busy),opened=pending&&a.flow_id===state.openedFlow;root.setAttribute('aria-busy',String(working));node('Identity').textContent=a?.authorized&&a.public_label?a.public_label:'Connect your channel';node('Badge').textContent=state.stale?'Needs a check':!a?.app_configured?'Setup required':pending?'Awaiting '+NAMES[platform]:a.authorized?'Account saved':'Not connected';
         node('Status').textContent=state.message+(state.stopWarning?' Saved sign-in removed, but chat shutdown could not be confirmed. Reopen the studio before reconnecting.':'')+(state.historyWarning?' Local activity history could not be written.':'');
-        node('Setup').hidden=Boolean(a?.app_configured);node('Pending').hidden=!pending;node('Locked').hidden=!state.locked;
+        if(doc.activeElement===buttons.setup&&a?.app_configured)restoreSetupFocus=true;
+        node('Setup').hidden=Boolean(a?.authorized||pending);node('Setup').querySelector('summary').textContent=a?.app_configured?'App setup':'One-time app setup needed';node('Pending').hidden=!pending;node('Locked').hidden=!state.locked;
         buttons.begin.hidden=pending||a?.authorized;buttons.begin.disabled=working||state.locked||state.stale||state.stopWarning||!a?.app_configured;
         buttons.authorize.hidden=!pending;buttons.authorize.disabled=working||state.locked||state.stale||opened||a?.reason==='validating_authorization';buttons.authorize.textContent=opened?'Sign-in browser opened':'Open '+NAMES[platform]+' sign-in';
         buttons.cancel.hidden=!pending&&state.busy!=='begin';buttons.cancel.disabled=working&&!['begin','authorize'].includes(state.busy);
         buttons.check.disabled=working||state.locked;buttons.check.textContent=state.stale?'Retry connection check':'Check connection';buttons.disconnect.hidden=!a?.authorized&&!['authorization_refresh_required','authorization_rejected','account_identity_mismatch'].includes(a?.reason);buttons.disconnect.disabled=working||state.locked;
+        buttons.setup.textContent=state.busy==='setup'?'Loading setup file…':'Load app setup file';buttons.setup.disabled=working||state.locked||state.stale||state.stopWarning||!a||a.authorized||pending||typeof api.importProviderApp!=='function';
         for(const button of Object.values(buttons))button.title=button.disabled?(state.locked?'Stop broadcasting or finish the current account action first.':working?'Wait for the current action to finish.':opened?'Finish sign-in in the browser already opened.':!a?.app_configured?SETUP[platform]:state.stale?'Check the connection and retry.':'Reopen the studio before reconnecting.'):'';
+        buttons.setup.title=buttons.setup.disabled?(working?'Finish choosing the current setup file first.':state.locked?'Stop broadcasting or finish the current account action first.':a?.authorized||pending?'Disconnect or cancel sign-in before changing app setup.':state.stale?'Check connection before loading another setup file.':typeof api.importProviderApp!=='function'?'App setup file loading requires the updated desktop app.':'Reopen the studio before changing app setup.'):'Choose the provider app setup file. No path or credentials are entered here.';
+        if(restoreSetupFocus&&!working){restoreSetupFocus=false;if(!buttons.begin.hidden&&!buttons.begin.disabled)buttons.begin.focus();else buttons.check.focus();}
         const busy=Boolean(state.busy&&state.busy!=='status');if(lastBusy!==busy){lastBusy=busy;onBusyChange(platform,busy);}
       }});
       for(const [action,button]of Object.entries(buttons))button.addEventListener('click',()=>controller.run(action));

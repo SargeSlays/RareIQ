@@ -5,8 +5,8 @@ const NOW=1800000000;
 const saved=platform=>({platform,state:'authorized',authorized:true,app_configured:true,reason:'account_authorized',public_label:'Fixture channel',expires_at:NOW+3600});
 const pending=platform=>({...saved(platform),state:'pending',reason:'authorization_pending',flow_id:'a'.repeat(32),expires_at:NOW+600});
 function fixture(platform='youtube'){
-  const f={calls:[],messages:[],timers:new Map(),result:{ok:true,account:saved(platform)},approved:true};let timer=0;
-  f.controller=createController({platform,request:async value=>{f.calls.push(value);return typeof f.result==='function'?f.result():f.result;},confirmDisconnect:async()=>f.approved,onChange:value=>f.messages.push(value),schedule:(fn,ms)=>{assert.equal(ms,2000);f.timers.set(++timer,fn);return timer;},unschedule:id=>f.timers.delete(id),now:()=>NOW});return f;
+  const f={calls:[],imports:[],messages:[],timers:new Map(),result:{ok:true,account:saved(platform)},importResult:{ok:true,configured:true,platform},approved:true};let timer=0;
+  f.controller=createController({platform,request:async value=>{f.calls.push(value);return typeof f.result==='function'?f.result():f.result;},importApp:async value=>{f.imports.push(value);return typeof f.importResult==='function'?f.importResult():f.importResult;},confirmDisconnect:async()=>f.approved,onChange:value=>f.messages.push(value),schedule:(fn,ms)=>{assert.equal(ms,2000);f.timers.set(++timer,fn);return timer;},unschedule:id=>f.timers.delete(id),now:()=>NOW});return f;
 }
 const deferred=()=>{let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};};
 test('saved identity reopens through public status without credentials or authorization URLs',async()=>{
@@ -43,4 +43,30 @@ test('expiry and strict public fields reject malformed pending IDs and unsafe id
 });
 test('expired saved authorization becomes a reconnect state rather than a ready account',()=>{
   const raw=normalize({...saved('youtube'),expires_at:NOW-1},'youtube',NOW);assert.equal(raw.state,'not_authorized');assert.equal(raw.authorized,false);assert.equal(raw.reason,'authorization_refresh_required');assert.equal(raw.public_label,'Fixture channel');
+});
+const notConfigured=platform=>({platform,state:'not_authorized',reason:'app_setup_required',authorized:false,app_configured:false});
+test('app file setup passes only platform, reloads metadata and prepares sign-in without authorizing it',async()=>{
+  for(const platform of ['youtube','kick']){
+    const f=fixture(platform);f.result={ok:true,account:notConfigured(platform)};await f.controller.start();
+    f.result={ok:true,account:{...notConfigured(platform),app_configured:true,reason:'authorization_required'}};assert.equal(await f.controller.run('setup'),true);
+    assert.deepEqual(f.imports,[platform]);assert.deepEqual(f.calls,[{platform,action:'status'},{platform,action:'status'}]);const state=f.controller.snapshot();assert.equal(state.account.app_configured,true);assert.equal(state.account.authorized,false);assert.match(state.message,/Sign in with/);assert.equal(state.busy,'');
+  }
+});
+test('file chooser cancellation keeps metadata, warnings and existing setup without a reload',async()=>{
+  const f=fixture();f.result={ok:true,account:notConfigured('youtube'),activity_history_warning:true};await f.controller.start();const before=f.controller.snapshot().account;
+  f.importResult={ok:true,cancelled:true,platform:'youtube'};assert.equal(await f.controller.run('setup'),true);assert.deepEqual(f.controller.snapshot().account,before);assert.equal(f.controller.snapshot().historyWarning,true);assert.equal(f.calls.length,1);assert.match(f.controller.snapshot().message,/previous setup is kept/);
+});
+test('app setup cannot overwrite authorized or pending accounts and respects the broadcast lock',async()=>{
+  const f=fixture();await f.controller.start();assert.equal(await f.controller.run('setup'),false);f.result={ok:true,account:pending('youtube')};await f.controller.run('status');assert.equal(await f.controller.run('setup'),false);
+  f.result={ok:true,account:notConfigured('youtube')};await f.controller.run('status');f.controller.setLocked(true);assert.equal(await f.controller.run('setup'),false);assert.equal(f.imports.length,0);
+});
+test('closing during file selection retires the result and never reloads or displays credentials',async()=>{
+  const f=fixture('kick');f.result={ok:true,account:notConfigured('kick')};await f.controller.start();const picking=deferred();f.importResult=()=>picking.promise;const work=f.controller.run('setup');assert.equal(f.controller.snapshot().busy,'setup');f.controller.close();const count=f.messages.length;picking.resolve({ok:true,configured:true,platform:'kick',client_secret:'must-not-pass'});await work;assert.equal(f.calls.length,1);assert.equal(f.messages.length,count);assert.doesNotMatch(JSON.stringify(f.controller.snapshot()),/must-not-pass/);
+});
+test('saved configuration with failed metadata refresh is reported separately and history stays warned',async()=>{
+  const f=fixture();f.result={ok:true,account:notConfigured('youtube')};await f.controller.start();f.importResult={ok:true,configured:true,platform:'youtube',activity_history_warning:true};f.result={ok:false,reason:'provider_unavailable'};assert.equal(await f.controller.run('setup'),false);assert.match(f.controller.snapshot().message,/App setup was saved/);assert.equal(f.controller.snapshot().historyWarning,true);assert.equal(f.controller.snapshot().stale,true);
+  f.result={ok:true,account:{...notConfigured('youtube'),app_configured:true,reason:'authorization_required'}};await f.controller.run('check');assert.equal(f.controller.snapshot().account.app_configured,true);
+});
+test('app file errors use constant recovery messages and status check enables a safe retry',async()=>{
+  const f=fixture('kick');f.result={ok:true,account:notConfigured('kick')};await f.controller.start();f.importResult={ok:false,reason:'invalid_app_configuration',path:'private-file.json'};assert.equal(await f.controller.run('setup'),false);assert.match(f.controller.snapshot().message,/not a valid provider app setup file/);assert.doesNotMatch(JSON.stringify(f.controller.snapshot()),/private-file/);assert.equal(await f.controller.run('setup'),false);await f.controller.run('status');f.importResult={ok:true,cancelled:true,platform:'kick'};assert.equal(await f.controller.run('setup'),true);
 });

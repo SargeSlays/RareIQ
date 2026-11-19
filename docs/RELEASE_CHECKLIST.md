@@ -1741,3 +1741,29 @@ the primary app. No new provider credentials, stream or recording was created.
 Canonical isolated gate passed 3,986 Python and 841 JavaScript checks. Packaged
 native proof retains Twitch persistence and confirms original YouTube/Kick status
 handlers and untrusted rejection. Real Google/Kick consent is not claimed.
+
+
+## November 19, 2026 — Private provider app setup import
+
+- [x] Bounded file parsing, native trust/stale-frame guards, private loopback body
+  and public response redaction; no renderer filename or credential output.
+- [x] Credential-owner lock, unchanged imports, pending/auth overwrite prevention,
+  environment conflict, atomic storage and metadata-only audit failure handling.
+- [x] Mounted Kick configuration route remains reachable after account routes.
+- [x] Original packaged native import handles picker cancellation and blocks
+  untrusted requests before picker access; fixture private state remains isolated.
+- [x] Import/cancel/focus/draft/re-import recovery checked in dark/light at
+  390/860/1920/3840 widths with synthetic data.
+- [ ] Owner Google project creation approval and Kick sign-in; subsequent app
+  credential creation, private configuration and actual provider consent.
+
+Evidence: F:/Temp/jonat/ProducerPlease-provider-setup-20261119 and
+F:/Temp/jonat/ProducerPlease-provider-import-20261119/ui03. Credentials and runtime
+configuration remain outside source/recovery snapshots. No new real app credential,
+stream, recording, public deployment or billing action was performed.
+
+Full repeated gate passed 3,993 Python checks. Complete JavaScript behavior checks
+are repeated after the final UI recovery change. This tested setup-import build
+was packaged but has not replaced the primary app/server; its activation awaits
+owner steps and a responsive usage check. Last verified account usage was 53%,
+with an approved exclusive 56% ceiling.

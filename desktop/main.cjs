@@ -115,6 +115,15 @@ app.whenReady().then(async()=>{
   ipcMain.handle('producer:accounts:twitch',twitchConnection);
   const providerConnection=require('./provider-connection.cjs').createProviderConnection({origin,trustedSender:settingsEvent,mutate:changeDestination,authorize:authorizeAccount});
   ipcMain.handle('producer:accounts:provider',providerConnection);
+  const importAppSetup=require('./app-setup-import.cjs').createAppSetupImporter({origin,trustedSender:settingsEvent,
+    chooseFile:async({platform,defaultPath})=>{
+      const choice=await dialog.showOpenDialog(settings,{title:'Load '+(platform==='youtube'?'Google Desktop':'Kick private app')+' setup',defaultPath,properties:['openFile'],filters:[{name:'App setup JSON',extensions:['json']}]});
+      return choice.canceled?null:choice.filePaths[0]||null;
+    }});
+  ipcMain.handle('producer:accounts:import-app',async(event,platform)=>{
+    try{return await changeDestination(event,()=>importAppSetup(event,platform));}
+    catch(error){return {ok:false,reason:['destination_change_pending','destination_broadcast_busy'].includes(error?.message)?error.message:'local_operator_required'};}
+  });
   ipcMain.handle('producer:info',event=>{if(!policy.trustedMain(event,studio.webContents,origin))throw Error('Untrusted request');return {name:'Producer, Please',version:app.getVersion(),desktop:true,engine:'standalone',preview};});
   ipcMain.handle('producer:settings',event=>{if(!policy.trustedMain(event,studio.webContents,origin))throw Error('Untrusted request');return openSettings();});
   ipcMain.handle('producer:sources:open',openSources);

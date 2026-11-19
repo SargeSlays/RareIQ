@@ -1236,3 +1236,25 @@ Final native inspection caught a Kick setup hint using 127.0.0.1 while the regis
 callback and authorization boundary require localhost. Setup copy now uses the
 exact registered URL, and a regression feeds the visible callback into the native
 URL validator so differing loopback spellings cannot silently break consent.
+
+
+## November 19, 2026 — App configuration is private ingress, not authorization
+
+Setup files must be selected by the native OS picker; never accept a renderer
+filename or echo a parsed credential. Recheck the trusted frame after each wait.
+The backend uses the provider credential lock and generation, rejects active or
+pending authorization replacement, preserves other providers and detects active
+environment configuration. Configuration success must not be called a connected
+account. History failure after a durable save warns separately from save failure.
+
+The generic Kick /{action} route would swallow configure-app before the setup
+router could receive it. Four explicit account action routes now preserve this
+extension, guarded by a real mounted-route and Greenroom audit regression. Native
+checks exercise original Main import cancellation and reject untrusted imports
+before any picker opens. Configured unsigned accounts retain setup-file recovery.
+
+The first full gate hit Windows 10055 while Python created an event-loop socket
+pair before a playback test body ran. The affected module then passed 75 checks.
+No networking/security settings or unrelated production code were changed; the
+owned native fixture was stopped before repeating the full gate. Keep resource
+failures distinct from product assertions and retain the failed-run evidence.

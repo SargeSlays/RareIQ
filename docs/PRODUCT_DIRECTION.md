@@ -1044,3 +1044,20 @@ connections are not verified. Cards truthfully show setup required. These accoun
 connections do not create streaming destinations; YouTube/Kick outputs remain
 manual server/key setup in this checkpoint. The real Twitch linked destination
 was observed saved in the open app; no broadcast or recording was started.
+
+
+## November 19, 2026 — Private provider app setup import
+
+YouTube and Kick can now import their one-time app configuration through a native
+file picker. Google accepts its Desktop app JSON; Kick accepts an owner-private
+client ID/secret JSON. The renderer sends only a provider name. Main validates a
+bounded local file and privately sends the configuration to the producer-only
+loopback ingress; no credential value or selected path is returned to the UI.
+
+The provider credential owner serializes setup with sign-in/refresh, refuses
+replacement during pending or saved authorization, respects external environment
+configuration, and keeps other providers unchanged. Equivalent imports replay
+without rewriting. Configuration is protected by the current Windows user vault;
+it is not account authorization or a streaming destination. Unsigned configured
+accounts retain an advanced App setup control so a mistaken file can be replaced.
+Real registrations and provider consent still require owner action.

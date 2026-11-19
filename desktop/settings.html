@@ -51,7 +51,7 @@
   <div class="account-heading"><div><h2 id="youtubeAccountTitle">YouTube</h2><strong id="youtubeIdentity">Connect your channel</strong></div><span id="youtubeBadge">Checking connection</span></div>
   <p>Save read-only access to your YouTube channel and live chat. Your sign-in stays encrypted on this Windows account. Streaming destinations are currently added manually.</p>
   <p id="youtubeStatus" role="status" aria-live="polite">Checking YouTube…</p>
-  <details id="youtubeSetup"><summary>One-time app setup needed</summary><p>A Google Desktop app registration, YouTube Data API and consent setup are required before signing in.</p></details>
+  <details id="youtubeSetup"><summary>One-time app setup needed</summary><p>A Google Desktop app registration, YouTube Data API and consent setup are required before signing in.</p><button type="button" id="youtubeLoadSetup">Load app setup file</button><p>Choose the downloaded Google Desktop app client JSON file. This prepares sign-in; it does not connect your account.</p></details>
   <p id="youtubePending" hidden>Review the permissions on Google, then return here. Closing setup keeps this attempt available until it expires.</p>
   <div class="actions"><button type="button" id="youtubeBegin" class="primary">Sign in with YouTube</button><button type="button" id="youtubeAuthorize" class="primary" hidden>Open YouTube sign-in</button><button type="button" id="youtubeCheck">Check connection</button><button type="button" id="youtubeCancel" hidden>Cancel sign-in</button><button type="button" id="youtubeDisconnect" hidden>Disconnect</button></div>
   <small id="youtubeLocked" hidden>Stop broadcasting or finish the current action before changing account connections.</small>
@@ -60,7 +60,7 @@
   <div class="account-heading"><div><h2 id="kickAccountTitle">Kick</h2><strong id="kickIdentity">Connect your channel</strong></div><span id="kickBadge">Checking connection</span></div>
   <p>Save your Kick account connection with channel and stream-key read access. Review permission on Kick. Streaming destinations are currently added manually; chat delivery needs separate setup.</p>
   <p id="kickStatus" role="status" aria-live="polite">Checking Kick…</p>
-  <details id="kickSetup"><summary>One-time app setup needed</summary><p>A private Kick app registration is required with the local return address <code>http://localhost:8770/callback</code>.</p></details>
+  <details id="kickSetup"><summary>One-time app setup needed</summary><p>A private Kick app registration is required with the local return address <code>http://localhost:8770/callback</code>.</p><button type="button" id="kickLoadSetup">Load app setup file</button><p>Choose the private Kick app setup JSON file. This prepares sign-in; it does not connect your account.</p></details>
   <p id="kickPending" hidden>Review the permissions on Kick, then return here. Closing setup keeps this attempt available until it expires.</p>
   <div class="actions"><button type="button" id="kickBegin" class="primary">Sign in with Kick</button><button type="button" id="kickAuthorize" class="primary" hidden>Open Kick sign-in</button><button type="button" id="kickCheck">Check connection</button><button type="button" id="kickCancel" hidden>Cancel sign-in</button><button type="button" id="kickDisconnect" hidden>Disconnect</button></div>
   <small id="kickLocked" hidden>Stop broadcasting or finish the current action before changing account connections.</small>

@@ -1032,3 +1032,15 @@ actual Google/Kick consent and verify real saved-account reopening. No provider
 registrations, credentials, real Google/Kick grants or broadcasts were created by
 this checkpoint. Automatic account-linked YouTube/Kick output selection remains
 separate work; current streaming destinations use manual server/key setup.
+
+
+## November 19, 2026 — Provider registration preparation
+
+Private setup import and its UI recovery path are implemented and locally tested.
+A dedicated Google Cloud project form named Producer Please is prepared under
+No organization; its Create action awaits owner approval. Kick is at the owner
+sign-in step. No Google/Kick project, app credential or real grant has been
+created by this checkpoint. Next: complete those owner steps, enable the needed
+Google API and prepare each app registration for approval, then import private
+configuration and verify actual consent, refresh and saved reopening. Do not
+attach billing, start a trial, publish an app or start media output implicitly.

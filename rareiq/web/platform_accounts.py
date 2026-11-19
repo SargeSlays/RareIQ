@@ -319,11 +319,21 @@ def create_platform_accounts_router(twitch_service, authorize_operator, *, vault
     async def youtube_disconnect_account(request: Request):
         return await command(request, "disconnect", "youtube")
 
-    @router.post("/api/production/accounts/kick/{action}")
-    async def kick_command(action: str, request: Request):
-        if action not in {"begin", "cancel", "check", "disconnect"}:
-            return response({"ok": False, "reason": "invalid_account_action"}, 404)
-        return await command(request, action, "kick")
+    @router.post("/api/production/accounts/kick/begin")
+    async def kick_begin(request: Request):
+        return await command(request, "begin", "kick")
+
+    @router.post("/api/production/accounts/kick/cancel")
+    async def kick_cancel(request: Request):
+        return await command(request, "cancel", "kick")
+
+    @router.post("/api/production/accounts/kick/check")
+    async def kick_check(request: Request):
+        return await command(request, "check", "kick")
+
+    @router.post("/api/production/accounts/kick/disconnect")
+    async def kick_disconnect_account(request: Request):
+        return await command(request, "disconnect", "kick")
 
     @router.get("/api/production/accounts/kick/authorization")
     async def kick_authorization(request: Request):

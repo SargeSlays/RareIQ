@@ -28,6 +28,11 @@ async function main(){
     async function close(){if(!app)return;const owned=app;app=null;await owned.evaluate(({app})=>app.exit(0)).catch(()=>{});await owned.close().catch(()=>{});}
     await launch();const invoke=value=>settings.evaluate(value=>producerSettings.twitchAccount(value),value);
     const initial=safe(await invoke({action:'status'}));assert.equal(initial.account.authorized,true);assert.equal(initial.account.streaming_authorized,false);
+    if(await settings.evaluate(()=>typeof producerSettings.importProviderApp==='function')){
+      await app.evaluate(({dialog})=>{globalThis.__appSetupPickers=0;dialog.showOpenDialog=async()=>{__appSetupPickers++;return {canceled:true,filePaths:[]};};});
+      for(const platform of ['youtube','kick'])assert.deepEqual(safe(await settings.evaluate(platform=>producerSettings.importProviderApp(platform),platform)),{ok:true,cancelled:true,platform});
+      assert.equal(await app.evaluate(()=>__appSetupPickers),2);result.originalAppImportCancel=true;
+    }
     if(await settings.evaluate(()=>typeof producerSettings.providerAccount==='function')){
       for(const platform of ['youtube','kick']){const value=safe(await settings.evaluate(platform=>producerSettings.providerAccount({platform,action:'status'}),platform));assert.equal(value.ok,true);assert.equal(value.account.platform,platform);await settings.locator('#'+platform+'Account').waitFor();}
       result.originalProviderStatus=true;
@@ -39,6 +44,7 @@ async function main(){
     await delay(1200);const callsBefore=(await marker()).calls.length;
     for(const action of ['status','begin','link','disconnect']){const denied=safe(await untrusted.evaluate(value=>producerSettings.twitchAccount(value),{action,...(action==='link'?{requestId:'untrusted-link'}:{})}));assert.deepEqual(denied,{ok:false,reason:'local_operator_required'});}
     if(await untrusted.evaluate(()=>typeof producerSettings.providerAccount==='function'))for(const platform of ['youtube','kick'])for(const action of ['status','begin','authorize','disconnect'])assert.deepEqual(safe(await untrusted.evaluate(value=>producerSettings.providerAccount(value),{platform,action,...(action==='authorize'?{flowId:'a'.repeat(32)}:{})})),{ok:false,reason:'local_operator_required'});
+    if(await untrusted.evaluate(()=>typeof producerSettings.importProviderApp==='function')){for(const platform of ['youtube','kick'])assert.deepEqual(safe(await untrusted.evaluate(platform=>producerSettings.importProviderApp(platform),platform)),{ok:false,reason:'local_operator_required'});assert.equal(await app.evaluate(()=>__appSetupPickers),2);result.originalAppImportUntrustedBlocked=true;}
     assert.equal((await marker()).calls.length,callsBefore,'Untrusted calls never reach account HTTP');await app.evaluate(({BrowserWindow},id)=>BrowserWindow.fromId(id)?.destroy(),untrustedId);
     await settings.locator('#destinationForm input[name=name]').fill('Preserved native manual draft');
     assert.equal((await fetch(origin+'/__qa__/desktop-accounts/authorize',{method:'POST'}).then(response=>response.json())).synthetic_authorization,true);
