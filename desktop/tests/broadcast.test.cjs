@@ -161,3 +161,22 @@ test('Stop cancels a delayed profile read before it can create or review output'
   const preparing=f.app.prepare({profileId:'saved'});await settle();await assert.rejects(f.app.prepare(),/broadcast_busy/);await f.app.stop();lookup.resolve({id:'saved',format:'hd',fps:30,audioRouting:{}});
   await assert.rejects(preparing,/broadcast_cancelled/);assert.equal(created,0);assert.equal(f.app.status().phase,'idle');
 });
+
+test('cancelling the eighth encoder start cleans every owned worker once and never starts capture',async()=>{
+  const f=runningFixture(),last=deferred(),ids=Array.from({length:8},(_,i)=>'target-'+i);
+  f.setupWorker=run=>{if(f.runs.length===8)run.start=async()=>{run.starts++;run.state.running=true;await last.promise;};};
+  await f.app.prepare();const starting=f.app.start({destinationIds:ids});
+  for(let n=0;n<500&&f.runs.length<8;n++)await Promise.resolve();assert.equal(f.runs.length,8);
+  await f.app.stop();last.resolve();await assert.rejects(starting,/broadcast_cancelled/);
+  assert.equal(f.runs.every(run=>run.stops===1&&!run.state.running),true);assert.equal(f.taps.length,0);
+  assert.equal(f.calls.filter(c=>c.body?.active===true).length,1);assert.equal(f.calls.filter(c=>c.body?.active===false).length,1);assert.equal(f.app.ownsEncoding,false);
+});
+test('one saturated destination stops alone while seven destinations keep receiving media',async()=>{
+  const f=runningFixture(),ids=Array.from({length:8},(_,i)=>'target-'+i);await f.app.prepare();await f.app.start({destinationIds:ids});
+  f.runs.forEach(run=>run.emit({state:'active',videoFrames:3}));f.runs[3].sendAudio=()=>false;
+  assert.equal(f.taps[0].audio(Buffer.alloc(8),0,Buffer.alloc(8)),true);await settle();
+  assert.equal(f.runs[3].stops,1);assert.equal(f.app.status().targets[3].reason,'encoder_backpressure');
+  assert.equal(f.runs.filter((_,i)=>i!==3).every(run=>run.stops===0),true);assert.equal(f.app.ownsEncoding,true);
+  f.taps[0].video(Buffer.alloc(4),1);assert.equal(f.runs.filter((_,i)=>i!==3).every(run=>run.video===1),true);assert.equal(f.runs[3].video,0);
+  await f.app.stop();assert.equal(f.runs.every(run=>run.stops===1),true);assert.equal(f.calls.filter(c=>c.body?.active===false).length,1);assert.equal(f.app.active(),false);
+});

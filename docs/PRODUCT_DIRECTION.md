@@ -918,3 +918,13 @@ cannot yet be separated at the producer. Nested browser-source audio is excluded
 from native audio capture.
 
 Primary wire references: [OBS30.2.3 mux](https://github.com/obsproject/obs-studio/blob/30.2.3/plugins/obs-outputs/flv-mux.c#L404) and [Enhanced RTMP v2](https://github.com/veovera/enhanced-rtmp/blob/main/docs/enhanced/enhanced-rtmp-v2.md#L954).
+
+
+## November 18, 2026 — Eight-target capacity limit
+
+Eight destination selection is implemented, but sustained eight-target HD encoding
+is not accepted. A generated local test decoded all eight NVIDIA outputs correctly;
+feeding ten seconds of media took 11.41 seconds with 1.41 seconds maximum input lag.
+This is a measured local throughput limit, not verified live multistream capacity.
+The next optimization is shared video encoding with independent destination
+transports; preserve Twitch-only archive audio and target failure isolation.

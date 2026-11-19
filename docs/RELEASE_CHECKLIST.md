@@ -1590,3 +1590,21 @@ The existing backend was reused (not restarted), no show/record/OBS stream was
 active, and the private guest endpoint remained reachable. The Twitch reader fix
 was exercised separately; the still-running backend loads it on its next safe
 restart. No new real chat-message receipt was verified.
+
+
+## November 18, 2026 — Eight-output boundary checkpoint
+
+- [x] Eighth-start cancellation: 8 owned workers stop once, one ownership release,
+  zero late capture; saturated target isolation preserves the other 7destinations.
+- [x] Generated local eight-output test: 300 decoded frames per target, NVIDIA
+  H.264 on all 8, no reported encoder video/audio drops; all workers closed.
+- [x] Decoded Live has 440/880 Hz; only the Twitch-format output contains a second
+  AAC track, with 440 Hz retained and 880 Hz excluded.
+- [ ] Real-time eight-target capacity: 10 seconds of nominal media required 11.41
+  seconds of feeding, with 1.41 seconds maximum scheduling lag. This fails the
+  benchmark criterion (maximum 250 ms lag). It is not a live-capacity pass.
+- [ ] Shared-video encoding optimization, network/platform acceptance and endurance.
+
+Evidence: F:/Temp/jonat/ProducerPlease-output-capacity-20261118/eight02-paced
+(results.json and decoded-proof.json), plus boundary-tests01.log. No real
+broadcast, production recording, physical capture or app/backend restart occurred.

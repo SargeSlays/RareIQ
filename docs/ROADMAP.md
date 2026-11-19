@@ -907,3 +907,17 @@ and StackThis named producer identity remain separate acceptance work.
 - Existing Twitch reader now tolerates keepalive scheduling jitter; a bounded real
   reader-only probe stayed connected for 45 seconds. Actual message receipt remains
   unverified; do not repost the previously approved one-time message.
+
+
+## November 18, 2026 — Multistream capacity follow-up
+
+Completed: cancellation during the eighth worker Start cleans all 8workers, releases
+ownership once and never starts late capture. One saturated target stops while
+the other 7continue. Eight generated NVIDIA outputs decode 300 frames each; only
+the Twitch-format target has a separate archive mix. All workers close.
+
+Open: ten seconds of HD 30 fps media took 11.41 seconds to feed, with 1.41 seconds maximum
+scheduling lag. No encoder packets were reported dropped, but the test did not
+maintain real time. Prioritize one shared video encode with independent transport
+ownership/failure paths before claiming eight-target live capacity. This short
+local test is neither network delivery nor endurance acceptance.

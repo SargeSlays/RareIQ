@@ -1091,3 +1091,16 @@ unknown page errors; never suppress arbitrary errors to pass a visual check.
   an artificially tiny frame; preserve both unsupported-size fallback and a
   dimension-sensitive regression. Two actual local HD workers now select NVIDIA
   and their files decode correctly. This does not establish platform delivery.
+
+
+## November 18, 2026 — Multistream throughput evidence
+
+A successful file encode with zero reported worker drops does not establish
+real-time capacity. The previous generated-media loop slept 10 ms after doing
+work, so its input could drift behind the nominal media clock. The harness now
+paces against an absolute deadline and records wall time, maximum scheduling lag
+and an explicit realTimeCapacityPassed flag (250ms tolerance). Eight NVIDIA HD
+outputs decoded correctly but required 11.41seconds for 10 seconds of media; retain
+that failing timing evidence rather than calling the capacity verified. Preserve
+eighth-start cancellation and one-saturated/seven-continuing regressions when
+replacing per-destination video encoders with shared encoding.
