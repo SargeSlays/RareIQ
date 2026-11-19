@@ -19,6 +19,7 @@ import httpx
 from websockets.asyncio.client import connect as websocket_connect
 
 from rareiq.services.audience_service import TrustedAudienceEvent
+from rareiq.services.viewer_chat_service import deliver_viewer_chat
 
 
 class _ProviderError(Exception):
@@ -59,8 +60,9 @@ class TwitchAudienceConnector:
     _LOGIN = re.compile(r"^[a-z0-9_]{1,25}$")
 
     def __init__(self, audience_service, credentials_provider, *, http_factory=None,
-                 websocket_factory=None, clock=time.time):
+                 websocket_factory=None, clock=time.time, transcript_sink=None):
         self._audience, self._credentials_provider = audience_service, credentials_provider
+        self._transcript_sink = transcript_sink
         self._http_factory = http_factory or (lambda: httpx.AsyncClient(
             timeout=httpx.Timeout(5, connect=3), follow_redirects=False))
         self._websocket_factory = websocket_factory or _open_websocket
@@ -278,7 +280,12 @@ class TwitchAudienceConnector:
             raise _ProviderError("invalid_provider_payload")
         if event_id in self._seen:
             return
-        # Never retain the message body, badges, reply, or raw provider payload.
+        if self._transcript_sink is not None:
+            message = event.get("message")
+            deliver_viewer_chat(self._transcript_sink, "twitch", self._user_id,
+                               event_id, subject, name,
+                               message.get("text") if isinstance(message, dict) else None, occurred)
+        # The optional volatile transcript never enters audience storage.
         accepted = self._audience.accept(TrustedAudienceEvent("twitch", self._user_id,
             event_id, subject, name, "chat", occurred))
         if accepted.get("ok"):

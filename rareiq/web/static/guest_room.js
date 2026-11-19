@@ -8,16 +8,24 @@
     return Array.from(people.values());
   }
   function mayWatch(self,person){return self?.state==='admitted'&&self.connected!==false&&person?.state==='admitted'&&person.connected===true;}
+  function bindPictureSize(container,button){
+    function setLarge(value){const large=value===true;container.dataset.pictureSize=large?'large':'compact';button.textContent=large?'Compact pictures':'Larger pictures';button.setAttribute('aria-pressed',String(large));}
+    button.addEventListener('click',()=>setLarge(container.dataset.pictureSize!=='large'));setLarge(false);
+    return {reset:()=>setLarge(false)};
+  }
   function mount(container,{onRetry}={}){
     if(!container)return null;
     const doc=container.ownerDocument||host.document,tiles=new Map();
     container.className='guest-room-gallery';container.hidden=true;
     container.innerHTML='<header><div><span class="guest-eyebrow">YOUR CONVERSATION</span><h2>In the room</h2></div><span data-room-total></span></header><p data-room-guidance role="status" aria-live="polite"></p><button type="button" data-room-retry hidden>Retry room pictures</button><div class="guest-room-people" aria-label="Room participants"></div><div class="guest-room-waiting" hidden><strong>Waiting room</strong><p data-room-waiting></p></div>';
     const one=selector=>container.querySelector(selector);
+    const sizeButton=doc.createElement('button');sizeButton.type='button';sizeButton.setAttribute('data-room-picture-size','');one('header').append(sizeButton);
+    const pictureSize=bindPictureSize(container,sizeButton);
     one('[data-room-retry]').addEventListener('click',()=>onRetry?.());
     function detach(tile){tile.video.pause();tile.video.srcObject=null;tile.track=null;}
     function remove(id,tile){detach(tile);tile.node.remove();tiles.delete(id);}
     function clear(message=''){
+      pictureSize.reset();
       for(const [id,tile] of tiles)remove(id,tile);
       one('[data-room-total]').textContent='';one('[data-room-guidance]').textContent=message;
       one('[data-room-retry]').hidden=true;
@@ -54,6 +62,6 @@
     }
     return {update,clear,destroy(){clear();container.replaceChildren();}};
   }
-  const api={mount,roomPeople,mayWatch};
+  const api={mount,roomPeople,mayWatch,bindPictureSize};
   if(typeof module==='object'&&module.exports)module.exports=api;else host.ProducerGuestRoom=api;
 })(typeof window==='object'?window:globalThis);

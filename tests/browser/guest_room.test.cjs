@@ -11,3 +11,13 @@ test('a waiting or disconnected session cannot watch admitted cameras',()=>{
   assert.equal(room.mayWatch({state:'admitted',connected:true},other),true);
   for(const person of [{state:'waiting',connected:true},{state:'removed',connected:true},{state:'admitted',connected:false}])assert.equal(room.mayWatch({state:'admitted',connected:true},person),false);
 });
+
+test('picture size defaults compact and changes only local view state while preserving borrowed tracks',()=>{
+  for(const bind of [room.bindPictureSize,require('../../rareiq/web/static/greenroom_controls.js').bindPictureSize]){
+    const camera={enabled:true,readyState:'live'},stream={getTracks:()=>[camera]},video={srcObject:stream},container={dataset:{},video},attributes={},handlers={};
+    const button={textContent:'',setAttribute:(name,value)=>{attributes[name]=value;},addEventListener:(name,fn)=>{handlers[name]=fn;}};
+    const sizes=bind(container,button);assert.equal(container.dataset.pictureSize,'compact');assert.equal(button.textContent,'Larger pictures');assert.equal(attributes['aria-pressed'],'false');
+    handlers.click();assert.equal(container.dataset.pictureSize,'large');assert.equal(button.textContent,'Compact pictures');assert.equal(attributes['aria-pressed'],'true');assert.equal(container.video.srcObject,stream);assert.equal(camera.enabled,true);
+    handlers.click();assert.equal(container.dataset.pictureSize,'compact');assert.equal(attributes['aria-pressed'],'false');handlers.click();sizes.reset();assert.equal(container.dataset.pictureSize,'compact');assert.equal(container.video.srcObject,stream);
+  }
+});

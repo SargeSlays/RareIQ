@@ -1,0 +1,42 @@
+/* Viewer chat owns these controls; the backstage chat stylesheet remains separate. */
+html[data-theme] body.pp-shell .production-viewer-chat { min-width:0; padding:14px; color:var(--pp-text); background:var(--pp-surface); container:viewer-chat / inline-size; }
+body.pp-shell .production-viewer-chat,body.pp-shell .production-viewer-chat * { box-sizing:border-box; }
+body.pp-shell .production-viewer-chat [hidden] { display:none!important; }
+body.pp-shell .production-viewer-chat :is(h3,p) { margin:0; }
+body.pp-shell .production-viewer-chat > header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+body.pp-shell .production-viewer-chat h3 { font-size:17px; line-height:1.35; }
+body.pp-shell .production-viewer-chat :is(button,summary) { min-height:42px; font:inherit; font-size:12px; cursor:pointer; }
+body.pp-shell .production-viewer-chat button { padding:8px 10px; border:1px solid var(--pp-control-border); border-radius:var(--pp-radius-sm); background:var(--pp-surface-raised); color:var(--pp-text); line-height:1.35; overflow-wrap:anywhere; }
+body.pp-shell .production-viewer-chat button:not(:disabled):hover { background:var(--pp-hover); }
+body.pp-shell .production-viewer-chat button:disabled { opacity:.65; cursor:not-allowed; }
+body.pp-shell .production-viewer-chat :is(button,summary,ol):focus-visible { outline:2px solid var(--pp-focus); outline-offset:3px; }
+body.pp-shell .production-viewer-chat .viewer-chat-summary { padding:4px 8px; border:1px solid var(--pp-border); border-radius:var(--pp-radius-pill); color:var(--pp-text-muted); font-size:11px; }
+body.pp-shell .production-viewer-chat .viewer-chat-summary[data-state="connected"] { color:var(--pp-success); background:var(--pp-success-bg); }
+body.pp-shell .production-viewer-chat .viewer-chat-summary[data-state="warning"] { color:var(--pp-warning); background:var(--pp-warning-bg); }
+body.pp-shell .production-viewer-chat .viewer-chat-note { margin:10px 0; font-size:11px; line-height:1.5; color:var(--pp-text-muted); }
+body.pp-shell .production-viewer-chat .viewer-chat-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+body.pp-shell .production-viewer-chat .viewer-chat-actions > * { flex:1 1 110px; }
+body.pp-shell .production-viewer-chat .viewer-chat-connections { margin:12px 0; padding:8px 10px; border:1px solid var(--pp-border); border-radius:var(--pp-radius-sm); background:var(--pp-surface-sunken); }
+body.pp-shell .production-viewer-chat summary { display:flex; align-items:center; font-weight:600; }
+body.pp-shell .production-viewer-chat summary::before { content:'▸'; margin-right:8px; }
+body.pp-shell .production-viewer-chat details[open] summary::before { content:'▾'; }
+body.pp-shell .production-viewer-chat [data-viewer-sources] { display:grid; gap:10px; padding:8px 0; }
+body.pp-shell .production-viewer-chat [data-viewer-platform] { display:grid; gap:7px; min-width:0; padding-top:10px; border-top:1px solid var(--pp-border); }
+body.pp-shell .production-viewer-chat [data-viewer-platform] p { margin-top:5px; color:var(--pp-text-muted); font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+body.pp-shell .production-viewer-chat .viewer-chat-filters { display:flex; flex-wrap:wrap; gap:5px; }
+html[data-theme] body.pp-shell .production-viewer-chat .viewer-chat-filters button[aria-pressed="true"] { background:var(--pp-selected)!important; color:var(--pp-selected-text)!important; border-color:var(--pp-selected-border)!important; }
+body.pp-shell .production-viewer-chat .viewer-chat-filters button { flex:1 1 55px; min-width:0; padding-inline:7px; }
+body.pp-shell .production-viewer-chat .viewer-chat-status { min-height:36px; margin:12px 0; font-size:12px; line-height:1.5; color:var(--pp-text-muted); overflow-wrap:anywhere; }
+body.pp-shell .production-viewer-chat .viewer-chat-messages { min-width:0; margin:0; padding:0 9px; list-style:none; max-height:clamp(200px,38vh,480px); overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; border:1px solid var(--pp-border); border-radius:var(--pp-radius-sm); background:var(--pp-surface-sunken); }
+body.pp-shell .production-viewer-chat .viewer-chat-messages:empty { display:none; }
+body.pp-shell .production-viewer-chat .viewer-chat-messages li { padding:11px 0; border-bottom:1px solid var(--pp-border); overflow-wrap:anywhere; }
+body.pp-shell .production-viewer-chat .viewer-chat-messages li:last-child { border-bottom:0; }
+body.pp-shell .production-viewer-chat .viewer-chat-meta { display:flex; gap:5px 8px; align-items:baseline; flex-wrap:wrap; min-width:0; font-size:11px; color:var(--pp-text-muted); }
+body.pp-shell .production-viewer-chat .viewer-chat-meta strong { color:var(--pp-text); overflow-wrap:anywhere; }
+body.pp-shell .production-viewer-chat .viewer-chat-meta time { font-size:10px; margin-left:auto; }
+body.pp-shell .production-viewer-chat .viewer-chat-platform { padding:2px 5px; border:1px solid var(--pp-border); border-radius:var(--pp-radius-sm); font-size:10px; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .production-viewer-chat .viewer-chat-messages li > p { color:var(--pp-text)!important; white-space:pre-wrap; margin-top:7px; font-size:13px!important; line-height:1.5!important; }
+body.pp-shell .production-viewer-chat .viewer-chat-empty { margin:12px 0; padding:16px 10px; border:1px dashed var(--pp-border); color:var(--pp-text-muted); line-height:1.6; font-size:12px; }
+body.pp-shell .production-viewer-chat :is(.viewer-chat-latest,[data-viewer-retry]) { width:100%; margin-top:9px; }
+@container viewer-chat (max-width:260px) { body.pp-shell .production-viewer-chat .viewer-chat-filters button { flex-basis:40%; } body.pp-shell .production-viewer-chat .viewer-chat-actions > * { flex-basis:100%; } }
+@media (max-width:600px) { html[data-theme] body.pp-shell .production-viewer-chat { padding:12px; } body.pp-shell .production-viewer-chat .viewer-chat-messages { max-height:320px; } }

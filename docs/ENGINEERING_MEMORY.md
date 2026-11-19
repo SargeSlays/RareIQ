@@ -1015,3 +1015,47 @@ changing only the intended asset token preserved typography. The failed local
 copy is retained outside Git. A screenshot test must scroll to the component
 before measuring sticky sidebar positions; offscreen guest coordinates cannot
 establish a bad sidebar layout. Earlier failed QA captures remain diagnostic only.
+
+## November 18, 2026 — Account ownership and privacy stops
+
+A delayed device approval must not overwrite a newer registered app or account.
+Capture the prior vault record before the request, then recheck both configured
+client ID and record freshness under the credential lock before saving. Twitch
+regressions cover app and vault changes during provider validation. YouTube uses
+the same ownership discipline for callback and refresh completion.
+
+Keep one refresh owner for stored YouTube accounts. Passing a saved refresh-token
+quartet to the old observer performed a second refresh and discarded rotations;
+requiring scope on every refresh also rejected valid omissions. The account
+service now supplies private access-token/expiry/channel/scopes through an async
+observer seam on both connect and renewal. Stored mode never posts a connector
+refresh, retains channel ownership checks and rejects channel changes. Explicit
+legacy refresh/channel environment credentials retain their prior path; app
+configuration alone must not silently select that path.
+
+Audit storage must guard actions that enable access, but cannot prevent privacy
+stops. Authenticated Stop, Disconnect and Cancel still execute when activity
+history fails, and report a truthful history warning. Regressions must cover both
+failed-before-action and failed-after-action logging, including OAuth cancellation
+so a pending approval cannot save after the user stopped it.
+
+Theme QA must set both data-theme and the actual operator skin. A light theme with
+the dark skin falsely produced dark panels and unreadable headings in the first
+fixture capture. Corrected checks use daylight/ignite and assert heading contrast,
+then inspect real screenshots. Keep failed evidence as diagnostic, not acceptance.
+
+The native Viewer chat click check caught a cross-component grid collision that
+isolated panel tests missed: the older right dock spanned rows 2–3 while the newer
+full-width backstage explicitly occupied row 3. Reset the right dock to row 2 only
+when visible backstage takes the full bottom row. Keep hidden-room layouts intact.
+A source guard, full-dashboard pointer/geometry checks and the actual EXE protect
+this boundary; force clicks or keyboard workarounds cannot establish pointer QA.
+The initial native audit also enumerated a closing settings window; filter out
+destroyed windows and assert a surviving studio before reading preferences.
+
+The fixed readiness badge still covered controls at 1366px after the grid fix.
+Its final docked-workspace owner now keeps the existing status and Retry inline
+above the dock frame, preserving feedback without overlaying controls. The full
+pointer matrix passes in both skins at 960/1366/1920/3840, including Retry and
+modal focus return. Known fixture-denied reads are recorded separately from
+unknown page errors; never suppress arbitrary errors to pass a visual check.

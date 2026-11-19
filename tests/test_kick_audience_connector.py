@@ -11,6 +11,7 @@ import httpx
 import pytest
 
 from rareiq.services.audience_service import AudienceService
+from rareiq.services.viewer_chat_service import ViewerChatService
 from rareiq.services.kick_audience_connector import KickAudienceConnector, KickWebhookRegistration
 from rareiq.web.kick_audience import create_kick_audience_router
 
@@ -69,6 +70,46 @@ def test_unapproved_registration_does_not_read_credentials_or_make_requests(tmp_
         assert (await f.service.connect())["reason"] == "dashboard_registration_approval_required"
         assert f.credential_reads == 0 and f.calls == []
         assert (await f.service.receive({}, b"{}"))[1] == 503
+    asyncio.run(run())
+
+
+def test_transcript_requires_opt_in_and_valid_binding_independently_of_alert_acceptance(tmp_path):
+    async def run():
+        f = Fixture(tmp_path)
+        transcript = ViewerChatService(clock=lambda: f.now)
+        f.service._transcript_sink = transcript.accept
+        await f.service.connect()
+        f.audience.accept = lambda event: {"ok": False, "reason": "audience_event_capacity"}
+        assert (await f.service.receive(*f.delivery()))[1] == 409
+        assert not transcript.status()["messages"]
+        transcript.set_listening(True)
+        wrong_channel = f.delivery(broadcaster={"is_anonymous": False, "user_id": 999,
+                                                "channel_slug": "fixture-channel"})
+        assert (await f.service.receive(*wrong_channel))[1] == 400
+        headers, raw = f.delivery()
+        bad_headers = dict(headers, **{"kick-event-signature": "bad-signature"})
+        assert (await f.service.receive(bad_headers, raw))[1] == 400
+        assert not transcript.status()["messages"]
+        assert (await f.service.receive(headers, raw))[1] == 409
+        assert (await f.service.receive(headers, raw))[1] == 409
+        assert len(transcript.status()["messages"]) == 1
+        assert transcript.status()["messages"][0]["text"] == "PRIVATE-CHAT-NOT-PERSISTED"
+        assert b"PRIVATE-CHAT" not in f.audience.path.read_bytes()
+        await f.service.disconnect()
+    asyncio.run(run())
+
+
+def test_transcript_sink_fault_does_not_reject_a_valid_signed_observation(tmp_path):
+    async def run():
+        f = Fixture(tmp_path)
+        def failed(message):
+            raise RuntimeError("private transcript failure")
+        f.service._transcript_sink = failed
+        await f.service.connect()
+        result, code = await f.service.receive(*f.delivery())
+        assert code == 200 and result["ok"] and f.service.cached_status()["connected"]
+        assert "private" not in json.dumps(result)
+        await f.service.disconnect()
     asyncio.run(run())
 
 

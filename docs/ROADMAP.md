@@ -857,3 +857,20 @@ incorrectly exited the app. The new desktop build completes startup on the exact
 trusted document's DOM-ready event and preserves genuine pre-ready failures.
 
 Next bounded phase: combined producer viewer chat across Twitch, YouTube and Kick, with platform labels/filtering and connection health. Verify the actual authorized message-ingestion paths before claiming live delivery. The owner retains the 34% usage ceiling; this new phase requires a separate usage approval before substantial work.
+
+## November 18, 2026 — Viewer chat/account checkpoint
+
+Implemented: bounded producer-only combined transcript, platform filters and
+health, literal text, pause/unread/recovery, explicit listening and clear,
+Windows-user encrypted account storage, Twitch device consent, YouTube PKCE
+loopback consent and Main-owned desktop authorization handoff. Compact room
+pictures have an explicit enlargement control. Local control activity uses the
+existing append-only history without message bodies, codes or token material.
+
+Local automated and synthetic HTTP/UI verification covers these contracts.
+Actual Twitch app registration is complete; real owner read-consent and message
+receipt are the next acceptance step. Google app registration/consent, an active
+YouTube broadcast's chat, and Kick approved public webhook hosting remain separate
+provider prerequisites. No public stream or recording is authorized by account
+setup. Remote named producers remain blocked on the actual StackThis identity
+contract, independent of guest invitations and these platform accounts.

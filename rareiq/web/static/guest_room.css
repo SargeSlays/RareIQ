@@ -17,17 +17,20 @@
 .guest-room-waiting p{color:var(--pp-text-muted);margin:7px 0 0;overflow-wrap:anywhere}
 @media(max-width:800px){.guest-room-gallery{padding:18px}.guest-room-people{gap:10px;grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr))}.guest-room-gallery h2{font-size:22px}}
 
-/* Joined guests see the conversation once, with their controls beside it. */
-.guest-room-people{grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));justify-content:center}
-.guest-room-person{width:100%;max-width:420px;justify-self:center}
+/* Compact by default; enlarging pictures never replaces borrowed camera tracks. */
+.guest-room-people{grid-template-columns:repeat(auto-fill,minmax(min(220px,100%),1fr));justify-content:start}
+.guest-room-person{width:100%;max-width:280px;justify-self:start}
+.guest-room-gallery[data-picture-size="large"] .guest-room-people{grid-template-columns:repeat(auto-fill,minmax(min(420px,100%),1fr))}
+.guest-room-gallery[data-picture-size="large"] .guest-room-person{max-width:640px}
+.guest-room-gallery [data-room-picture-size]{min-height:42px;max-width:100%;font-size:13px;white-space:normal}
 .guest-room-picture{max-height:none}
+body:has(#guestRoom:not([hidden])) .guest-stage>.guest-preview:not(.guest-screen){display:none}
 @media(min-width:1000px){
   body:has(#guestRoom:not([hidden])) .guest-layout{grid-template-columns:minmax(0,1fr) 320px;gap:18px}
   #guestRoom:not([hidden]){grid-column:1;grid-row:1}
   body:has(#guestRoom:not([hidden])) .guest-card{grid-column:1;grid-row:4;padding:16px}
   body:has(#guestRoom:not([hidden])) .guest-card>:is(.guest-eyebrow,h1,p:first-of-type){display:none}
   body:has(#guestRoom:not([hidden])) .guest-stage{grid-column:1;grid-row:2}
-  body:has(#guestRoom:not([hidden])) .guest-stage>.guest-preview:not(.guest-screen){display:none}
   body:has(#guestRoom:not([hidden])) #guestChat{grid-column:2;grid-row:1/span 4;align-self:start}
   body:has(#guestRoom:not([hidden])) .guest-audio-tools{grid-column:1}
 }

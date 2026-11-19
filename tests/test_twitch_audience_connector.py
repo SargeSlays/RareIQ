@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from rareiq.services.audience_service import AudienceService
+from rareiq.services.viewer_chat_service import ViewerChatService
 from rareiq.services.twitch_audience_connector import TwitchAudienceConnector, _NoRedirectConnect, _ProviderError
 from rareiq.web.twitch_audience import create_twitch_audience_router
 from rareiq.web.audience import create_audience_router
@@ -105,6 +106,48 @@ def test_default_is_disconnected_and_does_not_read_credentials(tmp_path):
     assert state["state"] == "not_connected" and not state["authorized"] and not state["verified"]
     assert state["available_events"] == [] and state["viewer_join_supported"] is False
     assert not f.calls and not f.urls and f.reads == 0
+
+
+def test_opted_in_transcript_is_independent_of_alert_rejection_and_deduplicates(tmp_path):
+    async def scenario():
+        f = Fixture(tmp_path)
+        transcript = ViewerChatService(clock=lambda: f.now)
+        f.service._transcript_sink = transcript.accept
+        await f.service.connect()
+        f.audience.accept = lambda event: {"ok": False, "reason": "audience_event_capacity"}
+        f.service._handle(notification(event_id="before-opt-in"))
+        assert transcript.status()["messages"] == []
+        transcript.set_listening(True)
+        f.service._handle(notification())
+        f.service._handle(notification())
+        assert len(transcript.status()["messages"]) == 1
+        assert transcript.status()["messages"][0]["text"] == "PRIVATE-CHAT-MUST-NOT-BE-RETAINED"
+        assert f.service.cached_status()["connected"]
+        assert b"PRIVATE-CHAT" not in f.audience.path.read_bytes()
+        await f.service.disconnect()
+    asyncio.run(scenario())
+
+
+def test_transcript_never_receives_unbound_messages_and_sink_failures_do_not_disconnect(tmp_path):
+    async def scenario():
+        f = Fixture(tmp_path)
+        calls = []
+        def sink(message):
+            calls.append(message)
+            raise RuntimeError("private sink fault")
+        f.service._transcript_sink = sink
+        await f.service.connect()
+        with pytest.raises(_ProviderError):
+            f.service._handle(notification(subscription="unowned"))
+        assert calls == []
+        f.service._handle(notification())
+        assert len(calls) == 1 and f.service.cached_status()["connected"]
+        malformed = json.loads(notification(event_id="malformed-text"))
+        malformed["payload"]["event"]["message"]["text"] = "bad\x00text"
+        f.service._handle(json.dumps(malformed))
+        assert len(calls) == 1 and f.service.cached_status()["connected"]
+        await f.service.disconnect()
+    asyncio.run(scenario())
 
 
 def test_explicit_connect_receives_first_chat_once_without_message_body_or_token(tmp_path):

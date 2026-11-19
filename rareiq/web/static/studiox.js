@@ -3787,6 +3787,7 @@ function initializeBroadcastWorkspace(){
   window.ProducerGreenroomControls?.mount(workspace);
   const audiencePanel=window.ProducerAudienceControls?.mount(workspace);
   if(audiencePanel){audiencePanel.className="production-audience "+audiencePanel.className;audiencePanel.dataset.broadcastPanel="live";}
+  window.ProducerViewerChat?.mount(workspace);
   const visionPanel=window.ProducerVisionControls?.mount(workspace)?.element;
   if(visionPanel){visionPanel.className="production-vision "+visionPanel.className;visionPanel.dataset.broadcastPanel="live";}
   window.ProducerStudioDocks?.init(workspace);

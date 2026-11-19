@@ -508,18 +508,24 @@ class GreenroomService:
 
     def record_production_event(self, action, target, outcome, actor_kind="local_operator", *,
                                 principal=None, request_id=None, details=None):
-        if action not in {"program.preview", "program.take", "program.rendered", "host.microphone"}:
+        platform_actions = {"platform.account.begin", "platform.account.cancel", "platform.chat.connect", "platform.chat.disconnect"}
+        account_actions = platform_actions | {"viewer_chat.listening"}
+        if action not in {"program.preview", "program.take", "program.rendered", "host.microphone"} | account_actions:
             raise GreenroomError("invalid_production_event")
         if outcome not in {"requested", "succeeded", "failed", "rejected", "confirmed"}:
             raise GreenroomError("invalid_production_outcome")
         if not isinstance(target, str) or re.fullmatch(r"[A-Za-z0-9:_-]{1,100}", target) is None:
             raise GreenroomError("invalid_production_target")
+        if ((action in platform_actions and target not in {"twitch", "youtube", "kick"})
+                or (action == "viewer_chat.listening" and target != "viewer_chat")):
+            raise GreenroomError("invalid_production_target")
         if details is None:
             details = {}
-        allowed_ids = {"source_id", "previous_source_id", "participant_id", "renderer_id"}
-        allowed_numbers = {"generation", "duration_ms"}
-        allowed_bools = {"muted", "connected"}
-        if not isinstance(details, dict) or not set(details) <= allowed_ids | allowed_numbers | allowed_bools | {"source_ids"}:
+        allowed_ids = set() if action in account_actions else {"source_id", "previous_source_id", "participant_id", "renderer_id"}
+        allowed_numbers = set() if action in account_actions else {"generation", "duration_ms"}
+        allowed_bools = {"enabled"} if action in account_actions else {"muted", "connected"}
+        allowed_lists = set() if action in account_actions else {"source_ids"}
+        if not isinstance(details, dict) or not set(details) <= allowed_ids | allowed_numbers | allowed_bools | allowed_lists:
             raise GreenroomError("invalid_production_details")
         for key, value in details.items():
             valid = (key == "source_ids" and isinstance(value, list) and len(value) <= 6 and all(isinstance(s, str) and re.fullmatch(r"[A-Za-z0-9:_-]{1,100}", s) for s in value)

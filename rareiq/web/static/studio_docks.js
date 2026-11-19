@@ -1,7 +1,7 @@
 (function(root){
   "use strict";
   const KEY="rareiq.studio.docks.v1", POSITIONS=["left","right","top","bottom","float"];
-  const DEFAULTS={"production-scenes":"left","show-preflight":"right","production-session":"bottom","operator-health":"bottom","production-greenroom":"bottom"};
+  const DEFAULTS={"production-scenes":"left","show-preflight":"right","production-session":"bottom","operator-health":"bottom","production-greenroom":"bottom","production-viewer-chat":"right"};
   const SETS_KEY="rareiq.studio.toolsets.v1";
   const WORKSPACES={soundboard:"Soundboard","voice-mod":"Voice studio","camera-fx":"Camera effects",spotify:"Spotify DJ",creator:"Creator studio",live:"RareIQ Card Studio",collection:"Collection",ai:"AI Lab",library:"Reference library",settings:"Studio settings"};
   const PORTABLE={soundboard:".soundboard-app-shell","voice-mod":".voice-mod-shell"};
@@ -105,7 +105,10 @@
     const guestsButton=button("Guests",()=>workspace._studioDocks?.showTool("production-greenroom"));
     guestsButton.title="Open the guest green room";
     guestsButton.hidden=!registry.has("production-greenroom");
-    toolbar.append(viewChoice,title,launcher,guestsButton,toolsButton,fullscreen);
+    const viewerChatButton=button("Viewer chat",()=>workspace._studioDocks?.showTool("production-viewer-chat"));
+    viewerChatButton.title="Open combined viewer chat";
+    viewerChatButton.hidden=!registry.has("production-viewer-chat");
+    toolbar.append(viewChoice,title,launcher,guestsButton,viewerChatButton,toolsButton,fullscreen);
     const drawerHeader=el("header","studio-tool-drawer-heading"),drawerTitle=el("h2","","Session tools"),close=button("Close",()=>library.close());
     drawerHeader.append(drawerTitle,close);
     const help=el("p","","Choose your tools for Live Control. Workspaces are added to Open session workspace. Selection does not start a show, playback, or recording.");

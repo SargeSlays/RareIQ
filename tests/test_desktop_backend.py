@@ -335,7 +335,8 @@ def test_real_lifespan_skips_only_desktop_eager_work(monkeypatch, desktop_mode):
         instant_replay=fake(), auto_clip=fake(), recording=fake(), voice_commands=SimpleNamespace(close=Mock()),
         GuestIngressLifecycle=lambda *_a, **_k: ingress, greenroom_network=SimpleNamespace(public_origin=None),
         greenroom_hub=SimpleNamespace(), twitch_audience_connector=fake(), youtube_audience_connector=fake(),
-        kick_audience_connector=fake(), CATALOG_REFRESH_INTERVAL_SECONDS=3600)
+        kick_audience_connector=fake(), viewer_chat_service=SimpleNamespace(set_listening=Mock()),
+        twitch_account_service=fake(), youtube_account_service=fake(), CATALOG_REFRESH_INTERVAL_SECONDS=3600)
     created = []
     def create_task(coroutine):
         created.append(coroutine.cr_code.co_name)
@@ -356,6 +357,9 @@ def test_real_lifespan_skips_only_desktop_eager_work(monkeypatch, desktop_mode):
     assert created == ([] if desktop_mode else ["boot_in_background", "warm_recognition_ocr", "refresh_new_releases"])
     orchestrator.camera_manager.shutdown.assert_called_once()
     ingress.close.assert_awaited_once()
+    namespace["viewer_chat_service"].set_listening.assert_called_once_with(False)
+    namespace["twitch_account_service"].close.assert_awaited_once()
+    namespace["youtube_account_service"].close.assert_awaited_once()
 
 
 def test_real_guarded_stop_rechecks_clients_after_slow_obs_and_seals_admission():

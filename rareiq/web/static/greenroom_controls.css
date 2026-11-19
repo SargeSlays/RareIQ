@@ -106,8 +106,13 @@ body.pp-shell .greenroom-main { display:grid; gap:16px; min-width:0; }
   body.pp-shell .greenroom-chat-slot .greenroom-chat { padding:16px; background:var(--pp-surface-sunken); }
   body.pp-shell .greenroom-chat-slot .greenroom-chat-messages { max-height:240px; }
   body.pp-shell .greenroom-chat-slot .greenroom-chat textarea { min-height:64px; }
-  body.pp-shell .greenroom-guests { grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr)); align-items:start; }
+  body.pp-shell .greenroom-guests { grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr)); align-items:start; }
   body.pp-shell .greenroom-stage { grid-template-columns:repeat(3,minmax(0,1fr)); padding-top:16px; }
   body.pp-shell .greenroom-stage > * { grid-column:1/-1; min-width:0; }
   body.pp-shell .greenroom-stage > :is(.production-image-library,.production-media-library,.production-browser-library) { grid-column:auto; align-self:start; padding:14px; border:1px solid var(--pp-border); border-radius:12px; background:var(--pp-surface-sunken); }
 }
+/* Picture size is an explicit local view preference, independent of Preview/Program. */
+body.pp-shell .production-greenroom .greenroom-guest { width:100%; max-width:360px; justify-self:start; }
+body.pp-shell .production-greenroom[data-picture-size="large"] .greenroom-guests { grid-template-columns:repeat(auto-fill,minmax(min(480px,100%),1fr)); }
+body.pp-shell .production-greenroom[data-picture-size="large"] .greenroom-guest { max-width:720px; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .production-greenroom .greenroom-picture-size { min-height:42px!important; height:auto!important; max-width:100%; white-space:normal; }

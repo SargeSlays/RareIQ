@@ -27,6 +27,7 @@ from cryptography.hazmat.primitives.asymmetric import padding, rsa
 import httpx
 
 from rareiq.services.audience_service import TrustedAudienceEvent
+from rareiq.services.viewer_chat_service import deliver_viewer_chat
 
 
 class KickAudienceError(Exception):
@@ -61,8 +62,10 @@ class KickAudienceConnector:
     HEADERS = ("kick-event-message-id", "kick-event-subscription-id", "kick-event-signature",
                "kick-event-message-timestamp", "kick-event-type", "kick-event-version")
 
-    def __init__(self, audience_service, credentials_provider, registration=None, *, http_factory=None, clock=time.time):
+    def __init__(self, audience_service, credentials_provider, registration=None, *, http_factory=None,
+                 clock=time.time, transcript_sink=None):
         self._audience, self._credentials_provider, self._registration = audience_service, credentials_provider, registration
+        self._transcript_sink = transcript_sink
         self._factory = http_factory or (lambda: httpx.AsyncClient(timeout=httpx.Timeout(5, connect=3), follow_redirects=False))
         self._clock, self._lock = clock, asyncio.Lock()
         self._http = self._key = None
@@ -316,6 +319,10 @@ class KickAudienceConnector:
                     if self._seen[message_id][1] != receipt:
                         raise KickAudienceError("event_id_conflict")
                     return {"ok": True, "duplicate": True}, 200
+                if self._transcript_sink is not None:
+                    deliver_viewer_chat(self._transcript_sink, "kick", event.channel_id,
+                                       event.event_id, event.subject_id, event.display_name,
+                                       payload["content"], event.occurred_at)
                 accepted = self._audience.accept(event)
                 if accepted.get("ok") is not True:
                     self._rejected += 1

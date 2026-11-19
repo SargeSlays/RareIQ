@@ -11,7 +11,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from rareiq.services.audience_service import AudienceService
-from rareiq.services.youtube_audience_connector import YouTubeAudienceConnector
+from rareiq.services.viewer_chat_service import ViewerChatService
+from rareiq.services.youtube_audience_connector import YouTubeAudienceConnector, _ProviderError
 from rareiq.web.youtube_audience import create_youtube_audience_router
 
 
@@ -38,7 +39,7 @@ async def spin(predicate):
 
 
 class Fixture:
-    def __init__(self, tmp_path):
+    def __init__(self, tmp_path, *, authorization_provider=None):
         self.now, self.reads = NOW, 0
         self.calls, self.closed = [], False
         self.sleeps = asyncio.Queue()
@@ -57,7 +58,7 @@ class Fixture:
         self.audience.configure(action="settings", data={"enabled": True}, expected_revision=1, request_id="arm", actor_kind="local_operator")
         self.service = YouTubeAudienceConnector(self.audience, self.load_credentials,
             http_factory=lambda: httpx.AsyncClient(transport=httpx.MockTransport(self.http)),
-            clock=lambda: self.now, sleep=self.sleep)
+            clock=lambda: self.now, sleep=self.sleep, authorization_provider=authorization_provider)
 
     def load_credentials(self):
         self.reads += 1
@@ -88,7 +89,8 @@ class Fixture:
             assert sum(key in request.url.params for key in ("id", "mine", "broadcastStatus")) == 1
             value = self.broadcasts
         elif request.url.path.endswith("/liveChat/messages"):
-            assert "displayMessage" not in request.url.params["fields"] and "messageText" not in request.url.params["fields"]
+            assert ("displayMessage" in request.url.params["fields"]) == (self.service._transcript_sink is not None)
+            assert "messageText" not in request.url.params["fields"]
             value = self.messages.popleft() if self.messages else page(token="empty-cursor")
         else:
             raise AssertionError("unexpected fixture request")
@@ -104,6 +106,147 @@ def test_default_disconnected_without_credentials_or_network(tmp_path):
     assert state["state"] == "not_connected" and state["available_events"] == []
     assert state["viewer_join_supported"] is False
     assert not f.calls and f.reads == 0
+
+
+def test_explicit_authorization_none_preserves_legacy_refresh_mode(tmp_path):
+    async def run():
+        async def legacy():
+            return None
+        f = Fixture(tmp_path, authorization_provider=legacy)
+        await f.service.connect()
+        assert f.service.cached_status()["connected"] and f.reads == 1
+        assert sum(method == "POST" and path == "/token" for method, path, _query in f.calls) == 1
+        await f.service.disconnect()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("failure", ["exception", "missing", "expired", "scope", "extra"])
+def test_bad_stored_authorization_fails_closed_without_legacy_token_requests(tmp_path, failure):
+    async def run():
+        async def authorization():
+            if failure == "exception":
+                raise RuntimeError("private provider error")
+            value = {"access_token": "private-stored-access", "channel_id": OWNER,
+                     "expires_at": NOW + 3600, "scopes": ["https://www.googleapis.com/auth/youtube.readonly"]}
+            if failure == "missing": value.pop("access_token")
+            if failure == "expired": value["expires_at"] = NOW
+            if failure == "scope": value["scopes"] = []
+            if failure == "extra": value["refresh_token"] = "private-refresh"
+            return value
+        f = Fixture(tmp_path, authorization_provider=authorization)
+        await f.service.connect()
+        assert not f.service.cached_status()["connected"] and f.reads == 0 and f.calls == []
+        assert "private" not in json.dumps(f.service.cached_status())
+        await f.service.disconnect()
+    asyncio.run(run())
+
+
+def test_stored_authorization_keeps_channel_ownership_check_and_rejects_mid_session_change(tmp_path):
+    async def run():
+        current = {"access_token": "private-stored-access", "channel_id": OWNER,
+                   "expires_at": NOW + 3600, "scopes": ["https://www.googleapis.com/auth/youtube.readonly"]}
+        async def authorization(): return dict(current)
+        f = Fixture(tmp_path, authorization_provider=authorization)
+        await f.service.connect()
+        assert f.service.cached_status()["connected"] and f.reads == 0
+        assert any(path.endswith("/channels") for _method, path, _query in f.calls)
+        current["channel_id"] = OTHER
+        f.now = NOW + 3560
+        current["expires_at"] = f.now + 3600
+        await f.tick()
+        assert not f.service.cached_status()["connected"]
+        assert f.service.cached_status()["reason"] == "channel_identity_mismatch"
+        assert all(path != "/token" for _method, path, _query in f.calls)
+        await f.service.disconnect()
+    asyncio.run(run())
+
+
+def test_account_service_owns_refresh_rotation_without_connector_double_refresh(tmp_path):
+    from copy import deepcopy
+    from rareiq.services.youtube_account_service import YouTubeAccountService
+    async def run():
+        scope = YouTubeAccountService.SCOPE
+        class Vault:
+            value = {"client_id": "fixture-app.apps.googleusercontent.com", "client_secret": "private-secret",
+                "access_token": "private-old-access", "refresh_token": "private-old-refresh", "token_type": "bearer",
+                "expires_at": NOW + 20, "scopes": [scope], "channel_id": OWNER, "public_label": "Fixture"}
+            writes = 0
+            def get(self, _provider): return deepcopy(self.value)
+            def set(self, _provider, value): self.value = deepcopy(value); self.writes += 1
+        vault, grants = Vault(), []
+        async def authorization(): return await account.ensure_authorization()
+        f = Fixture(tmp_path, authorization_provider=authorization)
+        async def account_http(request):
+            if str(request.url) == YouTubeAccountService.TOKEN_URL:
+                grants.append(True)
+                return httpx.Response(200, json={"access_token": "private-access-" + str(len(grants)),
+                    "refresh_token": "private-refresh-" + str(len(grants)), "expires_in": 3600, "token_type": "Bearer"})
+            assert request.url.path == "/youtube/v3/channels"
+            return httpx.Response(200, json={"items": [{"id": OWNER, "snippet": {"title": "Fixture"}}]})
+        account = YouTubeAccountService(vault, clock=lambda: f.now,
+            http_factory=lambda: httpx.AsyncClient(transport=httpx.MockTransport(account_http)))
+        await f.service.connect()
+        assert f.service.cached_status()["connected"] and len(grants) == vault.writes == 1
+        assert vault.value["refresh_token"] == "private-refresh-1" and vault.value["scopes"] == [scope]
+        f.now = f.service._expires_at - 40
+        await f.tick()
+        assert f.service.cached_status()["connected"] and len(grants) == vault.writes == 2
+        assert vault.value["refresh_token"] == "private-refresh-2"
+        assert f.reads == 0 and all(path != "/token" for _method, path, _query in f.calls)
+        await f.service.disconnect()
+        await account.close()
+    asyncio.run(run())
+
+
+def test_transcript_fields_are_opt_in_history_is_skipped_and_alert_rejection_is_independent(tmp_path):
+    async def scenario():
+        f = Fixture(tmp_path)
+        transcript = ViewerChatService(clock=lambda: f.now)
+        f.service._transcript_sink = transcript.accept
+        transcript.set_listening(True)
+        await f.service.connect()
+        assert transcript.status()["messages"] == []
+        f.audience.accept = lambda event: {"ok": False, "reason": "audience_event_capacity"}
+        f.messages.append(page(message(), token="new-cursor", interval=17000))
+        assert await f.tick() == 10
+        assert len(transcript.status()["messages"]) == 1
+        assert transcript.status()["messages"][0]["text"] == "PRIVATE-CHAT-MUST-NOT-PERSIST"
+        f.messages.append(page(message(), token="duplicate-cursor", interval=17000))
+        assert await f.tick() == 17
+        assert len(transcript.status()["messages"]) == 1
+        transcript.set_listening(False)
+        f.messages.append(page(message("off-message", timestamp=f.now + 1)))
+        await f.tick()
+        assert not transcript.status()["messages"]
+        assert f.service.cached_status()["connected"]
+        assert b"PRIVATE-CHAT" not in f.audience.path.read_bytes()
+        await f.service.disconnect()
+    asyncio.run(scenario())
+
+
+def test_transcript_rejects_foreign_chat_author_and_isolates_sink_faults(tmp_path):
+    async def scenario():
+        f = Fixture(tmp_path)
+        calls = []
+        def sink(value):
+            calls.append(value)
+            raise RuntimeError("private sink fault")
+        f.service._transcript_sink = sink
+        await f.service.connect()
+        foreign = message("foreign", chat="other-chat")
+        with pytest.raises(_ProviderError):
+            f.service._page(page(foreign))
+        assert calls == []
+        wrong_author = message("wrong-author", timestamp=f.now + 1)
+        wrong_author["authorDetails"]["channelId"] = OTHER
+        with pytest.raises(_ProviderError):
+            f.service._page(page(wrong_author))
+        assert calls == []
+        f.messages.append(page(message("valid", timestamp=f.now + 1)))
+        await f.tick()
+        assert len(calls) == 1 and f.service.cached_status()["connected"]
+        await f.service.disconnect()
+    asyncio.run(scenario())
 
 
 def test_connect_discards_history_then_observes_first_chat_once_and_preserves_privacy(tmp_path):

@@ -77,7 +77,13 @@ app.whenReady().then(async()=>{
   });
   polling=setInterval(()=>broadcast.check().catch(()=>{}),1000);polling.unref();
   const publicBroadcast=()=>({...broadcast.status(),available:Boolean(runtime.encoderWorker&&fs.existsSync(runtime.encoderWorker)&&backend?.started?.identity)});
+  const {createAccountAuthorization}=require('./account-authorization.cjs');
+  const authorizeAccount=createAccountAuthorization({origin,
+    trustedSender:event=>Boolean(studio&&!studio.isDestroyed()&&policy.trustedMain(event,studio.webContents,origin)
+      &&new URL(event.senderFrame.url).pathname==='/control'),
+    openExternal:url=>shell.openExternal(url)});
 
+  ipcMain.handle('producer:accounts:authorize',authorizeAccount);
   ipcMain.handle('producer:info',event=>{if(!policy.trustedMain(event,studio.webContents,origin))throw Error('Untrusted request');return {name:'Producer, Please',version:app.getVersion(),desktop:true,engine:'standalone',preview};});
   ipcMain.handle('producer:settings',event=>{if(!policy.trustedMain(event,studio.webContents,origin))throw Error('Untrusted request');return openSettings();});
   ipcMain.handle('producer:sources:open',openSources);

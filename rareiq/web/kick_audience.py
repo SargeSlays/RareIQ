@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from rareiq.web.remote_access import is_loopback_client
 
 
-def create_kick_audience_router(connector, authorize_operator, *, include_receiver=False):
+def create_kick_audience_router(connector, authorize_operator, *, include_receiver=False, audit=None):
     router = APIRouter()
 
     def response(payload, status=200):
@@ -37,7 +37,7 @@ def create_kick_audience_router(connector, authorize_operator, *, include_receiv
             return response({"ok": False, "reason": "local_operator_required"}, 403)
         return response(connector.cached_status())
 
-    async def command(request, action):
+    async def command(request, action, operation):
         if not local_operator(request):
             return response({"ok": False, "reason": "local_operator_required"}, 403)
         parsed = urlsplit(str(request.url))
@@ -50,15 +50,39 @@ def create_kick_audience_router(connector, authorize_operator, *, include_receiv
                 raise ValueError()
         except (ValueError, TypeError, TimeoutError):
             return response({"ok": False, "reason": "empty_command_required"}, 400)
-        return response(await action())
+        history_warning = False
+        try:
+            if audit is not None:
+                audit(action="kick." + operation, outcome="requested")
+        except Exception:
+            if operation != "disconnect":
+                return response({"ok": False, "reason": "activity_history_unavailable"}, 503)
+            history_warning = True
+        try:
+            result = await action()
+        except Exception:
+            return response({"ok": False, "reason": "provider_unavailable"}, 503)
+        if audit is not None:
+            outcome = ("succeeded" if result.get("connected") is True or operation == "disconnect"
+                       and result.get("state") == "not_connected" else "requested"
+                       if result.get("state") in {"connecting", "reconnecting", "ready"} else "failed")
+            try:
+                audit(action="kick." + operation, outcome=outcome)
+            except Exception:
+                if operation != "disconnect":
+                    return response({"ok": False, "reason": "activity_history_unavailable"}, 503)
+                history_warning = True
+        if history_warning:
+            result = {**result, "activity_history_warning": True}
+        return response(result)
 
     @router.post("/api/production/audience/kick/connect")
     async def connect(request: Request):
-        return await command(request, connector.connect)
+        return await command(request, connector.connect, "connect")
 
     @router.post("/api/production/audience/kick/disconnect")
     async def disconnect(request: Request):
-        return await command(request, connector.disconnect)
+        return await command(request, connector.disconnect, "disconnect")
 
     async def event(request: Request):
         if not connector.accepts_url(str(request.url)):

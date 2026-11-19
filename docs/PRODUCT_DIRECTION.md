@@ -837,3 +837,32 @@ and Taken; real Program generation stayed unchanged and no broadcast or recordin
 was started. Producer authentication remains separate from guest invitations.
 
 Producer-side combined viewer chat for Twitch, YouTube and Kick is the next owner-requested priority. It is separate from shared/private backstage chat. Implement platform labels, filters and truthful connection states around actual authorized platform message ingestion; no live audience connector or account connection is claimed by this checkpoint.
+
+## November 18, 2026 — Combined viewer chat and smaller room pictures
+
+The producer has a separate Viewer chat dock with All/Twitch/YouTube/Kick filters,
+explicit listening and platform connection controls, literal message text, paused
+reading with unread counts, and recovery states. It retains at most 300 messages
+in memory for 20 minutes; Stop clears the transcript. Guest-only ingress cannot
+read or control it. It neither sends platform messages nor adds chat to Program.
+Platform adapters supply text only after their existing provider/channel checks.
+
+Account setup uses Windows-user encrypted local storage outside source. Twitch
+uses a public-device flow requesting only user:read:chat. YouTube uses installed-
+app authorization with PKCE and a temporary loopback callback, requesting only
+youtube.readonly; its account service owns stored-token refresh and rotation.
+Authorization and chat connection are distinct explicit steps. The first Twitch
+public app registration was approved and created; its public Client ID is stored
+locally. Owner consent and real message receipt remain pending. No Google app is
+registered or Kick public callback enabled by this change. Kick remains setup
+required because its message delivery needs a separately approved public callback.
+
+Backstage and joined guest rooms now start with bounded compact pictures and an
+explicit Larger pictures toggle. Resizing preserves video nodes and media owners,
+without capturing devices, selecting sources or Taking Program. The right-side
+backstage chat and existing source libraries remain separate from Viewer chat.
+
+Listening, account attempts and platform connect/disconnect controls append safe
+local-operator activity metadata. This does not verify a person's identity. Named
+remote producer sign-in still requires the real StackThis identity/callback
+agreement; guest invitations and platform OAuth do not grant producer access.

@@ -21,7 +21,7 @@ from rareiq.services.reaction_asset_service import ReactionAssetService
 from rareiq.services.production_source_store import ProductionSourceStore
 
 
-def main(*, native_desktop=False):
+def main(*, native_desktop=False, extra_setup=None, extra_api_paths=()):
     if len(sys.argv) not in {2, 3}:
         raise SystemExit("Supply a NEW isolated evidence directory and optional loopback port")
     port = int(sys.argv[2]) if len(sys.argv) == 3 else 8768
@@ -58,10 +58,15 @@ def main(*, native_desktop=False):
         yield
     server.app.router.lifespan_context = no_hardware
 
+    if extra_setup is not None:
+        extra_setup(server, root)
+
     allowed_read = ("/api/creator/assets", "/api/production/sources/", "/api/production/greenroom", "/api/production/scenes", "/api/production/audience",
                     "/api/production/switcher", "/api/production/voice/rules", "/api/production/vision", "/api/production/actions")
     allowed_write = ("/api/creator/assets", "/api/production/sources/", "/api/production/greenroom/", "/api/production/switcher/", "/api/production/scenes",
                      "/api/production/audience/", "/api/production/voice/rules", "/api/production/vision/")
+    allowed_read += tuple(extra_api_paths)
+    allowed_write += tuple(extra_api_paths)
     native_reads = {"/api/production/native-preflight", "/api/desktop/status"} if native_desktop else set()
     native_writes = {"/api/desktop/encoding-status"} if native_desktop else set()
 

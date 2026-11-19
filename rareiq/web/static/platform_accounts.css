@@ -1,0 +1,24 @@
+html[data-theme] body.pp-shell .platform-accounts-dialog { width:min(600px,calc(100vw - 28px)); max-width:none; max-height:calc(100dvh - 32px); margin:auto; padding:22px; overflow:auto; overscroll-behavior:contain; border:1px solid var(--pp-border-strong); border-radius:var(--pp-radius-md); background:var(--pp-surface); color:var(--pp-text); box-shadow:0 16px 48px var(--pp-surface-sunken); font:inherit; }
+body.pp-shell .platform-accounts-dialog,body.pp-shell .platform-accounts-dialog * { box-sizing:border-box; }
+body.pp-shell .platform-accounts-dialog::backdrop { background:var(--pp-surface-sunken); opacity:.8; }
+body.pp-shell .platform-accounts-dialog [hidden] { display:none!important; }
+body.pp-shell .platform-accounts-dialog > header { display:flex; align-items:center; justify-content:space-between; gap:14px; position:sticky; top:0; z-index:1; padding-block:8px; background:var(--pp-surface); }
+body.pp-shell .platform-accounts-dialog :is(h2,h3,p) { margin:0; }
+body.pp-shell .platform-accounts-dialog h2 { font-size:22px; line-height:1.3; }
+body.pp-shell .platform-accounts-dialog h3 { font-size:16px; line-height:1.4; }
+body.pp-shell .platform-accounts-dialog p { font-size:13px; line-height:1.6; color:var(--pp-text-muted); overflow-wrap:anywhere; }
+body.pp-shell .platform-accounts-dialog > :is(.platform-accounts-intro,[data-accounts-status]) { margin-top:14px; }
+body.pp-shell .platform-accounts-dialog [data-accounts-status] { min-height:24px; }
+body.pp-shell .platform-accounts-dialog section { display:grid; gap:10px; margin-top:18px; padding-top:18px; border-top:1px solid var(--pp-border); min-width:0; }
+body.pp-shell .platform-accounts-dialog :is(button,a) { display:inline-flex; justify-content:center; align-items:center; min-height:42px; max-width:100%; padding:9px 12px; border:1px solid var(--pp-control-border); border-radius:var(--pp-radius-sm); background:var(--pp-surface-raised); color:var(--pp-text); font:inherit; font-size:13px; line-height:1.4; text-align:center; white-space:normal; overflow-wrap:anywhere; text-decoration:none; cursor:pointer; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .platform-accounts-dialog :is(button,a) { min-height:42px!important; height:auto!important; padding:9px 12px!important; }
+body.pp-shell .platform-accounts-dialog :is(button,a):not(:disabled):hover { background:var(--pp-hover); }
+body.pp-shell .platform-accounts-dialog button:disabled { cursor:not-allowed; opacity:.6; }
+body.pp-shell .platform-accounts-dialog :is(button,a,output):focus-visible { outline:2px solid var(--pp-focus); outline-offset:3px; }
+body.pp-shell .platform-accounts-dialog .platform-accounts-actions { display:flex; flex-wrap:wrap; gap:8px; }
+body.pp-shell .platform-accounts-dialog .platform-accounts-pending { display:flex; flex-wrap:wrap; gap:10px; padding:14px; min-width:0; background:var(--pp-surface-sunken); border:1px solid var(--pp-border); border-radius:var(--pp-radius-sm); }
+body.pp-shell .platform-accounts-dialog .platform-accounts-pending p { flex-basis:100%; }
+body.pp-shell .platform-accounts-dialog output { display:block; flex-basis:100%; padding:12px; border:1px dashed var(--pp-border-strong); border-radius:var(--pp-radius-sm); font:700 24px/1.4 monospace; color:var(--pp-text); letter-spacing:.12em; overflow-wrap:anywhere; user-select:all; }
+body.pp-shell .platform-accounts-dialog .platform-account-label { color:var(--pp-success); }
+body.pp-shell .platform-accounts-dialog > [data-accounts-refresh] { margin-top:18px; }
+@media(max-width:480px) { html[data-theme] body.pp-shell .platform-accounts-dialog { padding:16px; } body.pp-shell .platform-accounts-dialog .platform-accounts-actions > * { flex:1 1 100%; } body.pp-shell .platform-accounts-dialog output { font-size:20px; letter-spacing:.08em; } }

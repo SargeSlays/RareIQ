@@ -456,6 +456,92 @@ def test_composition_audit_source_list_is_bounded_and_excludes_free_text(room):
         code(error, "invalid_production_details")
 
 
+@pytest.mark.parametrize("action,target", [
+    ("viewer_chat.listening", "viewer_chat"), ("platform.account.begin", "twitch"),
+    ("platform.account.cancel", "youtube"), ("platform.chat.connect", "kick"),
+    ("platform.chat.disconnect", "twitch"),
+])
+def test_safe_account_and_chat_events_are_append_only_idempotent_and_do_not_change_room_revision(room, action, target):
+    service, _ = room
+    before = service.snapshot()["revision"]
+    details = {"enabled": action not in {"platform.account.cancel", "platform.chat.disconnect"}}
+    result = service.record_production_event(action, target, "succeeded", details=details, request_id="safe-event")
+    assert service.record_production_event(action, target, "succeeded", details=details, request_id="safe-event") == result
+    events = service.history()["events"]
+    assert len(events) == 1
+    assert events[0]["action"] == action and events[0]["target"] == target
+    assert events[0]["details"] == details and events[0]["actor_kind"] == "local_operator"
+    assert events[0]["actor_id"] is None and events[0]["identity_verified"] is False
+    assert service.snapshot()["revision"] == before == result["revision"]
+    assert events[0]["before_revision"] == events[0]["after_revision"] == before
+    with pytest.raises(GreenroomError) as error:
+        service.record_production_event(action, target, "succeeded", details={"enabled": not details["enabled"]}, request_id="safe-event")
+    code(error, "room_request_conflict", 409)
+    with sqlite3.connect(service.path) as db:
+        with pytest.raises(sqlite3.IntegrityError, match="append_only"):
+            db.execute("UPDATE greenroom_activity SET details='{}'")
+    assert service.history()["events"] == events
+
+
+@pytest.mark.parametrize("target", ["twitch", "youtube", "kick"])
+def test_platform_event_targets_accept_only_fixed_platform_names(room, target):
+    service, _ = room
+    for action in ("platform.account.begin", "platform.account.cancel", "platform.chat.connect", "platform.chat.disconnect"):
+        service.record_production_event(action, target, "requested")
+    assert all(event["target"] == target and event["details"] == {} for event in service.history()["events"])
+
+
+def test_account_event_targets_cannot_include_account_ids_or_production_sources(room):
+    service, _ = room
+    for action in ("platform.account.begin", "platform.account.cancel", "platform.chat.connect", "platform.chat.disconnect"):
+        for target in ("viewer_chat", "channel_123456", "camera:1", "Twitch", "private-token"):
+            with pytest.raises(GreenroomError) as error:
+                service.record_production_event(action, target, "requested")
+            code(error, "invalid_production_target")
+    for target in ("twitch", "channel_123456", "viewer_chat:private", "camera:1"):
+        with pytest.raises(GreenroomError) as error:
+            service.record_production_event("viewer_chat.listening", target, "requested")
+        code(error, "invalid_production_target")
+    assert service.history()["events"] == []
+
+
+@pytest.mark.parametrize("action", ["viewer_chat.listening", "platform.account.begin", "platform.account.cancel",
+    "platform.chat.connect", "platform.chat.disconnect"])
+def test_account_events_reject_tokens_codes_private_text_and_legacy_id_details(room, action):
+    service, _ = room
+    target = "viewer_chat" if action == "viewer_chat.listening" else "twitch"
+    for details in ({"access_token": "private-token"}, {"device_code": "private-code"},
+                    {"user_code": "PRIVATE-CODE"}, {"private_body": "private chat body"},
+                    {"provider_id": "123456"}, {"channel_id": "123456"},
+                    {"source_id": "private_account_123456"}, {"participant_id": "private-id"},
+                    {"source_ids": ["camera:1"]}, {"generation": 1}, {"connected": True}, {"muted": False}):
+        with pytest.raises(GreenroomError) as error:
+            service.record_production_event(action, target, "requested", details=details)
+        code(error, "invalid_production_details")
+    assert service.history()["events"] == [] and service.snapshot()["revision"] == 0
+
+
+@pytest.mark.parametrize("enabled", [0, 1, "true", None, [], {}])
+def test_account_event_enabled_is_strictly_boolean(room, enabled):
+    service, _ = room
+    with pytest.raises(GreenroomError) as error:
+        service.record_production_event("viewer_chat.listening", "viewer_chat", "requested", details={"enabled": enabled})
+    code(error, "invalid_production_details")
+    assert service.history()["events"] == []
+
+
+def test_account_extension_does_not_weaken_existing_details_or_actor_guards(room):
+    service, _ = room
+    with pytest.raises(GreenroomError) as error:
+        service.record_production_event("program.take", "camera:2", "requested", details={"enabled": True})
+    code(error, "invalid_production_details")
+    for actor in ("guest_session", "program_renderer"):
+        with pytest.raises(GreenroomError) as error:
+            service.record_production_event("platform.account.begin", "twitch", "requested", actor_kind=actor)
+        code(error, "invalid_producer_identity", 403)
+    assert service.history()["events"] == []
+
+
 @pytest.mark.parametrize("token", [None, "", "short", "A" * 64, "g" * 64, "a" * 64 + "\n"])
 def test_bad_capability_tokens_fail_closed(room, token):
     service, _ = room

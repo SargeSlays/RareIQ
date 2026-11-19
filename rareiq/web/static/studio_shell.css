@@ -483,13 +483,12 @@ html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[
 html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scene-editor label > span { font-size:11px!important; line-height:1.4!important; color:var(--pp-text-muted)!important; }
 html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-scene-editor { background:var(--pp-surface-sunken)!important; border-color:var(--pp-border)!important; }
 
-/* Give the default backstage dock a full desktop row. */
+/* A full-width backstage starts below both the stage and right-side tools. */
 @media(min-width:1101px){
-html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-bottom:has(> [data-studio-tool="production-greenroom"]) { display:grid!important; grid-column:1/-1!important; grid-template-columns:repeat(2,minmax(0,1fr))!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-bottom:has(> [data-studio-tool="production-greenroom"]:not([hidden])) { display:grid!important; grid-column:1/-1!important; grid-template-columns:repeat(2,minmax(0,1fr))!important; }
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-grid:has(> .studio-dock-bottom > [data-studio-tool="production-greenroom"]:not([hidden])) > .studio-dock-right { grid-row:2!important; }
 html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-bottom > [data-studio-tool="production-greenroom"] { grid-column:1/-1!important; grid-row:1!important; width:100%!important; }
 }
 
-/* Keep the last tool's controls scrollable above the fixed desktop readiness banner. */
-@media (min-width:960px) {
-html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-studio-docks="ready"]:has(> .workspace-readiness:not([hidden])) > .studio-dock-frame { padding-bottom:96px!important; }
-}
+/* Readiness belongs in the studio flow so it never covers tool controls. */
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .workspace[data-studio-docks="ready"] > .workspace-readiness { position:static!important; inset:auto!important; width:auto!important; max-width:none!important; margin:0 0 12px!important; }

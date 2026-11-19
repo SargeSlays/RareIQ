@@ -11,12 +11,15 @@ from collections import OrderedDict, deque
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 import json
+import inspect
+import math
 import re
 import time
 
 import httpx
 
 from rareiq.services.audience_service import TrustedAudienceEvent
+from rareiq.services.viewer_chat_service import deliver_viewer_chat
 
 
 class _ProviderError(Exception):
@@ -30,6 +33,9 @@ class YouTubeAudienceConnector:
 
     credentials_provider returns client_id, client_secret, refresh_token, channel_id.
     The refresh grant binds this app; channels.list(mine=true) binds channel ownership.
+    Optional authorization_provider supplies a service-owned access token instead;
+    only an explicit None selects the legacy refresh path. Both modes recheck
+    ownership, and a running observer cannot silently change its channel.
     No access/refresh tokens, chat bodies, names or account IDs appear in cached status.
     """
 
@@ -47,8 +53,10 @@ class YouTubeAudienceConnector:
     _ID = re.compile(r"^[A-Za-z0-9_-]{1,160}$")
 
     def __init__(self, audience_service, credentials_provider, *, http_factory=None,
-                 clock=time.time, sleep=asyncio.sleep):
+                 clock=time.time, sleep=asyncio.sleep, transcript_sink=None, authorization_provider=None):
         self._audience, self._credentials_provider = audience_service, credentials_provider
+        self._transcript_sink = transcript_sink
+        self._authorization_provider = authorization_provider
         self._http_factory = http_factory or (lambda: httpx.AsyncClient(
             timeout=httpx.Timeout(6, connect=3), follow_redirects=False))
         self._clock, self._sleep, self._lock = clock, sleep, asyncio.Lock()
@@ -101,12 +109,8 @@ class YouTubeAudienceConnector:
             self._last_attempt = self._clock()
             self._state_change("connecting", "validating_authorization")
             try:
-                raw = self._credentials_provider()
-                fields = ("client_id", "client_secret", "refresh_token", "channel_id")
-                if not isinstance(raw, dict) or not all(raw.get(key) for key in fields):
-                    raise _ProviderError("credentials_required")
-                self._credentials = {key: self._text(raw[key], 4096) for key in fields}
-                self._channel_id = self._identifier(self._credentials["channel_id"], channel=True)
+                if self._authorization_provider is None:
+                    self._load_legacy_credentials()
                 self._http, self._cleanup_incomplete = self._http_factory(), False
                 self._seen.clear()
                 await self._authorize()
@@ -191,17 +195,61 @@ class YouTubeAudienceConnector:
     def _headers(self):
         return {"Authorization": "Bearer " + self._access_token}
 
+    def _load_legacy_credentials(self):
+        raw = self._credentials_provider()
+        fields = ("client_id", "client_secret", "refresh_token", "channel_id")
+        if not isinstance(raw, dict) or not all(raw.get(key) for key in fields):
+            raise _ProviderError("credentials_required")
+        values = {key: self._text(raw[key], 4096) for key in fields}
+        channel = self._identifier(values["channel_id"], channel=True)
+        if self._channel_id is not None and self._channel_id != channel:
+            raise _ProviderError("channel_identity_mismatch")
+        self._credentials, self._channel_id = values, channel
+
     async def _authorize(self):
-        token = await self._request("POST", self.TOKEN_URL, data={
-            key: self._credentials[key] for key in ("client_id", "client_secret", "refresh_token")
-        } | {"grant_type": "refresh_token"})
-        expires, scopes = token.get("expires_in"), token.get("scope")
-        if type(expires) is not int or not 60 < expires <= 86400 or token.get("token_type", "").lower() != "bearer":
-            raise _ProviderError("invalid_access_token")
-        if not isinstance(scopes, str) or len(scopes) > 8192 or not self.READ_SCOPES.intersection(scopes.split()):
-            raise _ProviderError("chat_scope_required")
-        self._access_token = self._text(token.get("access_token"), 8192)
-        self._expires_at = self._clock() + expires
+        authorization = None
+        if self._authorization_provider is not None:
+            try:
+                authorization = self._authorization_provider()
+                if inspect.isawaitable(authorization):
+                    authorization = await authorization
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                raise _ProviderError("authorization_refresh_required") from None
+        if authorization is None:
+            # None is an explicit legacy-mode selection, never an error fallback.
+            if self._credentials is None:
+                self._load_legacy_credentials()
+            token = await self._request("POST", self.TOKEN_URL, data={
+                key: self._credentials[key] for key in ("client_id", "client_secret", "refresh_token")
+            } | {"grant_type": "refresh_token"})
+            expires, scopes = token.get("expires_in"), token.get("scope")
+            if type(expires) is not int or not 60 < expires <= 86400 or token.get("token_type", "").lower() != "bearer":
+                raise _ProviderError("invalid_access_token")
+            if not isinstance(scopes, str) or len(scopes) > 8192 or not self.READ_SCOPES.intersection(scopes.split()):
+                raise _ProviderError("chat_scope_required")
+            self._access_token = self._text(token.get("access_token"), 8192)
+            self._expires_at = self._clock() + expires
+        else:
+            if not isinstance(authorization, dict) or set(authorization) != {"access_token", "channel_id", "expires_at", "scopes"}:
+                raise _ProviderError("invalid_access_token")
+            channel = self._identifier(authorization["channel_id"], channel=True)
+            if self._channel_id is not None and self._channel_id != channel:
+                raise _ProviderError("channel_identity_mismatch")
+            expires, scopes = authorization["expires_at"], authorization["scopes"]
+            if (type(expires) not in (int, float) or not math.isfinite(expires)
+                    or not self._clock() < expires <= self._clock() + 86400):
+                raise _ProviderError("invalid_access_token")
+            if (not isinstance(scopes, list) or not 0 < len(scopes) <= 32
+                    or any(not isinstance(scope, str) or not 0 < len(scope) <= 128
+                           or any(not 33 <= ord(char) <= 126 for char in scope) for scope in scopes)
+                    or not self.READ_SCOPES.intersection(scopes)):
+                raise _ProviderError("chat_scope_required")
+            self._authorized = False
+            self._channel_id, self._credentials = channel, None
+            self._access_token = self._text(authorization["access_token"], 8192)
+            self._expires_at = expires
         value = await self._request("GET", self.CHANNELS_URL, headers=self._headers(),
             params={"part": "id", "mine": "true", "maxResults": 50, "fields": "items(id),nextPageToken"})
         items = self._items(value, 50)
@@ -258,9 +306,11 @@ class YouTubeAudienceConnector:
             raise _ProviderError("chat_ended")
 
     async def _messages(self):
+        text_field = ",displayMessage" if self._transcript_sink is not None else ""
         params = {"part": "id,snippet,authorDetails", "liveChatId": self._chat_id, "maxResults": self.MAX_ITEMS,
-                  # Request identity/timing only: chat text, photos and purchase amounts aren't needed.
-                  "fields": "nextPageToken,pollingIntervalMillis,offlineAt,items(id,snippet(type,liveChatId,authorChannelId,publishedAt),authorDetails(channelId,displayName))"}
+                  # Preserve the identity-only request unless a transcript sink is installed.
+                  "fields": "nextPageToken,pollingIntervalMillis,offlineAt,items(id,snippet(type,liveChatId,authorChannelId,publishedAt"
+                            + text_field + "),authorDetails(channelId,displayName))"}
         if self._page_token:
             params["pageToken"] = self._page_token
         return await self._request("GET", self.MESSAGES_URL, headers=self._headers(), params=params)
@@ -306,6 +356,9 @@ class YouTubeAudienceConnector:
                 if not max(self._event_floor, now - 120) < occurred <= now + 5:
                     self._rejected += 1
                     continue
+                if self._transcript_sink is not None:
+                    deliver_viewer_chat(self._transcript_sink, "youtube", self._channel_id,
+                                       event_id, subject, name, snippet.get("displayMessage"), occurred)
                 accepted = self._audience.accept(TrustedAudienceEvent("youtube", self._channel_id,
                     event_id, subject, name, "chat", occurred))
                 if accepted.get("ok"):

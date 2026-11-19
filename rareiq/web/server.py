@@ -30,6 +30,7 @@ from starlette.requests import ClientDisconnect
 from rareiq.core.events import EventBus
 from rareiq.core.orchestrator import RareIQOrchestrator
 from rareiq.core.secrets import secrets as secret_store
+from rareiq.core.platform_credentials import PlatformCredentialVault, PlatformCredentialsError
 from rareiq.core.storage import storage
 from rareiq.core.runtime_paths import desktop_data_root
 from rareiq.services.provenance_capture_service import ProvenanceCaptureService
@@ -50,10 +51,15 @@ from rareiq.services.voice_command_service import VoiceCommandService, MAX_VOICE
 from rareiq.services.voice_rule_store import VoiceRuleStore
 from rareiq.web.voice_rules_api import voice_rules_router
 from rareiq.services.audience_service import AudienceService
+from rareiq.services.viewer_chat_service import ViewerChatService
+from rareiq.web.viewer_chat import create_viewer_chat_router
+from rareiq.web.platform_accounts import create_platform_accounts_router
 from rareiq.web.audience import create_audience_router
 from rareiq.services.twitch_audience_connector import TwitchAudienceConnector
+from rareiq.services.twitch_account_service import TwitchAccountService
 from rareiq.web.twitch_audience import create_twitch_audience_router
 from rareiq.services.youtube_audience_connector import YouTubeAudienceConnector
+from rareiq.services.youtube_account_service import YouTubeAccountService
 from rareiq.web.youtube_audience import create_youtube_audience_router
 from rareiq.services.kick_audience_connector import KickAudienceConnector
 from rareiq.web.kick_audience import create_kick_audience_router
@@ -185,6 +191,9 @@ async def lifespan(_app: FastAPI):
         await guest_ingress.start()
         yield
     finally:
+        viewer_chat_service.set_listening(False)
+        await twitch_account_service.close()
+        await youtube_account_service.close()
         await guest_ingress.close()
         await twitch_audience_connector.close()
         await youtube_audience_connector.close()
@@ -1041,27 +1050,120 @@ greenroom_hub = GreenroomHub(greenroom_service, authorize_operator=_greenroom_op
     removed=_greenroom_removed, source_available=_production_source_available)
 app.include_router(greenroom_hub.router)
 audience_service = AudienceService(storage.get_path("config_path") / "audience.sqlite3")
+viewer_chat_service = ViewerChatService()
+try:
+    platform_credential_vault = PlatformCredentialVault(
+        storage.get_path("config_path") / "platform_accounts.enc.json")
+except PlatformCredentialsError:
+    # Optional account setup must fail closed without preventing an offline studio.
+    platform_credential_vault = None
+twitch_account_service = TwitchAccountService(platform_credential_vault,
+    client_id_provider=lambda: os.getenv("RAREIQ_TWITCH_CLIENT_ID", "").strip()
+        or _stored_platform_credentials("twitch").get("client_id"))
+
+
+def _stored_platform_credentials(platform):
+    if platform_credential_vault is None:
+        return {}
+    try:
+        return platform_credential_vault.get(platform) or {}
+    except PlatformCredentialsError:
+        return {}
+
+def _youtube_app_configuration():
+    fields = ("client_id", "client_secret")
+    configured = {name: os.getenv("RAREIQ_YOUTUBE_" + name.upper(), "").strip() for name in fields}
+    if any(configured.values()):
+        return configured
+    stored = _stored_platform_credentials("youtube")
+    return {name: stored.get(name, "") for name in fields}
+
+
+youtube_account_service = YouTubeAccountService(platform_credential_vault,
+    app_config_provider=_youtube_app_configuration)
+
+
+def _platform_account_audit(*, action, outcome):
+    platform, operation = action.split(".", 1)
+    result = "requested" if outcome in {"pending", "requested"} else (
+        "succeeded" if outcome == "authorized" or operation == "cancel" and outcome == "not_authorized" else "failed")
+    return greenroom_service.record_production_event(
+        "platform.account." + operation, platform, result, actor_kind="local_operator")
+
+
+def _platform_chat_audit(*, action, outcome):
+    platform, operation = action.split(".", 1)
+    return greenroom_service.record_production_event(
+        "platform.chat." + operation, platform, outcome, actor_kind="local_operator")
+
+
+def _viewer_chat_audit(*, enabled):
+    return greenroom_service.record_production_event(
+        "viewer_chat.listening", "viewer_chat", "requested", actor_kind="local_operator",
+        details={"enabled": enabled})
+
 
 def _twitch_audience_credentials():
     # Called only after the host explicitly chooses Connect; never sent to a browser.
-    return {"client_id": os.getenv("RAREIQ_TWITCH_CLIENT_ID", "").strip(),
-            "channel_login": os.getenv("RAREIQ_TWITCH_CHANNEL_LOGIN", "").strip().lower(),
-            "user_access_token": os.getenv("RAREIQ_TWITCH_USER_ACCESS_TOKEN", "").strip()}
+    legacy = {"client_id": os.getenv("RAREIQ_TWITCH_CLIENT_ID", "").strip(),
+              "channel_login": os.getenv("RAREIQ_TWITCH_CHANNEL_LOGIN", "").strip().lower(),
+              "user_access_token": os.getenv("RAREIQ_TWITCH_USER_ACCESS_TOKEN", "").strip()}
+    # Never combine credentials from two apps or accounts.
+    if legacy["channel_login"] or legacy["user_access_token"]:
+        return legacy
+    stored = _stored_platform_credentials("twitch")
+    if legacy["client_id"] and stored.get("client_id") != legacy["client_id"]:
+        return legacy
+    return {"client_id": stored.get("client_id", ""),
+            "channel_login": stored.get("channel_login", ""),
+            "user_access_token": stored.get("access_token", "")}
 
-twitch_audience_connector = TwitchAudienceConnector(audience_service, _twitch_audience_credentials)
+
+async def _prepare_twitch_audience_connection():
+    legacy = [os.getenv(name, "").strip() for name in
+              ("RAREIQ_TWITCH_CLIENT_ID", "RAREIQ_TWITCH_CHANNEL_LOGIN", "RAREIQ_TWITCH_USER_ACCESS_TOKEN")]
+    # A client ID alone is also the public device-flow application configuration.
+    if legacy[1] or legacy[2]:
+        return
+    await twitch_account_service.ensure_credentials()
+
+twitch_audience_connector = TwitchAudienceConnector(audience_service, _twitch_audience_credentials,
+    transcript_sink=viewer_chat_service.accept)
 
 def _youtube_audience_credentials():
     # Reuse existing host settings only after an explicit local Connect command.
-    return {name: os.getenv("RAREIQ_YOUTUBE_" + name.upper(), "").strip()
-            for name in ("client_id", "client_secret", "refresh_token", "channel_id")}
+    fields = ("client_id", "client_secret", "refresh_token", "channel_id")
+    legacy = {name: os.getenv("RAREIQ_YOUTUBE_" + name.upper(), "").strip() for name in fields}
+    if any(legacy.values()):
+        return legacy
+    stored = _stored_platform_credentials("youtube")
+    return {name: stored.get(name, "") for name in fields}
 
-youtube_audience_connector = YouTubeAudienceConnector(audience_service, _youtube_audience_credentials)
+async def _youtube_chat_authorization():
+    fields = ("refresh_token", "channel_id")
+    if any(os.getenv("RAREIQ_YOUTUBE_" + name.upper(), "").strip() for name in fields):
+        return None  # Explicit legacy configuration owns its existing refresh flow.
+    authorization = await youtube_account_service.ensure_authorization()
+    if authorization is None:
+        raise ValueError("authorization_refresh_required")
+    return authorization
+
+
+youtube_audience_connector = YouTubeAudienceConnector(audience_service, _youtube_audience_credentials,
+    transcript_sink=viewer_chat_service.accept, authorization_provider=_youtube_chat_authorization)
 # No approved Kick callback registration or credential-owner handoff exists yet.
 # Prepare the controls/status without mounting an event receiver or reading secrets.
-kick_audience_connector = KickAudienceConnector(audience_service, lambda: {})
-app.include_router(create_twitch_audience_router(twitch_audience_connector, _greenroom_operator))
-app.include_router(create_youtube_audience_router(youtube_audience_connector, _greenroom_operator))
-app.include_router(create_kick_audience_router(kick_audience_connector, _greenroom_operator))
+kick_audience_connector = KickAudienceConnector(audience_service, lambda: {},
+    transcript_sink=viewer_chat_service.accept)
+app.include_router(create_twitch_audience_router(twitch_audience_connector, _greenroom_operator,
+    prepare_connect=_prepare_twitch_audience_connection, audit=_platform_chat_audit))
+app.include_router(create_youtube_audience_router(youtube_audience_connector, _greenroom_operator, audit=_platform_chat_audit))
+app.include_router(create_kick_audience_router(kick_audience_connector, _greenroom_operator, audit=_platform_chat_audit))
+app.include_router(create_platform_accounts_router(twitch_account_service, _greenroom_operator,
+    vault=platform_credential_vault, youtube_service=youtube_account_service, audit=_platform_account_audit))
+app.include_router(create_viewer_chat_router(viewer_chat_service, _greenroom_operator, audit=_viewer_chat_audit,
+    sources_provider=lambda: [connector.cached_status() for connector in
+        (twitch_audience_connector, youtube_audience_connector, kick_audience_connector)]))
 app.include_router(create_audience_router(audience_service, STATIC_DIR,
     sources_provider=lambda: [connector.cached_status() for connector in
         (twitch_audience_connector, youtube_audience_connector, kick_audience_connector)]))
@@ -1257,6 +1359,7 @@ async def root():
         '<p><a href="/about">Build diagnostics</a></p>',
         headers={"Cache-Control": "no-store"},
     )
+
 
 @app.get("/control")
 async def control():

@@ -65,6 +65,14 @@ async function main(){
     await page.addScriptTag({content:fs.readFileSync(path.join(root,'greenroom_controls.js'),'utf8')});
     await page.evaluate(()=>ProducerGreenroomControls.mount(document.getElementById('workspace')));
     await page.waitForFunction(()=>document.querySelector('[data-room-count]').textContent.includes('1 / 6'));
+    const pictureSize=page.locator('[data-room-picture-size]');
+    assert.equal(await pictureSize.getAttribute('aria-pressed'),'false','pictures start compact');
+    const beforePictureSize=await page.evaluate(()=>{fixture.pictureVideos=[...document.querySelectorAll('.greenroom-guest video')];return {requests:fixture.requests.length,captures:fixture.captures};});
+    await pictureSize.focus();await page.keyboard.press('Enter');assert.equal(await pictureSize.getAttribute('aria-pressed'),'true');
+    assert.equal(await pictureSize.textContent(),'Compact pictures');
+    assert.equal(await page.evaluate(()=>fixture.pictureVideos.every((video,index)=>video===document.querySelectorAll('.greenroom-guest video')[index])),true,'picture size preserves existing video nodes');
+    assert.deepEqual(await page.evaluate(()=>({requests:fixture.requests.length,captures:fixture.captures})),beforePictureSize,'picture size never captures or changes room state');
+    await page.keyboard.press('Space');assert.equal(await pictureSize.getAttribute('aria-pressed'),'false');
     assert.equal(await page.evaluate(()=>fixture.captures),0,'mount never captures');
     assert.equal(await page.locator('[data-guest-name] img').count(),0,'guest labels are text');
     assert.equal(await page.locator('[data-source-kind="camera"]').isDisabled(),true);
@@ -132,6 +140,12 @@ async function main(){
       await page.setViewportSize({width,height:width>=1920?1080:900});await page.evaluate(theme=>{document.documentElement.dataset.theme=theme;document.documentElement.dataset.operatorSkin=theme==='light'?'daylight':'ignite';},theme);
       const dimensions=await page.evaluate(()=>({horizontal:document.documentElement.scrollWidth>innerWidth,innerScroll:[...document.querySelectorAll('.production-greenroom,.production-greenroom *')].filter(e=>['auto','scroll'].includes(getComputedStyle(e).overflowY)&&e.scrollHeight>e.clientHeight+2).length}));
       assert.equal(dimensions.horizontal,false,`${theme} ${width} width`);assert.equal(dimensions.innerScroll,0,`${theme} ${width} content flows down`);
+      await page.emulateMedia({reducedMotion:'reduce'});
+      const compact=await page.locator('.greenroom-guest').first().boundingBox();assert.ok(compact.width<=361,`${theme} ${width} compact picture bound`);
+      await pictureSize.click();const large=await page.locator('.greenroom-guest').first().boundingBox();assert.ok(large.width<=721,`${theme} ${width} large picture bound`);assert.ok(large.width>=compact.width,`${theme} ${width} deliberate larger pictures`);
+      assert.ok((await pictureSize.boundingBox()).height>=42,'picture size is touch accessible');
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'large pictures fit narrow screens');
+      await pictureSize.click();
       await page.screenshot({path:path.join(destination,`greenroom-${theme}-${width}.png`),fullPage:true,animations:'disabled'});results.push({theme,width,...dimensions});
     }
     await page.locator('[data-host-mic]').click();await page.waitForFunction(()=>fixture.stops===1);assert.equal(await page.evaluate(()=>fixture.localStream),null);
@@ -150,7 +164,7 @@ async function main(){
     assert.equal(await page.evaluate(()=>fixture.room.participants[0].state),'removed','reinvitation does not restore ended access');
     assert.equal(await page.evaluate(()=>fixture.requests.filter(r=>r.url==='/api/production/greenroom/invites').at(-1).body.label),'Guest <img src=x onerror=alert(1)>');
     await page.evaluate(()=>ProducerGreenroomControls.mount(document.getElementById('workspace')).close());
-    const checks=['no capture on mount','safe guest labels','admit does not take','offline camera removed','output receipt gating','conflict draft preserved','invitation dismissed','explicit host microphone','host mix-minus exclusion','host track cleanup','activity lazy load','activity retry preserves rows','activity bounded to 20','literal names and private IDs omitted','offline waiting guest pre-mute','authoritative mute state and duplicate-click guard','independent audio flags and CAS metadata','conflicting audio change preserved','audio settings never capture or take Program','safe invitation target and local-only hint'];
+    const checks=['no capture on mount','safe guest labels','admit does not take','offline camera removed','output receipt gating','conflict draft preserved','invitation dismissed','explicit host microphone','host mix-minus exclusion','host track cleanup','activity lazy load','activity retry preserves rows','activity bounded to 20','literal names and private IDs omitted','offline waiting guest pre-mute','authoritative mute state and duplicate-click guard','independent audio flags and CAS metadata','conflicting audio change preserved','audio settings never capture or take Program','safe invitation target and local-only hint','compact picture default and keyboard resizing preserve video nodes','touch-size picture control and bounded sizes across themes/viewports/reduced motion'];
     assert.deepEqual(faults,[]);fs.writeFileSync(path.join(destination,'summary.json'),JSON.stringify({isolated:true,hardware:false,results,checks,faults},null,2));
     console.log(JSON.stringify({passed:true,viewportThemeChecks:results.length,interactionChecks:checks.length,hardware:false}));
   }finally{await browser.close();}

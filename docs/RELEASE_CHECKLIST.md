@@ -1495,3 +1495,35 @@ by scrolled viewport captures. No private configuration, invite tokens or physic
 media captures enter Git or source backups. No real stream or recording started.
 
 Primary Start Menu shortcut was updated to the tested development build, with its prior link preserved on F:. The actual primary app also survived Reload and reopened backstage. A Windows network prompt appeared and was later no longer visible; its selected option is unknown, and the agent did not act on it. No claim is made about the resulting Windows firewall choice. Combined producer viewer chat is recorded as next work and remains unimplemented.
+
+## November 18, 2026 — Viewer chat and compact pictures acceptance
+
+- [x] Trusted transcript is opt-in, volatile, bounded to 300 messages/20 minutes,
+  deduplicated and inaccessible through the guest-only listener.
+- [x] Synthetic HTTP plus real browser UI exercises filters, literal markup-like
+  text, paused reading/unread return, transient failure recovery, retention,
+  stop/clear, account begin/cancel and safe activity metadata. Program stays at 0.
+- [x] Corrected dark/light 390/960/1920/3840 captures pass overflow, control geometry
+  and heading-contrast checks; initial mismatched-skin captures are diagnostic.
+- [x] Compact and larger guest/producer pictures preserve video nodes and media
+  ownership; synthetic geometry/theme/reduced-motion and keyboard checks pass.
+- [x] Windows-user encrypted vault, provider consent cancellation/expiry/stale-result
+  guards, YouTube single refresh owner and native URL handoff have focused tests.
+- [x] Owner-approved Twitch public application registration created; public Client
+  ID stored encrypted on F:. No client secret created and no chat grant claimed.
+- [x] Final staged-source canonical gate: 3862 Python and 690 JavaScript tests.
+  Actual development EXE 0.1.0-20261119034145756 passes isolated DPAPI, source
+  navigation/draft preservation and preload/IPC/account-dialog/focus checks.
+- [x] Full-dashboard dark/light pointer checks at 960/1366/1920/3840: Viewer chat,
+  Platform connections, Manage accounts, Close and readiness Retry are reachable.
+  Right tools end above full-width backstage; readiness stays inline above tools.
+- [ ] Load the update into the primary backend and reconnect its current guest;
+  existing capture is preserved pending the requested controlled restart.
+- [ ] Owner Twitch read-consent and real message receipt; Google app/consent and
+  active YouTube chat; Kick separately approved public callback and receipt.
+- [ ] Remote named producer sign-in remains separate StackThis identity work.
+
+Evidence: F:/Temp/jonat/ProducerPlease-viewer-chat-20261118/visual03, dock-pointer03, native02 and native-accounts06, plus the
+picture-size and YouTube account UI evidence folders for this date. All messages,
+account codes and media in synthetic UI captures are fixtures. Real credentials,
+private guest origin/invites and private chat are excluded from source/backups.

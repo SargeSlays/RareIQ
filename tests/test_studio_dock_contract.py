@@ -76,3 +76,19 @@ def test_desktop_greenroom_has_a_full_width_dock_and_side_by_side_chat():
     assert '.greenroom-chat-slot { grid-column:2; grid-row:1;' in room
     assert 'position:sticky; top:100px' in room
     assert 'grid-template-columns:repeat(3,minmax(0,1fr))' in room
+
+
+def test_full_width_backstage_cannot_share_grid_rows_with_the_right_tools():
+    css = (STATIC / 'studio_shell.css').read_text(encoding='utf-8')
+    owner = '.studio-dock-grid:has(> .studio-dock-bottom > [data-studio-tool="production-greenroom"]:not([hidden])) > .studio-dock-right'
+    rule = re.search(re.escape(owner) + r' \{([^}]+)\}', css).group(1)
+    assert 'grid-row:2!important' in rule
+    assert css.index(owner) > css.index('.studio-dock-right { grid-row:2 / span 2!important; }')
+
+
+def test_docked_workspace_readiness_stays_in_flow_above_tool_controls():
+    css = (STATIC / 'studio_shell.css').read_text(encoding='utf-8')
+    owner = '.workspace[data-studio-docks="ready"] > .workspace-readiness'
+    rule = re.search(re.escape(owner) + r' \{([^}]+)\}', css).group(1)
+    assert 'position:static!important' in rule
+    assert 'inset:auto!important' in rule
