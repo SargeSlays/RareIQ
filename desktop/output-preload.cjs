@@ -58,7 +58,7 @@ if (process.isMainFrame) {
   }
   registerProcessor('public-output-tap', PublicOutputTap);`;
   const frames = [['iframe.program', '/program','program'], ['iframe.audio', '/output/soundboard','soundboard'], ['iframe.graphics', '/overlay/graphics','graphics'], ['iframe.audience', '/overlay/audience','audience']];
-  let context, node, mixer, vodMixer, stopped = false, capture = null, poll, healthTimer, token = 0, audioRouting={};
+  let context, node, mixer, vodMixer, stopped = false, capture = null, poll, healthTimer, token = 0, audioRouting={},routingEpoch=0,routingContext=null;
   let meterAt=null,latestMeters=null;const clipAt={live:null,vod:null};
   const entries = new Map(), documents = new Map();
   // Sandbox preloads cannot require application modules. Main validates saved
@@ -91,7 +91,7 @@ if (process.isMainFrame) {
         if(route[key]!==0)next[id][key]=route[key];
       }
     }
-    audioRouting=next;for(const entry of entries.values())refresh(entry);
+    routingEpoch++;audioRouting=next;for(const entry of entries.values())refresh(entry);
   }
   const validTop = () => location.origin === origin && location.pathname === '/output/studio' && window.top === window;
   function audioMeters(error=false){
@@ -107,12 +107,13 @@ if (process.isMainFrame) {
     meterAt=performance.now();latestMeters={};
     for(const bus of ['live','vod']){latestMeters[bus]={peak:value[bus].peak,rms:value[bus].rms,clipCount:value[bus].clipCount};if(value[bus].clipCount>0)clipAt[bus]=meterAt;}
   }
-  function sendHealth(error = false) {
+  function sendHealth(error = false,routingAck=null) {
     if (!validTop()) return;
     ipcRenderer.send(CHANNELS.health, { ready: Boolean(context && node && !stopped), contextState: context?.state || 'closed', sourceCount: [...entries.values()].filter(entry => entry.source).length,
       unavailableCount: [...entries.values()].filter(entry => entry.failed && !entry.element.paused && !entry.element.muted).length,
       sources:[...new Map([...entries.values()].map(entry=>[entry.descriptor.id,entry.descriptor])).values()].slice(0,64),
       audioMeters:audioMeters(error),
+      ...(routingAck||{}),
       ...(error ? { error: true } : {}), ...(capture ? { captureId: capture.id, started: true } : {}) });
   }
   function detach(entry) {
@@ -125,7 +126,12 @@ if (process.isMainFrame) {
     const element = entry.element;
     entry.descriptor=describeSource(element,entry.group);
     const route=routingFor(entry.descriptor),volume=element.paused||element.ended||element.muted?0:Math.max(0,Math.min(1,Number.isFinite(element.volume)?element.volume:0));
-    entry.gain.gain.setValueAtTime(route.live?volume*10**((route.liveGainDb??0)/20):0,context.currentTime);entry.vodGain.gain.setValueAtTime(route.vod?volume*10**((route.vodGainDb??0)/20):0,context.currentTime);
+    function gain(node,key,target){
+      if(entry[key]===target)return;entry[key]=target;const parameter=node.gain,at=context.currentTime;
+      if(typeof parameter.cancelAndHoldAtTime==='function')parameter.cancelAndHoldAtTime(at);else{parameter.cancelScheduledValues?.(at);parameter.setValueAtTime(parameter.value,at);}
+      if(target===0||typeof parameter.linearRampToValueAtTime!=='function')parameter.setValueAtTime(target,at);else parameter.linearRampToValueAtTime(target,at+.01);
+    }
+    gain(entry.gain,'liveTarget',route.live?volume*10**((route.liveGainDb??0)/20):0);gain(entry.vodGain,'vodTarget',route.vod?volume*10**((route.vodGainDb??0)/20):0);
     try {
       const source = element.srcObject || element.currentSrc;
       if (source !== entry.mediaIdentity) { entry.source?.disconnect(); entry.source = null; entry.track = null; entry.stream = null; entry.mediaIdentity = source; }
@@ -141,7 +147,7 @@ if (process.isMainFrame) {
         if (track) { entry.source = context.createMediaStreamSource(new MediaStream([track])); entry.source.connect(entry.gain);entry.source.connect(entry.vodGain); }
       }
       entry.failed = false;
-    } catch (_) { entry.failed = true; entry.gain.gain.setValueAtTime(0, context.currentTime);entry.vodGain.gain.setValueAtTime(0,context.currentTime); }
+    } catch (_) { entry.failed = true;entry.liveTarget=entry.vodTarget=null;entry.gain.gain.cancelScheduledValues?.(context.currentTime);entry.vodGain.gain.cancelScheduledValues?.(context.currentTime);entry.gain.gain.setValueAtTime(0, context.currentTime);entry.vodGain.gain.setValueAtTime(0,context.currentTime); }
   }
   function scan() {
     if (stopped || !context || !validTop()) return;
@@ -171,6 +177,7 @@ if (process.isMainFrame) {
   async function start(value) {
     if (!validTop() || !context || !node || stopped || typeof value.captureId !== 'string') return;
     applyRouting(value.audioRouting??{});
+    if(typeof value.routingContext==='string'&&/^[a-f0-9-]{36}$/.test(value.routingContext))routingContext=value.routingContext;
     const version = ++token; capture = null; node.port.postMessage({ type: 'stop' });
     const before = performance.now(); const sync = await ipcRenderer.invoke(CHANNELS.sync); const after = performance.now();
     if (version !== token || sync.captureId !== value.captureId || stopped) return;
@@ -180,8 +187,19 @@ if (process.isMainFrame) {
   }
   ipcRenderer.on(CHANNELS.control, (_event, value) => {
     if (value?.type === 'start') start(value).catch(() => sendHealth(true));
-    else if(value?.type==='routing'){try{applyRouting(value.audioRouting);}catch(_){sendHealth(true);}}
-    else if (value?.type === 'stop') { ++token; capture = null; node?.port.postMessage({ type: 'stop' }); }
+    else if(value?.type==='routing'){
+      if(!validTop()||stopped)return;
+      try{
+        const hasId=value.requestId!==undefined||value.routingNonce!==undefined;
+        if(hasId&&(typeof value.requestId!=='string'||!/^[A-Za-z0-9_-]{1,80}$/.test(value.requestId)||typeof value.routingNonce!=='string'||!/^[a-f0-9-]{36}$/.test(value.routingNonce)))throw Error('invalid_audio_routing');
+        if(hasId&&(!routingContext||value.routingContext!==routingContext))return;
+        if(!hasId&&value.routingContext!==undefined&&(typeof value.routingContext!=='string'||!/^[a-f0-9-]{36}$/.test(value.routingContext)))throw Error('invalid_audio_routing');
+        applyRouting(value.audioRouting);const epoch=routingEpoch;
+        if(!hasId&&value.routingContext!==undefined)routingContext=value.routingContext;
+        if(hasId)setTimeout(()=>{if(validTop()&&!stopped&&routingEpoch===epoch&&context?.state==='running')sendHealth(false,{routingRequestId:value.requestId,routingApplied:true,routingNonce:value.routingNonce});},15);
+      }catch(_){sendHealth();}
+    }
+    else if (value?.type === 'stop') { ++token;++routingEpoch;capture = null; node?.port.postMessage({ type: 'stop' }); }
   });
   ipcRenderer.on(CHANNELS.ack, (_event, value) => { if (capture && value?.captureId === capture.id && value.seq === capture.outstanding) { capture.outstanding = null; node.port.postMessage({ type: 'credit', captureId: capture.id }); } });
   async function prepare() {

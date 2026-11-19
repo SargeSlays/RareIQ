@@ -25,7 +25,7 @@ function fixture(options = {}) {
       wc.capturePage = async () => { const clean = wc.document.documentElement.dataset.nativeCapture === 'active'; wc.frames.push(clean); wc.events.push('capture'); return { isEmpty: () => false, getSize: () => ({ width: config.width, height: config.height }), toBitmap: () => Buffer.alloc(config.width * config.height * 4, clean ? 25 : 199) }; };
       wc.beginFrameSubscription = (dirty, callback) => { if (options.failSubscription) throw Error('subscription failed'); wc.events.push('subscribe'); wc.dirty = dirty; wc.frameCallback = callback; };
       wc.endFrameSubscription = () => { wc.events.push('unsubscribe'); wc.frameCallback = null; wc.ended = true; };
-      wc.send = (channel, value) => { sent.push({ channel, value }); if (channel === CHANNELS.control && value.type === 'start') queueMicrotask(() => health({ captureId: value.captureId, started: true })); };
+      wc.send = (channel, value) => { sent.push({ channel, value }); if (channel === CHANNELS.control && value.type === 'start') queueMicrotask(() => health({ captureId: value.captureId, started: true }));if(channel===CHANNELS.control&&value.type==='routing'&&value.requestId&&options.routingAck!==false)queueMicrotask(()=>health({routingRequestId:value.requestId,routingNonce:value.routingNonce,routingApplied:true})); };
     }
     isDestroyed() { return this.destroyed; }
     isMinimized() { return this.minimized === true; }
@@ -38,7 +38,7 @@ function fixture(options = {}) {
   }
   const event = () => ({ sender: instance.webContents, senderFrame: instance.webContents.mainFrame });
   const health = extra => ipc.emit(CHANNELS.health, event(), { ready: true, contextState: 'running', sourceCount: 1, unavailableCount: 0, ...extra });
-  const capture = createOutputCapture({ BrowserWindow: Window, ipcMain: ipc, origin: ORIGIN, clockUs:options.clockUs,fps:options.fps??30,requireVod:options.requireVod??false,audioRouting:options.audioRouting||{},width: options.width || 1280, height: options.height || 720, onError: code => errors.push(code) });
+  const capture = createOutputCapture({ BrowserWindow: Window, ipcMain: ipc, origin: ORIGIN, clockUs:options.clockUs,routingTimeoutMs:options.routingTimeoutMs??1500,fps:options.fps??30,requireVod:options.requireVod??false,audioRouting:options.audioRouting||{},width: options.width || 1280, height: options.height || 720, onError: code => errors.push(code) });
   return { capture, ipc, errors, sent, event, health, get window() { return instance; },
     packet(extra = {}) { return { captureId: sent.filter(s => s.channel === CHANNELS.control && s.value.type === 'start').at(-1).value.captureId, seq: 0, ptsUs: 100, pcm: new Uint8Array(3840), ...extra }; },
     async pcm(value, from = event()) { await ipc.listeners(CHANNELS.pcm)[0](from, value); },
@@ -224,4 +224,50 @@ test('meter values expire independently from output readiness and reject untrust
   f.ipc.emit(CHANNELS.health,{sender:f.window.webContents,senderFrame:{url:'http://private.invalid'}},{ready:true,contextState:'running',audioMeters:{...value,live:{peak:1,rms:1,clipCount:9600}}});assert.equal(f.capture.status().audioMeters.live.peak,.7);
   clock+=750001;assert.equal(f.capture.status().audioMeters.fresh,false);assert.equal(f.capture.status().audioMeters.live.peak,0);assert.equal(f.capture.status().audioReady,true);
   f.health({audioMeters:value});assert.equal(f.capture.status().audioMeters.fresh,true);f.health({audioMeters:{...value,pcm:new Uint8Array(8)}});assert.equal(f.capture.status().audioMeters.fresh,false);assert.equal(f.capture.status().audioReady,true);
+});
+
+test('confirmed routing updates preserve capture epoch and support exact idempotent retry',async t=>{
+  const f=fixture();t.after(()=>f.capture.close());await f.capture.prepare();await f.capture.startCapture(()=>true,()=>true);
+  const run=f.packet().captureId,startCount=f.sent.filter(s=>s.value.type==='start').length,request={requestId:'mix-one',audioRouting:{'voice:default':{live:true,vod:true,liveGainDb:6}}};
+  const result=await f.capture.updateAudioRouting(request);assert.deepEqual(result,{ok:true,requestId:'mix-one',applied:true});
+  const sent=f.sent.filter(s=>s.value.requestId==='mix-one');assert.equal(sent.length,1);assert.equal(typeof sent[0].value.routingNonce,'string');
+  assert.deepEqual(await f.capture.updateAudioRouting(request),result);assert.equal(f.sent.filter(s=>s.value.requestId==='mix-one').length,1);
+  await assert.rejects(f.capture.updateAudioRouting({...request,audioRouting:{}}),{message:'audio_routing_conflict'});
+  assert.equal(f.capture.status().capturing,true);assert.equal(f.packet().captureId,run);assert.equal(f.sent.filter(s=>s.value.type==='start').length,startCount);assert.deepEqual(f.errors,[]);
+});
+
+test('routing timeout is nonfatal and exact retry ignores stale or unowned acknowledgements',async t=>{
+  const f=fixture({routingAck:false,routingTimeoutMs:20});t.after(()=>f.capture.close());await f.capture.prepare();await f.capture.startCapture(()=>true,()=>true);
+  const request={requestId:'timeout-one',audioRouting:{'voice:default':{live:true,vod:true,liveGainDb:6}}};
+  const first=f.capture.updateAudioRouting(request);assert.equal(f.capture.updateAudioRouting(request),first);
+  await assert.rejects(f.capture.updateAudioRouting({requestId:'other',audioRouting:{}}),{message:'audio_routing_busy'});
+  const old=f.sent.at(-1).value;await assert.rejects(first,{message:'audio_routing_timeout'});
+  assert.equal(f.capture.status().capturing,true);assert.deepEqual(f.errors,[]);
+  const retry=f.capture.updateAudioRouting(request),current=f.sent.at(-1).value;assert.notEqual(current.routingNonce,old.routingNonce);
+  let settled=false;retry.then(()=>{settled=true;});
+  f.health({routingRequestId:old.requestId,routingNonce:old.routingNonce,routingApplied:true});
+  f.ipc.emit(CHANNELS.health,{sender:f.window.webContents,senderFrame:{url:f.window.webContents.url}},{ready:true,contextState:'running',routingRequestId:current.requestId,routingNonce:current.routingNonce,routingApplied:true});
+  await Promise.resolve();assert.equal(settled,false);
+  f.health({routingRequestId:current.requestId,routingNonce:current.routingNonce,routingApplied:true});await retry;assert.equal(settled,true);assert.equal(f.capture.status().capturing,true);
+});
+
+test('navigation, stop and replacement output cancel routing without accepting an earlier output ACK',async t=>{
+  const f=fixture({routingAck:false});t.after(()=>f.capture.close());await f.capture.prepare();
+  const request={requestId:'reused-id',audioRouting:{'voice:default':{live:true,vod:true}}};
+  const pending=f.capture.updateAudioRouting(request),rejected=assert.rejects(pending,{message:'audio_routing_cancelled'}),oldEvent=f.event(),old=f.sent.at(-1).value;
+  f.window.destroy();await rejected;await f.capture.prepare();
+  const next=f.capture.updateAudioRouting(request),nextRejected=assert.rejects(next,{message:'audio_routing_cancelled'}),fresh=f.sent.at(-1).value;
+  assert.notEqual(fresh.routingNonce,old.routingNonce);
+  assert.notEqual(fresh.routingContext,old.routingContext);
+  f.ipc.emit(CHANNELS.health,oldEvent,{ready:true,contextState:'running',routingRequestId:old.requestId,routingNonce:old.routingNonce,routingApplied:true});
+  await f.capture.stopCapture();await nextRejected;
+  const final=f.capture.updateAudioRouting(request),finalRejected=assert.rejects(final,{message:'audio_routing_cancelled'});
+  f.window.webContents.emit('did-start-navigation',{},ORIGIN+'/output/studio',false,true);await finalRejected;
+  assert.deepEqual(f.errors,[]);
+});
+
+test('invalid live routing requests never reach the output or stop capture',async t=>{
+  const f=fixture();t.after(()=>f.capture.close());await f.capture.prepare();await f.capture.startCapture(()=>true,()=>true);const before=f.sent.length;
+  for(const value of [null,[],{requestId:'missing-map'},{requestId:'bad id',audioRouting:{}},{requestId:'map',audioRouting:{'voice:default':{live:true,vod:true,liveGainDb:Infinity}}}])await assert.rejects(f.capture.updateAudioRouting(value));
+  assert.equal(f.sent.length,before);assert.equal(f.capture.status().capturing,true);assert.deepEqual(f.errors,[]);
 });

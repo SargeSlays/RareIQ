@@ -1664,3 +1664,31 @@ Primary local-development build 0.1.0-20261119061254273 is open with Broadcast s
 The Start-menu shortcut targets that build. The existing guest backend was reused;
 no show, recording, OBS stream or native encoding was active before the update.
 The update changed neither firewall rules nor the saved private guest ingress.
+
+
+## November 18, 2026 — Runtime mixer acceptance
+
+- [x] Actual Electron public DSP, owned ACK/context/nonce and 10 ms ramps: Live gain
+  doubles while VOD stays unchanged; same capture, 10 ms PCM cadence, no errors.
+- [x] Actual public capture → NativeBroadcast → shared worker → two local FLVs:
+  147 frames each, one capture and one encoder group, max PCM gap 10000 us; Live RMS
+  .13788→.27585 with VOD unchanged, followed by VOD RMS≈.06619 independently. Saved
+  profile unchanged; continuous frame timestamps and audio packets verified.
+- [x] CAS/request receipts, in-flight Start guard, new-output cancellation, retries,
+  privacy redaction and audit failure without undo/stop; bounded memory.
+- [x] Real packaged Settings original trusted/untrusted handler probes, then isolated
+  synthetic-sending UI edits/retry/restore/history warning with no saved-profile or
+  Program changes; no actual Prepare/Start/Stop or HTTP mutation in this UI probe.
+- [x] Ten dark/light layout/pointer/reduced-motion checks; invalid drafts/focus remain
+  stable during polling, stale responses cannot overwrite a confirmed revision.
+- [ ] Real platform/Twitch archive receipt and physical listening/echo.
+
+Evidence: F:/Temp/jonat/ProducerPlease-live-mixer-20261118/encoding03
+(results.json/decoded-proof.json), F:/Temp/jonat/ProducerPlease-live-audio-20261119/native02
+and F:/Temp/jonat/ProducerPlease-live-audio-20261118 (settings-dom03/settings-native01).
+No public stream, real production recording or physical capture was initiated.
+
+Canonical gate: 3,910 Python and 798 JavaScript tests passed. Local-development
+build 0.1.0-20261119071429085 is open on the production PC; Start-menu target verified.
+The desktop-only update reused the running backend with no active show, recording,
+OBS stream or native transmission. No platform output was started.

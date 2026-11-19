@@ -38,7 +38,8 @@ async function main() {
     assert.ok(audioGaps / stats.audio.length < .05, 'Normal scheduling must preserve continuous audio');
     const tone = page.frameLocator('iframe.program').locator('#tone');
     const sound=page.frameLocator('iframe.audio').locator('#sound');
-    await app.evaluate(()=>outputFixture.route({'voice:default':{live:true,vod:true,liveGainDb:6.020599913279624}}));
+    const epochBefore=await app.evaluate(()=>({ids:outputFixture.stats.captureIds.slice(),lastPts:outputFixture.stats.audio.at(-1).ptsUs,frames:outputFixture.capture.status().capturedFrames}));
+    const liveAck=await app.evaluate(()=>outputFixture.route({'voice:default':{live:true,vod:true,liveGainDb:6.020599913279624}}));assert.equal(liveAck.ok,true);assert.equal(liveAck.applied,true);
     await new Promise(resolve=>setTimeout(resolve,200));
     const gained=(await app.evaluate(()=>outputFixture.stats.audio)).slice(-8),average=(values,pick)=>values.reduce((sum,p)=>sum+pick(p),0)/values.length;
     const liveGainRatio=average(gained,p=>p.rms)/rms,vodUnchangedRatio=average(gained,p=>p.vod.rms)/rms;
@@ -50,6 +51,10 @@ async function main() {
     await until(()=>app.evaluate(()=>{const m=outputFixture.capture.status().audioMeters;return m.fresh&&m.live.clipped&&m.live.clipCount>0&&!m.vod.clipped;}),'independent clipping meters');
     const clippedMeters=await app.evaluate(()=>outputFixture.capture.status().audioMeters);assert.equal(clippedMeters.live.peak,1);assert.ok(clippedMeters.live.rms<=1);
     await tone.evaluate(el=>{el.volume=.4;});await app.evaluate(()=>outputFixture.route({}));await new Promise(resolve=>setTimeout(resolve,250));
+    const epochAfter=await app.evaluate(()=>({ids:outputFixture.stats.captureIds.slice(),packets:outputFixture.stats.audio.map(p=>({ptsUs:p.ptsUs})),capturing:outputFixture.capture.status().capturing,frames:outputFixture.capture.status().capturedFrames}));
+    assert.deepEqual(epochAfter.ids,epochBefore.ids);assert.equal(epochAfter.capturing,true);assert.ok(epochAfter.frames>epochBefore.frames);
+    const continued=epochAfter.packets.filter(p=>p.ptsUs>=epochBefore.lastPts),continuousPcmGapUs=Math.max(...continued.slice(1).map((p,i)=>p.ptsUs-continued[i].ptsUs));
+    assert.ok(continued.length>20&&continuousPcmGapUs<30000,'Confirmed live routing retains continuous PCM and capture ID: '+continuousPcmGapUs);
     await sound.evaluate(el=>{el.volume=.2;el.muted=false;});await new Promise(resolve=>setTimeout(resolve,250));
     const separated=(await app.evaluate(()=>outputFixture.stats.audio)).slice(-12);
     const mean=(packets,select)=>packets.reduce((sum,p)=>sum+select(p),0)/packets.length;
@@ -111,7 +116,7 @@ async function main() {
     await tone.evaluate(() => { window.reviewOpen = true; });
     await new Promise(resolve => setTimeout(resolve, 300));
     await assert.rejects(app.evaluate(() => outputFixture.start()), /output_not_ready/);
-    Object.assign(result, { complete: true, bgraCompositor: true, monotonicPtsUs: true, audioGaps, restartEpoch: true, mutedWindowRetainsTap: true, publicAudioRms: rms, volumeFollows: true, mutedAndPausedSilence: true, fileSeekAndLoop: true, publicSoundboardAndRemoval: true, privateFramesExcluded: true, borrowedTrackPreserved: true, reviewBlocksCapture: true,paired480FrameBuses:true,voiceInBothMixes:true,soundboardExcludedFromVodByDefault:true,explicitRoutingChangesMixes:true,sourceRemovalSilencesBoth:true,private1100HzExcludedFromBoth:true,twitchVodPlatformVerified:false,preparedMetersWithoutCapture:true,preparedMeters,preparedGainMeters,liveGainRatio,vodUnchangedRatio,independentGainPcmVerified:true,independentClippingVerified:true,clippedMeters,separation:{live440:mean(separated,p=>p.tones[440]),live880:mean(separated,p=>p.tones[880]),vod440:mean(separated,p=>p.vod.tones[440]),vod880:mean(separated,p=>p.vod.tones[880])}, errors: await app.evaluate(() => outputFixture.stats.errors) });
+    Object.assign(result, { complete: true, bgraCompositor: true, monotonicPtsUs: true, audioGaps, restartEpoch: true, mutedWindowRetainsTap: true, publicAudioRms: rms, volumeFollows: true, mutedAndPausedSilence: true, fileSeekAndLoop: true, publicSoundboardAndRemoval: true, privateFramesExcluded: true, borrowedTrackPreserved: true, reviewBlocksCapture: true,paired480FrameBuses:true,voiceInBothMixes:true,soundboardExcludedFromVodByDefault:true,explicitRoutingChangesMixes:true,sourceRemovalSilencesBoth:true,private1100HzExcludedFromBoth:true,twitchVodPlatformVerified:false,preparedMetersWithoutCapture:true,preparedMeters,preparedGainMeters,liveGainRatio,vodUnchangedRatio,independentGainPcmVerified:true,independentClippingVerified:true,confirmedLiveRouting:true,captureIdUnchanged:true,continuousPcmGapUs,clippedMeters,separation:{live440:mean(separated,p=>p.tones[440]),live880:mean(separated,p=>p.tones[880]),vod440:mean(separated,p=>p.vod.tones[440]),vod880:mean(separated,p=>p.vod.tones[880])}, errors: await app.evaluate(() => outputFixture.stats.errors) });
   }catch(error){result.error=error.message;throw error;} finally { await fs.writeFile(path.join(evidence, 'results.json'), JSON.stringify(result, null, 2)); await app.close().catch(() => {}); }
   console.log('PASS: real Electron synthetic compositor and public audio capture');
 }

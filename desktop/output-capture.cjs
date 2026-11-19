@@ -16,16 +16,44 @@ function cleanSnapshot(value) {
   const readySources = Array.isArray(value.readySources) ? value.readySources.filter(s => typeof s === 'string' && /^(camera:[1-4]|guest:[a-f0-9]{32}:(camera|screen|audio)|(image|video|text|browser):[a-f0-9-]{36})$/.test(s)).slice(0, 6) : [];
   return { peerId: value.peerId, generation: value.generation, rendered: value.rendered, browserReviewOpen: value.browserReviewOpen, reviewOpen: value.browserReviewOpen, audioBlocked: value.audioBlocked, readySources };
 }
-function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirname, width = 1280, height = 720, fps = 30, audioRouting = {}, requireVod = false, clockUs = () => Number(process.hrtime.bigint() / 1000n), partition = 'persist:producer-output', onError = () => {} } = {}) {
-  if (!BrowserWindow || !ipcMain || !SIZES.has(width + 'x' + height) || ![30,60].includes(fps) || !path.isAbsolute(baseDir)) throw Error('output_capture_configuration_invalid');
+function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirname, width = 1280, height = 720, fps = 30, audioRouting = {}, requireVod = false, clockUs = () => Number(process.hrtime.bigint() / 1000n), routingTimeoutMs=1500,partition = 'persist:producer-output', onError = () => {} } = {}) {
+  if (!BrowserWindow || !ipcMain || !SIZES.has(width + 'x' + height) || ![30,60].includes(fps) || !path.isAbsolute(baseDir)||!Number.isInteger(routingTimeoutMs)||routingTimeoutMs<10||routingTimeoutMs>5000) throw Error('output_capture_configuration_invalid');
   audioRouting=normalizeAudioRouting(audioRouting);
   const trusted = new URL(origin); if (trusted.origin !== origin || !/^https?:$/.test(trusted.protocol)) throw Error('output_capture_origin_invalid');
   let window = null, windowClosing = false, preparing = null, closed = false, active = null, starting = false, captureVersion = 0, captureUi = null, latest = null, polling = null, snapshotPending = null;
   let snapshot = null, snapshotAt = 0, audioAt = 0, meterAt = 0, meters=emptyMeters(), audio = { ready: false, contextState: 'unavailable', sourceCount: 0, unavailableCount: 0 }, fault = null;
+  let pendingRouting=null,routingGeneration=0,routingContext=randomUUID();const routingRecords=new Map();
   const now = clockUs;
   const allowed = value => { try { const u = new URL(value); return u.origin === origin && u.pathname === '/output/studio' && !u.username && !u.password; } catch (_) { return false; } };
   function owned(event) { try { return window && !window.isDestroyed() && event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame && allowed(event.senderFrame.url) && allowed(window.webContents.getURL()); } catch (_) { return false; } }
   function report(code) { fault = code; try { onError(code); } catch (_) {} }
+  const routingError=code=>Object.assign(Error(code),{code});
+  function invalidateRouting(){
+    routingGeneration++;routingRecords.clear();
+    const pending=pendingRouting;pendingRouting=null;
+    if(pending){clearTimeout(pending.timer);pending.reject(routingError('audio_routing_cancelled'));}
+  }
+  function updateAudioRouting(value){
+    let normalized,signature;
+    try{
+      if(!value||typeof value!=='object'||Array.isArray(value)||!Object.hasOwn(value,'audioRouting')||Object.keys(value).some(key=>!['audioRouting','requestId'].includes(key))||typeof value.requestId!=='string'||!/^[A-Za-z0-9_-]{1,80}$/.test(value.requestId))throw routingError('invalid_audio_routing_request');
+      normalized=normalizeAudioRouting(value.audioRouting);signature=JSON.stringify(normalized);
+      if(closed||windowClosing||!window||window.isDestroyed()||!allowed(window.webContents.getURL())||!audio.ready||audio.contextState!=='running')throw routingError('audio_routing_unavailable');
+      const known=routingRecords.get(value.requestId);
+      if(known&&known.signature!==signature)throw routingError('audio_routing_conflict');
+      if(pendingRouting){if(pendingRouting.id===value.requestId)return pendingRouting.promise;throw routingError('audio_routing_busy');}
+      if(known?.result)return Promise.resolve({...known.result});
+    }catch(error){return Promise.reject(error);}
+    const id=value.requestId,target=window,contents=target.webContents,frame=contents.mainFrame,generation=routingGeneration,nonce=randomUUID();
+    let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});
+    const pending={id,target,contents,frame,generation,nonce,routing:normalized,signature,promise,resolve,reject,timer:null};
+    pendingRouting=pending;routingRecords.set(id,{signature});
+    while(routingRecords.size>64)routingRecords.delete(routingRecords.keys().next().value);
+    pending.timer=setTimeout(()=>{if(pendingRouting!==pending)return;pendingRouting=null;reject(routingError('audio_routing_timeout'));},routingTimeoutMs);pending.timer.unref?.();
+    try{contents.send(CHANNELS.control,{type:'routing',audioRouting:normalized,requestId:id,routingNonce:nonce,routingContext});}
+    catch(_){clearTimeout(pending.timer);if(pendingRouting===pending)pendingRouting=null;reject(routingError('audio_routing_unavailable'));}
+    return promise;
+  }
   function clearCaptureUi() {
     const ui = captureUi; captureUi = null;
     try {
@@ -70,9 +98,9 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
   async function prepare() {
     if (closed) throw Error('output_capture_closed');
     if (preparing) return preparing;
-    if (window && !window.isDestroyed()) { window.webContents.send(CHANNELS.control,{type:'routing',audioRouting});window.show(); return status(); }
+    if (window && !window.isDestroyed()) { invalidateRouting();window.webContents.send(CHANNELS.control,{type:'routing',audioRouting,routingContext});window.show(); return status(); }
     preparing = (async () => {
-      fault = null; audio.ready = false; windowClosing = false;
+      invalidateRouting();routingContext=randomUUID();fault = null; audio.ready = false; windowClosing = false;
       window = new BrowserWindow({ width, height, useContentSize: true, resizable: false, maximizable: false, fullscreenable: false, show: true,
         title: 'Studio Output — Producer, Please', autoHideMenuBar: true, backgroundColor: '#000000',
         webPreferences: { preload: path.join(baseDir, 'output-preload.cjs'), additionalArguments: ['--producer-output-origin=' + origin], partition,
@@ -88,16 +116,16 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
       contents.on('will-navigate', (event, url) => { if (!allowed(url)) event.preventDefault(); if (active) { stopCapture(); report('output_navigated'); } });
       contents.on('will-redirect', (event, url, _inPlace, main) => { if (main !== false && !allowed(url)) event.preventDefault(); });
       contents.on('will-attach-webview', event => event.preventDefault());
-      contents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main !== false) { snapshot = null; audio.ready = false; if (active) { stopCapture(); report('output_navigated'); } } });
+      contents.on('did-start-navigation', (_event, _url, _inPlace, main) => { if (main !== false) { invalidateRouting();routingContext=randomUUID();snapshot = null; audio.ready = false; if (active) { stopCapture(); report('output_navigated'); } } });
       contents.on('render-process-gone', () => { stopCapture(); audio.ready = false; report('output_renderer_unavailable'); });
-      target.on('close', () => { if (window === target) windowClosing = true; });
+      target.on('close', () => { if (window === target){windowClosing = true;invalidateRouting();} });
       target.on('closed', () => { const wasActive = Boolean(active); stopCapture(); if (window === target) window = null; audio.ready = false; latest = null; clearInterval(polling); polling = null; if (wasActive) report('output_closed'); });
       await loadInitialOutput(contents,origin + '/output/studio?browser-review=1',{timeoutMs:8000});
       const deadline = now() + 8000000;
       while (!audio.ready && !fault && now() < deadline && !target.isDestroyed()) await new Promise(resolve => setTimeout(resolve, 25));
       if (closed || target.isDestroyed() || target !== window) throw Error('output_capture_closed');
       if (!audio.ready) throw Error(fault || 'output_audio_not_prepared');
-      contents.send(CHANNELS.control,{type:'routing',audioRouting});
+      contents.send(CHANNELS.control,{type:'routing',audioRouting,routingContext});
       await readSnapshot();
       polling = setInterval(() => { void readSnapshot(); }, 250); polling.unref?.();
       return status();
@@ -106,6 +134,7 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
   }
   async function startCapture(onVideo, onAudio) {
     if (closed || active || starting || typeof onVideo !== 'function' || typeof onAudio !== 'function') throw Error('output_capture_start_invalid');
+    invalidateRouting();
     starting = true; const version = captureVersion;
     try {
     await prepare(); await readSnapshot();
@@ -127,7 +156,7 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
     if (!latest) throw Error('output_picture_unavailable');
     const run = active = { id: randomUUID(), peerId: current.peerId, epoch: now(), timer: null, onVideo, onAudio, frames: 0, index: 0, droppedVideo: 0, videoBusy: false, lastImageAt: 0, audioPackets: 0, droppedAudio: 0, audioSeq: -1, lastAudioPts: -1, audioStarted: false, audioBusy: false, lastAudioAt: now() };
     window.webContents.beginFrameSubscription(false, image => { if (active !== run || now() - run.lastImageAt < 750000 / fps) return; run.lastImageAt = now(); try { storeFrame(image); } catch (_) { stopCapture(); report('output_frame_failed'); } });
-    window.webContents.send(CHANNELS.control, { type: 'start', captureId: run.id, audioRouting });
+    window.webContents.send(CHANNELS.control, { type: 'start', captureId: run.id, audioRouting,routingContext });
     function tick() {
       if (active !== run) return;
       if (run.audioStarted && now() - run.lastAudioAt > 1000000) { stopCapture(); report('output_audio_stalled'); return; }
@@ -154,6 +183,7 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
     finally { starting = false; }
   }
   function stopCapture() {
+    invalidateRouting();
     captureVersion++;
     const run = active; active = null;
     if (run) {
@@ -166,6 +196,11 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
     if (!owned(event) || !value || typeof value !== 'object') return;
     if (value.error) { meters=emptyMeters();meterAt=0;audio.ready = false; if (active) stopCapture(); report('output_audio_unavailable'); return; }
     if (typeof value.ready !== 'boolean' || !['running', 'suspended', 'closed'].includes(value.contextState)) return;
+    const pending=pendingRouting;
+    if(pending&&value.routingApplied===true&&value.routingRequestId===pending.id&&value.routingNonce===pending.nonce&&pending.target===window&&pending.contents===event.sender&&pending.frame===event.senderFrame&&pending.generation===routingGeneration&&value.ready&&value.contextState==='running'){
+      clearTimeout(pending.timer);pendingRouting=null;audioRouting=pending.routing;
+      const result={ok:true,requestId:pending.id,applied:true};routingRecords.set(pending.id,{signature:pending.signature,result});pending.resolve({...result});
+    }
     audio = { ready: value.ready, contextState: value.contextState, sourceCount: Number.isInteger(value.sourceCount) ? Math.min(64, Math.max(0, value.sourceCount)) : 0,
       sources:Array.isArray(value.sources)?value.sources.slice(0,64).flatMap(item=>{try{return normalizeSourceManifest([item]);}catch(_){return [];}}):[],
       unavailableCount: Number.isInteger(value.unavailableCount) ? Math.min(64, Math.max(0, value.unavailableCount)) : 0 };
@@ -193,7 +228,7 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
   };
   ipcMain.on(CHANNELS.health, onHealth); ipcMain.on(CHANNELS.pcm, onPcm);
   ipcMain.handle(CHANNELS.sync, event => { if (!active || !owned(event)) throw Error('output_capture_untrusted'); return { captureId: active.id, epochUs: now() - active.epoch }; });
-  return { prepare, startCapture, stopCapture, status, get window() { return window; },
+  return { prepare, startCapture, stopCapture,updateAudioRouting,status, get window() { return window; },
     show() {
       const target = window;
       const check = () => {

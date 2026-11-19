@@ -25,8 +25,9 @@ app.whenReady().then(async () => {
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = 'http://127.0.0.1:' + server.address().port;
-  const stats = { video: [], audio: [], errors: [] };
+  const stats = { video: [], audio: [], errors: [],captureIds:[] };let routingSequence=0;
   capture = createOutputCapture({ BrowserWindow, ipcMain, origin, width: Number(process.env.PRODUCER_OUTPUT_QA_WIDTH || 1280), height: Number(process.env.PRODUCER_OUTPUT_QA_HEIGHT || 720),requireVod:true,onError: code => stats.errors.push(code) });
+  ipcMain.on(CHANNELS.pcm,(_event,value)=>{if(typeof value?.captureId==='string'&&!stats.captureIds.includes(value.captureId)){stats.captureIds.push(value.captureId);if(stats.captureIds.length>8)stats.captureIds.shift();}});
   function measure(buffer){
     const count=buffer.length/8;let sum=0,stereoError=0;const bins=Object.fromEntries([440,880,1100].map(f=>[f,{real:0,imaginary:0}]));
     for(let i=0;i<count;i++){const l=buffer.readFloatLE(i*8),r=buffer.readFloatLE(i*8+4);sum+=l*l;stereoError+=Math.abs(l-r);
@@ -36,7 +37,7 @@ app.whenReady().then(async () => {
   globalThis.outputFixture = {
     capture, stats, origin,
     reset() { stats.video = []; stats.audio = []; },
-    route(audioRouting){BrowserWindow.getAllWindows()[0].webContents.send(CHANNELS.control,{type:'routing',audioRouting});},
+    route(audioRouting){return capture.updateAudioRouting({audioRouting,requestId:'synthetic-route-'+(++routingSequence)});},
     async start() { return capture.startCapture((buffer, ptsUs) => { stats.video.push({ ptsUs, bytes: buffer.length, b: buffer[0], r: buffer[2] }); if (stats.video.length > 120) stats.video.shift(); return true; }, (buffer, ptsUs,vodBuffer) => {
       stats.audio.push({ptsUs,...measure(buffer),vod:measure(vodBuffer)});if(stats.audio.length>200)stats.audio.shift();return true;
     }); },

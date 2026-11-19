@@ -223,3 +223,19 @@ test('broadcast status exposes only fresh scalar Live/VOD diagnostics from the o
   const f=fixture();await f.app.prepare();f.captureState={...healthy(),audioMeters:{fresh:true,live:{peak:.7,rms:.3,clipCount:0},vod:{peak:.2,rms:.1,clipCount:0}}};assert.equal(f.app.status().audioMeters.live.peak,.7);
   f.captureState={...healthy(),audioMeters:{fresh:true,live:{peak:.7,rms:.3,clipCount:0},vod:{peak:.2,rms:.1,clipCount:0},privateBuffer:'never public'}};const status=f.app.status();assert.equal(status.audioMeters.fresh,false);assert.doesNotMatch(JSON.stringify(status),/privateBuffer|never public/);
 });
+
+test('live gain update while sending preserves encoder, capture and saved profile; retry does not apply twice',async()=>{
+  const f=sharedFixture(),applies=[];f.capture.updateAudioRouting=async value=>{applies.push(value);return {ok:true,requestId:value.requestId,applied:true};};
+  await f.app.prepare();await f.app.start({destinationIds:['one','two']});f.taps[0].video(Buffer.alloc(4),0);const group=f.groups[0],mix=f.app.status().audioMix;
+  const value={outputId:mix.outputId,expectedRevision:mix.revision,requestId:'live-one',audioRouting:{'voice:default':{live:true,vod:true,liveGainDb:6,vodGainDb:-3}}};
+  await f.app.setLiveAudio(value);await f.app.setLiveAudio(value);assert.equal(applies.length,2);assert.equal(f.app.encoderGroup,group);assert.equal(group.stops,0);assert.equal(f.taps.length,1);assert.equal(f.app.status().phase,'sending');assert.equal(f.app.status().audioMix.revision,1);assert.deepEqual(f.app.outputProfile.audioRouting,{});await f.app.stop();
+});
+test('pending live mix prevents a concurrent Start and old output requests cannot affect a new Prepare',async()=>{
+  const f=sharedFixture(),pending=deferred();let wait=false;f.capture.updateAudioRouting=async value=>{if(wait)await pending.promise;return {requestId:value.requestId,applied:true};};await f.app.prepare();const old=f.app.status().audioMix;wait=true;
+  const setting=f.app.setLiveAudio({outputId:old.outputId,expectedRevision:0,requestId:'pending',audioRouting:{'voice:default':{live:true,vod:true,liveGainDb:3}}});await settle();assert.equal(f.app.status().ready,false);await assert.rejects(f.app.start({destinationId:'one'}),/audio_mix_unconfirmed/);
+  wait=false;await f.app.prepare();pending.resolve();await assert.rejects(setting,/audio_routing_cancelled/);assert.notEqual(f.app.status().audioMix.outputId,old.outputId);assert.equal(f.app.status().audioMix.revision,0);assert.equal(f.groups.length,0);
+});
+test('live audio audit failure does not undo a confirmed level change or stop transmission',async()=>{
+  const f=sharedFixture();f.capture.updateAudioRouting=async value=>({requestId:value.requestId,applied:true});f.app.onAudioAudit=()=>{throw Error('private history path');};await f.app.prepare();await f.app.start({destinationIds:['one','two']});const mix=f.app.status().audioMix;
+  await f.app.setLiveAudio({outputId:mix.outputId,expectedRevision:0,requestId:'history',audioRouting:{'voice:default':{live:true,vod:true,liveGainDb:-4}}});assert.equal(f.app.status().audioMix.historyWarning,true);assert.equal(f.groups[0].stops,0);assert.equal(f.app.status().active,true);assert.doesNotMatch(JSON.stringify(f.app.status()),/private history/);await f.app.stop();
+});

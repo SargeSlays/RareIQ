@@ -9,8 +9,8 @@ function media(id,{volume=.5,sourceId='',src=''}={}){
     addEventListener(name,fn){listeners.set(name,fn);},removeEventListener(name){listeners.delete(name);},emit(name){listeners.get(name)?.();}};
 }
 async function fixture(groups){
-  const controls=new Map(),events=new Map(),intervals=[],sent=[],sources=[],gains=[];let now=0,worklet;
-  class Node{constructor(){this.connections=[];this.gain={value:0,setValueAtTime:value=>{this.gain.value=value;}};}connect(node,...ports){this.connections.push({node,ports});}disconnect(){this.connections=[];this.disconnected=true;}}
+  const controls=new Map(),events=new Map(),intervals=[],sent=[],sources=[],gains=[],delays=[];let now=0,worklet;
+  class Node{constructor(){this.connections=[];this.gain={value:0,ramps:[],sets:[],cancelAndHoldAtTime:at=>{this.gain.heldAt=at;},cancelScheduledValues:()=>{},linearRampToValueAtTime:(value,at)=>{this.gain.ramps.push({value,at});this.gain.value=value;},setValueAtTime:(value,at)=>{this.gain.sets.push({value,at});this.gain.value=value;}};}connect(node,...ports){this.connections.push({node,ports});}disconnect(){this.connections=[];this.disconnected=true;}}
   class Context{constructor(){this.state='running';this.sampleRate=48000;this.currentTime=0;this.destination=new Node();this.audioWorklet={addModule:async()=>{}};}createGain(){const n=new Node();gains.push(n);return n;}createMediaStreamSource(stream){const n=new Node();n.track=stream.getAudioTracks()[0];sources.push(n);return n;}resume(){return Promise.resolve();}close(){this.state='closed';return Promise.resolve();}}
   const selectors={'program':['iframe.program','/program'],'soundboard':['iframe.audio','/output/soundboard'],'graphics':['iframe.graphics','/overlay/graphics'],'audience':['iframe.audience','/overlay/audience']},frames={};
   for(const [group,elements] of Object.entries(groups)){const [selector,pathname]=selectors[group];frames[selector]={contentWindow:{location:{origin,pathname}},contentDocument:{querySelectorAll:()=>elements}};}
@@ -19,9 +19,10 @@ async function fixture(groups){
   const context={require:name=>{assert.equal(name,'electron');return {ipcRenderer:{on:(name,fn)=>controls.set(name,fn),send:(channel,value)=>sent.push({channel,value}),invoke:async()=>({captureId:'run',epochUs:0})}};},
     process:{isMainFrame:true,argv:['--producer-output-origin='+origin]},window,location:{origin,pathname:'/output/studio'},document:{readyState:'loading',querySelector:selector=>frames[selector]},
     AudioContext:Context,AudioWorkletNode:Worklet,MediaStream:class{constructor(tracks){this.tracks=tracks;}getAudioTracks(){return this.tracks;}},MutationObserver:class{observe(){}disconnect(){}},
-    URL:class extends URL{static createObjectURL(){return 'blob:synthetic';}static revokeObjectURL(){}},Blob:class{},setInterval:fn=>{intervals.push(fn);return intervals.length;},clearInterval(){},performance:{now:()=>now},console,ArrayBuffer,Uint8Array};
+    URL:class extends URL{static createObjectURL(){return 'blob:synthetic';}static revokeObjectURL(){}},Blob:class{},setTimeout:(fn,delay)=>{delays.push({fn,delay});return delays.length;},setInterval:fn=>{intervals.push(fn);return intervals.length;},clearInterval(){},performance:{now:()=>now},console,ArrayBuffer,Uint8Array};
   vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../output-preload.cjs'),'utf8'),context);await events.get('DOMContentLoaded')();
-  return {sent,gains,sources,scan:intervals[0],health:intervals[1],controls,close:()=>events.get('pagehide')(),advance(ms){now+=ms;},meter(value){worklet.port.onmessage({data:{type:'meters',meters:value}});},route(value){controls.get('producer:output:control')(null,{type:'routing',audioRouting:value});},
+  return {sent,gains,sources,scan:intervals[0],health:intervals[1],controls,close:()=>events.get('pagehide')(),advance(ms){now+=ms;},flush(){while(delays.length)delays.shift().fn();},meter(value){worklet.port.onmessage({data:{type:'meters',meters:value}});},route(value,extra={}){controls.get('producer:output:control')(null,{type:'routing',audioRouting:value,...extra});},
+    parameters(element){return sources.findLast(s=>s.track===element.track&&!s.disconnected).connections.map(c=>c.node.gain);},
     bus(element){const source=sources.findLast(s=>s.track===element.track&&!s.disconnected);return source.connections.map(c=>c.node.gain.value);}};
 }
 test('actual preload separates identified voice, screen, file and cue sources with saved overrides',async()=>{
@@ -44,7 +45,7 @@ test('independent finite Live/VOD gains multiply volume while Program mute and s
     voice.muted=true;voice.emit('volumechange');assert.deepEqual(f.bus(voice),[0,0]);voice.muted=false;voice.emit('volumechange');
     voice.dataset.audioSource=screen;f.scan();assert.deepEqual(f.bus(voice),[.2,0]);
     f.route({[screen]:{live:true,vod:true,liveGainDb:12,vodGainDb:-60}});assert.ok(f.bus(voice)[0]>.79);assert.equal(f.bus(voice)[1],.0002);
-    f.route({[screen]:{live:true,vod:true,liveGainDb:Infinity}});assert.equal(f.sent.at(-1).value.error,true);assert.ok(f.bus(voice)[0]>.79);
+    f.route({[screen]:{live:true,vod:true,liveGainDb:Infinity}});assert.equal(f.sent.at(-1).value.error,undefined);assert.ok(f.bus(voice)[0]>.79);
   }finally{f.close();}assert.equal(voice.track.stops,0);
 });
 test('meter health is scalar-only, available before capture, fresh for750ms and holds clipping2seconds',async()=>{
@@ -69,8 +70,30 @@ test('Program mute and removal silence both mixes; replacement media uses its ow
     voice.dataset.audioSource=screen;f.scan();assert.deepEqual(f.bus(voice),[.5,0]);
     elements.splice(0);f.scan();assert.equal(f.sources.find(s=>s.track===voice.track).disconnected,true);
     f.route({'soundboard:one':{live:false,vod:true}});assert.deepEqual(f.bus(cue),[0,.5]);cue.currentSrc=origin+'/api/creator/assets/two';f.scan();assert.deepEqual(f.bus(cue),[.5,0]);
-    f.route({'soundboard:two':{live:true,vod:'yes'}});assert.equal(f.sent.at(-1).value.error,true);assert.deepEqual(f.bus(cue),[.5,0]);
+    f.route({'soundboard:two':{live:true,vod:'yes'}});assert.equal(f.sent.at(-1).value.error,undefined);assert.deepEqual(f.bus(cue),[.5,0]);
   }finally{f.close();}assert.equal(voice.track.stops,0);assert.equal(cue.track.stops,0);
+});
+test('routing ACK follows validated10ms gain smoothing without replacing nodes or capture state',async()=>{
+  const voice=media('mic',{sourceId:mic,volume:.2}),f=await fixture({program:[voice]}),requestId='live-adjust-one',routingNonce='12345678-1234-1234-1234-123456789abc',routingContext='00000000-1234-1234-1234-123456789abc';
+  try{
+    f.route({}, {routingContext});
+    const original=f.sources[0],parameters=f.parameters(voice);f.route({[mic]:{live:true,vod:true,liveGainDb:6.020599913279624}},{requestId,routingNonce,routingContext});
+    assert.equal(f.sources[0],original);assert.equal(f.sources.length,1);assert.equal(parameters[0].ramps.at(-1).at,.01);assert.ok(Math.abs(parameters[0].ramps.at(-1).value-.4)<1e-9);
+    assert.equal(f.sent.some(p=>p.value.routingApplied),false);f.flush();const ack=f.sent.at(-1).value;
+    assert.equal(ack.routingRequestId,requestId);assert.equal(ack.routingNonce,routingNonce);assert.equal(ack.routingApplied,true);assert.equal(ack.audioRouting,undefined);assert.equal(ack.pcm,undefined);
+    voice.muted=true;voice.emit('volumechange');assert.deepEqual(f.bus(voice),[0,0]);assert.equal(parameters[0].sets.at(-1).value,0);
+    f.route({[mic]:{live:true,vod:true,liveGainDb:NaN}},{requestId:'invalid',routingNonce,routingContext});f.flush();assert.notEqual(f.sent.at(-1).value.routingRequestId,'invalid');assert.equal(f.sent.at(-1).value.error,undefined);
+    f.route({[mic]:{live:true,vod:true}},{requestId:'stale',routingNonce,routingContext});f.route({});f.flush();assert.notEqual(f.sent.at(-1).value.routingRequestId,'stale');
+  }finally{f.close();}assert.equal(voice.track.stops,0);
+});
+test('a new output context rejects delayed routing before applying gains or acknowledging',async()=>{
+  const voice=media('mic',{sourceId:mic,volume:.2}),f=await fixture({program:[voice]}),oldContext='00000000-1234-1234-1234-123456789abc',newContext='11111111-1234-1234-1234-123456789abc';
+  try{
+    const request={requestId:'old-renderer',routingNonce:'22222222-1234-1234-1234-123456789abc',routingContext:oldContext};
+    f.route({[mic]:{live:true,vod:true,liveGainDb:12}},request);assert.deepEqual(f.bus(voice),[.2,.2],'unbound new renderer rejects old request');
+    f.route({}, {routingContext:newContext});f.route({[mic]:{live:true,vod:true,liveGainDb:12}},request);f.flush();
+    assert.deepEqual(f.bus(voice),[.2,.2]);assert.equal(f.sent.some(p=>p.value.routingRequestId==='old-renderer'),false);assert.equal(voice.track.stops,0);
+  }finally{f.close();}
 });
 test('unidentified or forged voice metadata stays out of VOD and manifests contain no source URLs',async()=>{
   const unknown=media('unknown'),forged=media('forged',{sourceId:'https://private.invalid'});forged.dataset.audioCategory='voice';

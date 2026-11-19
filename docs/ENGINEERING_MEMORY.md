@@ -1147,3 +1147,24 @@ replacing per-destination video encoders with shared encoding.
 - Local activity append is separate from persisted profile mutation. Preserve the
   successful receipt and return activity_history_warning if the append fails; never
   encourage a duplicate mutation by labeling an already-saved change as failed.
+
+
+## November 18, 2026 — Confirmed live mix changes
+
+- Runtime mixing must be separate from immutable encoder/profile settings. Keep the
+  existing GainNodes, borrowed tracks, capture ID, PCM credit flow and timestamps;
+  smooth gains over 10 ms and confirm only after the owned renderer schedules them.
+- Bind requests to output ID/revision plus internal navigation context and fresh
+  attempt nonce. Reject old output controls before applying and ignore late ACKs.
+  Cache bounded request receipts; identical replay must not apply twice.
+- A lost ACK does not prove unchanged DSP. Preserve last confirmed routing plus an
+  explicit uncertain pending payload. Retry that exact request before accepting a
+  different change, including after Settings reload. Failure never stops encoding.
+- Source capture cancels pending ACK on Stop/navigation; the broker keeps a
+  confirmed prepared mix across Stop, but requires reconciliation of uncertain
+  state before another Start. Prepare creates a new session after restoring the
+  saved map; stale apply/audit completion cannot mutate it.
+- Expose applying state so concurrent Start is guarded while apply/audit awaits.
+  Ignore stale/lower-revision UI polls and preserve invalid drafts/focus.
+- Verify the actual encoded files, not only UI values: independent Live/VOD
+  amplitude changes, one capture/encoder group, monotonic A/V and unchanged preset.

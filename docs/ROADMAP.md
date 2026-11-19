@@ -953,3 +953,47 @@ Remaining: live session faders/monitoring separate from immutable output profile
 independent guest soundboard stems, physical listening/echo and platform live/VOD
 acceptance. Current level edits require Save and Prepare before starting; they
 do not change an active broadcast profile.
+
+
+## November 18, 2026 — Planned Rehearsal room (owner request)
+
+Add a clearly labelled Rehearsal workspace where a producer can run the complete
+show locally without broadcasting to viewers. It should feel operationally like
+a live production while remaining visibly distinct from On Air. This is planned,
+not implemented by the current live-mixer checkpoint.
+
+- Exercise invited guests/backstage, cameras, microphones, game/screen feeds,
+  layouts, scene transitions, image/video/text/browser sources, overlays and cues.
+- Run the real local production/encoding path and independently inspect Live/VOD
+  audio, levels, gates, effects, sync, clipping, source-loss recovery and controls.
+  Optional local recording/export requires an explicit operator action and F: output.
+- Use clearly marked simulated audience/chat/welcome events for testing; never
+  send a test message to a real audience or trigger production notifications.
+- Enforce isolation at the authoritative control/encoder boundary, including voice
+  and gesture rules: no platform publishing, OBS stream start, automatic recording
+  or paid action. Guests also see the Rehearsal label. Provide local preview and
+  source/account/connection preflight without claiming platform delivery.
+- Save a rehearsal checklist/report with operator actions and issues, then require
+  a separate explicit Go Live confirmation to leave rehearsal. Local acceptance
+  does not verify platform receipt or Twitch archive selection.
+
+Acceptance must verify that every public-publish path remains blocked during
+rehearsal, including custom rules, reconnects, stale browser tabs and app restarts;
+exercise desktop/mobile and landscape/portrait layouts.
+
+
+## November 18, 2026 — Runtime mixer checkpoint
+
+Implemented and locally exercised: Live/VOD gain and inclusion changes while
+continuous native encoding runs; independent confirmation, debounce/coalescing,
+revision conflicts, uncertain exact retry/Settings reload, Restore saved mix and
+metadata-only local audit. Saved presets stay unchanged.
+
+Actual public-output/broker/shared-encoder test: one capture and one encoder group
+produced 147 continuous video frames in each of two local files while Live doubled
+and VOD later halved. PCM timestamps continued at 10 ms intervals. Packaged UI trust
+and synthetic-sending interaction tests passed separately.
+
+Remaining: physical listener/echo and real platform/Twitch archive acceptance,
+separate guest soundboard stems, broader output parity and the owner-requested
+Rehearsal workspace described above.

@@ -81,6 +81,7 @@ app.whenReady().then(async()=>{
       const detail='Your current Program picture and Live audio will be sent to:\n'+chosen.map(p=>'• '+p.name).join('\n')+'\n\n'+output.name+': '+output.fps+' fps, '+output.videoBitrateKbps+' kbps video, '+output.audioBitrateKbps+' kbps AAC. Approximate combined upload: '+upload.toFixed(1)+' Mbps before overhead.'+(output.twitchVod?'\nA separate VOD mix is sent to Twitch destinations; Twitch archive receipt is not yet verified.':'')+'\nCheck each platform dashboard to confirm receipt.';
       const answer=await dialog.showMessageBox(settings&&!settings.isDestroyed()?settings:studio,{type:'warning',message:'Start a live broadcast?',detail,buttons:['Cancel','Start broadcast'],defaultId:0,cancelId:0});return answer.response===1;
     },
+    onAudioAudit:entry=>fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify({at:new Date().toISOString(),action:'audio_mix.set',actor:'Desktop operator',identityVerified:false,profileId:entry.profileId,requestId:entry.requestId,revision:entry.revision})+'\n',{mode:0o600}),
     onState:value=>{
       const state=JSON.stringify({phase:value.phase,targets:value.targets.map(t=>({destinationId:t.destinationId,phase:t.phase,reason:t.reason}))});
       if(state!==lastPhase){lastPhase=state;try{fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify({at:new Date().toISOString(),action:'broadcast.'+value.phase,actor:'Desktop operator',identityVerified:false,profileId:value.profileId,destinationIds:value.destinationIds,targets:value.targets.map(t=>({destinationId:t.destinationId,phase:t.phase,reason:t.reason})),reason:value.reason||null})+'\n');}catch(_){}}
@@ -106,6 +107,12 @@ app.whenReady().then(async()=>{
   ipcMain.handle('producer:profiles:save',(event,value)=>changeDestination(event,()=>profileActions.save(value)));
   ipcMain.handle('producer:profiles:remove',(event,id)=>changeDestination(event,()=>profileActions.remove(id)));
   ipcMain.handle('producer:profiles:select',(event,id)=>changeDestination(event,()=>profileActions.select(id)));
+  ipcMain.handle('producer:broadcast:audio',async(event,value)=>{
+    if(!settingsEvent(event))throw Error('Untrusted request');
+    const requestId=typeof value?.requestId==='string'&&/^[A-Za-z0-9_-]{1,80}$/.test(value.requestId)?value.requestId:null;
+    try{await broadcast.setLiveAudio(value);return {...publicBroadcast(),audioMixResult:{ok:true,requestId}};}
+    catch(error){const codes=new Set(['invalid_audio_session','invalid_audio_request','invalid_audio_routing','audio_output_changed','audio_revision_conflict','audio_request_conflict','audio_routing_conflict','audio_routing_busy','audio_routing_uncertain','audio_routing_timeout','audio_routing_cancelled','audio_routing_unavailable']);return {...publicBroadcast(),audioMixResult:{ok:false,requestId,code:codes.has(error?.code)?error.code:'audio_routing_unavailable'}};}
+  });
   ipcMain.handle('producer:broadcast:stop-target',async(event,id)=>{if(!settingsEvent(event))throw Error('Untrusted request');await broadcast.stopTarget(id);return publicBroadcast();});
   ipcMain.handle('producer:broadcast:prepare',async(event,value)=>{if(!settingsEvent(event))throw Error('Untrusted request');await broadcast.prepare(value);return publicBroadcast();});
   ipcMain.handle('producer:broadcast:start',async(event,value)=>{if(!settingsEvent(event))throw Error('Untrusted request');if(destinationMutation)throw Error('destination_change_pending');await broadcast.start(value);return publicBroadcast();});

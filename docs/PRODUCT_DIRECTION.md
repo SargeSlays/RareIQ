@@ -973,3 +973,27 @@ Desktop operator with identityVerified:false. Source routes/names/levels and sec
 are omitted. A history write failure warns separately after a successful persisted
 action; it does not falsely report that the save failed. Named remote accountability
 still depends on the separately planned producer sign-in integration.
+
+
+## November 18, 2026 — Runtime Live/VOD mixer
+
+A separate Live audio mixer now changes per-source/category gain and inclusion
+while the prepared output or native broadcast is running. Updates apply to the
+existing public audio graph with a 10 ms gain ramp; they do not restart capture,
+change encoder settings, take a scene or write the saved output profile. The saved
+profile editor remains guarded during transmission. Restore saved mix uses the
+prepared preset as an explicit runtime action.
+
+Each runtime mix is bound to an opaque output session and revision. Only one
+request is applied at a time, with coalesced UI edits and matching output-frame
+ACK before claiming success. Lost confirmation remains visibly uncertain with an
+exact retry payload that survives Settings reload; conflicting/new requests wait
+for reconciliation. Output replacement invalidates stale callbacks. Audio control
+errors never stop a healthy stream, and Stop remains available. An uncertain mix
+blocks a new Start until reconciled.
+
+Local audit entries record profile/request/revision and Desktop operator with
+identityVerified:false, without gain maps, source IDs, names or media. Audit failure
+warns separately after DSP confirmation. Rehearsal room is planned on the roadmap,
+not activated by this change. Platform delivery/Twitch archive and physical
+listening/echo remain separate acceptance layers.
