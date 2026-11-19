@@ -314,3 +314,27 @@ and the six `destination-edit-*.png` captures. `native01` is a failed harness at
 that tried to fill Twitch's intentionally hidden server field; it closed its owned
 backend and is retained as diagnostic evidence. This does not establish platform
 login or receipt. Reopen the separate Standalone Preview entry to load this build.
+
+## Saved YouTube broadcast destinations
+
+After completing Google Desktop app setup and signing into the intended YouTube
+channel, open Broadcast setup and its YouTube account card. Choose **Choose existing
+broadcast**, select a broadcast and use **Review broadcast**. Check Public/Unlisted/
+Private and automatic start/stop settings, then choose **Save YouTube destination**.
+Saving does not send media. A separate explicit Start confirmation checks the same
+broadcast and settings again. Changed or unavailable selections require a new
+review. When Save is unconfirmed, retry that same Save to resolve its receipt.
+
+The broadcast must already have its own bound YouTube stream. Shared/unbound or
+ineligible selections are refused; the app does not create, bind or transition
+broadcasts here. More than 100 discovery rows fail with a bounded-list explanation.
+Use a dedicated stream or the existing manual destination form as appropriate.
+No key or ingest address is displayed or saved in the linked destination.
+
+Google consent/client setup and real YouTube reception remain unverified. Local
+synthetic acceptance is recorded in the release checklist. Rehearsal stays separate
+from all real destinations and does not publish to YouTube.
+
+Stream info automatically uses the same saved broadcast for a linked YouTube
+destination. Add a separate destination to prepare another broadcast. Manual
+YouTube destinations retain explicit broadcast selection and confirmation.

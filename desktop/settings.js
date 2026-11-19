@@ -6,7 +6,7 @@ let profileState=null,profileEditingId=null,profileDirty=false,profileBusy=false
 let liveMix={outputId:null,revision:0,routing:{},draft:{},dirty:false,busy:false,pending:null,blocked:'',message:'',serial:0,generation:0,timer:null,stamp:'',controls:[],invalid:new Set(),closed:false};
 const selectedDestinations=new Set(),destinationRows=new Map(),targetStops=new Set();
 let twitchAccountCard=null,providerAccountCards=[],accountBusy=false;
-let streamInfoEditor=null,streamMetadataEditor=null;
+let streamInfoEditor=null,streamMetadataEditor=null,youtubeDestinationPicker=null;
 let rehearsalEditor=null,rehearsalState=null,rehearsalUiState=null,rehearsalBusy=false,lastBroadcastRehearsal=null;
 const accountBusySources=new Set();
 function acceptRehearsal(value){if(!value?.room)return;const previous=rehearsalState?.room;if(previous&&Number.isSafeInteger(previous.revision)&&Number.isSafeInteger(value.room.revision)&&value.room.revision<previous.revision)return;rehearsalState=value;}
@@ -94,6 +94,7 @@ function renderBroadcast(){
   const startSelected=document.querySelector('#startSelectedDestinations');startSelected.disabled=publishBlocked||locked||working||mixWaiting||infoWaiting||Boolean(editing)||!storageAvailable||!value.ready||setupLocked||!profileMatches||profileDirty||!selectedDestinations.size;startSelected.title=startSelected.disabled?(publishBlocked?'Broadcasting is blocked in rehearsal or until production status is confirmed.':infoWaiting?'Open Stream info and save or discard your draft before starting.':mixWaiting?'Confirm the current audio mix before starting.':'Select configured destinations and prepare the saved output profile before starting.'):'One confirmation lists every selected destination before sending.';
   twitchAccountCard?.setLocked(Boolean(destinationBusy()||editing));
   for(const card of providerAccountCards)card.setLocked(Boolean(destinationBusy()||editing));
+  youtubeDestinationPicker?.setLocked(Boolean(destinationBusy()||editing));
   streamInfoEditor?.setContext({locked:Boolean(destinationBusy()||editing)});
   streamMetadataEditor?.setContext({locked:metadataLocked(),publishingBlocked:publishBlocked});
   rehearsalEditor?.setContext({locked:Boolean(accountBusy||locked||broadcastBusy||profileBusy||startPending||stopBusy||targetStops.size||editing||profileDirty||broadcastState?.active||broadcastState?.ownershipPending)});
@@ -273,11 +274,12 @@ async function stopDestination(id){
 
 // Account controls keep their own status and never reset destination or profile drafts.
 twitchAccountCard=window.ProducerTwitchAccountUI?.mount({document,api:producerSettings,onDestinationsChanged:refresh,onBusyChange:value=>updateAccountBusy('twitch',value)})||null;
-providerAccountCards=window.ProducerProviderAccounts?.mount({document,api:producerSettings,onBusyChange:updateAccountBusy,onDestinationsChanged:refresh})||[];
+youtubeDestinationPicker=window.ProducerYouTubeDestination?.mount({root:document.querySelector('#youtubeDestination'),api:producerSettings,onBusy:value=>updateAccountBusy('youtube-destination',value),onSaved:refresh})||null;
+providerAccountCards=window.ProducerProviderAccounts?.mount({document,api:producerSettings,onBusyChange:updateAccountBusy,onDestinationsChanged:refresh,onAccountChange:(platform,state)=>{if(platform==='youtube')youtubeDestinationPicker?.setAccount(state);}})||[];
 streamMetadataEditor=window.ProducerStreamMetadata?.create({root:document.querySelector('#streamMetadata'),api:producerSettings,onBusy:value=>updateAccountBusy('stream-metadata',value),onPermission:platform=>{const card=platform==='twitch'?twitchAccountCard:providerAccountCards.find(item=>item.platform===platform);void card?.controller.run('status');if(platform==='twitch')twitchAccountCard?.focus();}})||null;
 streamInfoEditor=window.ProducerStreamInfo?.create({root:document.querySelector('#streamInfo'),api:producerSettings,onBusy:value=>updateAccountBusy('stream-info',value),onChange:()=>renderBroadcast(),onContext:value=>streamMetadataEditor?.setContext({...value,locked:metadataLocked(),publishingBlocked:publishingBlocked()})})||null;
 if(streamInfoEditor){streamInfoEditor.setContext({destinations:[]});void streamInfoEditor.load();}
 if(typeof producerSettings.rehearsal==='function'){rehearsalEditor=window.ProducerRehearsalUI?.create({root:document.querySelector('#rehearsalRoom'),api:producerSettings,onBusy:value=>{rehearsalBusy=value;if(value)++broadcastOperation;renderBroadcast();},onChange:value=>{rehearsalUiState=value;acceptRehearsal(value);renderBroadcast();}})||null;rehearsalEditor?.start();}else document.querySelector('#rehearsalRoom').hidden=true;
 twitchAccountCard?.start();
 for(const card of providerAccountCards)card.start();
-addEventListener('pagehide',()=>{twitchAccountCard?.close();for(const card of providerAccountCards)card.close();streamInfoEditor?.close();streamMetadataEditor?.close();rehearsalEditor?.close();},{once:true});
+addEventListener('pagehide',()=>{youtubeDestinationPicker?.close();twitchAccountCard?.close();for(const card of providerAccountCards)card.close();streamInfoEditor?.close();streamMetadataEditor?.close();rehearsalEditor?.close();},{once:true});

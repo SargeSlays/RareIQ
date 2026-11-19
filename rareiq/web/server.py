@@ -67,6 +67,8 @@ from rareiq.web.rehearsal import create_rehearsal_router
 from rareiq.web.twitch_audience import create_twitch_audience_router
 from rareiq.services.youtube_audience_connector import YouTubeAudienceConnector
 from rareiq.services.youtube_account_service import YouTubeAccountService
+from rareiq.services.youtube_destination_service import YouTubeDestinationService
+from rareiq.web.youtube_destinations import create_youtube_destination_router
 from rareiq.web.youtube_audience import create_youtube_audience_router
 from rareiq.services.kick_audience_connector import KickAudienceConnector
 from rareiq.web.kick_audience import create_kick_audience_router
@@ -1189,6 +1191,8 @@ platform_app_setup = PlatformAppSetupService(platform_credential_vault,
     {"youtube": youtube_account_service, "kick": kick_account_service})
 app.include_router(create_platform_app_setup_router(platform_app_setup, _greenroom_operator,
     audit=_platform_account_audit))
+youtube_destination_service = YouTubeDestinationService(youtube_account_service)
+app.include_router(create_youtube_destination_router(youtube_destination_service, _greenroom_operator))
 stream_metadata_service = StreamMetadataService({'twitch': twitch_account_service,
     'youtube': youtube_account_service, 'kick': kick_account_service},
     receipt_path=storage.get_path('config_path') / 'stream_metadata_receipts.json')

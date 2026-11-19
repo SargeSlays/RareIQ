@@ -1129,3 +1129,18 @@ Before promotion: finish both canonical source baselines, intercepted card UI
 checks, actual bundled import/resource/native checks, reviewed private data copy,
 fresh saved-account validation and guest-only HTTPS after controlled restart.
 No claim that building a candidate alone migrates or verifies the primary profile.
+
+## November 19, 2026 — YouTube existing-broadcast destination checkpoint
+
+Implemented an explicit owned/bound broadcast picker, privacy and auto-start/stop
+review, protected binding-only persistence, fresh private resolution and a second
+post-confirmation comparison before reserving encoding. Existing Twitch, Kick and
+manual destinations are preserved. No new broadcast is created as a sign-in side
+effect. Provider operations are reads; actual Google setup/consent and media receipt
+remain pending. More than 100 discovery rows, shared/unbound streams and unknown
+settings are actionable refusals rather than guessed selections.
+
+Local Rehearsal/bundled acceptance and reviewed primary adoption remain separate.
+Do not bypass an enabled-but-disconnected OBS shutdown blocker to promote a build.
+StackThis remote producer identity and physical guest/audio/platform acceptance
+still require their previously recorded external decisions or owner presence.

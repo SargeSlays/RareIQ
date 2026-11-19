@@ -76,7 +76,7 @@
     function setContext(value={}){
       if(closed)return;
       if(Array.isArray(value.destinations)){
-        const next=value.destinations.filter(item=>item&&typeof item.id==='string'&&typeof item.name==='string').map(({id,name,platform})=>({id,name,platform}));
+        const next=value.destinations.filter(item=>item&&typeof item.id==='string'&&typeof item.name==='string').map(item=>({id:item.id,name:item.name,platform:item.platform,...(item.platform==='youtube'&&item.linkedAccount===true&&typeof item.youtubeBroadcastId==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(item.youtubeBroadcastId)?{linkedAccount:true,youtubeBroadcastId:item.youtubeBroadcastId}:{})}));
         if(JSON.stringify(next)!==JSON.stringify(destinations)||!picker.children.length){
           destinations=next;if(!destinations.some(item=>item.id===selected))selected=destinations[0]?.id||'';
           const options=destinations.length?destinations:[{id:'',name:'No saved destinations'}];picker.replaceChildren();

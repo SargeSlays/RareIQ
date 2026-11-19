@@ -20,7 +20,10 @@ import urllib.request
 
 
 PROBE_MODULES = ('fastapi', 'uvicorn', 'numpy', 'cv2', 'PIL', 'av', 'httpx',
-                 'tools.desktop_backend', 'rareiq.core.storage', 'rareiq.core.secrets')
+                 'tools.desktop_backend', 'rareiq.core.storage', 'rareiq.core.secrets',
+                 'encoder_worker', 'shared_encoder_worker',
+                 'tools.desktop_twitch_account', 'tools.desktop_kick_account',
+                 'tools.desktop_youtube_account')
 PROBE = 'modules = ' + repr(PROBE_MODULES) + r'''
 import importlib, importlib.util, json, os, sys
 for name in modules:

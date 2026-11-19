@@ -72,6 +72,10 @@ class YouTubeAccountService:
         return hashlib.sha256(record["access_token"].encode("utf-8")).digest()
 
     @staticmethod
+    def account_ref(record):
+        return hashlib.sha256(("youtube:" + record["client_id"] + ":" + record["channel_id"]).encode("ascii")).hexdigest()
+
+    @staticmethod
     def _secret(value, limit=4096):
         if (not isinstance(value, str) or not 1 <= len(value) <= limit
                 or any(not 33 <= ord(c) <= 126 for c in value)):
@@ -168,8 +172,9 @@ class YouTubeAccountService:
                   "reason": reason or ("account_authorized" if authorized else "authorization_required"),
                   "authorized": authorized, "app_configured": config is not None}
         result["metadata_authorized"] = bool(authorized and self.METADATA_SCOPE in stored["scopes"])
+        result["streaming_authorized"] = bool(authorized)
         if authorized:
-            result.update(public_label=stored["public_label"], expires_at=stored["expires_at"])
+            result.update(public_label=stored["public_label"], expires_at=stored["expires_at"], account_ref=self.account_ref(stored))
         pending = self._pending
         if pending is not None and self._current(pending):
             if self._clock() >= pending["expires_at"]:

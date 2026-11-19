@@ -34,6 +34,29 @@ async function fixture(t, options = {}) {
 }
 const payload = overrides => ({ requestId: 'first-save', name: 'My channel', platform: 'twitch', streamKey: 'synthetic-secret-9a82', ...overrides });
 
+test('YouTube exact encrypted broadcast and stream identifiers accept the shared 128-character bound and reject 129',async t=>{
+  const f=await fixture(t),selection={broadcastId:'B'.repeat(128),streamId:'S'.repeat(128),settingsFingerprint:'b'.repeat(64),autoStart:false,autoStop:false,privacyStatus:'private'},input={platform:'youtube',name:'Bounded YouTube selection',accountRef:'a'.repeat(64),youtubeSelection:selection,requestId:'youtube-id-boundary'};
+  const saved=await f.store.saveAccount(input);assert.equal(saved.destination.youtubeBroadcastId.length,128);
+  for(const field of ['broadcastId','streamId'])await rejects(f.store.saveAccount({...input,requestId:'youtube-overlong-'+field,youtubeSelection:{...selection,[field]:'X'.repeat(129)}}),'invalid_linked_account');
+  assert.equal((await f.store.public()).destinations.length,1);
+});
+
+test('YouTube linked destinations persist only an encrypted exact broadcast/stream selection and resolve fresh private settings',async t=>{
+  const ref='a'.repeat(64),binding={broadcastId:'selected-broadcast',streamId:'selected-stream',settingsFingerprint:'b'.repeat(64),autoStart:true,autoStop:false,privacyStatus:'unlisted'},calls=[];
+  const f=await fixture(t,{accountResolver:async(accountRef,context)=>{calls.push({accountRef,context});return {platform:'youtube',accountRef,...binding,serverUrl:'rtmps://a.rtmps.youtube.com/live2',streamKey:'fresh-youtube-key-'+calls.length};}}),input={platform:'youtube',name:'Exact YouTube broadcast',accountRef:ref,youtubeSelection:binding,requestId:'youtube-link'};
+  const saved=await f.store.saveAccount(input);assert.equal(saved.destination.configured,true);assert.equal(saved.destination.serverConfigured,false);assert.equal(saved.destination.youtubeBroadcastId,binding.broadcastId);assert.equal(saved.destination.youtubeAutoStart,true);assert.equal(saved.destination.verified,false);assert.equal(calls.length,0);
+  const disk=await fs.readFile(f.file,'utf8'),stored=JSON.parse(disk),secret=JSON.parse((await f.cipher.decryptStringAsync(Buffer.from(stored.profiles[0].encrypted,'base64'))).result);assert.deepEqual(secret.youtubeSelection,binding);assert.equal(Object.hasOwn(secret,'serverUrl'),false);assert.equal(Object.hasOwn(secret,'streamKey'),false);assert.equal(disk.includes(binding.broadcastId),false);assert.equal(disk.includes(binding.settingsFingerprint),false);
+  assert.equal((await f.store.private(saved.destination.id)).streamKey,'fresh-youtube-key-1');assert.deepEqual(calls[0],{accountRef:ref,context:{platform:'youtube',youtubeSelection:binding}});assert.equal(await fs.readFile(f.file,'utf8'),disk);
+  assert.equal((await f.store.saveAccount({...input,requestId:'youtube-again'})).destination.id,saved.destination.id);assert.notEqual((await f.store.saveAccount({...input,requestId:'youtube-second',youtubeSelection:{...binding,broadcastId:'second-broadcast'}})).destination.id,saved.destination.id);
+  const reloaded=new DestinationStore({directory:f.directory,cipher:f.cipher,platform:'win32'}),retry=await reloaded.saveAccount({...input,name:'Provider renamed this broadcast after a lost reply'});assert.equal(retry.replayed,true);assert.equal(retry.destination.id,saved.destination.id);assert.equal(retry.destination.name,input.name);await rejects(reloaded.saveAccount({...input,youtubeSelection:{...binding,privacyStatus:'public'}}),'destination_request_conflict');
+});
+test('YouTube resolution and saved selection reject changed binding/auto settings and renderer credential injection',async t=>{
+  const ref='a'.repeat(64),binding={broadcastId:'selected-broadcast',streamId:'selected-stream',settingsFingerprint:'b'.repeat(64),autoStart:true,autoStop:false,privacyStatus:'unlisted'};let resolved={platform:'youtube',accountRef:ref,...binding,serverUrl:'rtmps://a.rtmps.youtube.com/live2',streamKey:'synthetic-private'};
+  const f=await fixture(t,{accountResolver:async()=>resolved}),input={platform:'youtube',name:'Exact YouTube broadcast',accountRef:ref,youtubeSelection:binding,requestId:'youtube-validation'},id=(await f.store.saveAccount(input)).destination.id,valid={...resolved};
+  for(const change of [{streamId:'other'},{settingsFingerprint:'c'.repeat(64)},{autoStart:false},{autoStop:true},{privacyStatus:'private'}]){resolved={...valid,...change};await rejects(f.store.private(id),'broadcast_selection_changed');}
+  for(const change of [{streamKey:''},{serverUrl:''},{youtubeSelection:{...binding,autoStart:'true'}},{youtubeSelection:{...binding,extra:'no'}}])await assert.rejects(f.store.saveAccount({...input,...change}));await rejects(f.store.save({...payload(),platform:'youtube',youtubeSelection:binding}),'invalid_destination_fields');
+});
+
 test('linked Kick saves only an encrypted account reference and privately refreshes its secure ingest settings',async t=>{
   const ref='c'.repeat(64),calls=[];
   const accountResolver=async(accountRef,options)=>{calls.push({accountRef,options});return {platform:'kick',accountRef,serverUrl:'rtmps://ingest.provider.com:443/private-live',streamKey:'private-kick-key-'+calls.length};};

@@ -89,6 +89,10 @@ def _youtube_status(raw):
               "authorized": state != "unavailable" and raw.get("authorized") is True,
               "app_configured": raw.get("app_configured") is True}
     result["metadata_authorized"] = result["authorized"] and raw.get("metadata_authorized") is True
+    result["streaming_authorized"] = result["authorized"] and raw.get("streaming_authorized") is True
+    account_ref = raw.get("account_ref")
+    if result["authorized"] and isinstance(account_ref, str) and re.fullmatch(r"[a-f0-9]{64}", account_ref):
+        result["account_ref"] = account_ref
     label = _public_label(raw.get("public_label"))
     if label and result["authorized"]:
         result["public_label"] = label

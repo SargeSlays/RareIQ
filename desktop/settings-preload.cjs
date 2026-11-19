@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('producerSettings',Object.freeze({
   setLiveAudio:value=>ipcRenderer.invoke('producer:broadcast:audio',value),
   twitchAccount:value=>ipcRenderer.invoke('producer:accounts:twitch',value),
   providerAccount:value=>ipcRenderer.invoke('producer:accounts:provider',value),
+  youtubeDestinations:value=>ipcRenderer.invoke('producer:youtube-destinations',value),
   importProviderApp:platform=>['youtube','kick'].includes(platform)?ipcRenderer.invoke('producer:accounts:import-app',platform):Promise.resolve({ok:false,reason:'invalid_app_provider'}),
   status:()=>ipcRenderer.invoke('producer:destinations:status'),
   save:value=>ipcRenderer.invoke('producer:destinations:save',value),

@@ -65,7 +65,8 @@ app.whenReady().then(async()=>{
   const {createTwitchResolver,createTwitchConnection}=require('./twitch-connection.cjs');
   const resolveTwitch=createTwitchResolver({runtime});
   const resolveKick=require('./kick-connection.cjs').createKickResolver({runtime});
-  const accountResolver=require('./saved-account-resolver.cjs').createSavedAccountResolver({origin,resolveTwitch,resolveKick});
+  const {createYouTubeResolver,createYouTubeDestinationConnection}=require('./youtube-connection.cjs'),resolveYouTube=createYouTubeResolver({runtime});
+  const accountResolver=require('./saved-account-resolver.cjs').createSavedAccountResolver({origin,resolveTwitch,resolveKick,resolveYouTube});
   const {DestinationStore}=require('./destinations.cjs');destinations=new DestinationStore({directory:profile,cipher:require('electron').safeStorage,
     accountResolver});
   const {OutputProfileStore}=require('./output-profiles.cjs');outputProfiles=new OutputProfileStore({directory:profile});
@@ -91,8 +92,9 @@ app.whenReady().then(async()=>{
       const upload=(chosen.length*(output.videoBitrateKbps+output.audioBitrateKbps)+vodTargets*output.audioBitrateKbps)/1000;
       const info=await streamInfo.public();
       const streamInfoReview='\n\nSaved stream info drafts:\n'+chosen.map((p,index)=>'• '+p.name+': '+((info.overrides[selectionInfo.destinationIds[index]]||info.shared).title.trim()||'No title drafted')).join('\n')+'\nCheck each destination’s update status in Stream info before starting. Saved drafts alone do not confirm platform updates.';
+      const youtubeReview=chosen.filter(target=>target.platform==='youtube'&&target.youtubeSelection).map(target=>'\n\nYouTube broadcast '+target.youtubeSelection.broadcastId+' · Visibility: '+target.youtubeSelection.privacyStatus+'. Auto-start '+(target.youtubeSelection.autoStart?'ON — sending media may make this broadcast Live automatically.':'OFF. If this broadcast is not already Live, start it in YouTube when ready; this app does not transition broadcasts.')+' Auto-stop '+(target.youtubeSelection.autoStop?'ON — stopping media may end the broadcast.':'OFF.')).join('');
       const detail='Your current Program picture and Live audio will be sent to:\n'+chosen.map(p=>'• '+p.name).join('\n')+'\n\n'+output.name+': '+output.fps+' fps, '+output.videoBitrateKbps+' kbps video, '+output.audioBitrateKbps+' kbps AAC. Approximate combined upload: '+upload.toFixed(1)+' Mbps before overhead.'+(output.twitchVod?'\nA separate VOD mix is sent to Twitch destinations; Twitch archive receipt is not yet verified.':'')+'\nCheck each platform dashboard to confirm receipt.';
-      const answer=await dialog.showMessageBox(settings&&!settings.isDestroyed()?settings:studio,{type:'warning',message:'Start a live broadcast?',detail:detail+streamInfoReview,buttons:['Cancel','Start broadcast'],defaultId:0,cancelId:0});return answer.response===1;
+      const answer=await dialog.showMessageBox(settings&&!settings.isDestroyed()?settings:studio,{type:'warning',message:'Start a live broadcast?',detail:detail+youtubeReview+streamInfoReview,buttons:['Cancel','Start broadcast'],defaultId:0,cancelId:0});return answer.response===1;
     },
     onAudioAudit:entry=>fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify({at:new Date().toISOString(),action:'audio_mix.set',actor:'Desktop operator',identityVerified:false,profileId:entry.profileId,requestId:entry.requestId,revision:entry.revision})+'\n',{mode:0o600}),
     onState:value=>{
@@ -122,6 +124,8 @@ app.whenReady().then(async()=>{
   ipcMain.handle('producer:accounts:twitch',twitchConnection);
   const providerConnection=require('./provider-connection.cjs').createProviderConnection({origin,store:destinations,trustedSender:settingsEvent,mutate:changeDestination,authorize:authorizeAccount,append:entry=>fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify(entry)+'\n',{mode:0o600})});
   ipcMain.handle('producer:accounts:provider',providerConnection);
+  const youtubeDestinations=createYouTubeDestinationConnection({origin,store:destinations,trustedSender:settingsEvent,mutate:changeDestination,append:entry=>fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify(entry)+'\n',{mode:0o600})});
+  ipcMain.handle('producer:youtube-destinations',youtubeDestinations);
   const streamMetadata=require('./stream-metadata.cjs').createStreamMetadataHandler({origin,store:streamInfo,destinations,
     trustedSender:settingsEvent,mutate:changeDestination,
     permission:async(event,platform)=>{

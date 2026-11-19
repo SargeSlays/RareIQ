@@ -15,7 +15,7 @@ const PUBLIC_ENCODER_FAILURE_CODES=Object.freeze([
 const ENCODER_FAILURES=new Set(PUBLIC_ENCODER_FAILURE_CODES);
 const PUBLIC_FAILURE_CODES=Object.freeze([...PUBLIC_ENCODER_FAILURE_CODES,
   'rehearsal_active','rehearsal_status_unavailable',
-  'account_authorization_required','streaming_not_available','secure_ingest_unavailable',
+  'account_authorization_required','streaming_not_available','secure_ingest_unavailable','broadcast_selection_changed','youtube_broadcast_unavailable','youtube_broadcast_not_owned','youtube_stream_unavailable','youtube_stream_not_owned','youtube_stream_shared','account_state_changed','provider_rate_limited','authorization_refresh_required',
   'audio_mix_not_ready','audio_mix_unconfirmed','prepare_output','output_not_ready','output_generation_changed','broadcast_cancelled','desktop_backend_required','desktop_mode_required','desktop_closing',
   'close_browser_review','studio_unavailable','another_broadcast_active','output_lost','encoder_backpressure','capture_stop_unconfirmed','encoder_stop_unconfirmed','studio_status_unconfirmed','broadcast_start_failed',
   'output_review_open','output_receiver_changed','output_receiver_unavailable','output_capture_size_mismatch','output_navigated','output_renderer_unavailable','output_closed','output_frame_failed',
@@ -135,6 +135,14 @@ class NativeBroadcast{
       for(const id of ids){await this.assertPublishing();assertCurrent();profiles.push(await this.destinations.getPrivateDestination(id));assertCurrent();}
       await this.assertPublishing();assertCurrent();
       const approved=await this.confirm(profiles.length===1?profiles[0]:profiles,structuredClone(settings),{destinationIds:[...ids]});assertCurrent();await this.assertPublishing();assertCurrent();if(!approved){this.starting=false;return this.status();}
+      // YouTube can change its bound stream or auto-start behavior while the
+      // operator reviews confirmation. Revalidate the exact saved selection.
+      for(let index=0;index<profiles.length;index++){
+        const reviewed=profiles[index];if(reviewed.platform!=='youtube'||!reviewed.accountRef)continue;
+        const refreshed=await this.destinations.getPrivateDestination(ids[index]);assertCurrent();
+        if(refreshed.platform!=='youtube'||refreshed.accountRef!==reviewed.accountRef||refreshed.id!==reviewed.id||!reviewed.youtubeSelection||!refreshed.youtubeSelection||['broadcastId','streamId','settingsFingerprint','autoStart','autoStop','privacyStatus'].some(key=>refreshed.youtubeSelection[key]!==reviewed.youtubeSelection[key]))throw Error('broadcast_selection_changed');
+        profiles[index]=refreshed;
+      }
       await this.check();assertCurrent();if(!this.preflight?.ready||this.preflight.generation!==generation)throw Error('output_generation_changed');
       await this.assertPublishing();assertCurrent();
       this.targets=[];this.encoder=null;this.encoderGroup=null;this.selected=ids[0];this.phase='starting';this.failure=null;this.lastStats=safeStats();this.unreadySince=null;this.notify();await this.reserve(true);assertCurrent();await this.assertPublishing();assertCurrent();
@@ -158,11 +166,11 @@ class NativeBroadcast{
         };
         const encoder=this.encoderGroup?this.encoderGroup.createTarget(target.destinationId,observe):this.createEncoder(observe);
         target.encoder=encoder;if(!this.encoder)this.encoder=encoder;
-        if(!this.encoderGroup)await encoder.start({destination:profiles[index],...FORMATS[settings.format],fps:settings.fps,bitrate:settings.videoBitrateKbps*1000,codec:settings.codec,keyframeSeconds:settings.keyframeSeconds,audioBitrateKbps:settings.audioBitrateKbps,twitchVod:target.vod});assertCurrent();
+        if(!this.encoderGroup)await encoder.start({destination:this.encoderDestination(profiles[index]),...FORMATS[settings.format],fps:settings.fps,bitrate:settings.videoBitrateKbps*1000,codec:settings.codec,keyframeSeconds:settings.keyframeSeconds,audioBitrateKbps:settings.audioBitrateKbps,twitchVod:target.vod});assertCurrent();
       }
       if(this.encoderGroup){
         await this.encoderGroup.start({...FORMATS[settings.format],fps:settings.fps,bitrate:settings.videoBitrateKbps*1000,codec:settings.codec,keyframeSeconds:settings.keyframeSeconds,audioBitrateKbps:settings.audioBitrateKbps,
-          twitchVod:this.targets.some(t=>t.vod),targets:this.targets.map((t,i)=>({id:t.destinationId,destination:profiles[i],twitchVod:t.vod}))});assertCurrent();
+          twitchVod:this.targets.some(t=>t.vod),targets:this.targets.map((t,i)=>({id:t.destinationId,destination:this.encoderDestination(profiles[i]),twitchVod:t.vod}))});assertCurrent();
       }
       await this.check();assertCurrent();if(!this.preflight?.ready||this.preflight.generation!==generation)throw Error('output_generation_changed');
       const send=(method,buffer,pts,vod)=>{
@@ -193,6 +201,7 @@ class NativeBroadcast{
     let allowed;try{allowed=await this.canPublish();}catch(_){throw Error('rehearsal_status_unavailable');}
     if(allowed!==true||this.rehearsing)throw Error('rehearsal_active');
   }
+  encoderDestination(value){return Object.fromEntries(['id','serverUrl','streamKey','platform','name','networkVerified','allowInsecureRtmp'].filter(key=>Object.hasOwn(value,key)).map(key=>[key,value[key]]));}
   async stopTarget(destinationId,reason=null){
     if(typeof destinationId!=='string')throw Error('invalid_broadcast_request');
     if(this.starting)throw Error('broadcast_busy');

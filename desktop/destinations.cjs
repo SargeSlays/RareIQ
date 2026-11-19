@@ -19,13 +19,23 @@ const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const REQUEST = /^[A-Za-z0-9_-]{1,80}$/;
 const PLATFORM = new Set(PRESETS.map(item => item.id));
 const FIELDS = new Set(['id', 'requestId', 'name', 'platform', 'serverUrl', 'streamKey', 'clearKey', 'allowInsecureRtmp']);
+const YOUTUBE_ID = /^[A-Za-z0-9_-]{1,128}$/;
 const MAX_PROFILES = 20, MAX_RECEIPTS = 256, MAX_FILE_BYTES = 1024 * 1024;
+const YOUTUBE_RESOLUTION_ERRORS = new Set(['youtube_broadcast_unavailable','youtube_broadcast_not_owned','youtube_stream_unavailable','youtube_stream_not_owned','youtube_stream_shared','broadcast_selection_changed','provider_rate_limited','authorization_refresh_required']);
 
 class DestinationError extends Error {
   constructor(code) { super(code); this.name = 'DestinationError'; this.code = code; }
 }
 const fail = code => { throw new DestinationError(code); };
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+function normalizeYouTubeSelection(value) {
+  if (!plain(value) || Object.keys(value).sort().join(',') !== 'autoStart,autoStop,broadcastId,privacyStatus,settingsFingerprint,streamId'
+      || typeof value.broadcastId !== 'string' || !YOUTUBE_ID.test(value.broadcastId)
+      || typeof value.streamId !== 'string' || !YOUTUBE_ID.test(value.streamId)
+      || typeof value.settingsFingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(value.settingsFingerprint)
+      || typeof value.autoStart !== 'boolean' || typeof value.autoStop !== 'boolean' || !['public','unlisted','private'].includes(value.privacyStatus)) fail('invalid_linked_account');
+  return { broadcastId: value.broadcastId, streamId: value.streamId, settingsFingerprint: value.settingsFingerprint, autoStart: value.autoStart, autoStop: value.autoStop, privacyStatus: value.privacyStatus };
+}
 
 function validateServerUrl(value, { platform = 'custom', allowInsecureRtmp = false } = {}) {
   if (!PLATFORM.has(platform) || typeof allowInsecureRtmp !== 'boolean') fail('invalid_destination_platform');
@@ -54,9 +64,11 @@ function validateServerUrl(value, { platform = 'custom', allowInsecureRtmp = fal
 }
 
 function normalizeInput(payload, account = false) {
-  if (!plain(payload) || Object.keys(payload).some(key => !FIELDS.has(key) && !(account && key === 'accountRef'))) fail('invalid_destination_fields');
-  if (account && (!['twitch','kick'].includes(payload.platform) || typeof payload.accountRef !== 'string' || !/^[a-f0-9]{64}$/.test(payload.accountRef) || payload.streamKey || payload.clearKey || payload.allowInsecureRtmp || payload.serverUrl
-      || payload.platform === 'kick' && Object.keys(payload).some(key => !['id','requestId','name','platform','accountRef'].includes(key)))) fail('invalid_linked_account');
+  if (!plain(payload) || Object.keys(payload).some(key => !FIELDS.has(key) && !(account && ['accountRef','youtubeSelection'].includes(key)))) fail('invalid_destination_fields');
+  if (account && (!['twitch','kick','youtube'].includes(payload.platform) || typeof payload.accountRef !== 'string' || !/^[a-f0-9]{64}$/.test(payload.accountRef) || payload.streamKey || payload.clearKey || payload.allowInsecureRtmp || payload.serverUrl
+      || ['kick','youtube'].includes(payload.platform) && Object.keys(payload).some(key => !['id','requestId','name','platform','accountRef',...(payload.platform === 'youtube' ? ['youtubeSelection'] : [])].includes(key))
+      || payload.platform !== 'youtube' && payload.youtubeSelection !== undefined)) fail('invalid_linked_account');
+  const youtubeSelection = account && payload.platform === 'youtube' ? normalizeYouTubeSelection(payload.youtubeSelection) : undefined;
   if (payload.id !== undefined && (typeof payload.id !== 'string' || !UUID.test(payload.id))) fail('invalid_destination_id');
   if (typeof payload.requestId !== 'string' || !REQUEST.test(payload.requestId)) fail('destination_request_id_required');
   if (typeof payload.name !== 'string' || !payload.name.trim() || payload.name.trim().length > 80 || /[\x00-\x1f\x7f]/.test(payload.name)) fail('invalid_destination_name');
@@ -68,7 +80,7 @@ function normalizeInput(payload, account = false) {
   if (payload.allowInsecureRtmp && payload.platform !== 'custom') fail('secure_destination_required');
   return { id: payload.id || null, requestId: payload.requestId, name: payload.name.trim(), platform: payload.platform,
     serverUrl: payload.serverUrl || null, streamKey: payload.streamKey || null, clearKey: payload.clearKey === true,
-    allowInsecureRtmp: payload.allowInsecureRtmp === true, ...(account ? { accountRef: payload.accountRef } : {}) };
+    allowInsecureRtmp: payload.allowInsecureRtmp === true, ...(account ? { accountRef: payload.accountRef } : {}), ...(youtubeSelection ? { youtubeSelection } : {}) };
 }
 
 class DestinationStore {
@@ -134,9 +146,10 @@ class DestinationStore {
       decoded = JSON.parse(result.result);
       if (!plain(decoded) || decoded.id !== profile.id || decoded.platform !== profile.platform
           || typeof decoded.allowInsecureRtmp !== 'boolean' || decoded.allowInsecureRtmp !== profile.allowInsecureRtmp) fail('destination_credentials_unavailable');
-      if (decoded.platform === 'kick' && decoded.accountRef !== undefined) {
+      if (['kick','youtube'].includes(decoded.platform) && decoded.accountRef !== undefined) {
         if (typeof decoded.accountRef !== 'string' || !/^[a-f0-9]{64}$/.test(decoded.accountRef) || decoded.allowInsecureRtmp
-            || Object.keys(decoded).some(key => !['id','platform','accountRef','allowInsecureRtmp'].includes(key))) fail('destination_credentials_unavailable');
+            || Object.keys(decoded).some(key => !['id','platform','accountRef','allowInsecureRtmp',...(decoded.platform === 'youtube' ? ['youtubeSelection'] : [])].includes(key))) fail('destination_credentials_unavailable');
+        if (decoded.platform === 'youtube') decoded.youtubeSelection = normalizeYouTubeSelection(decoded.youtubeSelection);
         return decoded;
       }
       if (typeof decoded.streamKey !== 'string' || decoded.streamKey.length > 4096 || /[\s\x00-\x1f\x7f]/.test(decoded.streamKey)) fail('destination_credentials_unavailable');
@@ -146,16 +159,17 @@ class DestinationStore {
     } catch (_) { fail('destination_credentials_unavailable'); }
   }
   async #publicProfile(profile, available) {
-    let keyConfigured = false, serverConfigured = false, locked = !available, linkedAccount = false;
+    let keyConfigured = false, serverConfigured = false, locked = !available, linkedAccount = false, youtubeSelection;
     if (available) {
-      try { const secret = await this.#decode(profile); linkedAccount = Boolean(secret.accountRef); keyConfigured = Boolean(secret.streamKey) || linkedAccount; serverConfigured = Boolean(secret.serverUrl); }
+      try { const secret = await this.#decode(profile); linkedAccount = Boolean(secret.accountRef); keyConfigured = Boolean(secret.streamKey) || linkedAccount; serverConfigured = Boolean(secret.serverUrl); youtubeSelection = secret.youtubeSelection; }
       catch (_) { locked = true; }
     }
     return { id: profile.id, name: profile.name, platform: profile.platform, updatedAt: profile.updatedAt,
       insecureTransport: profile.allowInsecureRtmp, keyConfigured, serverConfigured,
       // A Kick account link stores no endpoint. It resolves privately only at Start.
-      configured: !locked && keyConfigured && (serverConfigured || linkedAccount && profile.platform === 'kick'), status: locked ? 'locked' : keyConfigured ? 'configured' : 'needs_key',
-      connected: false, verified: false, platformLive: false, networkVerified: false, ...(linkedAccount ? { linkedAccount: true } : {}) };
+      configured: !locked && keyConfigured && (serverConfigured || linkedAccount && ['kick','youtube'].includes(profile.platform)), status: locked ? 'locked' : keyConfigured ? 'configured' : 'needs_key',
+      connected: false, verified: false, platformLive: false, networkVerified: false, ...(linkedAccount ? { linkedAccount: true } : {}),
+      ...(youtubeSelection ? { youtubeBroadcastId: youtubeSelection.broadcastId, youtubeAutoStart: youtubeSelection.autoStart, youtubeAutoStop: youtubeSelection.autoStop, youtubePrivacyStatus: youtubeSelection.privacyStatus } : {}) };
   }
   public() {
     return this.#serial(async () => {
@@ -196,7 +210,11 @@ class DestinationStore {
     return this.#serial(async () => {
       await this.#load();
       if (!await this.#available()) fail('secure_storage_unavailable');
-      const fingerprint = createHash('sha256').update(JSON.stringify(input)).digest('hex');
+      // A YouTube title can change without changing the reviewed binding. A
+      // lost successful reply must replay the original save after that rename.
+      // Preserve legacy manual/Twitch/Kick receipt fingerprints unchanged.
+      const { name: ignoredDisplayName, ...bindingInput } = input;
+      const fingerprint = createHash('sha256').update(JSON.stringify(account && input.platform === 'youtube' ? bindingInput : input)).digest('hex');
       const receipt = this.#state.receipts.find(r => r.requestId === input.requestId);
       if (receipt) {
         if (receipt.fingerprint !== fingerprint) fail('destination_request_conflict');
@@ -207,21 +225,23 @@ class DestinationStore {
       let previous = input.id ? this.#state.profiles.find(p => p.id === input.id) : null;
       if (account && !input.id) {
         for (const candidate of this.#state.profiles) {
-          if (candidate.platform === input.platform && (await this.#decode(candidate)).accountRef === input.accountRef) { previous = candidate; break; }
+          if (candidate.platform !== input.platform) continue;
+          const candidateSecret = await this.#decode(candidate);
+          if (candidateSecret.accountRef === input.accountRef && (input.platform !== 'youtube' || candidateSecret.youtubeSelection?.broadcastId === input.youtubeSelection.broadcastId)) { previous = candidate; break; }
         }
       }
       if (input.id && !previous) fail('destination_not_found');
       if (!previous && this.#state.profiles.length >= MAX_PROFILES) fail('destination_library_full');
       const oldSecret = previous ? await this.#decode(previous) : null;
-      if (oldSecret?.accountRef && !account || account && oldSecret && (oldSecret.accountRef !== input.accountRef || oldSecret.platform !== input.platform)) fail('account_destination_managed');
-      const linkedKick = account && input.platform === 'kick';
+      if (oldSecret?.accountRef && !account || account && oldSecret && (oldSecret.accountRef !== input.accountRef || oldSecret.platform !== input.platform || input.platform === 'youtube' && oldSecret.youtubeSelection?.broadcastId !== input.youtubeSelection.broadcastId)) fail('account_destination_managed');
+      const linkedPrivate = account && ['kick','youtube'].includes(input.platform);
       const server = input.serverUrl || (previous?.platform === input.platform ? oldSecret.serverUrl : PRESETS.find(p => p.id === input.platform).serverUrl);
-      const serverUrl = linkedKick ? undefined : validateServerUrl(server, input);
+      const serverUrl = linkedPrivate ? undefined : validateServerUrl(server, input);
       if (oldSecret?.streamKey && (oldSecret.serverUrl !== serverUrl || previous.platform !== input.platform)
           && !input.streamKey && !input.clearKey) fail('destination_key_replacement_required');
       const streamKey = input.clearKey ? '' : input.streamKey || oldSecret?.streamKey || '';
       const id = previous?.id || randomUUID();
-      const secret = { id, platform: input.platform, ...(linkedKick ? {} : { serverUrl, streamKey }), allowInsecureRtmp: input.allowInsecureRtmp, ...(account ? { accountRef: input.accountRef } : {}) };
+      const secret = { id, platform: input.platform, ...(linkedPrivate ? {} : { serverUrl, streamKey }), allowInsecureRtmp: input.allowInsecureRtmp, ...(account ? { accountRef: input.accountRef } : {}), ...(input.youtubeSelection ? { youtubeSelection: input.youtubeSelection } : {}) };
       let encrypted;
       try {
         const bytes = await this.#cipher.encryptStringAsync(JSON.stringify(secret));
@@ -255,12 +275,18 @@ class DestinationStore {
       if (secret.accountRef) {
         if (typeof this.#accountResolver !== 'function') fail('account_authorization_required');
         let resolved;
-        try { resolved = await this.#accountResolver(secret.accountRef, { platform: secret.platform }); } catch (error) { fail(['streaming_not_available','secure_ingest_unavailable'].includes(error?.message) ? error.message : 'account_authorization_required'); }
+        try { resolved = await this.#accountResolver(secret.accountRef, { platform: secret.platform, ...(secret.youtubeSelection ? { youtubeSelection: { ...secret.youtubeSelection } } : {}) }); } catch (error) { fail(['streaming_not_available','secure_ingest_unavailable','account_state_changed'].includes(error?.message) || secret.platform === 'youtube' && YOUTUBE_RESOLUTION_ERRORS.has(error?.message) ? error.message : 'account_authorization_required'); }
         if (!plain(resolved) || resolved.accountRef !== secret.accountRef || typeof resolved.streamKey !== 'string' || !resolved.streamKey || resolved.streamKey.length > 4096 || /[\s\x00-\x1f\x7f]/.test(resolved.streamKey)) fail('account_authorization_required');
         if (secret.platform === 'kick') {
           if (resolved.platform !== 'kick' || Object.keys(resolved).some(key => !['platform','accountRef','serverUrl','streamKey'].includes(key))) fail('account_authorization_required');
           // Never upgrade an API-provided rtmp: endpoint by guessing rtmps: support.
           secret.serverUrl = validateServerUrl(resolved.serverUrl, { platform: 'kick' });
+        }
+        if (secret.platform === 'youtube') {
+          if (resolved.platform !== 'youtube' || Object.keys(resolved).some(key => !['platform','accountRef','broadcastId','streamId','settingsFingerprint','autoStart','autoStop','privacyStatus','serverUrl','streamKey'].includes(key))) fail('account_authorization_required');
+          const selection = normalizeYouTubeSelection({ broadcastId: resolved.broadcastId, streamId: resolved.streamId, settingsFingerprint: resolved.settingsFingerprint, autoStart: resolved.autoStart, autoStop: resolved.autoStop, privacyStatus: resolved.privacyStatus });
+          if (JSON.stringify(selection) !== JSON.stringify(secret.youtubeSelection)) fail('broadcast_selection_changed');
+          secret.serverUrl = validateServerUrl(resolved.serverUrl, { platform: 'youtube' });
         }
         secret.streamKey = resolved.streamKey;
       }
@@ -272,4 +298,4 @@ class DestinationStore {
   private(id) { return this.getPrivateDestination(id); }
 }
 
-module.exports = { DestinationStore, DestinationError, PRESETS, validateServerUrl };
+module.exports = { DestinationStore, DestinationError, PRESETS, validateServerUrl, normalizeYouTubeSelection };

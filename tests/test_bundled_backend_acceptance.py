@@ -21,7 +21,12 @@ def test_probe_dependencies_are_used_by_production_source_not_assumed_from_featu
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imported.add(node.module.split(".")[0])
     for name in qa.PROBE_MODULES:
-        if name.startswith(("tools.", "rareiq.")):
+        if name in {"encoder_worker", "shared_encoder_worker"}:
+            # Main launches these installed entrypoints; they are not Python
+            # imports in the backend application module graph.
+            assert (root / "desktop" / (name + ".py")).is_file()
+            assert '"' + name + '.py"' in (root / "tools/package_desktop_runtime.py").read_text(encoding="utf-8")
+        elif name.startswith(("tools.", "rareiq.")):
             assert (root / (name.replace(".", "/") + ".py")).is_file()
         else:
             assert name.split(".")[0] in imported, name + " is not a production dependency"

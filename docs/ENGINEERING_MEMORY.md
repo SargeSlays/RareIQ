@@ -1442,3 +1442,40 @@ It permits idle shutdown only when its output flags are explicitly false. Enable
 but disconnected, missing or contradictory OBS state still blocks. Preserve local
 client, mutation, native encoder, session and recording guards in every case.
 Actual ASGI regressions cover races, failed scheduling and both entry routes.
+
+## November 19, 2026 — Account-linked encoder boundaries and reviewed YouTube settings
+
+Private saved-account resolution adds account references and selection metadata.
+Passing that entire object into the strict encoder configuration rejects valid
+linked Twitch/Kick destinations. Project only the encoder's approved transport
+fields at its boundary; retain account/binding details for native confirmation
+and revalidation, never renderer status or the encoder wire contract.
+
+A YouTube account is not a stream selection. Pin the owned broadcast, dedicated
+owned stream, visibility and explicit auto-start/stop settings in one fingerprint.
+Read secure provider ingestion privately, recheck the vault after network waits,
+and resolve/compare again after native confirmation before reserving encoding.
+Never invent a secure scheme, silently create/bind a broadcast, or treat sending
+media as verified platform receipt. Mutable display titles must not invalidate an
+otherwise exact durable link receipt after a lost successful response.
+
+A failed re-review invalidates the prior review before awaiting its result.
+Definitive pre-save authorization, binding, visibility and ingest failures retire
+the review/request and permit a fresh list. Ambiguous persistence/transport replies
+retain the exact request and block choosing another broadcast until resolved.
+Keep account-replacement, close, duplicate-click, own-busy lock and draft guards
+covered across the pure controller and complete Settings page.
+
+When linking a YouTube destination, propagate its public broadcast ID through the
+local draft context. Lock the metadata picker to that broadcast, and validate it
+again in Main before confirmation and before Apply; a channel identity alone does
+not ensure the selected broadcast matches the intended streaming destination.
+
+Official schema checks require broadcastType=all during the owned inventory so
+persistent broadcasts cannot hide a shared stream. Use mine as the sole exclusive
+filter, reject created streams without valid CDN settings, and keep ID bounds
+consistent at 128 across backend, private/native and metadata contracts.
+Canonical staged whitespace caught duplicate carriage returns after a Windows
+text rewrite; normalize owned source bytes once and retain UTF-8 on both sides.
+Bundled smoke probes now import both encoder companions and all account helpers
+so omitted immutable search paths fail before an interactive acceptance run.

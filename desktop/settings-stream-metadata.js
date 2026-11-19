@@ -12,6 +12,7 @@
     const busy=()=>Boolean(loading)||mutating;
     const editable=()=>info?.authorized===true&&info?.editable===true&&Boolean(bounded(info.channel_id,128));
     const needsBroadcast=()=>destination?.platform==='youtube';
+    const boundBroadcast=()=>needsBroadcast()&&destination.linkedAccount===true?destination.youtubeBroadcastId:null;
     const hasCategory=()=>Boolean(info?.capabilities?.category_id||info?.capabilities?.category);
     const blocked=()=>closed||locked||busy()||!supported();
     function applyBlocker(){
@@ -22,6 +23,7 @@
       if(dirty||!Number.isSafeInteger(revision))return 'Save your local stream info draft before updating the channel.';
       if(!info)return 'Check the connected account before updating.';
       if(!editable())return 'Enable stream info editing and check the connection before updating.';
+      if(boundBroadcast()&&broadcast.value!==boundBroadcast())return 'This destination can only update its saved YouTube broadcast. Check the connection again.';
       if(needsBroadcast()&&!broadcast.value)return 'Choose the YouTube broadcast to update.';
       if(needsBroadcast()&&info.broadcast_id!==broadcast.value)return 'Check connection to confirm the selected YouTube broadcast before updating.';
       return '';
@@ -31,10 +33,11 @@
       const disabled=blocked(),why=applyBlocker(),name=PLATFORMS[destination?.platform],channel=bounded(info?.public_label)||bounded(info?.channel_id,128);
       account.textContent=channel?`${name} · ${channel}`:supported()?`${name}: connected channel not confirmed.`:'Choose a Twitch, YouTube or Kick destination for direct updates.';
       node('BroadcastRow').hidden=!needsBroadcast();node('CategoryRow').hidden=!hasCategory();
+      node('BroadcastHint').textContent=boundBroadcast()?'This destination uses the YouTube broadcast reviewed when it was saved. Choose another destination to update a different broadcast.':'Choose an existing broadcast explicitly. This does not create a broadcast or start streaming.';
       check.disabled=disabled;check.title=locked?'Finish the current action before checking.':!supported()?'Choose a supported destination.':'';
       permission.hidden=!supported()||editable();permission.disabled=disabled;permission.title=locked?'Finish the current action before requesting permission.':'Review the platform’s additional editing permission. Existing read-only access remains useful.';
       const hasBroadcasts=broadcast.children.length>1;
-      broadcast.disabled=disabled||!hasBroadcasts;broadcast.title=!hasBroadcasts?'No available existing broadcasts were returned. Check the connection again.':'';
+      broadcast.disabled=disabled||Boolean(boundBroadcast())||!hasBroadcasts;broadcast.title=boundBroadcast()?'This destination uses the broadcast reviewed when it was saved.':!hasBroadcasts?'No available existing broadcasts were returned. Check the connection again.':'';
       query.disabled=disabled||!editable();search.disabled=disabled||!editable();category.disabled=disabled||!editable();
       for(const control of [query,search,category])control.title=disabled?'Finish the current action before selecting a category.':!editable()?'Enable stream info editing first.':'';
       apply.disabled=Boolean(why);apply.title=why;apply.textContent=loading==='apply'?'Applying…':pending&&outcome==='unconfirmed'?'Retry same update':name?`Apply to ${name}`:'Apply stream info';
@@ -45,9 +48,9 @@
       status.textContent=contextBlock?`${outcome==='unconfirmed'?'The previous update remains unconfirmed. ':''}${why}`:message||(why||'Ready to update the connected channel from your saved draft.');
       root.dataset.busy=String(busy());const value={busy:mutating,state:outcome||loading||'ready'},signature=JSON.stringify(value);if(signature!==lastNotification){lastNotification=signature;onChange(value);}
     }
-    function option(select,value,label){const item=root.ownerDocument.createElement('option');item.value=value;item.textContent=bounded(label,200);select.append(item);}
+    function option(select,value,label){const existing=[...select.children].find(item=>item.value===value);if(existing){existing.textContent=bounded(label,200);return;}const item=root.ownerDocument.createElement('option');item.value=value;item.textContent=bounded(label,200);select.append(item);}
     function resetCategories(){category.replaceChildren();option(category,'','Leave current category unchanged');category.value='';query.value='';}
-    function resetBroadcasts(){broadcast.replaceChildren();option(broadcast,'','Choose a broadcast…');broadcast.value='';}
+    function resetBroadcasts(){broadcast.replaceChildren();if(boundBroadcast()){option(broadcast,boundBroadcast(),'Saved YouTube broadcast');broadcast.value=boundBroadcast();}else{option(broadcast,'','Choose a broadcast…');broadcast.value='';}}
     function payload(action,extra={}){return {action,platform:destination.platform,...extra};}
     function inspectionMessage(result){
       if(['provider_unavailable','provider_rate_limited','invalid_provider_response'].includes(result?.reason))return 'The saved account could not be verified with the platform. Your saved sign-in is kept. Retry Check connection.';
@@ -66,6 +69,7 @@
         stream_info_scope_required:'Editing permission is required. Enable stream info editing, review the platform permission request, then check connection.',
         metadata_scope_required:'Editing permission is required. Enable stream info editing, review the platform permission request, then check connection.',
         broadcast_selection_required:'Choose an existing YouTube broadcast before updating.',
+        broadcast_selection_changed:'This destination’s saved YouTube broadcast changed. Reload the destination and check the connection before updating.',
         account_identity_mismatch:'The connected channel changed. Check connection and confirm the intended account before updating.',
         category_not_found:'The selected category is no longer available. Find and select an official category again.',
         category_query_too_short:'Enter at least '+(destination?.platform==='kick'?'three':'two')+' characters to find a category.',
@@ -96,7 +100,7 @@
         info=result;const chosen=broadcast.value;
         if(Array.isArray(result.broadcasts)){
           resetBroadcasts();
-          for(const item of result.broadcasts.slice(0,100))if(bounded(item?.id,128))option(broadcast,bounded(item.id,128),`${bounded(item.title,160)||'Untitled broadcast'}${item.state?' · '+bounded(item.state,30):''}`);
+          for(const item of result.broadcasts.slice(0,100))if(bounded(item?.id,128)&&(!boundBroadcast()||item.id===boundBroadcast()))option(broadcast,bounded(item.id,128),`${bounded(item.title,160)||'Untitled broadcast'}${item.state?' · '+bounded(item.state,30):''}`);
           broadcast.value=[...broadcast.children].some(item=>item.value===chosen)?chosen:'';
         }else if(needsBroadcast()){
           if(result.authorized!==true||result.editable!==true)resetBroadcasts();
@@ -143,8 +147,8 @@
     function setContext(value={}){
       if(closed)return;
       const next=Object.hasOwn(value,'destination')?value.destination:destination,nextRevision=Object.hasOwn(value,'revision')?value.revision:revision;
-      const targetChanged=next?.id!==destination?.id||next?.platform!==destination?.platform,revisionChanged=nextRevision!==revision;
-      destination=next&&typeof next.id==='string'?{id:next.id,name:bounded(next.name),platform:next.platform}:null;revision=nextRevision;
+      const targetChanged=next?.id!==destination?.id||next?.platform!==destination?.platform||next?.youtubeBroadcastId!==destination?.youtubeBroadcastId,revisionChanged=nextRevision!==revision;
+      destination=next&&typeof next.id==='string'?{id:next.id,name:bounded(next.name),platform:next.platform,...(next.platform==='youtube'&&next.linkedAccount===true&&typeof next.youtubeBroadcastId==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(next.youtubeBroadcastId)?{linkedAccount:true,youtubeBroadcastId:next.youtubeBroadcastId}:{})}:null;revision=nextRevision;
       if(typeof value.locked==='boolean')locked=value.locked;if(typeof value.publishingBlocked==='boolean')publishingBlocked=value.publishingBlocked;if(typeof value.dirty==='boolean')dirty=value.dirty;
       if(targetChanged){++generation;loading='';info=null;pending=null;outcome='';message='';resetBroadcasts();resetCategories();}
       else if(revisionChanged){pending=null;outcome='';message='';}

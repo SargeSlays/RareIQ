@@ -15,7 +15,7 @@
       if(value.expires_at<=now){value.state=value.authorized?'authorized':'not_authorized';value.reason='authorization_expired';delete value.flow_id;}
     }
     if(raw.state==='authorized'&&(!value.authorized||!value.expires_at||value.expires_at<=now)){value.state='not_authorized';value.authorized=false;value.reason='authorization_refresh_required';}
-    if(platform==='kick'){value.streaming_authorized=value.state==='authorized'&&value.authorized&&raw.streaming_authorized===true;if(typeof raw.account_ref==='string'&&/^[a-f0-9]{64}$/.test(raw.account_ref))value.account_ref=raw.account_ref;}
+    if(['kick','youtube'].includes(platform)){value.streaming_authorized=value.state==='authorized'&&value.authorized&&raw.streaming_authorized===true;if(typeof raw.account_ref==='string'&&/^[a-f0-9]{64}$/.test(raw.account_ref))value.account_ref=raw.account_ref;}
     return value;
   }
   const SETUP_ERRORS={disconnect_before_app_setup:'Disconnect or cancel sign-in before changing app setup.',external_app_configuration_active:'App setup is managed outside this dialog. Keep that setup or review it before importing a file.',activity_history_unavailable:'App setup was not changed because activity history is unavailable. Retry after history is available.',account_storage_unavailable:'Protected account storage is unavailable. Your saved setup is kept.',app_setup_unavailable:'App setup could not be loaded. Check connection, then retry.',invalid_app_configuration:'This file is not a valid provider app setup file. Check connection, then choose the correct file.',invalid_app_provider:'Choose YouTube or Kick app setup from its own card.',app_setup_pending:'An app setup action is already running. Finish it before retrying.',local_operator_required:'Load the setup file from the desktop studio.'};
@@ -70,12 +70,13 @@
     }
     return {run,snapshot,setLocked(value){if(state.locked!==(value===true)){state.locked=value===true;emit();}},start(){closed=false;return run('status');},close(){closed=true;++epoch;stopTimer();}};
   }
-  function mount({document:doc=host.document,api=host.producerSettings,onBusyChange=()=>{},onDestinationsChanged=async()=>{}}={}){
+  function mount({document:doc=host.document,api=host.producerSettings,onBusyChange=()=>{},onDestinationsChanged=async()=>{},onAccountChange=()=>{}}={}){
     if(typeof api?.providerAccount!=='function')return [];
     return Object.keys(NAMES).map(platform=>{
       const root=doc.querySelector('#'+platform+'Account');if(!root)return null;
       const node=suffix=>doc.querySelector('#'+platform+suffix),buttons=Object.fromEntries(['begin','authorize','check','cancel','disconnect'].map(action=>[action,node(action[0].toUpperCase()+action.slice(1))]));buttons.setup=node('LoadSetup');if(platform==='kick'&&node('Link'))buttons.link=node('Link');let lastBusy=false,restoreSetupFocus=false;
       const controller=createController({platform,request:value=>api.providerAccount(value),onDestinationsChanged,importApp:typeof api.importProviderApp==='function'?value=>api.importProviderApp(value):null,confirmDisconnect:()=>host.confirm('Disconnect '+NAMES[platform]+' on this computer? This removes the saved sign-in. Manual streaming destinations remain separate. Provider-side app access can also be revoked on the provider website.'),onChange(state){
+        onAccountChange(platform,state);
         const a=state.account,pending=a?.state==='pending',working=Boolean(state.busy),opened=pending&&a.flow_id===state.openedFlow;root.setAttribute('aria-busy',String(working));node('Identity').textContent=a?.authorized&&a.public_label?a.public_label:'Connect your channel';node('Badge').textContent=state.stale?'Needs a check':!a?.app_configured?'Setup required':pending?'Awaiting '+NAMES[platform]:a.authorized?'Account saved':'Not connected';
         node('Status').textContent=state.message+(state.stopWarning?' Saved sign-in removed, but chat shutdown could not be confirmed. Reopen the studio before reconnecting.':'')+(state.historyWarning?' Local activity history could not be written.':'');
         if(doc.activeElement===buttons.setup&&a?.app_configured)restoreSetupFocus=true;

@@ -1936,3 +1936,17 @@ refuse active or unknown production and atomically seal new clients/mutations.
 Explicit OBS-disabled state permits standalone idle shutdown only with false
 streaming/recording flags. Configured disconnected OBS remains a blocker; no
 primary settings were changed or shutdown forced during this checkpoint.
+
+## November 19, 2026 — Saved YouTube selection implementation
+
+- [x] Read-only owned/bound selection, visibility/settings fingerprint and guarded
+  public schemas; private helper has no refresh, write or broadcast authority.
+- [x] Focused synthetic ownership, pagination, secure ingest, vault race, public
+  redaction, native persistence/resolution and UI controller checks.
+- [ ] Canonical gate, final packaged Main/Windows storage and rebuilt actual local
+  discard-encoding acceptance for this combined candidate.
+- [ ] Real Google Desktop registration/consent, saved account and actual platform
+  receipt. Nothing in this checkpoint starts a public stream or recording.
+
+Evidence: F:/Temp/jonat/ProducerPlease-youtube-destination-20261119. Earlier failed
+bundled bootstrap evidence remains under ProducerPlease-primary-bundle-20261119.

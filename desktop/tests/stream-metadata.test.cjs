@@ -36,3 +36,17 @@ test('public projection drops credential-shaped fields and rejects oversized col
 test('navigation during a confirmation cancels the write and metadata parsing is bounded',async()=>{
   const f=fixture();f.options.confirm=async()=>{f.event.senderFrame={url:'file:///elsewhere'};return true;};assert.equal((await f.handler(f.event,apply())).reason,'local_operator_required');assert.equal(f.calls.some(c=>c.url?.endsWith('/apply')),false);
 });
+test('linked YouTube metadata applies only to its saved broadcast and rechecks after confirmation',async()=>{
+ const f=fixture(),target={id:destinationId,platform:'youtube',name:'Saved YouTube broadcast',linkedAccount:true,youtubeBroadcastId:'bound-broadcast'};
+ f.options.destinations.public=async()=>({destinations:[{...target}]});f.info.platform='youtube';
+ f.options.fetchImpl=async(url,options)=>{const body=JSON.parse(options.body);f.calls.push({url,body});const response=new Response(JSON.stringify(url.endsWith('/apply')?{ok:true,platform:'youtube',state:'applied'}:f.info),{headers:{'Content-Type':'application/json'}});Object.defineProperty(response,'url',{value:url});return response;};
+ const value={...apply(),platform:'youtube',broadcastId:'another-broadcast'};
+ assert.equal((await f.handler(f.event,value)).reason,'broadcast_selection_changed');assert.equal(f.confirms.length,0);assert.equal(f.calls.some(c=>c.url),false);
+ value.broadcastId='bound-broadcast';assert.equal((await f.handler(f.event,value)).state,'applied');assert.equal(f.calls.filter(c=>c.url?.endsWith('/apply')).length,1);
+ f.calls.length=0;f.options.confirm=async()=>{target.youtubeBroadcastId='replacement-broadcast';return true;};assert.equal((await f.handler(f.event,value)).reason,'broadcast_selection_changed');assert.equal(f.calls.some(c=>c.url?.endsWith('/apply')),false);
+});
+test('metadata shares the 128-character ID contract and rejects larger IDs before requests',async()=>{
+ const f=fixture(),id='a'.repeat(128);f.info.platform='youtube';f.info.broadcast_id=id;assert.equal(publicResult(f.info).broadcast_id,id);
+ assert.equal((await f.handler(f.event,{action:'inspect',platform:'youtube',broadcastId:id})).ok,true);assert.equal(f.calls.length,1);
+ const before=f.calls.length;assert.equal((await f.handler(f.event,{action:'inspect',platform:'youtube',broadcastId:'a'.repeat(129)})).reason,'invalid_stream_info');assert.equal(f.calls.length,before);
+});

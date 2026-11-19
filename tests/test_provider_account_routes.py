@@ -6,6 +6,21 @@ from rareiq.web.platform_accounts import create_platform_accounts_router
 from rareiq.services.greenroom_service import GreenroomService
 
 
+def test_youtube_destination_account_metadata_is_bounded_and_never_contains_private_setup():
+    from rareiq.web.platform_accounts import _youtube_status
+    raw = dict(platform='youtube', state='authorized', reason='account_authorized',
+               authorized=True, app_configured=True, streaming_authorized=True,
+               account_ref='a' * 64, access_token='private-token', streamKey='private-key',
+               client_secret='private-client')
+    public = _youtube_status(raw)
+    assert public['streaming_authorized'] is True and public['account_ref'] == 'a' * 64
+    assert not any('private' in str(value) for value in public.values())
+    assert 'account_ref' not in _youtube_status({**raw, 'account_ref': 'invalid'})
+    for state in ('not_authorized', 'unavailable'):
+        public = _youtube_status({**raw, 'state': state, 'authorized': False})
+        assert public['streaming_authorized'] is False and 'account_ref' not in public
+
+
 class Account:
     def __init__(self, platform):
         self.platform = platform

@@ -1173,3 +1173,21 @@ and exact catalog image references. Active sessions, process receipts, transient
 scan continuity and unrelated data trees are excluded. Copying neither activates
 paid RareIQ enforcement nor initiates production. Actual standalone adoption and
 private working-source preservation are separate acceptance below.
+
+## November 19, 2026 — Explicit saved YouTube broadcast destinations
+
+Broadcast setup can now list, review and save an existing owned YouTube broadcast
+with its own bound stream. The review shows visibility and automatic start/stop
+settings. A protected destination stores the account/broadcast/stream binding and
+review fingerprint, never an ingest key or address. Start refreshes the account
+through its existing owner, reads credentials over a private pipe and rechecks the
+binding, visibility and automatic settings after confirmation, before encoding.
+
+Selection uses read-only provider operations. It does not create, bind, transition
+or edit a broadcast or grant access. Unbound, shared, foreign, completed or unknown
+selections fail closed; discovery is bounded to 100 API rows. Google consent and
+Desktop registration are still pending, so acceptance is synthetic/local, not a
+claim of real YouTube sign-in or receipt. Manual destinations remain available.
+
+For linked YouTube destinations, Stream info is bound to that same saved broadcast.
+Its selector is fixed, and Main rejects mismatches before confirmation or a write.
