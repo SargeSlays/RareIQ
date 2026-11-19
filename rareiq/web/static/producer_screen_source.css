@@ -1,0 +1,10 @@
+.producer-screen-source{min-width:0;display:grid;gap:10px;padding-block:12px;border-block:1px solid var(--pp-border)}
+.producer-screen-heading,.producer-screen-heading>div{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.producer-screen-heading{justify-content:space-between}
+.producer-screen-source .riq-button{min-height:44px;white-space:normal;overflow-wrap:anywhere}
+.producer-screen-feedback,.producer-screen-scope{margin:0;line-height:1.5;overflow-wrap:anywhere}
+.producer-screen-scope{color:var(--pp-text-muted)}
+.producer-screen-source [data-screen-preview]{justify-self:start;max-width:100%}
+/* The shared dock rule uses !important for compact controls; this owner keeps capture targets usable. */
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .producer-screen-source .riq-button{min-height:44px!important}
+@media(max-width:620px){.producer-screen-heading>div{width:100%}.producer-screen-heading>div>.riq-button{flex:1 1 160px}}

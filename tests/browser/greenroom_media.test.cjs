@@ -58,6 +58,34 @@ function guestState(sources=['camera','screen','audio'],returnAudio=false,state=
 async function connect(f,engine,role){const ready=engine.connect();const ws=f.sockets.at(-1);ws.open();ws.message({type:'hello',peer_id:'self',role,ice_servers:[]});await ready;return ws;}
 function offer(ws,from='publisher',id='guest-one'){ws.message({type:'signal',from,participant_id:id,role:'guest',kind:'offer',data:{type:'offer',sdp:'v=0\nm=audio 9 UDP/TLS/RTP/SAVPF 111\n'}});}
 
+test('local producer screen publishes one video transceiver without guest authentication or audio',async()=>{
+  const f=fixture(),publisher=f.api.createProducerScreenPublisher(),screen=new f.Track('video');
+  assert.throws(()=>publisher.setTracks({microphone:new f.Track('audio')}),/producer_screen_video_only/);
+  publisher.setTracks({screen});assert.equal(f.sockets.length,0);
+  const ws=await connect(f,publisher,'producer-screen');assert.match(ws.url,/producer-screen-socket$/);
+  assert.equal(ws.sent.some(message=>message.type==='authenticate'),false);
+  assert.deepEqual(ws.sent.find(message=>message.type==='media').media,{screen:true});
+  ws.message({type:'state',source_id:'producer:screen:'+'a'.repeat(32),subscriptions:[{peer_id:'output',role:'output',sources:['screen'],return_audio:false}]});await settle();
+  const pc=f.connections[0];assert.deepEqual(Array.from(pc.transceivers,t=>t.direction),['inactive','inactive','sendonly','inactive']);
+  assert.deepEqual(Array.from(pc.transceivers,t=>t.sender.track),[null,null,screen,null]);
+  for(const index of [0,1,2,3])assert.equal(pc.emitTrack(index).readyState,'ended');
+  ws.dropped();await f.tick(10000);assert.equal(f.sockets.length,1);assert.equal(screen.stops,0);publisher.close();
+});
+
+test('producer screen receiver requires explicit subscription and refuses all audio and camera tracks',async()=>{
+  const f=fixture(),receiver=f.api.createReceiver({role:'output'}),ws=await connect(f,receiver,'output'),source='producer:screen:'+'a'.repeat(32);
+  const message={type:'signal',from:'screen-publisher',source_id:source,role:'producer-screen',kind:'offer',data:{type:'offer',sdp:'v=0\nm=video 9 UDP/TLS/RTP/SAVPF 96\n'}};
+  const snapshot={...receiverState([],[]),room:{participants:[],producer_sources:[{id:source,available:true}],switcher:{generation:3}}};
+  ws.message(snapshot);ws.message(message);await settle();assert.equal(f.connections.length,0);
+  ws.message({...snapshot,subscriptions:[source]});await settle();
+  const pc=f.connections[0];assert.deepEqual(Array.from(pc.transceivers,t=>t.direction),['inactive','inactive','recvonly','inactive']);
+  for(const index of [0,1,3])assert.equal(pc.emitTrack(index).readyState,'ended');
+  const screen=pc.emitTrack(2);assert.equal(receiver.tracks(source).screen,screen);assert.equal(receiver.tracks(source).microphone,null);
+  receiver.sendReady([source],{generation:3,audioBlocked:false,rendered:true});assert.deepEqual(ws.sent.at(-1).sources,[source]);
+  ws.message({...snapshot,subscriptions:[source],room:{...snapshot.room,producer_sources:[]}});assert.ok(pc.closed);assert.equal(receiver.tracks(source).screen,null);
+  receiver.close();
+});
+
 test('output playback health is typed and bound to the current signaling generation',async()=>{
   const f=fixture(),receiver=f.api.createReceiver({role:'output'}),ws=await connect(f,receiver,'output');
   ws.message(receiverState());

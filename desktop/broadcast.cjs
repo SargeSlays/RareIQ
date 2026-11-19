@@ -21,14 +21,16 @@ const PUBLIC_FAILURE_CODES=Object.freeze([...PUBLIC_ENCODER_FAILURE_CODES,
   'output_review_open','output_receiver_changed','output_receiver_unavailable','output_capture_size_mismatch','output_navigated','output_renderer_unavailable','output_closed','output_frame_failed',
   'output_audio_stalled','output_video_sink_failed','output_audio_unavailable','output_audio_protocol_invalid','output_audio_sink_failed',
   'output_not_identified','output_not_rendered','program_not_ready','program_changed','preflight_unavailable','composition_not_rendered',
-  'invalid_production_sources','camera_slot_unavailable','guest_source_unavailable','guest_output_not_ready','unavailable','unassigned','disconnected','stale',
+  'invalid_production_sources','camera_slot_unavailable','guest_source_unavailable','guest_output_not_ready','producer_screen_source_unavailable','producer_screen_output_not_ready','unavailable','unassigned','disconnected','stale',
   ...['image','video','text','browser'].flatMap(kind=>[kind+'_source_unavailable',kind+'_output_not_ready']),
 ]);
 const PUBLIC_FAILURES=new Set(PUBLIC_FAILURE_CODES);
 const safeReason=(value,fallback='encoder_failed')=>PUBLIC_FAILURES.has(value)?value:fallback;
 const safeStats=value=>({codec:['h264_nvenc','libx264'].includes(value?.codec)?value.codec:null,
   frames:Number.isSafeInteger(value?.frames??value?.videoFrames)&&(value.frames??value.videoFrames)>=0?(value.frames??value.videoFrames):0,
-  audioSamples:Number.isSafeInteger(value?.audioSamples)&&value.audioSamples>=0?value.audioSamples:0});
+  audioSamples:Number.isSafeInteger(value?.audioSamples)&&value.audioSamples>=0?value.audioSamples:0,
+  ...Object.fromEntries(['bytesMuxed','queuedBytes','packets','droppedVideoFrames','droppedAudioPackets','droppedVodAudioPackets']
+    .filter(key=>Number.isSafeInteger(value?.[key])&&value[key]>=0).map(key=>[key,value[key]]))});
 class NativeBroadcast{
   constructor({destinations,outputProfiles,createCapture,createEncoder,createEncoderGroup,request,identity,ownerPid,confirm=async()=>false,canPublish=async()=>true,onState=()=>{},onAudioAudit=()=>{},clock=()=>Date.now()}={}){
     Object.assign(this,{destinations,outputProfiles,createCapture,createEncoder,createEncoderGroup,request,identity,ownerPid,confirm,canPublish,onState,onAudioAudit,clock});

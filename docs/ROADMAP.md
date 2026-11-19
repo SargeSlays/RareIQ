@@ -1159,3 +1159,24 @@ complete Google consent/Desktop client and requested provider editing grants;
 confirm StackThis producer identity contract; conduct physical guest/screen/audio
 and approved real stream/VOD receipt tests. No live service result is inferred
 from local simulations or encrypted persistence checks.
+
+
+## November 19, 2026 — OBS/Streamlabs demo gap sequence
+
+1. Current slice: accept producer screen/window video through Preview/Take, full
+   composed Program MKV + Live AAC recording with independent stream/record stops,
+   safe shared capture/aggregate output ownership, and truthful encoder statistics.
+2. Next editor work: arbitrary layer transform/crop/order/lock/groups and Program
+   filter rack; preserve existing bounded smart layouts while adding the editor.
+3. Native capture/audio: dedicated game capture, application/computer audio,
+   multitrack recording/stems and full Program A/V replay; then virtual camera and
+   broader codec/format/hotkey/plugin support. Each requires independent acceptance.
+4. Provider/hardware work remains separate: main OBS-idle migration, Google setup,
+   provider editing permissions, StackThis producer identity, physical guest/audio
+   and explicitly approved private/real stream and Twitch VOD receipt tests.
+
+The 86-row comparison is the finite backlog, not an all-feature completion claim.
+
+Current native slice has local generated-media acceptance: recording, both Stop
+orders, producer screen Preview/Take/invalidation and Settings diagnostics. The
+remaining editor/capture/audio/platform items above remain open.

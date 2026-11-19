@@ -7,7 +7,7 @@ function fixture(){
   const settings={isDestroyed:()=>false,webContents:{mainFrame:settingsFrame}},event={sender:settings.webContents,senderFrame:settingsFrame};
   const broadcast={active:()=>false,status:()=>({ownershipPending:false}),start:async()=>{calls.push('start');}};
   const destinations={save:async value=>{calls.push(['save',value]);return {saved:true};},remove:async id=>{calls.push(['remove',id]);return {removed:true};}};
-  const context={settings,broadcast,rehearsal:null,destinations,destinationMutation:false,path,pathToFileURL,__dirname:desktop,publicBroadcast:()=>({ready:true}),ipcMain:{handle:(name,handler)=>handlers.set(name,handler)}};
+  const context={settings,broadcast,rehearsal:null,recording:null,recordingContext:null,recordingTransition:()=>false,destinations,destinationMutation:false,path,pathToFileURL,__dirname:desktop,publicBroadcast:()=>({ready:true}),ipcMain:{handle:(name,handler)=>handlers.set(name,handler)}};
   vm.createContext(context);
   vm.runInContext(source.slice(source.indexOf('function settingsEvent('),source.indexOf('app.whenReady()')),context);
   const streamInfo={save:async()=>({revision:1})};context.streamInfoActions=require('../stream-info.cjs').createStreamInfoActions({store:streamInfo,trustedSender:context.settingsEvent,mutate:context.changeDestination,append:()=>{}});
@@ -30,6 +30,10 @@ test('Start confirmation, sending, stopping and uncertain ownership block save a
     await assert.rejects(f.run('destinations:remove','other-profile'),/destination_broadcast_busy/);
   }
   assert.deepEqual(f.calls,[]);
+});
+
+test('recording blocks destination edits while an established recording permits broadcast Start',async()=>{
+ const f=fixture();f.context.recording={active:()=>true};await assert.rejects(f.run('destinations:save',{}),/destination_broadcast_busy/);await f.run('broadcast:start',{});assert.deepEqual(f.calls,['start']);f.context.recordingTransition=()=>true;await assert.rejects(f.run('broadcast:start',{}),/recording_busy/);
 });
 
 test('pending persistence blocks Start and repeated mutations until the save completes',async()=>{

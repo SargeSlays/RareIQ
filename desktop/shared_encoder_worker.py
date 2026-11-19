@@ -8,10 +8,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from fractions import Fraction
 from io import BytesIO, RawIOBase
+from pathlib import Path
 import json
 import os
 import queue
 import re
+import shutil
+import stat
 import sys
 import threading
 import time
@@ -36,6 +39,8 @@ SAFE_CODES = frozenset({
     "twitch_vod_unavailable", "twitch_vod_audio_missing", "twitch_vod_audio_late", "encoder_dependency_missing",
     "encoder_failed", "encoder_backpressure", "shared_mux_unavailable", "shared_encoder_start_failed",
     "shared_encoder_shutdown_unconfirmed",
+    "invalid_recording_file", "recording_file_exists", "recording_storage_unavailable",
+    "insufficient_recording_space", "recording_finalize_failed",
 })
 
 
@@ -51,26 +56,40 @@ def safe_code(error):
 
 def validate_config(value):
     allowed = {"width", "height", "fps", "bitrate", "codec", "audioBitrateKbps", "keyframeSeconds",
-               "twitchVod", "targets", "artifactRoot", "rehearsal"}
+               "twitchVod", "targets", "artifactRoot", "rehearsal", "recordingFile"}
     if not isinstance(value, dict) or set(value) - allowed:
         base.fail("invalid_encoder_config")
     if "rehearsal" in value and value["rehearsal"] is not True:
         base.fail("invalid_encoder_config")
     config = base.validate_config(value)
     rehearsal = value.get("rehearsal") is True
+    recording = "recordingFile" in value
+    if recording:
+        file = value["recordingFile"]
+        if (rehearsal or "artifactRoot" in value or config["twitchVod"]
+                or not isinstance(file, dict) or set(file) != {"path", "minimumFreeBytes"}
+                or not isinstance(file["path"], str) or not 1 <= len(file["path"]) <= 2048
+                or not Path(file["path"]).is_absolute() or Path(file["path"]).suffix.lower() != ".mkv"
+                or type(file["minimumFreeBytes"]) is not int or not 256 * 1024 ** 2 <= file["minimumFreeBytes"] <= 2 ** 53 - 1):
+            base.fail("invalid_recording_file")
     targets = value.get("targets")
     if not isinstance(targets, list) or not 1 <= len(targets) <= MAX_TARGETS:
+        base.fail("invalid_encoder_config")
+    if recording and targets != [{"id": "recording-local", "recording": True, "twitchVod": False}]:
         base.fail("invalid_encoder_config")
     if rehearsal and (len(targets) != 1 or "artifactRoot" in value):
         base.fail("invalid_encoder_config")
     seen, normalized = set(), []
     for target in targets:
-        allowed_target = {"id", "rehearsal", "twitchVod"} if rehearsal else {"id", "destination", "testOutput", "testTransport", "twitchVod"}
+        allowed_target = {"id", "recording", "twitchVod"} if recording else {"id", "rehearsal", "twitchVod"} if rehearsal else {"id", "destination", "testOutput", "testTransport", "twitchVod"}
         if (not isinstance(target, dict) or set(target) - allowed_target
                 or not isinstance(target.get("id"), str) or not _ID.fullmatch(target["id"]) or target["id"] in seen
                 or type(target.get("twitchVod", False)) is not bool):
             base.fail("invalid_encoder_config")
         seen.add(target["id"])
+        if recording:
+            normalized.append(dict(target))
+            continue
         if rehearsal:
             if target["id"] != "rehearsal-local" or target.get("rehearsal") is not True:
                 base.fail("invalid_encoder_config")
@@ -91,7 +110,101 @@ def validate_config(value):
         normalized.append({**target, "twitchVod": target.get("twitchVod", False)})
     if config["twitchVod"] != any(target["twitchVod"] for target in normalized):
         base.fail("invalid_encoder_config")
-    return {**config, "targets": normalized}
+    return {**config, "targets": normalized, **({"recordingFile": dict(value["recordingFile"])} if recording else {})}
+
+
+class RecordingWriter(RawIOBase):
+    """Exclusive Main-selected local file; no provider or synthetic fallback."""
+    def __init__(self, spec):
+        super().__init__()
+        self.path = Path(os.path.abspath(spec["path"]))
+        self.minimum = spec["minimumFreeBytes"]
+        self.handle = None
+        self.checked_at = 0.0
+        if "\x00" in str(self.path) or self.path.suffix.lower() != ".mkv":
+            base.fail("invalid_recording_file")
+        parents = [self.path.parent, *self.path.parent.parents]
+        try:
+            pinned = []
+            for parent in parents:
+                info = parent.lstat()
+                if (not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode)
+                        or getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+                    base.fail("invalid_recording_file")
+                pinned.append((parent, info.st_dev, info.st_ino))
+            self.check_space()
+            descriptor = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_RDWR | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0), 0o600)
+            self.handle = os.fdopen(descriptor, "w+b", buffering=0)
+            for parent, device, inode in pinned:
+                info = parent.lstat()
+                if (info.st_dev, info.st_ino) != (device, inode) or getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+                    base.fail("invalid_recording_file")
+            self.verify_identity()
+            if os.name == "nt":
+                import ctypes
+                import msvcrt
+                from ctypes import wintypes
+                resolved = ctypes.create_unicode_buffer(32768)
+                query = ctypes.windll.kernel32.GetFinalPathNameByHandleW
+                query.argtypes = [wintypes.HANDLE, wintypes.LPWSTR, wintypes.DWORD, wintypes.DWORD]
+                query.restype = wintypes.DWORD
+                size = query(msvcrt.get_osfhandle(self.handle.fileno()), resolved, len(resolved), 0)
+                actual = resolved.value.removeprefix("\\\\?\\")
+                if not size or size >= len(resolved) or os.path.normcase(actual) != os.path.normcase(str(self.path)):
+                    base.fail("invalid_recording_file")
+        except FileExistsError:
+            base.fail("recording_file_exists")
+        except base.EncoderError:
+            if self.handle:
+                self.handle.close()
+            raise
+        except OSError:
+            if self.handle:
+                self.handle.close()
+            base.fail("recording_storage_unavailable")
+
+    def check_space(self):
+        if shutil.disk_usage(self.path.parent).free < self.minimum:
+            base.fail("insufficient_recording_space")
+        self.checked_at = time.monotonic()
+
+    def verify_identity(self):
+        current, opened = self.path.lstat(), os.fstat(self.handle.fileno())
+        if (not stat.S_ISREG(current.st_mode) or current.st_nlink != 1 or opened.st_nlink != 1
+                or (current.st_dev, current.st_ino) != (opened.st_dev, opened.st_ino)
+                or getattr(current, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+            base.fail("invalid_recording_file")
+
+    def writable(self): return True
+    def seekable(self): return True
+    def tell(self): return self.handle.tell()
+    def seek(self, offset, whence=0): return self.handle.seek(offset, whence)
+
+    def write(self, value):
+        try:
+            if time.monotonic() - self.checked_at >= 1:
+                self.check_space()
+                self.verify_identity()
+            size = self.handle.write(value)
+            if size != len(value):
+                base.fail("recording_storage_unavailable")
+            return size
+        except OSError:
+            base.fail("recording_storage_unavailable")
+
+    def finalize(self):
+        try:
+            self.verify_identity()
+            self.handle.flush()
+            os.fsync(self.handle.fileno())
+            return os.fstat(self.handle.fileno()).st_size
+        except OSError:
+            base.fail("recording_finalize_failed")
+
+    def close(self):
+        if self.handle and not self.handle.closed:
+            self.handle.close()
+        super().close()
 
 
 class DiscardWriter(RawIOBase):
@@ -146,6 +259,8 @@ class TargetMux:
         self.error = None
         self.relay = None
         self.discard = None
+        self.recording_finalized = False
+        self.recording_bytes = 0
         self.interrupted = self.error_reported = self.closed_reported = False
         self.counts = {"videoFrames": 0, "audioSamples": 0, "vodAudioSamples": 0, "packets": 0, "bytesMuxed": 0}
         self.thread = threading.Thread(target=self.run, daemon=True, name="shared-target-mux")
@@ -154,7 +269,9 @@ class TargetMux:
         return {**self.counts, "twitchVodWireVerified": self.spec["twitchVod"] and self.wire_verified,
                 **({"rehearsal": True, "localDiscard": True, "networkVerified": False,
                     "bytesDiscarded": self.discard.bytes_written if self.discard else 0}
-                   if self.spec.get("rehearsal") is True else {})}
+                   if self.spec.get("rehearsal") is True else {}),
+                **({"recording": True, "recordingFinalized": self.recording_finalized,
+                    "recordingBytes": self.recording_bytes} if self.spec.get("recording") is True else {})}
 
     def enqueue(self, packet):
         if packet.kind == "B" and not self.spec["twitchVod"]:
@@ -189,7 +306,12 @@ class TargetMux:
     def run(self):
         output = handle = None
         try:
-            if self.config.get("rehearsal") is True or "rehearsal" in self.spec:
+            if self.spec.get("recording") is True:
+                if self.spec != {"id": "recording-local", "recording": True, "twitchVod": False} or "recordingFile" not in self.config:
+                    base.fail("invalid_encoder_config")
+                handle = RecordingWriter(self.config["recordingFile"])
+                output = self.av.open(handle, "w", format="matroska")
+            elif self.config.get("rehearsal") is True or "rehearsal" in self.spec:
                 # Validate again at the output selection boundary: never let a
                 # malformed target silently choose the credential/network path.
                 if (self.config.get("rehearsal") is not True or self.spec.get("rehearsal") is not True
@@ -251,6 +373,12 @@ class TargetMux:
                     if not self.abort.is_set() and self.error is None:
                         self.error = "encoder_failed"
             if handle is not None:
+                if isinstance(handle, RecordingWriter):
+                    try:
+                        self.recording_bytes = handle.finalize()
+                        self.recording_finalized = bool(not self.error and not self.abort.is_set() and self.counts["videoFrames"] and self.counts["audioSamples"] and self.recording_bytes)
+                    except Exception as error:
+                        self.error = safe_code(error)
                 handle.close()
             if self.relay:
                 self.relay.close()
@@ -320,7 +448,9 @@ def run(value, stream):
     counts = {"videoFrames": 0, "audioSamples": 0, "audioSilenceSamples": 0,
               "vodAudioSamples": 0, "vodAudioSilenceSamples": 0, "packets": 0, "bytesMuxed": 0}
     def local_stats():
-        return ({"rehearsal": True, "localDiscard": True, "networkVerified": False,
+        return ({"recording": True, "recordingFinalized": bool(targets) and all(target.recording_finalized for target in targets.values()),
+                 "recordingBytes": sum(target.recording_bytes for target in targets.values())}
+                if "recordingFile" in config else {"rehearsal": True, "localDiscard": True, "networkVerified": False,
                  "bytesDiscarded": sum(target.discard.bytes_written for target in targets.values() if target.discard)}
                 if rehearsal else {})
     def dispatch(kind, packets):

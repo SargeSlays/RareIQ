@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 from rareiq.services.greenroom_service import GreenroomService, GreenroomError
+from rareiq.services.production_composition import PRODUCER_SCREEN
 
 
 PUBLIC_GUEST_PATHS = frozenset({"/guest", "/guest/join", "/guest/leave", "/guest/chat",
@@ -87,6 +88,8 @@ class Peer:
     audio_blocked: bool = False
     playback_rendered: bool = False
     send_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    screen_active: bool = False
+    last_seen: float = field(default_factory=time.monotonic)
 
 
 class GreenroomHub:
@@ -100,12 +103,15 @@ class GreenroomHub:
                  actor_kind: Callable = lambda request: "local_operator",
                  removed: Callable[[str], None] = lambda participant: None,
                  image_source_available: Callable[[str], bool] = lambda source: False,
-                 source_available: Callable[[str], bool] | None = None):
+                 source_available: Callable[[str], bool] | None = None,
+                 authorize_publisher: Callable = lambda connection: False,
+                 producer_removed: Callable[[str], None] = lambda source: None):
         self.service, self.authorize_operator, self.switcher = service, authorize_operator, switcher
         self.static_dir, self.ice_servers, self.public_origin = static_dir, ice_servers, public_origin
         self.actor_kind, self.removed = actor_kind, removed
         self.image_source_available = image_source_available
         self.source_available = source_available or image_source_available
+        self.authorize_publisher, self.producer_removed = authorize_publisher, producer_removed
         self.peers: dict[str, Peer] = {}
         self._pump_task: asyncio.Task | None = None
         self._join_attempts: dict[str, deque] = {}
@@ -157,14 +163,14 @@ class GreenroomHub:
                 "audio_blocked": any(p.audio_blocked for p in fresh)}
 
     def source_ready(self, source):
-        available = self.source_available(source) if source.startswith(("image:", "video:", "text:", "browser:")) else self.service.source_available(source)
+        available = self.producer_source_available(source) if PRODUCER_SCREEN.fullmatch(source) else self.source_available(source) if source.startswith(("image:", "video:", "text:", "browser:")) else self.service.source_available(source)
         status = self.output_status()
         if source.startswith("browser:"):
             return bool(available and status["ready_groups"] and all(source in group for group in status["ready_groups"]))
         return available and source in status["ready_sources"]
 
     def composition_ready(self, sources):
-        received = {source for source in sources if source.startswith(("guest:", "image:", "video:", "text:", "browser:"))}
+        received = {source for source in sources if source.startswith(("producer:", "guest:", "image:", "video:", "text:", "browser:"))}
         groups = self.output_status()["ready_groups"]
         browsers = {source for source in received if source.startswith("browser:")}
         if browsers and (not groups or any(not browsers.issubset(group) for group in groups)):
@@ -173,10 +179,25 @@ class GreenroomHub:
 
     def _snapshot(self):
         return {**self.service.snapshot(), "switcher": self.switcher(), "output": self.output_status(),
+                "producer_sources": self.producer_sources(),
                 "connection": {"public_origin_configured": bool(self.public_origin()),
                                "guest_ingress": self.ingress_status(),
                                "relay_configured": any(any(str(u).startswith(("turn:", "turns:")) for u in ([s.get("urls")] if isinstance(s.get("urls"), str) else s.get("urls", []))) for s in self.ice_servers()),
                                "account_identity": "invitation_session"}}
+
+    def producer_source_available(self, source):
+        if not isinstance(source, str) or not PRODUCER_SCREEN.fullmatch(source):
+            return False
+        peer = self.peers.get(source.rsplit(":", 1)[1])
+        return bool(peer and peer.role == "producer-screen" and peer.screen_active
+                    and time.monotonic() - peer.last_seen < 7
+                    and self._operator(peer.socket) and self.authorize_publisher(peer.socket))
+
+    def producer_sources(self):
+        return [{"id": "producer:screen:" + key, "kind": "producer_screen", "name": "My screen / window",
+                 "available": True, "video_only": True}
+                for key, peer in list(self.peers.items()) if peer.role == "producer-screen"
+                and self.producer_source_available("producer:screen:" + key)]
 
     def _router(self):
         router = APIRouter()
@@ -234,6 +255,13 @@ class GreenroomHub:
             if not self._operator(request):
                 return self._error("producer_access_required", 403)
             return JSONResponse(self._snapshot(), headers={"Cache-Control": "no-store"})
+
+        @router.get("/api/production/greenroom/producer-screen")
+        async def producer_screen_status(request: Request):
+            if not self._operator(request):
+                return self._error("producer_access_required", 403)
+            return JSONResponse({"ok": True, "capture_allowed": bool(self.authorize_publisher(request)),
+                                 "video_only": True}, headers={"Cache-Control": "no-store"})
 
         @router.get("/guest/chat")
         async def guest_chat(request: Request, channel: str = "room", room_id: str | None = None):
@@ -375,6 +403,10 @@ class GreenroomHub:
         async def output_socket(socket: WebSocket):
             await self._serve(socket, "output")
 
+        @router.websocket("/api/production/greenroom/producer-screen-socket")
+        async def producer_screen_socket(socket: WebSocket):
+            await self._serve(socket, "producer-screen")
+
         return router
 
     async def _send(self, peer, payload):
@@ -385,10 +417,14 @@ class GreenroomHub:
                 await peer.socket.send_json(payload)
 
     def _forget_peer(self, key, peer):
+        owned = self.peers.get(key) is peer
         if self.peers.get(key) is peer:
             self.peers.pop(key)
         peer.subscriptions = ()
         peer.ready.clear()
+        if owned and peer.role == "producer-screen":
+            peer.screen_active = False
+            self._withdraw_producer_source("producer:screen:" + key)
         if peer.role == "guest" and peer.participant_id and not any(p.role == "guest" and p.participant_id == peer.participant_id for p in self.peers.values()):
             try:
                 self.service.set_connected(peer.participant_id, False)
@@ -397,6 +433,11 @@ class GreenroomHub:
             # Rejoining may resume backstage, but must never silently put the
             # guest back on Program after losing their media connection.
             self.removed(peer.participant_id)
+
+    def _withdraw_producer_source(self, source):
+        for receiver in list(self.peers.values()):
+            receiver.ready.pop(source, None)
+        self.producer_removed(source)
 
     async def _close_peer(self, key, peer, *, code=1008):
         # Revoke registry access and media readiness before attempting transport
@@ -431,7 +472,10 @@ class GreenroomHub:
         if not self._same_origin(socket) or (not guest_role and not self._operator(socket)):
             await socket.close(code=1008)
             return
-        if not guest_role and sum(p.role == role for p in self.peers.values()) >= (3 if role == "producer" else 2):
+        if role == "producer-screen" and not self.authorize_publisher(socket):
+            await socket.close(code=1008)
+            return
+        if not guest_role and sum(p.role == role for p in self.peers.values()) >= (3 if role == "producer" else 1 if role == "producer-screen" else 2):
             await socket.close(code=1013)
             return
         if guest_role and self._pending_guests >= 24:
@@ -478,6 +522,7 @@ class GreenroomHub:
                 if self.peers.get(key) is not peer:
                     break  # A revoked/replaced socket cannot publish late media.
                 now = time.monotonic()
+                peer.last_seen = now
                 while rate and now - rate[0] > 10:
                     rate.popleft()
                 if len(rate) >= 180:
@@ -487,6 +532,8 @@ class GreenroomHub:
                     self.service.authenticate(peer.token)
                 elif not self._operator(socket):
                     raise ValueError("access_revoked")
+                if role == "producer-screen" and not self.authorize_publisher(socket):
+                    raise ValueError("publisher_access_revoked")
                 await self._message(key, peer, message)
         except (WebSocketDisconnect, asyncio.TimeoutError, GreenroomError, ValueError, RuntimeError, OSError, sqlite3.Error):
             await self._close_peer(key, peer)
@@ -514,14 +561,18 @@ class GreenroomHub:
                                  if p["state"] != "removed" and not p.get("expired")]}
 
     def _allowed_sources(self, peer, snapshot):
+        if peer.role == "producer-screen":
+            return ()
         if peer.role == "guest-view":
             return self._view_sources(peer, snapshot)
         participants = snapshot["participants"]
         if peer.role == "producer":
-            return tuple(sorted(source for p in participants if p["connected"] and p["state"] != "removed" for source in p["sources"].values()))
+            return tuple(sorted([source for p in participants if p["connected"] and p["state"] != "removed" for source in p["sources"].values()]
+                                + [source["id"] for source in snapshot.get("producer_sources", [])]))
         state = snapshot["switcher"]
         sources = state.get("program_sources", [f"camera:{state.get('program_slot', 1)}"]) + state.get("preview_sources", [f"camera:{state.get('preview_slot', 2)}"])
-        return tuple(sorted({s for s in sources if (s.startswith("guest:") and self.service.source_available(s))
+        return tuple(sorted({s for s in sources if (PRODUCER_SCREEN.fullmatch(s) and self.producer_source_available(s))
+                             or (s.startswith("guest:") and self.service.source_available(s))
                              or (s.startswith(("image:", "video:", "text:", "browser:")) and self.source_available(s))}))
 
     async def _pump(self):
@@ -547,11 +598,19 @@ class GreenroomHub:
         try:
             if self.peers.get(key) is not peer:
                 return
-            if peer.role == "guest":
+            if peer.role == "producer-screen":
+                if not self._operator(peer.socket) or not self.authorize_publisher(peer.socket) or time.monotonic() - peer.last_seen >= 7:
+                    raise ValueError("publisher_unavailable")
+                source = "producer:screen:" + key
+                subscriptions = [{"peer_id": receiver_id, "role": receiver.role, "sources": ["screen"], "return_audio": False}
+                    for receiver_id, receiver in list(self.peers.items()) if receiver.role in {"producer", "output"}
+                    and self._operator(receiver.socket) and source in self._allowed_sources(receiver, snapshot)]
+                await self._send(peer, {"type": "state", "source_id": source, "subscriptions": subscriptions})
+            elif peer.role == "guest":
                 participant = self.service.authenticate(peer.token)
                 subscriptions = []
                 for receiver_id, receiver in self.peers.items():
-                    if receiver.role == "guest":
+                    if receiver.role in {"guest", "producer-screen"}:
                         continue
                     if receiver.role == "guest-view":
                         try:
@@ -615,6 +674,15 @@ class GreenroomHub:
         kind = message.get("type")
         if kind == "heartbeat":
             return
+        if kind == "media" and peer.role == "producer-screen":
+            media = message.get("media")
+            if (not self._operator(peer.socket) or not self.authorize_publisher(peer.socket)
+                    or not isinstance(media, dict) or set(media) != {"screen"} or type(media["screen"]) is not bool):
+                raise ValueError("invalid_producer_media")
+            peer.screen_active = media["screen"]
+            if not peer.screen_active:
+                self._withdraw_producer_source("producer:screen:" + key)
+            return
         if kind == "media" and peer.role == "guest":
             self.service.update_media(peer.participant_id, message.get("media"))
             return
@@ -635,7 +703,7 @@ class GreenroomHub:
                     peer.audio_blocked = playback["audio_blocked"]
                     peer.playback_rendered = playback["rendered"]
             peer.ready = {s: time.monotonic() for s in sources if s in peer.subscriptions and
-                          (self.source_available(s) if s.startswith(("image:", "video:", "text:", "browser:")) else self.service.source_available(s))}
+                          (self.producer_source_available(s) if PRODUCER_SCREEN.fullmatch(s) else self.source_available(s) if s.startswith(("image:", "video:", "text:", "browser:")) else self.service.source_available(s))}
             return
         if kind == "rendered" and peer.role == "output":
             generation = message.get("generation")
@@ -656,6 +724,33 @@ class GreenroomHub:
             raise ValueError("invalid_signal_target")
         target = self.peers.get(target_id)
         if target is None:
+            return
+        if peer.role == "producer-screen" or target.role == "producer-screen":
+            publisher, receiver = (peer, target) if peer.role == "producer-screen" else (target, peer)
+            source = "producer:screen:" + (key if publisher is peer else target_id)
+            if (receiver.role not in {"producer", "output"} or not self._operator(receiver.socket)
+                    or not self.producer_source_available(source)
+                    or source not in self._allowed_sources(receiver, self._snapshot())):
+                raise ValueError("producer_subscription_not_allowed")
+            signal_kind = message.get("kind")
+            if signal_kind == "offer" and peer is not publisher or signal_kind == "answer" and peer is publisher:
+                raise ValueError("signal_direction_not_allowed")
+            data = self._signal(message.get("data"), signal_kind)
+            if signal_kind in {"offer", "answer"}:
+                sections = data["sdp"].replace("\r\n", "\n").split("\nm=")[1:]
+                expected = ("audio ", "video ", "video ", "audio ")
+                if len(sections) != 4 or any(not section.startswith(expected[index]) for index, section in enumerate(sections)):
+                    raise ValueError("producer_screen_video_only")
+                for index, section in enumerate(sections):
+                    directions = {line for line in section.splitlines() if line in {"a=inactive", "a=sendonly", "a=recvonly", "a=sendrecv"}}
+                    wanted = "a=sendonly" if signal_kind == "offer" else "a=recvonly"
+                    if directions != ({wanted} if index == 2 else {"a=inactive"}):
+                        raise ValueError("producer_screen_video_only")
+            try:
+                await self._send(target, {"type": "signal", "from": key, "source_id": source,
+                    "role": peer.role, "kind": signal_kind, "data": data})
+            except (RuntimeError, WebSocketDisconnect, OSError, asyncio.TimeoutError):
+                await self._close_peer(target_id, target)
             return
         guest, receiver = (peer, target) if peer.role == "guest" else (target, peer)
         if guest.role != "guest" or receiver.role not in {"producer", "output", "guest-view"}:

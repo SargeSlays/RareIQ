@@ -2001,3 +2001,34 @@ Evidence: F:/Temp/jonat/ProducerPlease-youtube-destination-20261119. Failed nati
 YouTube01 (real projection defect) and02 (fixture control allowlist) remain intact.
 The corrected03 fixture allows only its own test-control route and starts no media.
 No public stream, recording, real provider metadata write or new grant occurred.
+
+
+## November 19, 2026 — Native recording, screen sources and parity inventory
+
+- [x] Official-source comparison: 86 major capabilities, explicit limitations,
+  Desktop versus hosted-service/tier distinctions; no exhaustive parity claim.
+- [x] Focused screen/guest/composition regressions and real generated WebRTC screen
+  video, exact taken generation, rendered pixels and stop/replacement invalidation.
+- [x] Screen controls: eight dark/light narrow/desktop/4K layouts, 44px targets.
+- [x] Actual generated recording/FLV worker files decoded; both stop orders and
+  low-disk refusal preserve the other output. No external transmission.
+- [x] Combined canonical gate: 4,491 Python / 1,102 JavaScript checks
+  on the exact composed source; clean own-source gate also passed.
+- [x] Actual immutable packaged Main/embedded backend recorder and Rehearsal;
+  full Settings controls passed eight layouts. Standalone Preview activated.
+  Record entry was also clicked in the actual app; no user media was recorded.
+- [ ] Physical OS screen choice/game audio, real destination receipt, isolated
+  multitrack recording, native game capture and virtual camera remain unverified.
+
+Evidence: F:/Temp/jonat/ProducerPlease-parity-20261119 and
+F:/Temp/jonat/ProducerPlease-recording-20261119. Intermediate failed fixtures are
+retained. Generated files contain generated test video/audio only.
+
+Final accepted Preview build: 0.1.0-20261119184055985, source tree
+765f0af9cf432cab0ed3af90a5831bff62ac8853. Packaged recording03 decoded five
+files with both Stop orders; Rehearsal02 and bundled backend02 passed with
+unchanged resources. Scene actions passed ten layouts including the narrow dock
+trigger. Actual reopened Preview uses the expected embedded process, no active
+outputs, correct scene sizing and preserved RareIQ workspace. Primary settings
+hashes and guest-only HTTPS isolation remain unchanged. Main promotion remains
+blocked by its configured disconnected OBS integration.

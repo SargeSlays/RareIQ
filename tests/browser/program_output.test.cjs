@@ -57,6 +57,21 @@ function fixture(options={}){
   return output;
 }
 function guestTracks(f){const value={camera:track(),screen:track(),microphone:track('audio'),screen_audio:track('audio')};f.tracks.set(G,value);return value;}
+
+test('producer screen is video-only, needs decoded fresh frames and cannot fall back after withdrawal',async()=>{
+  const source='producer:screen:'+'a'.repeat(32),f=fixture(),screen=track(),r={revision:1,participants:[],producer_sources:[{id:source,available:true}]};
+  f.tracks.set(source,{screen,microphone:track('audio'),screen_audio:track('audio')});
+  assert.equal(model.parseSource(source).kind,'producer_screen');assert.equal(model.audioPlan([source],r,id=>f.tracks.get(id)).size,0);
+  f.view.render(state({program_sources:[],preview_sources:[source]}),r);await f.run(16);
+  assert.deepEqual(f.view.readySources(),[]);for(const node of f.nodes)if(node.tagName==='VIDEO')node.paint();f.view.refresh();
+  assert.deepEqual(f.view.readySources(),[source]);assert.equal(f.view.current.tiles.length,0);
+  f.view.render(state({generation:1,program_sources:[source],preview_sources:[]}),r);await f.run(16);for(const node of f.nodes)if(node.tagName==='VIDEO')node.paint();f.view.refresh();
+  assert.equal(f.statuses.at(-1).rendered,true);assert.equal(f.view.audio.size,0);
+  f.view.setRoom({...r,producer_sources:[]});assert.equal(f.statuses.at(-1).rendered,false);assert.deepEqual(f.view.readySources(),[]);
+  assert.equal(f.view.current.tiles[0].video.srcObject,null);assert.equal(screen.stops,0);
+  f.view.render(state({generation:2,program_sources:[],preview_sources:[]}),{...r,producer_sources:[]});await f.run(16);
+  assert.equal(f.view.current.tiles.length,0);assert.equal(f.view.current.tiles.some(tile=>tile.source.kind==='local'),false);f.close();
+});
 function paint(f){for(const node of f.nodes)if(node.tagName==='VIDEO'&&node.srcObject)node.paint();f.view?.refresh();}
 
 test('source union preserves explicit blank and rejects arbitrary URLs, duplicates and malformed state',()=>{

@@ -1204,3 +1204,23 @@ The main desktop profile and guest host remain on their existing runtime. Its
 enabled OBS connection is disconnected, so guarded shutdown/adoption is deferred
 until the operator resolves that integration. Preview data stays separate; copying
 main accounts, scenes and card data has not been silently substituted by a reset.
+
+
+## November 19, 2026 — Demo capability comparison and next native slice
+
+OBS_STREAMLABS_COMPARISON.md and product_comparison.json track 86 bounded major
+capabilities with official OBS/Streamlabs evidence, tier/service distinctions and
+explicit Producer gaps. Do not market exhaustive parity from this inventory.
+The current native slice adds Program MKV recording independently of broadcasting,
+producer screen/window video sources and local encoder diagnostics. Acceptance is
+recorded separately in RELEASE_CHECKLIST.md; source presence alone is insufficient.
+Native game hooks, virtual camera, arbitrary layer geometry/groups, full Program
+filters/replay, isolated multitrack recording and the platform/plugin ecosystem
+remain roadmap work. Preserve the independent RareIQ premium boundary.
+
+Generated-media packaged acceptance now covers independent Program recording and
+both stream/record Stop orders, Settings close/reopen, five decoded files and
+Rehearsal Live/VOD gain updates. This does not establish real platform receipt.
+
+The accepted standalone Preview is now build 0.1.0-20261119184055985, opened on
+8767. Main-profile promotion and real provider delivery remain separate.

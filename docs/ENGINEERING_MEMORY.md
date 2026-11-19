@@ -1494,3 +1494,37 @@ its simulator's private mode endpoint was missing from that fixture's allowlist.
 Allow only the exact owned test-control path, retain GET-only provider transport,
 keep both failures, and rerun the original Main/Settings path. Do not weaken a
 production trust boundary or treat simulated provider replies as real consent.
+
+
+## November 19, 2026 — Independent native consumers and screen evidence
+
+One physical output has one singleton IPC producer. Broadcast and recorder use
+independent bounded consumer queues with per-lease Stop; normalize each new
+consumer against its first paired audio timestamp. A slow recording must not
+stall broadcasting. Close retires idle leases and must reject before mutation
+when another consumer still runs. Aggregate backend ownership serializes purpose
+claims and retains uncertain holds until an exact owner/active acknowledgement.
+
+Repeated Stop after successful recording must preserve finalization and Reveal.
+Recheck the pinned Program generation, peer, readiness and profile after encoder
+startup before attaching capture. Closing the initiating panel after commitment
+must not invalidate the recording's media callbacks. Cover late-start cancellation,
+uncertain Stop, existing-file refusal and disk pressure without weakening guards.
+
+UI Start uses authoritative availability, not only canStart. An ambiguous Start
+keeps its exact request across read-only polls and retains Stop from last-known
+idle. Missing/malformed status cannot confirm success. Keep native paths out of
+renderer state and render only validated counters and basename text.
+
+Screen QA must match the taken generation AND Program source IDs and visible
+pixels: the old output can render while a newly shared source is merely preloaded.
+Shared dock specificity can shrink capture controls; scope the visual owner and
+verify actual 44px controls at narrow/1080p/4K in both themes.
+
+Narrow scene header buttons need content-driven height in their existing visual
+owner: wrapping a label into a fixed height clips it. Preserve 44px targets,
+remove max-height clamps and verify the populated Live left dock, including the
+1600x1000 trigger; a full-width scene-only view does not exercise that failure.
+Private immutable source overlays must honor Git text normalization. Keep owner
+working bytes intact, normalize only frozen text and retain raw source in the
+private backup. An unfiltered CRLF blob otherwise fails staged whitespace checks.

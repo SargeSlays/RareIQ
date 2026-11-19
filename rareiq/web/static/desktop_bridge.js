@@ -18,6 +18,10 @@
     const click=event=>{if(!event.target?.closest?.(selector))return;event.preventDefault();event.stopImmediatePropagation();Promise.resolve(bridge.openBroadcastSettings()).catch(()=>{const button=document.querySelector(selector);if(button)button.title='Broadcast setup could not open. Use the desktop app menu to retry.';});};
     document.addEventListener('click',click,true);
     const button=document.querySelector(selector);if(button){button.textContent='Broadcast setup';button.title='Set up a protected desktop broadcast destination.';}
+    if(button?.parentNode&&typeof document.createElement==='function'&&typeof bridge.openRecordingSettings==='function'&&!document.querySelector('[data-desktop-recording]')){
+      const record=document.createElement('button');record.type='button';record.className=button.className;record.dataset.desktopRecording='';record.textContent='Record Program';record.title='Open local recording controls. Choose a file and confirm before recording starts.';
+      record.addEventListener('click',()=>Promise.resolve(bridge.openRecordingSettings()).catch(()=>{record.title='Recording controls could not open. Use the desktop app menu to retry.';}));button.parentNode.insertBefore(record,button.nextSibling);
+    }
     if(typeof bridge.info==='function'&&typeof bridge.broadcastStatus==='function')Promise.resolve(bridge.info()).then(info=>{
       if(info.engine!=='standalone')return;document.body.dataset.desktopEngine='standalone';
       const parent=document.querySelector('#showPreflight');if(!parent)return;

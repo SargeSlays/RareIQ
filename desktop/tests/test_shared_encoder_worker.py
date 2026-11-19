@@ -56,6 +56,87 @@ def generated(np, *, frames=45, vod=False, stop_at=None):
     return stream
 
 
+def recording_config(tmp_path):
+    value = config(tmp_path)
+    value.pop("artifactRoot")
+    value["recordingFile"] = {"path": str(tmp_path / "program.mkv"), "minimumFreeBytes": 256 * 1024 ** 2}
+    value["targets"] = [{"id": "recording-local", "recording": True, "twitchVod": False}]
+    return value
+
+
+def test_native_recording_is_decodable_matroska_with_program_video_and_live_aac(tmp_path, monkeypatch, capsys):
+    av, np = libraries(monkeypatch)
+    worker.run(recording_config(tmp_path), generated(np))
+    output = events(capsys)
+    assert output[-1]["recordingFinalized"] is True
+    path = tmp_path / "program.mkv"
+    assert output[-1]["recordingBytes"] == path.stat().st_size > 0
+    assert str(tmp_path) not in json.dumps(output)
+    with av.open(str(path)) as media:
+        assert media.format.name == "matroska,webm"
+        assert len(media.streams.video) == len(media.streams.audio) == 1
+        assert media.streams.video[0].codec_context.name == "h264"
+        assert media.streams.audio[0].codec_context.name == "aac"
+        assert len(list(media.decode(video=0))) == 45
+    with av.open(str(path)) as media:
+        decoded = list(media.decode(audio=0))
+        assert sum(frame.samples for frame in decoded) >= 72000
+        samples = np.concatenate([frame.to_ndarray()[0] for frame in decoded])
+        assert float(np.sqrt(np.mean(samples ** 2))) > .05
+
+
+@pytest.mark.parametrize("change", ["network", "synthetic", "rehearsal", "vod", "renderer_path", "other_id", "extension", "relative"])
+def test_recording_boundary_never_falls_through_to_other_output_modes(tmp_path, change):
+    value = recording_config(tmp_path)
+    if change == "network": value["targets"][0]["destination"] = {"serverUrl": "private", "streamKey": "private"}
+    if change == "synthetic": value["artifactRoot"] = str(tmp_path)
+    if change == "rehearsal": value["rehearsal"] = True
+    if change == "vod": value["twitchVod"] = True
+    if change == "renderer_path": value["targets"][0]["path"] = str(tmp_path / "private.mkv")
+    if change == "other_id": value["targets"][0]["id"] = "another"
+    if change == "extension": value["recordingFile"]["path"] = str(tmp_path / "file.mp4")
+    if change == "relative": value["recordingFile"]["path"] = "file.mkv"
+    with pytest.raises(worker.base.EncoderError):
+        worker.validate_config(value)
+    assert not list(tmp_path.iterdir())
+
+
+def test_recording_never_overwrites_existing_file_or_hard_link(tmp_path):
+    spec = recording_config(tmp_path)["recordingFile"]
+    path = Path(spec["path"])
+    path.write_bytes(b"owner evidence")
+    with pytest.raises(worker.base.EncoderError, match="recording_file_exists"):
+        worker.RecordingWriter(spec)
+    assert path.read_bytes() == b"owner evidence"
+    link = tmp_path / "linked.mkv"
+    link.hardlink_to(path)
+    with pytest.raises(worker.base.EncoderError, match="recording_file_exists"):
+        worker.RecordingWriter({**spec, "path": str(link)})
+    assert path.read_bytes() == b"owner evidence"
+
+
+def test_recording_low_space_refuses_creation_and_later_write_failure_stays_unfinalized(tmp_path, monkeypatch, capsys):
+    spec = recording_config(tmp_path)["recordingFile"]
+    usage = worker.shutil.disk_usage(tmp_path)
+    monkeypatch.setattr(worker.shutil, "disk_usage", lambda _path: usage._replace(free=0))
+    with pytest.raises(worker.base.EncoderError, match="insufficient_recording_space"):
+        worker.RecordingWriter(spec)
+    assert not Path(spec["path"]).exists()
+    monkeypatch.undo()
+    _av, np = libraries(monkeypatch)
+    original = worker.RecordingWriter.write
+    def failing(self, data):
+        if self.handle.tell() > 500:
+            raise OSError("private disk detail")
+        return original(self, data)
+    monkeypatch.setattr(worker.RecordingWriter, "write", failing)
+    worker.run(recording_config(tmp_path), generated(np))
+    output = events(capsys)
+    assert output[-1]["recordingFinalized"] is False
+    assert "private disk" not in json.dumps(output)
+    assert any(event["event"] == "error" for event in output)
+
+
 def events(capsys):
     return [json.loads(line) for line in capsys.readouterr().out.splitlines()]
 

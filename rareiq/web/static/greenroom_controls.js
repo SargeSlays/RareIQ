@@ -10,6 +10,7 @@
   }
   const cameraId=value=>typeof value==='string'&&/^camera:[1-4]$/.test(value)?Number(value.slice(7)):null;
   function sourceAvailable(source,switcher,room){
+    if(typeof source==='string'&&/^producer:screen:[a-f0-9]{32}$/.test(source))return room.producer_sources?.some(item=>item.id===source&&item.available===true)===true;
     if(typeof source==='string'&&source.startsWith('browser:'))return Boolean(host.ProducerBrowserLibrary?.sourceId(source)&&(switcher.production_sources||[]).some(asset=>asset.id===source));
     if(typeof source==='string'&&/^(video|text):/.test(source))return Boolean(host.ProducerMediaLibrary?.sourceId(source)&&(switcher.production_sources||[]).some(asset=>asset.id===source));
     if(typeof source==='string'&&source.startsWith('image:'))return Boolean(host.ProducerImageLibrary?.imageId(source)&&(switcher.image_sources||[]).some(asset=>asset.id===source));
@@ -33,7 +34,7 @@
     const sources=previewSources(switcher),program=programSources(switcher),layout=switcher.preview_layout||'auto';
     if(!sources.length)return {ready:false,message:'Add a ready source to Preview first.'};
     if(sources.some(source=>!sourceAvailable(source,switcher,room)))return {ready:false,message:'A Preview source is unavailable. Remove it or reconnect the guest.'};
-    const output=room.output||switcher.guest_output||{},guests=sources.filter(source=>/^(guest|image|video|text|browser):/.test(source));
+    const output=room.output||switcher.guest_output||{},guests=sources.filter(source=>/^(producer|guest|image|video|text|browser):/.test(source));
     const groups=Object.prototype.hasOwnProperty.call(output,'ready_groups')?output.ready_groups:[output.ready_sources||[]];
     const browsers=sources.filter(source=>source.startsWith('browser:'));
     if(browsers.length&&(!output.connected||!Array.isArray(groups)||!groups.length||groups.length<Number(output.connected)||!groups.every(group=>Array.isArray(group)&&browsers.every(source=>group.includes(source)))))return {ready:false,message:'Review each Preview browser picture in every connected Studio Output before Take. Use Review in Studio Output below; blocked or blank pages are not ready.'};
@@ -130,6 +131,7 @@
     const imageLibrary=host.ProducerImageLibrary?.mount({after:one('.greenroom-camera-sources'),catalog:()=>switcher.image_sources||[],selected:()=>previewSources(switcher),busy:()=>busy,select:source=>toggle(source),refresh,fetch:(...args)=>host.fetch(...args),document:doc});
     const mediaLibrary=host.ProducerMediaLibrary?.mount({after:one('.production-image-library')||one('.greenroom-camera-sources'),catalog:()=>switcher.production_sources||[],selected:()=>previewSources(switcher),busy:()=>busy,select:source=>toggle(source),refresh,fetch:(...args)=>host.fetch(...args),document:doc});
     const browserLibrary=host.ProducerBrowserLibrary?.mount({after:one('.production-media-library')||one('.production-image-library')||one('.greenroom-camera-sources'),catalog:()=>switcher.production_sources||[],selected:()=>previewSources(switcher),busy:()=>busy,select:source=>toggle(source),refresh,fetch:(...args)=>host.fetch(...args),document:doc});
+    const screenSource=host.ProducerScreenSource?.mount({after:one('.greenroom-camera-sources'),room:()=>room,selected:()=>previewSources(switcher),busy:()=>busy,select:source=>toggle(source),refresh,fetch:(...args)=>host.fetch(...args),document:doc});
     const layouts=host.ProducerLayouts?.mount({controls:one('.greenroom-stage-controls'),selected:()=>previewSources(switcher),layout:()=>switcher.preview_layout||'auto',busy:()=>busy,apply:(sources,layout)=>setPreview(sources,layout),name:sourceName,document:doc});
     const roomBody=one('.greenroom-body'),roomMain=doc.createElement('div');roomMain.className='greenroom-main';
     for(const child of Array.from(roomBody.children))if(child!==chatContainer)roomMain.append(child);
@@ -194,6 +196,7 @@
       finally{busy=false;render();refreshActivity(true);}
     }
     function sourceName(source){
+      if(source.startsWith('producer:screen:'))return 'My screen / window · video only';
       if(/^(video|text|browser):/.test(source))return (switcher.production_sources||[]).find(asset=>asset.id===source)?.name||'Source unavailable';
       if(source.startsWith('image:'))return (switcher.image_sources||[]).find(asset=>asset.id===source)?.name||'Image unavailable';
       const camera=cameraId(source);if(camera)return `Camera ${camera}`;
@@ -321,6 +324,7 @@
       imageLibrary?.render();
       mediaLibrary?.render();
       browserLibrary?.render();
+      screenSource?.render();
       layouts?.render();
       const selected=previewSources(switcher);one('[data-preview-count]').textContent=`${selected.length} / 6 sources in Preview`;
       one('[data-room-layout]').value=switcher.preview_layout||'auto';
@@ -331,7 +335,7 @@
         button.disabled=busy||!sourceAvailable(source,switcher,room);button.setAttribute('aria-pressed',String(selected.includes(source)));button.title=button.disabled?'This local camera is unavailable.':'Toggle this camera in Preview.';
       }
       const ready=takeReadiness(switcher,room);one('[data-room-ready]').textContent=ready.message;
-      one('[data-room-take]').disabled=busy||!ready.ready||selected.some(source=>source.startsWith('guest:'))&&!mediaConnected;one('[data-room-take]').title=ready.message;
+      one('[data-room-take]').disabled=busy||!ready.ready||selected.some(source=>source.startsWith('guest:')||source.startsWith('producer:'))&&!mediaConnected;one('[data-room-take]').title=ready.message;
       one('[data-preview-clear]').disabled=busy||!selected.length;one('[data-room-layout]').disabled=busy;
       const output=room.output||switcher.guest_output||{},generation=Number(switcher.generation)||0;
       one('[data-output-state]').textContent=outputStatusLabel(output,generation);
@@ -416,7 +420,7 @@
       media=host.ProducerGuestMedia.createReceiver({role:'producer',onState:message=>{mediaConnected=true;updateState(message.room);},onTracks:()=>{renderTiles();for(const entry of views.values())entry.composition.refresh();},onConnection:connection=>{if(connection.scope==='peer'){peerWarnings.update(connection);renderTiles();return;}if(!connection.participant_id){mediaConnected=connection.state==='connected';one('.greenroom-connection').textContent=mediaConnected?'Room connected':connection.state==='connecting'?'Connecting…':'Room connection interrupted';panel.dataset.connection=connection.state;if(!mediaConnected){peerWarnings.clear();room.output={...room.output,ready_sources:[]};render();}}},onError:()=>{}});
       media.connect().catch(()=>{one('.greenroom-connection').textContent='Room unavailable';});
     }else{one('.greenroom-connection').textContent='Guest media unavailable';}
-    const result={panel,media,renderSwitcher,refresh,close(){if(closed)return;closed=true;chat?.destroy();imageLibrary?.close();mediaLibrary?.close();browserLibrary?.close();layouts?.close();peerWarnings.clear();micGeneration++;host.clearInterval(pollTimer);setLink('');stopMic();media?.close();conference?.close();for(const entry of views.values())entry.composition.close();audioContext?.close();}};
+    const result={panel,media,renderSwitcher,refresh,close(){if(closed)return;closed=true;chat?.destroy();imageLibrary?.close();mediaLibrary?.close();browserLibrary?.close();screenSource?.close();layouts?.close();peerWarnings.clear();micGeneration++;host.clearInterval(pollTimer);setLink('');stopMic();media?.close();conference?.close();for(const entry of views.values())entry.composition.close();audioContext?.close();}};
     workspace._producerGreenroom=result;instance=result;
     host.addEventListener('pagehide',()=>result.close(),{once:true});
     refresh();pollTimer=host.setInterval(()=>{if(!doc.hidden){refresh();refreshActivity();}},4000);render();

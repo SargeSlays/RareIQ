@@ -1,0 +1,1914 @@
+{
+  "schemaVersion": 1,
+  "asOf": "2026-11-19",
+  "title": "Producer, Please capability comparison with OBS Studio and Streamlabs Desktop",
+  "scope": "Internal finite capability inventory for gameplay, podcast and general-production demo planning. Not a claim to enumerate every third-party extension or all product features.",
+  "obsBaseline": "Official OBS Studio 33.0.1, released October 29; official release and download pages checked 2026-11-19.",
+  "streamlabsBaseline": "Current official Desktop/product/support pages checked 2026-11-19; Desktop/free, Ultra, Ultra+ and separate services/apps distinguished. No Producer prices or entitlements inferred.",
+  "producerBaseline": "Repository contracts and recorded local acceptance, including generated-media producer-screen and actual bundled native-recording checks. Main 8765 and Standalone Preview 8767 remain separate; physical-device and platform-delivery acceptance is not inferred.",
+  "statusLegend": {
+    "locally_verified": "Existing implementation with recorded local acceptance; only the explicitly recorded layer is established.",
+    "implemented_partial": "Working code covers a narrower workflow; the row limitation is part of its status.",
+    "external_obs_only": "Available through separately configured OBS; not a native Producer feature or full OBS remote editor.",
+    "missing": "No comparable supported native Producer workflow established in the inspected implementation.",
+    "setup_pending": "Implementation exists, but provider setup, permissions, identity or external acceptance prevents the corresponding live claim.",
+    "implementation_in_progress": "Active source work in this phase; not completed, packaged, accepted or demo-ready by this report."
+  },
+  "priorityLegend": {
+    "P0": "Current demo slice requiring completed local acceptance.",
+    "P1": "Core workflow or material claim boundary.",
+    "P2": "Subsequent production capability/integration.",
+    "P3": "Optional ecosystem/distribution expansion; no automatic authorization."
+  },
+  "demoLegend": {
+    "safe_local": "Use previously accepted local media, scene Preview/Take, settings and simulated/isolated Rehearsal only within current authorization. locally_verified is not permission to activate hardware/output.",
+    "setup_only": "Show configured controls/drafts and truthful blockers; do not imply provider write, grant, receipt or remote identity.",
+    "not_ready": "Missing/in-progress features may be discussed but not demonstrated as working.",
+    "external_obs": "Clearly name OBS as the device/encoder owner and explain the limited Producer adapter."
+  },
+  "todayFocus": [
+    {
+      "workflow": "Gameplay",
+      "demo": "Scene Preview/Take, generated producer-screen pixels, Live/VOD mix controls and native MKV recording have local acceptance.",
+      "remaining": "Physical game/window selection and audio still need operator testing; native game hooks, global hotkeys and full Program replay remain missing."
+    },
+    {
+      "workflow": "Podcast/interview",
+      "demo": "Invited guest/waiting-room/backstage-chat and generated-media mix-minus workflows; native one-mix MKV recording has actual bundled acceptance.",
+      "remaining": "Physical headphone listening/echo, isolated guest stems, six-track recording and StackThis producer identity remain separate."
+    },
+    {
+      "workflow": "General production",
+      "demo": "Images/video, bounded titles, smart layouts, reviewed HTTPS visual sources, native Program MKV recording and output settings/statistics are locally exercised at the recorded layers.",
+      "remaining": "Free geometry/groups/filter rack, dual native canvas, provider permissions and real platform receipt remain separate. Main-profile promotion is not claimed."
+    }
+  ],
+  "sources": {
+    "obs": "https://obsproject.com/",
+    "obs_download": "https://obsproject.com/download",
+    "obs_release": "https://obsproject.com/osx_update/notes_stable.html",
+    "sources": "https://obsproject.com/kb/sources-guide",
+    "game": "https://obsproject.com/kb/game-capture-source",
+    "browser": "https://obsproject.com/kb/browser-source",
+    "filters": "https://obsproject.com/kb/filters-guide",
+    "mixer": "https://obsproject.com/kb/audio-mixer-guide",
+    "app_audio": "https://obsproject.com/kb/application-audio-capture-guide",
+    "tracks": "https://obsproject.com/kb/multiple-audio-track-recording-guide",
+    "recording": "https://obsproject.com/kb/standard-recording-output-guide",
+    "virtual": "https://obsproject.com/kb/virtual-camera-guide",
+    "srt": "https://obsproject.com/kb/srt-protocol-streaming-guide",
+    "scripts": "https://docs.obsproject.com/scripting",
+    "frontend": "https://docs.obsproject.com/reference-frontend-api",
+    "sl": "https://streamlabs.com/desktop-app",
+    "sl_start": "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop",
+    "sl_patch": "https://streamlabs.com/content-hub/post/streamlabs-desktop-patch-notes",
+    "sl_record": "https://streamlabs.com/content-hub/post/streamlabs-desktop-recording-functionality",
+    "sl_audio": "https://streamlabs.com/content-hub/post/how-to-use-application-audio-capture",
+    "sl_tips": "https://support.streamlabs.com/hc/en-us/articles/6009481154203-Streamlabs-Desktop-Tips-and-Tricks-Part-1",
+    "sl_multi": "https://streamlabs.com/multistream",
+    "sl_ultra": "https://streamlabs.com/ultra",
+    "sl_bot": "https://streamlabs.com/cloudbot",
+    "sl_guest": "https://streamlabs.com/collab-cam",
+    "sl_auto": "https://streamlabs.com/content-hub/post/how-to-use-automations-streamlabs-desktop",
+    "sl_replay": "https://streamlabs.com/highlighter",
+    "sl_editor": "https://support.streamlabs.com/hc/en-us/articles/40763008677659-Video-Editor-FAQ",
+    "sl_mobile": "https://streamlabs.com/mobile-app"
+  },
+  "rows": [
+    {
+      "id": "camera_capture",
+      "category": "Sources",
+      "feature": "Webcams and capture-device inputs",
+      "obs": "Native video capture sources.",
+      "streamlabs": "Free Desktop: device capture.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/web/static/camera_controller.js",
+        "tests/test_studiox_camera_source_control.py"
+      ],
+      "limit": "Four local camera slots; device ownership and each capture-card model need physical acceptance.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "producer_screen_window",
+      "category": "Sources",
+      "feature": "Producer screen/window capture",
+      "obs": "Native display/window capture.",
+      "streamlabs": "Free Desktop: display/window capture.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "rareiq/services/production_composition.py",
+        "desktop/capture-picker.cjs",
+        "rareiq/web/static/producer_screen_source.js",
+        "tests/browser/producer_screen_source.test.cjs",
+        "tests/test_producer_screen_source.py"
+      ],
+      "limit": "Generated-video UI06 acceptance proved emitted visible pixels, source/generation binding, Stop removal and new-share isolation across eight theme/viewport layouts. Physical screen/window selection, screen audio and native game hooking are not established by this fixture.",
+      "priority": "P0",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ],
+      "acceptanceEvidence": [
+        "F:/Temp/jonat/ProducerPlease-parity-20261119/producer-screen-ui06/results.json"
+      ]
+    },
+    {
+      "id": "native_game_capture",
+      "category": "Sources",
+      "feature": "Direct game/process capture hook",
+      "obs": "Native Windows DirectX/OpenGL game capture.",
+      "streamlabs": "Free Desktop: game capture.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/services/production_composition.py",
+        "desktop/capture-picker.cjs",
+        "docs/ROADMAP.md"
+      ],
+      "limit": "Screen/window sharing does not establish an injected game-capture backend or exclusive-fullscreen support.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/game-capture-source",
+        "https://streamlabs.com/desktop-app"
+      ]
+    },
+    {
+      "id": "guest_screen_share",
+      "category": "Sources",
+      "feature": "Guest screen sharing",
+      "obs": "Needs external guest transport/integration.",
+      "streamlabs": "Desktop Collab Cam: browser guest sharing; free one guest, Ultra higher guest limit.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "rareiq/web/static/guest_room.js",
+        "rareiq/web/static/greenroom_chat.js",
+        "tests/test_guest_room.py",
+        "tests/browser/guest_room.test.cjs"
+      ],
+      "limit": "Invited guest camera/screen receipt tested locally and on a second PC; physical audio quality remains separate.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://streamlabs.com/collab-cam"
+      ]
+    },
+    {
+      "id": "image_sources",
+      "category": "Sources",
+      "feature": "Still images",
+      "obs": "Native image sources.",
+      "streamlabs": "Free Desktop: image sources.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "rareiq/services/production_source_store.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/test_production_sources.py"
+      ],
+      "limit": "Selected imported images and mixed-source compositions tested; six-source composition bound remains.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "video_sources",
+      "category": "Sources",
+      "feature": "Local video playback",
+      "obs": "Native media sources.",
+      "streamlabs": "Free Desktop: media sources.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "rareiq/services/production_source_store.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/test_production_sources.py"
+      ],
+      "limit": "Generated WebM playback/replay tested; not a comprehensive MP4/codec acceptance matrix.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "media_playlists",
+      "category": "Sources",
+      "feature": "Audio/video playlists and slideshows",
+      "obs": "Image slideshow; VLC playlist requires VLC.",
+      "streamlabs": "Desktop: media/playlist facilities vary by source.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/services/production_source_store.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/test_production_sources.py",
+        "rareiq/services/soundboard_output_service.py",
+        "tests/test_soundboard_reliability.py"
+      ],
+      "limit": "Individual video/image files and sound pads exist; no general playlist or slideshow editor established.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "text_sources",
+      "category": "Sources",
+      "feature": "Text and lower thirds",
+      "obs": "Native configurable text; file-backed text available.",
+      "streamlabs": "Free Desktop: text sources.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "rareiq/services/production_source_store.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/test_production_sources.py"
+      ],
+      "limit": "Bounded text source positions and eight-line limit; no file-watch text source or arbitrary text geometry.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "https_browser_sources",
+      "category": "Sources",
+      "feature": "HTTPS browser sources",
+      "obs": "Native browser source.",
+      "streamlabs": "Free Desktop: browser source.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/web/static/production_browser_source.js",
+        "rareiq/web/static/production_browser_review.js",
+        "tests/browser/production_browser_source.test.cjs"
+      ],
+      "limit": "Isolated public HTTPS iframe; per-output visual review required. Cross-origin embedding can fail.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/browser-source",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "local_html_sources",
+      "category": "Sources",
+      "feature": "Local HTML and browser CSS options",
+      "obs": "Native local-file browser source and custom CSS.",
+      "streamlabs": "Desktop browser source supports local-file workflows.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/web/static/production_browser_source.js",
+        "rareiq/web/static/production_browser_review.js",
+        "tests/browser/production_browser_source.test.cjs"
+      ],
+      "limit": "Producer validates public HTTPS URLs and excludes local/Studio addresses; no local HTML/custom CSS source editor.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/kb/browser-source",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "browser_source_audio",
+      "category": "Sources",
+      "feature": "Nested browser-source audio",
+      "obs": "Browser source can supply audio.",
+      "streamlabs": "Desktop: browser audio can be controlled in mixer.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/web/static/production_browser_source.js",
+        "rareiq/web/static/production_browser_review.js",
+        "tests/browser/production_browser_source.test.cjs",
+        "desktop/output-capture.cjs",
+        "desktop/output-preload.cjs",
+        "desktop/tests/output-capture.test.cjs"
+      ],
+      "limit": "Nested browser audio is excluded from native capture; a visible widget does not establish audible alerts.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/browser-source",
+        "https://streamlabs.com/content-hub/post/how-to-use-application-audio-capture"
+      ]
+    },
+    {
+      "id": "composition_capacity",
+      "category": "Sources",
+      "feature": "Concurrent source capacity",
+      "obs": "Large scene/source graphs; practical limits depend on hardware.",
+      "streamlabs": "Desktop scene graph; practical limits depend on hardware.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/services/production_composition.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/browser/production_layouts.test.cjs"
+      ],
+      "limit": "Six total selected composition sources and four local camera slots; not six cameras plus unlimited media.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "saved_scenes",
+      "category": "Scenes",
+      "feature": "Saved scenes and source membership",
+      "obs": "Native scenes and scene collections.",
+      "streamlabs": "Free Desktop: scenes.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "rareiq/services/production_scene_store.py",
+        "rareiq/web/static/production_layouts.js",
+        "tests/test_production_scene_store.py"
+      ],
+      "limit": "Revisioned local scene store and conflict guards; not an OBS scene-collection importer.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://streamlabs.com/desktop-app"
+      ]
+    },
+    {
+      "id": "preview_program",
+      "category": "Scenes",
+      "feature": "Separate Preview and Program",
+      "obs": "Native Studio Mode.",
+      "streamlabs": "Free Desktop: Studio Mode/editor workflow.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "rareiq/services/production_composition.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/browser/production_layouts.test.cjs",
+        "rareiq/services/production_scene_store.py",
+        "rareiq/web/static/production_layouts.js",
+        "tests/test_production_scene_store.py"
+      ],
+      "limit": "Preview stays off Program until guarded Take; output identity/readiness remains required.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/",
+        "https://support.streamlabs.com/hc/en-us/articles/6009481154203-Streamlabs-Desktop-Tips-and-Tricks-Part-1"
+      ]
+    },
+    {
+      "id": "transitions",
+      "category": "Scenes",
+      "feature": "Scene transitions",
+      "obs": "Native transitions including configurable types.",
+      "streamlabs": "Free Desktop: scene transitions.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/services/production_composition.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/browser/production_layouts.test.cjs"
+      ],
+      "limit": "Cut/fade/slide/zoom are tested; no comparable stinger or comprehensive transition editor.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "free_geometry",
+      "category": "Scenes",
+      "feature": "Free position, scale and anchor transforms",
+      "obs": "Native transform editor and snapping.",
+      "streamlabs": "Desktop: source transform editing.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/services/production_composition.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/browser/production_layouts.test.cjs"
+      ],
+      "limit": "Smart presets and lead ordering do not provide arbitrary x/y/width/height transforms.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "crop_rotation",
+      "category": "Scenes",
+      "feature": "Crop, rotate, flip and bounds",
+      "obs": "Native transform/crop controls.",
+      "streamlabs": "Desktop: source transform/crop controls.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/services/production_composition.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/browser/production_layouts.test.cjs"
+      ],
+      "limit": "No supported general Program crop/rotation/flip/bounds editor.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "layer_order_visibility",
+      "category": "Scenes",
+      "feature": "Layer ordering, source visibility and locking",
+      "obs": "Native source ordering, eye controls and locking.",
+      "streamlabs": "Desktop: source stack and visibility controls.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/services/production_composition.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/browser/production_layouts.test.cjs",
+        "rareiq/services/production_scene_store.py",
+        "rareiq/web/static/production_layouts.js",
+        "tests/test_production_scene_store.py"
+      ],
+      "limit": "Composition membership and lead order exist; no arbitrary layer stack/lock workflow.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://streamlabs.com/content-hub/post/streamlabs-desktop-patch-notes"
+      ]
+    },
+    {
+      "id": "source_groups_nested_scenes",
+      "category": "Scenes",
+      "feature": "Source groups and nested scenes",
+      "obs": "Native grouping and scene-as-source composition.",
+      "streamlabs": "Desktop: scene/source composition; exact grouping behavior depends on build.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/services/production_scene_store.py",
+        "rareiq/web/static/production_layouts.js",
+        "tests/test_production_scene_store.py",
+        "rareiq/services/production_composition.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/browser/production_layouts.test.cjs"
+      ],
+      "limit": "No general groups or nested scene graph; presets remain bounded flat compositions.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "source_reuse",
+      "category": "Scenes",
+      "feature": "Reusable media/source references",
+      "obs": "Native existing-source reuse.",
+      "streamlabs": "Desktop: reusable sources.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/services/production_source_store.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/test_production_sources.py",
+        "rareiq/services/production_scene_store.py",
+        "rareiq/web/static/production_layouts.js",
+        "tests/test_production_scene_store.py"
+      ],
+      "limit": "Saved source IDs can be reused; not full OBS source-instance/property parity.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "multiview",
+      "category": "Scenes",
+      "feature": "Dedicated multiview monitoring",
+      "obs": "Native multiview.",
+      "streamlabs": "Desktop: editor/monitoring tools; no equivalence to every OBS multiview option asserted.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/web/static/control.html",
+        "rareiq/web/static/studio_shell.js",
+        "tests/browser/studio_shell.test.cjs",
+        "rareiq/web/static/camera_controller.js",
+        "tests/test_studiox_camera_source_control.py"
+      ],
+      "limit": "Camera tiles and Preview/Program exist; not a configurable OBS-style scene multiview.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/",
+        "https://streamlabs.com/desktop-app"
+      ]
+    },
+    {
+      "id": "projectors",
+      "category": "Scenes",
+      "feature": "Display-target projectors",
+      "obs": "Native source/scene/Program projectors.",
+      "streamlabs": "Desktop: projector/preview functionality.",
+      "producerStatus": "external_obs_only",
+      "evidencepaths": [
+        "rareiq/services/obs_service.py",
+        "tests/test_obs_service.py",
+        "tests/test_obs_integration_contract.py",
+        "desktop/output-capture.cjs",
+        "desktop/output-preload.cjs",
+        "desktop/tests/output-capture.test.cjs"
+      ],
+      "limit": "View output reveals the existing prepared browser window; no native projector display-target subsystem.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://docs.obsproject.com/reference-frontend-api",
+        "https://support.streamlabs.com/hc/en-us/articles/6009481154203-Streamlabs-Desktop-Tips-and-Tricks-Part-1"
+      ]
+    },
+    {
+      "id": "virtual_camera",
+      "category": "Scenes",
+      "feature": "Virtual webcam output",
+      "obs": "Native Program/Preview/scene/source virtual camera.",
+      "streamlabs": "Free Desktop: virtual camera.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "desktop/output-capture.cjs",
+        "desktop/output-preload.cjs",
+        "desktop/tests/output-capture.test.cjs"
+      ],
+      "limit": "No Producer virtual-camera driver/output; external OBS configuration is a separate route.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/kb/virtual-camera-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/6009481154203-Streamlabs-Desktop-Tips-and-Tricks-Part-1"
+      ]
+    },
+    {
+      "id": "program_filter_rack",
+      "category": "Filters",
+      "feature": "Ordered per-source Program filter rack",
+      "obs": "Native source/scene filters.",
+      "streamlabs": "Free Desktop: source filters.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/services/production_composition.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/browser/production_layouts.test.cjs",
+        "rareiq/web/static/camera_controller.js",
+        "tests/test_studiox_camera_source_control.py"
+      ],
+      "limit": "Camera-preview effects are not an ordered filter rack applied to emitted Program pixels.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/filters-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/6009481154203-Streamlabs-Desktop-Tips-and-Tricks-Part-1"
+      ]
+    },
+    {
+      "id": "chroma_luma_key",
+      "category": "Filters",
+      "feature": "Chroma/luma/color keying",
+      "obs": "Native key filters.",
+      "streamlabs": "Desktop: chroma/color key filters.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/services/production_composition.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/browser/production_layouts.test.cjs"
+      ],
+      "limit": "No supported native Program green-screen/key filter workflow established.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/filters-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/6009481154203-Streamlabs-Desktop-Tips-and-Tricks-Part-1"
+      ]
+    },
+    {
+      "id": "mask_lut_correction",
+      "category": "Filters",
+      "feature": "Masks, LUTs, correction and sharpening",
+      "obs": "Native effect filters.",
+      "streamlabs": "Desktop: source effects; supported filter set depends on build.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/services/production_composition.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/browser/production_layouts.test.cjs",
+        "rareiq/web/static/camera_controller.js",
+        "tests/test_studiox_camera_source_control.py"
+      ],
+      "limit": "No verified general Program mask/LUT/filter pipeline.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/kb/filters-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/6009481154203-Streamlabs-Desktop-Tips-and-Tricks-Part-1"
+      ]
+    },
+    {
+      "id": "preview_camera_fx",
+      "category": "Filters",
+      "feature": "Camera preview effects versus emitted output",
+      "obs": "Native filters operate on source output.",
+      "streamlabs": "Desktop: source filters affect production source.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/web/static/camera_controller.js",
+        "tests/test_studiox_camera_source_control.py",
+        "rareiq/services/production_composition.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/browser/production_layouts.test.cjs"
+      ],
+      "limit": "Existing preview Camera FX must not be advertised as Program filters.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/filters-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/6009481154203-Streamlabs-Desktop-Tips-and-Tricks-Part-1"
+      ]
+    },
+    {
+      "id": "source_render_delay",
+      "category": "Filters",
+      "feature": "Source render/video delay",
+      "obs": "Native render-delay filter.",
+      "streamlabs": "Desktop: video-delay/filter options.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/services/production_composition.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/browser/production_layouts.test.cjs",
+        "desktop/output-capture.cjs",
+        "desktop/output-preload.cjs",
+        "desktop/tests/output-capture.test.cjs"
+      ],
+      "limit": "No configurable native source video-delay pipeline.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/kb/filters-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/6009481154203-Streamlabs-Desktop-Tips-and-Tricks-Part-1"
+      ]
+    },
+    {
+      "id": "microphone_capture",
+      "category": "Audio",
+      "feature": "Producer and guest microphone capture",
+      "obs": "Native audio inputs.",
+      "streamlabs": "Free Desktop: audio input capture.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "rareiq/web/static/guest_room.js",
+        "rareiq/web/static/greenroom_chat.js",
+        "tests/test_guest_room.py",
+        "tests/browser/guest_room.test.cjs",
+        "desktop/output-capture.cjs",
+        "desktop/output-preload.cjs",
+        "desktop/tests/output-capture.test.cjs"
+      ],
+      "limit": "Generated-media transport and selected physical receipt exist; subjective tuning/listening needs owner acceptance.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "desktop_application_audio",
+      "category": "Audio",
+      "feature": "Desktop loopback and per-application capture",
+      "obs": "Native desktop/app audio; Windows version requirements apply.",
+      "streamlabs": "Free Desktop: application audio capture.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "desktop/output-capture.cjs",
+        "desktop/output-preload.cjs",
+        "desktop/tests/output-capture.test.cjs",
+        "rareiq/services/production_composition.py",
+        "desktop/capture-picker.cjs",
+        "docs/ROADMAP.md"
+      ],
+      "limit": "Guest/producer shared-screen audio is not a general OS per-process mixer or desktop loopback implementation.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/application-audio-capture-guide",
+        "https://streamlabs.com/content-hub/post/how-to-use-application-audio-capture"
+      ]
+    },
+    {
+      "id": "live_audio_mixer",
+      "category": "Audio",
+      "feature": "Runtime source gain and mute/inclusion",
+      "obs": "Native per-source faders/mutes.",
+      "streamlabs": "Free Desktop: mixer.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "desktop/audio-routing.cjs",
+        "desktop/live-audio-session.cjs",
+        "desktop/tests/live-audio-session.test.cjs"
+      ],
+      "limit": "Runtime Live/VOD changes are ACK-bound, revisioned and independent of saved profiles; no full routing matrix.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/audio-mixer-guide",
+        "https://streamlabs.com/content-hub/post/how-to-use-application-audio-capture"
+      ]
+    },
+    {
+      "id": "source_monitoring",
+      "category": "Audio",
+      "feature": "Per-source monitoring and output-device selection",
+      "obs": "Native monitoring controls and selected monitor device.",
+      "streamlabs": "Desktop: monitor/output source modes.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "desktop/output-capture.cjs",
+        "desktop/output-preload.cjs",
+        "desktop/tests/output-capture.test.cjs",
+        "desktop/rehearsal.cjs",
+        "rareiq/services/rehearsal_service.py",
+        "desktop/tests/rehearsal.test.cjs"
+      ],
+      "limit": "Only explicit Rehearsal Live/VOD public-bus monitoring; no general per-source modes/device selector.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/audio-mixer-guide",
+        "https://streamlabs.com/content-hub/post/how-to-use-application-audio-capture"
+      ]
+    },
+    {
+      "id": "audio_filter_chain",
+      "category": "Audio",
+      "feature": "Noise suppression, gate, compression and limiter",
+      "obs": "Native audio filter chain.",
+      "streamlabs": "Desktop: audio filters.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/web/static/guest_room.js",
+        "rareiq/web/static/greenroom_chat.js",
+        "tests/test_guest_room.py",
+        "tests/browser/guest_room.test.cjs",
+        "desktop/audio-routing.cjs",
+        "desktop/live-audio-session.cjs",
+        "desktop/tests/live-audio-session.test.cjs"
+      ],
+      "limit": "Guest/Voice Mod DSP is narrower than a universal per-source processing rack.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/filters-guide",
+        "https://streamlabs.com/content-hub/post/how-to-use-application-audio-capture"
+      ]
+    },
+    {
+      "id": "vst_plugins",
+      "category": "Audio",
+      "feature": "VST audio plugins",
+      "obs": "Native VST 2.x filter host with compatibility limits.",
+      "streamlabs": "Desktop: VST/audio-filter compatibility depends on build/plugin.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "desktop/audio-routing.cjs",
+        "desktop/live-audio-session.cjs",
+        "desktop/tests/live-audio-session.test.cjs"
+      ],
+      "limit": "No native Producer VST host; do not transfer OBS plugin compatibility to Producer.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/kb/filters-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/6009481154203-Streamlabs-Desktop-Tips-and-Tricks-Part-1"
+      ]
+    },
+    {
+      "id": "av_sync_offsets",
+      "category": "Audio",
+      "feature": "Audio/video sync offsets",
+      "obs": "Native source sync/render-delay controls.",
+      "streamlabs": "Desktop: advanced audio/source sync controls.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "desktop/audio-routing.cjs",
+        "desktop/live-audio-session.cjs",
+        "desktop/tests/live-audio-session.test.cjs",
+        "desktop/output-capture.cjs",
+        "desktop/output-preload.cjs",
+        "desktop/tests/output-capture.test.cjs"
+      ],
+      "limit": "No user-adjustable per-source A/V offset workflow established.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/filters-guide",
+        "https://obsproject.com/kb/audio-mixer-guide",
+        "https://streamlabs.com/content-hub/post/how-to-use-application-audio-capture"
+      ]
+    },
+    {
+      "id": "six_recording_tracks",
+      "category": "Audio",
+      "feature": "Six recording tracks / isolated stems",
+      "obs": "Native track assignment, up to six standard recording tracks.",
+      "streamlabs": "Free Desktop: up to six audio recording tracks.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "desktop/audio-routing.cjs",
+        "desktop/live-audio-session.cjs",
+        "desktop/tests/live-audio-session.test.cjs",
+        "desktop/recording.cjs",
+        "desktop/recording-file-store.cjs",
+        "desktop/tests/recording.test.cjs"
+      ],
+      "limit": "Live plus optional Twitch VOD are two mixes, not independently recorded source stems.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/multiple-audio-track-recording-guide",
+        "https://streamlabs.com/content-hub/post/streamlabs-desktop-recording-functionality"
+      ]
+    },
+    {
+      "id": "twitch_vod_mix",
+      "category": "Audio",
+      "feature": "Separate Twitch VOD audio",
+      "obs": "Native Twitch VOD track with account requirements.",
+      "streamlabs": "Desktop: Twitch VOD audio routing.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "desktop/output-profiles.cjs",
+        "desktop/shared-encoder.cjs",
+        "desktop/shared_encoder_worker.py",
+        "desktop/tests/output-profiles.test.cjs",
+        "desktop/audio-routing.cjs",
+        "desktop/live-audio-session.cjs",
+        "desktop/tests/live-audio-session.test.cjs"
+      ],
+      "limit": "Experimental enhanced-FLV transport tested locally; actual live/archive selection remains unverified.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/application-audio-capture-guide",
+        "https://streamlabs.com/content-hub/post/how-to-use-application-audio-capture"
+      ]
+    },
+    {
+      "id": "guest_mix_minus",
+      "category": "Audio",
+      "feature": "Backstage guest mix-minus",
+      "obs": "External guest transport/routing needed.",
+      "streamlabs": "Collab Cam service supplies guest conversation.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "rareiq/web/static/guest_room.js",
+        "rareiq/web/static/greenroom_chat.js",
+        "tests/test_guest_room.py",
+        "tests/browser/guest_room.test.cjs"
+      ],
+      "limit": "Generated spectra verify own-mic exclusion; physical two-PC listening/echo remains separate.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/audio-mixer-guide",
+        "https://streamlabs.com/collab-cam"
+      ]
+    },
+    {
+      "id": "soundboard_guest_stems",
+      "category": "Audio",
+      "feature": "Soundboard and separable guest effects",
+      "obs": "Native media/audio sources; source separation depends on setup.",
+      "streamlabs": "Desktop media sources; companion apps can extend soundboards.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/services/soundboard_output_service.py",
+        "tests/test_soundboard_reliability.py",
+        "rareiq/web/static/guest_room.js",
+        "rareiq/web/static/greenroom_chat.js",
+        "tests/test_guest_room.py",
+        "tests/browser/guest_room.test.cjs"
+      ],
+      "limit": "Local pads exist; guest effects/soundboard are premixed into each mic and cannot be isolated as producer stems.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "native_program_recording",
+      "category": "Recording",
+      "feature": "Full composed Program A/V recording",
+      "obs": "Native recording.",
+      "streamlabs": "Free Desktop: integrated recording.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "desktop/recording.cjs",
+        "desktop/recording-file-store.cjs",
+        "desktop/tests/recording.test.cjs",
+        "rareiq/services/recording_service.py",
+        "tests/test_recording_service.py"
+      ],
+      "limit": "Final candidate actual bundled Main/backend03 recorded native MKV with composed generated picture and one mixed AAC track; record-only Settings reopen and five decoded generated files passed. Packaged fixture audio was generated silence; separate worker native05 proved non-silent AAC and low-disk guards. Physical capture and live show audio remain separate.",
+      "priority": "P0",
+      "officialURLs": [
+        "https://obsproject.com/kb/standard-recording-output-guide",
+        "https://streamlabs.com/content-hub/post/streamlabs-desktop-recording-functionality"
+      ],
+      "acceptanceEvidence": [
+        "F:/Temp/jonat/ProducerPlease-recording-20261119/bundled03/results.json",
+        "F:/Temp/jonat/ProducerPlease-recording-20261119/native05/results.json",
+        "F:/Temp/jonat/ProducerPlease-recording-20261119/settings-ui01/results.json",
+        "F:/Temp/jonat/ProducerPlease-parity-20261119/release-composed02.log"
+      ]
+    },
+    {
+      "id": "record_while_streaming",
+      "category": "Recording",
+      "feature": "Record while broadcasting without duplicate capture",
+      "obs": "Native concurrent streaming/recording subject to capacity.",
+      "streamlabs": "Free Desktop: concurrent stream/record.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "desktop/recording.cjs",
+        "desktop/recording-file-store.cjs",
+        "desktop/tests/recording.test.cjs",
+        "desktop/broadcast.cjs",
+        "desktop/tests/broadcast.test.cjs",
+        "docs/PRODUCT_DIRECTION.md"
+      ],
+      "limit": "Final candidate bundled03 generated-media acceptance passed both stream/record stop orders and independent cleanup; five generated output files decoded. Transport stayed local, with no external broadcast, devices or credentials. This is short local acceptance, not platform receipt or endurance.",
+      "priority": "P0",
+      "officialURLs": [
+        "https://obsproject.com/kb/standard-recording-output-guide",
+        "https://streamlabs.com/content-hub/post/streamlabs-desktop-recording-functionality"
+      ],
+      "acceptanceEvidence": [
+        "F:/Temp/jonat/ProducerPlease-recording-20261119/bundled03/results.json",
+        "F:/Temp/jonat/ProducerPlease-recording-20261119/native05/results.json",
+        "F:/Temp/jonat/ProducerPlease-recording-20261119/settings-ui01/results.json",
+        "F:/Temp/jonat/ProducerPlease-parity-20261119/release-composed02.log"
+      ]
+    },
+    {
+      "id": "pause_and_remux",
+      "category": "Recording",
+      "feature": "Recording pause and remux",
+      "obs": "Native pause subject to recording mode; remux utility.",
+      "streamlabs": "Desktop recording options; exact pause/remux support not certified by this audit.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "desktop/recording.cjs",
+        "desktop/recording-file-store.cjs",
+        "desktop/tests/recording.test.cjs",
+        "rareiq/services/recording_service.py",
+        "tests/test_recording_service.py"
+      ],
+      "limit": "New recorder scope does not establish pause/resume, remux or every container workflow.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/kb/standard-recording-output-guide",
+        "https://streamlabs.com/content-hub/post/streamlabs-desktop-recording-functionality"
+      ]
+    },
+    {
+      "id": "full_program_replay",
+      "category": "Recording",
+      "feature": "Full-Program A/V rolling replay",
+      "obs": "Native replay buffer.",
+      "streamlabs": "Free Desktop: replay buffer and Instant Replay source.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/services/instant_replay_service.py",
+        "tests/test_instant_replay_reliability.py",
+        "docs/RELEASE_CHECKLIST.md"
+      ],
+      "limit": "Existing camera replay does not capture composed Program, graphics or mixed show audio.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/standard-recording-output-guide",
+        "https://streamlabs.com/content-hub/post/streamlabs-desktop-recording-functionality"
+      ]
+    },
+    {
+      "id": "camera_only_replay",
+      "category": "Recording",
+      "feature": "Existing camera replay and manual clip export",
+      "obs": "Native replay can include complete output.",
+      "streamlabs": "Desktop replay buffer can include complete output.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/services/instant_replay_service.py",
+        "tests/test_instant_replay_reliability.py",
+        "docs/RELEASE_CHECKLIST.md"
+      ],
+      "limit": "Program-camera JPEG buffer; default 5 fps/20 s. MP4 export is silent mp4v at up to 1280 px, not full-show replay.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/standard-recording-output-guide",
+        "https://streamlabs.com/content-hub/post/streamlabs-desktop-recording-functionality"
+      ]
+    },
+    {
+      "id": "selective_recording",
+      "category": "Recording",
+      "feature": "Different source visibility for recording versus stream",
+      "obs": "Separate source recording typically needs additional workflow/plugin.",
+      "streamlabs": "Free Desktop: Selective Recording.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "desktop/recording.cjs",
+        "desktop/recording-file-store.cjs",
+        "desktop/tests/recording.test.cjs",
+        "rareiq/services/production_composition.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/browser/production_layouts.test.cjs"
+      ],
+      "limit": "No separate recorded-video scene visibility graph or isolated-source recording workflow established.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/kb/standard-recording-output-guide",
+        "https://streamlabs.com/content-hub/post/streamlabs-desktop-recording-functionality"
+      ]
+    },
+    {
+      "id": "clip_postproduction",
+      "category": "Recording",
+      "feature": "Trim, sequence and publish highlight videos",
+      "obs": "External video editor.",
+      "streamlabs": "Separate free G HUB Replay app; Video Editor/Cross Clip web tools have separate free/Ultra limits.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/services/instant_replay_service.py",
+        "tests/test_instant_replay_reliability.py",
+        "docs/RELEASE_CHECKLIST.md"
+      ],
+      "limit": "Clip download is not a timeline editor, highlight-reel workflow, captions editor or direct social publishing.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/kb/standard-recording-output-guide",
+        "https://streamlabs.com/highlighter",
+        "https://support.streamlabs.com/hc/en-us/articles/40763008677659-Video-Editor-FAQ"
+      ]
+    },
+    {
+      "id": "transport_protocols",
+      "category": "Output",
+      "feature": "RTMP/RTMPS and SRT-style transport",
+      "obs": "RTMP/RTMPS; SRT/other supported FFmpeg protocols.",
+      "streamlabs": "Desktop custom RTMP and platform outputs; no SRT/RIST equivalence asserted.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "desktop/output-profiles.cjs",
+        "desktop/shared-encoder.cjs",
+        "desktop/shared_encoder_worker.py",
+        "desktop/tests/output-profiles.test.cjs"
+      ],
+      "limit": "Native Producer accepts secure RTMPS only; RTMP-only services and SRT/RIST outputs are absent.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/srt-protocol-streaming-guide",
+        "https://streamlabs.com/multistream"
+      ]
+    },
+    {
+      "id": "video_codecs",
+      "category": "Output",
+      "feature": "H.264, HEVC and AV1 encoding",
+      "obs": "Multiple encoders/codecs subject to build, hardware and destination.",
+      "streamlabs": "Desktop encoder options depend on build/hardware/service; codec matrix not independently certified here.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "desktop/output-profiles.cjs",
+        "desktop/shared-encoder.cjs",
+        "desktop/shared_encoder_worker.py",
+        "desktop/tests/output-profiles.test.cjs"
+      ],
+      "limit": "Native H.264 NVENC or software x264 and AAC only; no HEVC/AV1 output selection.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/",
+        "https://streamlabs.com/content-hub/post/streamlabs-desktop-patch-notes"
+      ]
+    },
+    {
+      "id": "hdr_color",
+      "category": "Output",
+      "feature": "HDR and advanced color formats",
+      "obs": "HDR/color workflows depend on source, encoder and output.",
+      "streamlabs": "Desktop HDR matrix not independently certified here.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "desktop/output-profiles.cjs",
+        "desktop/shared-encoder.cjs",
+        "desktop/shared_encoder_worker.py",
+        "desktop/tests/output-profiles.test.cjs",
+        "desktop/output-capture.cjs",
+        "desktop/output-preload.cjs",
+        "desktop/tests/output-capture.test.cjs"
+      ],
+      "limit": "No supported native HDR or configurable advanced color pipeline.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/",
+        "https://streamlabs.com/content-hub/post/streamlabs-desktop-patch-notes"
+      ]
+    },
+    {
+      "id": "canvas_output_scaling",
+      "category": "Output",
+      "feature": "Custom canvas size and output rescaling",
+      "obs": "Native independent canvas/output settings.",
+      "streamlabs": "Desktop resolutions and Dual Output layout settings.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "desktop/output-profiles.cjs",
+        "desktop/shared-encoder.cjs",
+        "desktop/shared_encoder_worker.py",
+        "desktop/tests/output-profiles.test.cjs"
+      ],
+      "limit": "Only 1280x720, 1920x1080, 720x1280 native output formats; no custom dimensions/rescale matrix.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://streamlabs.com/multistream"
+      ]
+    },
+    {
+      "id": "frame_rate_bitrate",
+      "category": "Output",
+      "feature": "Frame rate, bitrate and keyframe configuration",
+      "obs": "Native output settings.",
+      "streamlabs": "Free Desktop: output settings.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "desktop/output-profiles.cjs",
+        "desktop/shared-encoder.cjs",
+        "desktop/shared_encoder_worker.py",
+        "desktop/tests/output-profiles.test.cjs"
+      ],
+      "limit": "Saved 30/60 fps, H.264 bitrate/keyframe/AAC options; not every encoder tuning or fractional frame rate.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/standard-recording-output-guide",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "adaptive_bitrate",
+      "category": "Output",
+      "feature": "Network-adaptive/dynamic bitrate",
+      "obs": "Native dynamic-bitrate options depend on transport.",
+      "streamlabs": "Desktop dynamic bitrate/recovery options depend on service.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "desktop/broadcast.cjs",
+        "desktop/tests/broadcast.test.cjs",
+        "docs/PRODUCT_DIRECTION.md",
+        "desktop/output-profiles.cjs",
+        "desktop/shared-encoder.cjs",
+        "desktop/shared_encoder_worker.py",
+        "desktop/tests/output-profiles.test.cjs"
+      ],
+      "limit": "No accepted native network-adaptive bitrate controller.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/",
+        "https://streamlabs.com/content-hub/post/streamlabs-desktop-patch-notes"
+      ]
+    },
+    {
+      "id": "automatic_reconnect",
+      "category": "Output",
+      "feature": "Automatic stream reconnect",
+      "obs": "Native configurable reconnect.",
+      "streamlabs": "Desktop reconnect/disconnect features vary by platform.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "desktop/broadcast.cjs",
+        "desktop/tests/broadcast.test.cjs",
+        "docs/PRODUCT_DIRECTION.md"
+      ],
+      "limit": "Target failure stops that target; recovery uses explicit operator retry. No automatic broadcast restart.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/",
+        "https://streamlabs.com/multistream"
+      ]
+    },
+    {
+      "id": "local_multistream",
+      "category": "Output",
+      "feature": "Multiple simultaneous destinations",
+      "obs": "Multiple outputs require extra routing/plugin/service beyond ordinary single output.",
+      "streamlabs": "Ultra: cloud Multistream; free Dual Output permits one destination per orientation.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "desktop/broadcast.cjs",
+        "desktop/tests/broadcast.test.cjs",
+        "docs/PRODUCT_DIRECTION.md",
+        "desktop/output-profiles.cjs",
+        "desktop/shared-encoder.cjs",
+        "desktop/shared_encoder_worker.py",
+        "desktop/tests/output-profiles.test.cjs"
+      ],
+      "limit": "Up to8targets share one local encode. Short generated local decode passed; bandwidth, endurance and platform delivery remain unaccepted.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/",
+        "https://streamlabs.com/multistream"
+      ]
+    },
+    {
+      "id": "cloud_fanout",
+      "category": "Output",
+      "feature": "Cloud fan-out with a single upload",
+      "obs": "Separate relay/service.",
+      "streamlabs": "Ultra cloud Multistream forwards one upload per output format.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "desktop/broadcast.cjs",
+        "desktop/tests/broadcast.test.cjs",
+        "docs/PRODUCT_DIRECTION.md"
+      ],
+      "limit": "Producer transports each destination over the PC uplink; shared encoding does not equal cloud distribution.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/",
+        "https://streamlabs.com/multistream"
+      ]
+    },
+    {
+      "id": "dual_canvas",
+      "category": "Output",
+      "feature": "Independent simultaneous landscape and portrait outputs",
+      "obs": "Native base canvas; dual-layout workflows can require additional setup/plugins.",
+      "streamlabs": "Free Desktop: one landscape plus one portrait destination; Ultra expands destinations.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/services/production_composition.py",
+        "rareiq/web/static/program_composition.js",
+        "tests/browser/production_layouts.test.cjs",
+        "desktop/output-profiles.cjs",
+        "desktop/shared-encoder.cjs",
+        "desktop/shared_encoder_worker.py",
+        "desktop/tests/output-profiles.test.cjs"
+      ],
+      "limit": "Orientation-aware browser pages exist; no accepted independently configured dual-canvas native publishing.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://streamlabs.com/multistream"
+      ]
+    },
+    {
+      "id": "profiles_and_imports",
+      "category": "Output",
+      "feature": "Output profiles and OBS/Streamlabs project import",
+      "obs": "Native profiles and scene collections.",
+      "streamlabs": "Desktop scene collections and overlay import/export.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "desktop/output-profiles.cjs",
+        "desktop/shared-encoder.cjs",
+        "desktop/shared_encoder_worker.py",
+        "desktop/tests/output-profiles.test.cjs",
+        "rareiq/services/production_scene_store.py",
+        "rareiq/web/static/production_layouts.js",
+        "tests/test_production_scene_store.py"
+      ],
+      "limit": "Native output profiles save locally; no supported cross-product scene/profile importer or portable scene-media archive.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ]
+    },
+    {
+      "id": "external_obs_commands",
+      "category": "Operations",
+      "feature": "OBS integration control surface",
+      "obs": "Native OBS plus obs-websocket interface.",
+      "streamlabs": "Desktop has its own encoder; OBS plugin is a separate product.",
+      "producerStatus": "external_obs_only",
+      "evidencepaths": [
+        "rareiq/services/obs_service.py",
+        "tests/test_obs_service.py",
+        "tests/test_obs_integration_contract.py"
+      ],
+      "limit": "Producer adapter allows start/stop stream, start/stop record, set scene plus bootstrap/audit. It is not the full OBS editor/settings API.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://docs.obsproject.com/reference-frontend-api",
+        "https://streamlabs.com/multistream"
+      ]
+    },
+    {
+      "id": "global_hotkeys",
+      "category": "Operations",
+      "feature": "Configurable global production hotkeys",
+      "obs": "Native hotkey configuration.",
+      "streamlabs": "Free Desktop: configurable hotkeys.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/services/voice_rule_store.py",
+        "rareiq/services/windows_voice_keys.py",
+        "tests/test_custom_voice_rules.py",
+        "rareiq/web/static/control.html",
+        "rareiq/web/static/studio_shell.js",
+        "tests/browser/studio_shell.test.cjs"
+      ],
+      "limit": "Fixed voice hold/stop keys do not provide general Take/scene/mute/record bindings.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/",
+        "https://streamlabs.com/content-hub/post/streamlabs-desktop-recording-functionality"
+      ]
+    },
+    {
+      "id": "voice_actions",
+      "category": "Operations",
+      "feature": "Voice-triggered production actions",
+      "obs": "Requires scripts/plugins/external voice system.",
+      "streamlabs": "Sidekick is a separate app/service; automation scope differs.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "rareiq/services/voice_rule_store.py",
+        "rareiq/services/windows_voice_keys.py",
+        "tests/test_custom_voice_rules.py"
+      ],
+      "limit": "Bounded local phrase bindings forTake / scene / clip; no general AI co-host or permission bypass.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://docs.obsproject.com/scripting",
+        "https://streamlabs.com/content-hub/post/how-to-use-automations-streamlabs-desktop"
+      ]
+    },
+    {
+      "id": "gesture_automation",
+      "category": "Operations",
+      "feature": "Gesture/head-turn production automation",
+      "obs": "Requires external/script/plugin workflow.",
+      "streamlabs": "Gameplay automation is separate from camera gesture control.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/services/production_vision_service.py",
+        "tests/browser/production_vision.test.cjs"
+      ],
+      "limit": "Experimental local visual triggers with calibration and freshness guards; physical acceptance is narrower than all-user support.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://docs.obsproject.com/scripting",
+        "https://streamlabs.com/content-hub/post/how-to-use-automations-streamlabs-desktop"
+      ]
+    },
+    {
+      "id": "gameplay_automation",
+      "category": "Operations",
+      "feature": "Gameplay-event scene/source/replay automation",
+      "obs": "Usually scripts/plugins/game integrations.",
+      "streamlabs": "Native Desktop Automations:5 free, 10 Ultra, 30 Ultra+ in current comparison; Sidekick remains separate.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/services/production_vision_service.py",
+        "tests/browser/production_vision.test.cjs",
+        "rareiq/services/voice_rule_store.py",
+        "rareiq/services/windows_voice_keys.py",
+        "tests/test_custom_voice_rules.py"
+      ],
+      "limit": "Producer gesture/voice actions do not detect supported game victories/health/eliminations.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://docs.obsproject.com/scripting",
+        "https://streamlabs.com/content-hub/post/how-to-use-automations-streamlabs-desktop",
+        "https://streamlabs.com/ultra"
+      ]
+    },
+    {
+      "id": "operator_layout",
+      "category": "Operations",
+      "feature": "Docked operator layout and themes",
+      "obs": "Native docks and UI customization.",
+      "streamlabs": "Free Desktop: customizable layout.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "rareiq/web/static/control.html",
+        "rareiq/web/static/studio_shell.js",
+        "tests/browser/studio_shell.test.cjs"
+      ],
+      "limit": "Dark/light and 1080p/4K/narrow acceptance recorded. Scene-header clipping was corrected and passed ten actual live-page layouts. UI acceptance does not establish additional encoder features.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/",
+        "https://streamlabs.com/desktop-app"
+      ],
+      "acceptanceEvidence": [
+        "F:/Temp/jonat/ProducerPlease-parity-20261119/scene-controls-ui01/live/results.json",
+        "F:/Temp/jonat/ProducerPlease-recording-20261119/settings-ui01/results.json"
+      ]
+    },
+    {
+      "id": "accessibility",
+      "category": "Operations",
+      "feature": "Keyboard, focus, reduced motion and readable layout",
+      "obs": "Desktop accessibility varies by OS/control.",
+      "streamlabs": "Desktop accessibility varies by OS/control.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/web/static/control.html",
+        "rareiq/web/static/studio_shell.js",
+        "tests/browser/studio_shell.test.cjs"
+      ],
+      "limit": "Semantic labels, focus/layout/reduced-motion guards exist; no comprehensive screen-reader or disability conformance certification.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/",
+        "https://streamlabs.com/desktop-app"
+      ]
+    },
+    {
+      "id": "production_stats",
+      "category": "Operations",
+      "feature": "Dropped frames, queue, bitrate and output health",
+      "obs": "Native Stats/output diagnostics.",
+      "streamlabs": "Desktop performance/output diagnostics.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "desktop/broadcast.cjs",
+        "desktop/tests/broadcast.test.cjs",
+        "docs/PRODUCT_DIRECTION.md",
+        "desktop/settings-output-stats.js",
+        "desktop/tests/settings-output-stats.test.cjs",
+        "desktop/output-capture.cjs",
+        "desktop/output-preload.cjs",
+        "desktop/tests/output-capture.test.cjs"
+      ],
+      "limit": "Five statistics cards are integrated with Settings; all eight mocked Settings layouts and bounded actual-worker projection tests passed. Recent rates derive from counter deltas. CPU/GPU usage, network acknowledgments and platform receipt are not measured.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/",
+        "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ],
+      "acceptanceEvidence": [
+        "F:/Temp/jonat/ProducerPlease-recording-20261119/settings-ui01/results.json"
+      ]
+    },
+    {
+      "id": "plugins_scripting",
+      "category": "Operations",
+      "feature": "Plugin SDK and user scripting",
+      "obs": "Native plugin API andPython/Lua scripting; third-party ecosystem is separate.",
+      "streamlabs": "Desktop App Store: limited free apps, full accessUltra; not unrestricted OBS plugin compatibility.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "desktop/build.cjs",
+        "desktop/build-source.cjs",
+        "tests/test_desktop_package.py",
+        "docs/RELEASE_CHECKLIST.md",
+        "rareiq/web/static/control.html",
+        "rareiq/web/static/studio_shell.js",
+        "tests/browser/studio_shell.test.cjs"
+      ],
+      "limit": "No supported Producer plugin SDK or user-script host; browser sources are not an equivalent plugin boundary.",
+      "priority": "P3",
+      "officialURLs": [
+        "https://docs.obsproject.com/scripting",
+        "https://streamlabs.com/ultra"
+      ]
+    },
+    {
+      "id": "isolated_rehearsal",
+      "category": "Operations",
+      "feature": "Private no-publish rehearsal mode",
+      "obs": "Can operate offline; no identical durable publish latch asserted.",
+      "streamlabs": "Can preview/record offline; no identical Producer latch asserted.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "desktop/rehearsal.cjs",
+        "rareiq/services/rehearsal_service.py",
+        "desktop/tests/rehearsal.test.cjs"
+      ],
+      "limit": "Final candidate actual bundled Main/backend/discard-encoder Rehearsal02 passed with generated media. Monitoring remained off; physical listening/echo and platform receipt are not established. Main-profile adoption remains separate from fixture acceptance.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/",
+        "https://streamlabs.com/desktop-app"
+      ],
+      "acceptanceEvidence": [
+        "F:/Temp/jonat/ProducerPlease-parity-20261119/rehearsal02/results.json",
+        "F:/Temp/jonat/ProducerPlease-parity-20261119/release-composed02.log"
+      ]
+    },
+    {
+      "id": "twitch_kick_accounts",
+      "category": "Accounts and guests",
+      "feature": "Saved Twitch/Kick sign-in and output binding",
+      "obs": "Native service integrations vary by provider.",
+      "streamlabs": "Desktop platform sign-in/connect flow.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "desktop/settings-provider-accounts.js",
+        "tests/browser/platform_accounts.test.cjs",
+        "docs/PRODUCT_DIRECTION.md",
+        "desktop/broadcast.cjs",
+        "desktop/tests/broadcast.test.cjs"
+      ],
+      "limit": "Existing saved-account validation/private reads passed. This does not prove any media reached Twitch or Kick.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/osx_update/notes_stable.html",
+        "https://streamlabs.com/multistream"
+      ]
+    },
+    {
+      "id": "youtube_account",
+      "category": "Accounts and guests",
+      "feature": "YouTube sign-in and existing-broadcast selection",
+      "obs": "Native YouTube integration.",
+      "streamlabs": "Desktop YouTube integration.",
+      "producerStatus": "setup_pending",
+      "evidencepaths": [
+        "desktop/settings-provider-accounts.js",
+        "tests/browser/platform_accounts.test.cjs",
+        "docs/PRODUCT_DIRECTION.md",
+        "desktop/broadcast.cjs",
+        "desktop/tests/broadcast.test.cjs"
+      ],
+      "limit": "Owned/bound picker and persistence tested with simulated Google; real Desktop client/consent/setup remains pending.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/osx_update/notes_stable.html",
+        "https://streamlabs.com/multistream"
+      ]
+    },
+    {
+      "id": "stream_metadata",
+      "category": "Accounts and guests",
+      "feature": "Edit platform title/description/category",
+      "obs": "Native provider-specific stream information facilities.",
+      "streamlabs": "Desktop provider-specific stream information.",
+      "producerStatus": "setup_pending",
+      "evidencepaths": [
+        "desktop/stream-info.cjs",
+        "desktop/settings-stream-metadata.js",
+        "desktop/tests/stream-info.test.cjs"
+      ],
+      "limit": "Provider adapters/readback/conflict logic exist; new editing grants and approved real write acceptance remain pending.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/osx_update/notes_stable.html",
+        "https://streamlabs.com/multistream"
+      ]
+    },
+    {
+      "id": "remote_producer_identity",
+      "category": "Accounts and guests",
+      "feature": "Named remote producers and roles",
+      "obs": "External identity/team services required.",
+      "streamlabs": "Collab Cam guest invitation is not a general editor-role identity system.",
+      "producerStatus": "setup_pending",
+      "evidencepaths": [
+        "rareiq/web/shared_scene_access.py",
+        "tests/test_shared_scene_access.py",
+        "docs/PRODUCT_DIRECTION.md"
+      ],
+      "limit": "Revisioned owner/editor/viewer foundation is locally tested; real StackThis identity registration/callback agreement remains pending.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://docs.obsproject.com/reference-frontend-api",
+        "https://streamlabs.com/collab-cam"
+      ]
+    },
+    {
+      "id": "guest_room",
+      "category": "Accounts and guests",
+      "feature": "Invited remote camera guests and admission",
+      "obs": "External guest service/browser source required.",
+      "streamlabs": "Collab Cam:1 free guest/camera, up to 11 with Ultra.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "rareiq/web/static/guest_room.js",
+        "rareiq/web/static/greenroom_chat.js",
+        "tests/test_guest_room.py",
+        "tests/browser/guest_room.test.cjs"
+      ],
+      "limit": "Six-slot waiting/admission room; individual invitations, PC-hosted/private network limits and physical acceptance still apply.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/browser-source",
+        "https://streamlabs.com/collab-cam"
+      ]
+    },
+    {
+      "id": "backstage_chat",
+      "category": "Accounts and guests",
+      "feature": "Shared/private backstage chat",
+      "obs": "External collaboration/chat service.",
+      "streamlabs": "Collab Cam supports guest conversation; exact private chat model differs.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "rareiq/web/static/guest_room.js",
+        "rareiq/web/static/greenroom_chat.js",
+        "tests/test_guest_room.py",
+        "tests/browser/guest_room.test.cjs"
+      ],
+      "limit": "Private means guest plus authorized producers; names are unverified and this is not viewer-chat messaging.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/browser-source",
+        "https://streamlabs.com/collab-cam"
+      ]
+    },
+    {
+      "id": "combined_viewer_chat",
+      "category": "Accounts and guests",
+      "feature": "Combined viewer transcript",
+      "obs": "Service docks/browser tools; no all-platform native bot claim.",
+      "streamlabs": "Ultra Multichat alongside Multistream; read/write support differs by provider.",
+      "producerStatus": "setup_pending",
+      "evidencepaths": [
+        "rareiq/services/viewer_chat_service.py",
+        "rareiq/web/static/viewer_chat.js",
+        "tests/test_viewer_chat_service.py",
+        "desktop/settings-provider-accounts.js",
+        "tests/browser/platform_accounts.test.cjs",
+        "docs/PRODUCT_DIRECTION.md"
+      ],
+      "limit": "Read-only Twitch / YouTube / Kick transcript and adapters exist; grants, callbacks/provider event setup and actual ingestion vary.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/browser-source",
+        "https://streamlabs.com/multistream"
+      ]
+    },
+    {
+      "id": "chat_send_moderation",
+      "category": "Community and services",
+      "feature": "Chat sending, bot commands and moderation",
+      "obs": "External bots/services/plugins.",
+      "streamlabs": "Cloudbot cloud service:standard commands/moderation free; custom name with Ultra.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/services/viewer_chat_service.py",
+        "rareiq/web/static/viewer_chat.js",
+        "tests/test_viewer_chat_service.py",
+        "rareiq/services/audience_service.py",
+        "rareiq/web/static/audience_controls.js",
+        "tests/browser/audience_tools.test.cjs"
+      ],
+      "limit": "Current observers do not send chat, timeout, ban or run a general bot.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/kb/browser-source",
+        "https://streamlabs.com/cloudbot"
+      ]
+    },
+    {
+      "id": "audience_welcomes",
+      "category": "Community and services",
+      "feature": "First/featured-chat welcome graphics",
+      "obs": "Browser source/external event service.",
+      "streamlabs": "Free alerts/widgets with platform/service prerequisites.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/services/audience_service.py",
+        "rareiq/web/static/audience_controls.js",
+        "tests/browser/audience_tools.test.cjs"
+      ],
+      "limit": "Rule previews and trusted chat welcomes exist; follows/subscriptions/silent viewer joins unavailable. Preview stays private.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/kb/browser-source",
+        "https://streamlabs.com/desktop-app"
+      ]
+    },
+    {
+      "id": "transaction_alerts",
+      "category": "Community and services",
+      "feature": "Follow/subscription/tip/gift alert integrations",
+      "obs": "External authorized alert service/browser source.",
+      "streamlabs": "Free Alert Box; provider event support and themed assets vary.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/services/audience_service.py",
+        "rareiq/web/static/audience_controls.js",
+        "tests/browser/audience_tools.test.cjs"
+      ],
+      "limit": "No claim of verified paid transactions from observed labels; broad native paid-event adapters are not established.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/kb/browser-source",
+        "https://streamlabs.com/desktop-app"
+      ]
+    },
+    {
+      "id": "external_widgets",
+      "category": "Community and services",
+      "feature": "Embed external alert/chat widgets",
+      "obs": "Native browser source.",
+      "streamlabs": "Free widgets and browser source; themed designs vary by tier.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/web/static/production_browser_source.js",
+        "rareiq/web/static/production_browser_review.js",
+        "tests/browser/production_browser_source.test.cjs"
+      ],
+      "limit": "HTTPS visual embedding is constrained and reviewed; widget audio / local HTML / provider delivery are separate blockers.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/kb/browser-source",
+        "https://streamlabs.com/desktop-app"
+      ]
+    },
+    {
+      "id": "polls_loyalty_giveaways",
+      "category": "Community and services",
+      "feature": "Polls, loyalty points, rewards and giveaways",
+      "obs": "External bots/services/plugins.",
+      "streamlabs": "Free Cloudbot standard modules; not a native desktop-only function.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/services/audience_service.py",
+        "rareiq/web/static/audience_controls.js",
+        "tests/browser/audience_tools.test.cjs",
+        "rareiq/services/viewer_chat_service.py",
+        "rareiq/web/static/viewer_chat.js",
+        "tests/test_viewer_chat_service.py"
+      ],
+      "limit": "No supported general cross-platform ledger, raffle or poll-execution workflow established by current audience welcomes.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/kb/browser-source",
+        "https://streamlabs.com/cloudbot"
+      ]
+    },
+    {
+      "id": "tipping",
+      "category": "Community and services",
+      "feature": "Hosted tipping and subscription tip pages",
+      "obs": "Separate payment/hosted service.",
+      "streamlabs": "Free Streamlabs tip page; Ultra customization.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "docs/PRODUCT_DIRECTION.md",
+        "docs/ROADMAP.md",
+        "docs/RELEASE_CHECKLIST.md"
+      ],
+      "limit": "No payment provider, tip checkout or billing rules implemented here; external page embedding is not a payment integration.",
+      "priority": "P3",
+      "officialURLs": [
+        "https://obsproject.com/kb/browser-source",
+        "https://streamlabs.com/ultra"
+      ]
+    },
+    {
+      "id": "merch",
+      "category": "Community and services",
+      "feature": "Merch store and fulfilment",
+      "obs": "Separate commerce service.",
+      "streamlabs": "Streamlabs Merch service; Ultra improves margins.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "docs/PRODUCT_DIRECTION.md",
+        "docs/ROADMAP.md",
+        "docs/RELEASE_CHECKLIST.md"
+      ],
+      "limit": "No native merch store, fulfilment or merchant accounting contract.",
+      "priority": "P3",
+      "officialURLs": [
+        "https://obsproject.com/kb/browser-source",
+        "https://streamlabs.com/ultra"
+      ]
+    },
+    {
+      "id": "theme_marketplace",
+      "category": "Community and services",
+      "feature": "Premade production-theme marketplace",
+      "obs": "Third-party overlays/assets; no native hosted store.",
+      "streamlabs": "Free theme subset; Ultra full library/reactive overlays.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "rareiq/web/static/control.html",
+        "rareiq/web/static/studio_shell.js",
+        "tests/browser/studio_shell.test.cjs",
+        "docs/PRODUCT_DIRECTION.md",
+        "docs/ROADMAP.md",
+        "docs/RELEASE_CHECKLIST.md"
+      ],
+      "limit": "Current Producer branding and semantic skins are not a theme marketplace or licensed template catalogue.",
+      "priority": "P3",
+      "officialURLs": [
+        "https://obsproject.com/kb/sources-guide",
+        "https://streamlabs.com/ultra"
+      ]
+    },
+    {
+      "id": "cloud_backup",
+      "category": "Community and services",
+      "feature": "Cloud scene/media backup and restore",
+      "obs": "Local profile/scene export; cloud requires separate service.",
+      "streamlabs": "Streamlabs account storage:1 GB free, 10 GB Ultra, 30 GB Ultra+; backup scope varies.",
+      "producerStatus": "missing",
+      "evidencepaths": [
+        "desktop/build.cjs",
+        "desktop/build-source.cjs",
+        "tests/test_desktop_package.py",
+        "docs/RELEASE_CHECKLIST.md",
+        "docs/PRODUCT_DIRECTION.md",
+        "docs/ROADMAP.md"
+      ],
+      "limit": "Private local profile-adoption/recovery backups are not customer cloud sync. Do not reuse historic unlimited-storage claims.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/",
+        "https://streamlabs.com/ultra"
+      ]
+    },
+    {
+      "id": "mobile_and_shift",
+      "category": "Community and services",
+      "feature": "Mobile broadcasting and device handoff",
+      "obs": "No first-party OBSmobile encoder; external tools available.",
+      "streamlabs": "Separate Mobile app; Ultra Stream Shift/device-handoff features.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "rareiq/web/static/guest_room.js",
+        "rareiq/web/static/greenroom_chat.js",
+        "tests/test_guest_room.py",
+        "tests/browser/guest_room.test.cjs",
+        "rareiq/web/static/control.html",
+        "rareiq/web/static/studio_shell.js",
+        "tests/browser/studio_shell.test.cjs"
+      ],
+      "limit": "Responsive guest/control pages exist; no equivalent mobile app or seamless midstream encoder handoff.",
+      "priority": "P3",
+      "officialURLs": [
+        "https://obsproject.com/download",
+        "https://streamlabs.com/mobile-app",
+        "https://streamlabs.com/multistream"
+      ]
+    },
+    {
+      "id": "desktop_distribution",
+      "category": "Distribution",
+      "feature": "Installable self-contained application",
+      "obs": "OfficialWindows/macOS/Linux distribution.",
+      "streamlabs": "DesktopWindows/macOS; mobile/console are separate products.",
+      "producerStatus": "locally_verified",
+      "evidencepaths": [
+        "desktop/build.cjs",
+        "desktop/build-source.cjs",
+        "tests/test_desktop_package.py",
+        "docs/RELEASE_CHECKLIST.md"
+      ],
+      "limit": "Final Windows self-contained candidate passed actual bundled import/backend/recording/Rehearsal acceptance with unchanged resources. Main8765 and Preview8767 remain separate; final Preview activation and main promotion are not claimed. No cross-platform Producer release accepted.",
+      "priority": "P1",
+      "officialURLs": [
+        "https://obsproject.com/download",
+        "https://streamlabs.com/desktop-app"
+      ],
+      "acceptanceEvidence": [
+        "F:/Temp/jonat/ProducerPlease-parity-20261119/backend02/results.json",
+        "F:/Temp/jonat/ProducerPlease-recording-20261119/bundled03/results.json",
+        "F:/Temp/jonat/ProducerPlease-parity-20261119/rehearsal02/results.json"
+      ]
+    },
+    {
+      "id": "updates_import_recovery",
+      "category": "Distribution",
+      "feature": "Automatic updates, rollback and portable migration",
+      "obs": "Official update/distribution plus local scene/profile portability.",
+      "streamlabs": "Desktop phased automatic updates; scene/overlay export/import.",
+      "producerStatus": "implemented_partial",
+      "evidencepaths": [
+        "desktop/build.cjs",
+        "desktop/build-source.cjs",
+        "tests/test_desktop_package.py",
+        "docs/RELEASE_CHECKLIST.md",
+        "docs/PRODUCT_DIRECTION.md",
+        "docs/ROADMAP.md"
+      ],
+      "limit": "Immutable bundling and reviewed profile-adoption tooling exist; no accepted public updater or main profile promotion in this phase.",
+      "priority": "P2",
+      "officialURLs": [
+        "https://obsproject.com/download",
+        "https://streamlabs.com/content-hub/post/streamlabs-desktop-patch-notes"
+      ]
+    }
+  ],
+  "acceptancePolicy": "The producer-screen and native-recording rows are locally_verified at their explicitly recorded generated-media layers. Final composed canonical gate passed. Local acceptance does not establish production readiness, physical capture or platform receipt. Main-profile promotion and final Preview activation are not claimed.",
+  "candidate": {
+    "build": "0.1.0-20261119184055985",
+    "sourceTree": "765f0af9cf432cab0ed3af90a5831bff62ac8853",
+    "mainProfilePromotion": "not claimed by this report",
+    "previewActivation": "Root handles final Preview activation separately; this report does not claim it occurred."
+  },
+  "canonicalGate": {
+    "status": "passed",
+    "pythonTests": 4491,
+    "javascriptTests": 1102,
+    "evidenceLog": "F:/Temp/jonat/ProducerPlease-parity-20261119/release-composed02.log",
+    "priorOwnGate": {
+      "pythonTests": 4491,
+      "javascriptTests": 1091,
+      "evidence": "canonical03"
+    },
+    "scope": "Local composed-source canonical gate; no physical capture or external platform receipt."
+  },
+  "acceptanceEvidence": {
+    "producerScreen": "F:/Temp/jonat/ProducerPlease-parity-20261119/producer-screen-ui06/results.json",
+    "bundledRecording": "F:/Temp/jonat/ProducerPlease-recording-20261119/bundled03/results.json",
+    "nativeWorker": "F:/Temp/jonat/ProducerPlease-recording-20261119/native05/results.json",
+    "settingsLayouts": "F:/Temp/jonat/ProducerPlease-recording-20261119/settings-ui01/results.json",
+    "rehearsal": "F:/Temp/jonat/ProducerPlease-parity-20261119/rehearsal02/results.json",
+    "backend": "F:/Temp/jonat/ProducerPlease-parity-20261119/backend02/results.json",
+    "sceneControls": "F:/Temp/jonat/ProducerPlease-parity-20261119/scene-controls-ui01/live/results.json",
+    "canonicalGate": "F:/Temp/jonat/ProducerPlease-parity-20261119/release-composed02.log"
+  }
+}

@@ -97,3 +97,11 @@ test('rehearsal rejects unsafe counters and retains process ownership after fail
   assert.equal(f.group.status().bytesDiscarded,undefined);f.message({event:'stats',bytesDiscarded:8});assert.equal(f.group.status().bytesDiscarded,8);
   const stopped=await deadline(f.group.stop());assert.equal(stopped.running,true);assert.equal(stopped.code,'encoder_stop_timeout');assert.equal(stopped.localDiscard,true);f.child.emit('close',1);assert.equal(f.group.status().running,false);
 });
+
+test('recording path is constructor-only and exclusive from network, rehearsal and synthetic targets',async()=>{
+  const recordingFile={path:path.join(root,'new.mkv'),minimumFreeBytes:268435456},f=fixture({artifactRoot:undefined,recordingFile});
+  const value=config({targets:[{id:'recording-local',recording:true,twitchVod:false}]});await ready(f,value);const sent=JSON.parse(f.child.writes[0].toString());assert.deepEqual(sent.recordingFile,recordingFile);assert.deepEqual(sent.targets,value.targets);assert.equal(JSON.stringify(f.group.status()).includes('new.mkv'),false);
+  f.message({event:'stats',recording:true,recordingBytes:12,recordingFinalized:false});assert.equal(f.group.status().recordingBytes,12);await close(f);
+  for(const targets of [[target('one')],[{id:'recording-local',recording:true,destination:{}}],[{id:'recording-local',recording:true,twitchVod:true}],[{id:'foreign',recording:true}]])await assert.rejects(f.group.start(config({targets})),/invalid_encoder_config/);
+  const ordinary=fixture();await assert.rejects(ordinary.group.start(value),/invalid_encoder_config/);await assert.rejects(ordinary.group.start(config({recordingFile})),/invalid_encoder_config/);assert.throws(()=>fixture({recordingFile}),/invalid_recording_file/);
+});

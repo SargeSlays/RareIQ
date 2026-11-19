@@ -1015,6 +1015,8 @@ def _production_image_sources():
             if asset.get("kind") == "visual" and IMAGE_SOURCE.fullmatch(f"image:{asset['id']}")]
 
 def _production_source_available(source):
+    if isinstance(source, str) and source.startswith("producer:screen:"):
+        return greenroom_hub.producer_source_available(source)
     match = LOCAL_SOURCE.fullmatch(source) if isinstance(source, str) else None
     if not match:
         return False
@@ -1049,6 +1051,21 @@ def _greenroom_removed(participant_id):
             PRODUCTION_SWITCHER_STATE["generation"] += 1
             PRODUCTION_SWITCHER_STATE["updated_at"] = time.time()
 
+
+def _producer_screen_removed(source_id):
+    with PRODUCTION_SWITCHER_LOCK:
+        state = composition_state(PRODUCTION_SWITCHER_STATE)
+        changed = False
+        for bus in ("program", "preview"):
+            key = bus + "_sources"
+            remaining = [source for source in state[key] if source != source_id]
+            if remaining != state[key]:
+                PRODUCTION_SWITCHER_STATE[key] = remaining
+                changed = True
+        if changed:
+            PRODUCTION_SWITCHER_STATE["generation"] += 1
+            PRODUCTION_SWITCHER_STATE["updated_at"] = time.time()
+
 def _greenroom_operator(connection):
     return not SHARED_SCENE_ACCESS.enabled and REMOTE_ACCESS.authorizes(
         connection.client.host if connection.client else None, connection.cookies.get(REMOTE_ACCESS_COOKIE))
@@ -1057,7 +1074,9 @@ greenroom_hub = GreenroomHub(greenroom_service, authorize_operator=_greenroom_op
     switcher=_greenroom_switcher, static_dir=STATIC_DIR, ice_servers=greenroom_network.ice_servers,
     public_origin=lambda: greenroom_network.public_origin,
     actor_kind=lambda request: "local_operator" if is_loopback_client(request.client.host if request.client else None) else "paired_lan_operator",
-    removed=_greenroom_removed, source_available=_production_source_available)
+    removed=_greenroom_removed, source_available=_production_source_available,
+    authorize_publisher=lambda connection: _greenroom_operator(connection) and is_loopback_client(connection.client.host if connection.client else None),
+    producer_removed=_producer_screen_removed)
 app.include_router(greenroom_hub.router)
 audience_service = AudienceService(storage.get_path("config_path") / "audience.sqlite3")
 viewer_chat_service = ViewerChatService()
@@ -2662,8 +2681,8 @@ def _production_source_problem(sources, *, require_output=False, slots=None):
             slot = int(source.rsplit(":", 1)[1])
             if not _production_slot_is_ready(slot, slots):
                 return {"ok": False, "reason": "camera_slot_unavailable", "slot_id": slot, "source_id": source}
-        elif source.startswith(("image:", "video:", "text:", "browser:")):
-            kind = source.split(":", 1)[0]
+        elif source.startswith(("producer:screen:", "image:", "video:", "text:", "browser:")):
+            kind = "producer_screen" if source.startswith("producer:") else source.split(":", 1)[0]
             if not _production_source_available(source):
                 return {"ok": False, "reason": kind + "_source_unavailable", "source_id": source}
             if require_output and not greenroom_hub.source_ready(source):
@@ -2675,7 +2694,7 @@ def _production_source_problem(sources, *, require_output=False, slots=None):
             return {"ok": False, "reason": "guest_output_not_ready", "source_id": source,
                     "message": "Open Studio Output and wait for the guest feed before taking it to Program."}
     if require_output and not greenroom_hub.composition_ready(sources):
-        return {"ok": False, "reason": next((s.split(":", 1)[0] + "_output_not_ready" for s in sources if LOCAL_SOURCE.fullmatch(s)), "guest_output_not_ready"),
+        return {"ok": False, "reason": next(("producer_screen_output_not_ready" if s.startswith("producer:") else s.split(":", 1)[0] + "_output_not_ready" for s in sources if s.startswith("producer:") or LOCAL_SOURCE.fullmatch(s)), "guest_output_not_ready"),
                 "message": "Wait for one Studio Output window to receive the entire Preview mix."}
     return None
 
@@ -2689,7 +2708,7 @@ def _program_composition_readiness(slots, program_slot):
         return _program_camera_readiness(slots, program_slot)
     problem = _production_source_problem(sources, require_output=True, slots=slots)
     ready = bool(sources) and not problem
-    if ready and any(source.startswith(("guest:", "image:", "video:", "text:", "browser:")) for source in sources):
+    if ready and any(source.startswith(("producer:", "guest:", "image:", "video:", "text:", "browser:")) for source in sources):
         ready = greenroom_hub.output_status()["rendered_generation"] == state["generation"]
     return {"ready": ready, "state": "pass" if ready else "fail",
             "reason": "composition_ready" if ready else (problem or {}).get("reason", "composition_not_rendered"),

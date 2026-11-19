@@ -90,10 +90,11 @@ def test_update15_stylesheet_is_last_and_cache_busted() -> None:
     html = read("control.html")
     links = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
     active_version = re.search(r'data-studiox-build="([^"]+)"', html).group(1)
-    assert links[-26:] == [
+    assert links[-27:] == [
         f"/static/studiox_ui4_tokens.css?v={active_version}",
         f"/static/studiox_update15.css?v={active_version}&amp;shell=6.8.93-camera-workspace1&amp;media=20260830-2&amp;grid=20260830-1&amp;audit=20260830-2",
         f"/static/pack_run_coach.css?v={active_version}",
+        "/static/producer_screen_source.css?v=20261119-1",
         "/static/brand/v1/rare-iq-tokens.css?v=1.0",
         "/static/brand/producer-please-v2/producer-please.tokens.css?v=2.0",
         f"/static/rareiq_brand_v1.css?v={active_version}&amp;audit=20260830-2&amp;refinish=20260907-2",
@@ -105,7 +106,7 @@ def test_update15_stylesheet_is_last_and_cache_busted() -> None:
         "/static/studio_shell.css?v=20261118-4&amp;refinish=20260907-2&amp;session-tools=20260908-2&amp;sarge=20260908-2&amp;studio-refinish=20260908-2&amp;noise-gate=20260908-1",
         "/static/producer-please.motion.css?v=20260908-1",
         "/static/studio_voice_rules.css?v=20261115-1",
-        "/static/program_composition.css?v=20261115-7",
+        "/static/program_composition.css?v=20261119-screen1",
         "/static/greenroom_controls.css?v=20261118-compact1",
         "/static/greenroom_chat.css?v=20261115-chat1",
         "/static/production_image_library.css?v=20261115-1",

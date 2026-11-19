@@ -351,3 +351,37 @@ Your main **Producer, Please** launcher and saved settings remain intact. Main
 profile migration is waiting for its enabled OBS integration to be confirmed idle;
 it was not disabled or bypassed unattended. The prepared adoption preserves your
 card reference library and original files when production is confirmed idle.
+
+
+## Native Program recording and producer screen/window sources
+
+In the desktop studio choose **Record Program** to open local recording controls.
+Choose Program sources, Prepare output, then Record Program. A native file chooser
+and separate confirmation review a new MKV file. Default recordings go to
+F:/Users/<user>/Videos/ProducerPlease. Existing files are never overwritten.
+The composed Program picture and public Live audio mix use H.264/AAC. Recording
+and broadcasting can run together; each has its own Stop. Closing the setup panel
+keeps a committed recording running. Stop recording finalizes the file; Show saved
+file opens its folder. Retain incomplete files after disk/encoder failures.
+This first recorder has one Live audio track: no isolated stems, six-track export,
+pause/remux or full-Program replay buffer. Rehearsal prohibits recording.
+
+In Sources & backstage, **Share screen** opens an explicit screen/window chooser.
+Sharing creates an available source; select it for Preview, then Take after the
+output has received it. Stop removes that source from both buses. Sharing again
+creates a new source that must be selected deliberately. This is video-only:
+dedicated game hooking and computer/application audio capture remain separate.
+
+Native output statistics show local encoded bytes, encoder queue, input drops and
+recent rates when measured. They do not measure CPU/GPU or platform receipt.
+See OBS_STREAMLABS_COMPARISON.md for the capability inventory and limits.
+
+### Demonstration checklist
+
+Open the Start-menu **Producer, Please - Standalone Preview** shortcut. Use Sources
+& backstage to show guests/chat and images/video/text/browser sources; Preview
+before Take. Choose a harmless screen/window yourself when demonstrating sharing.
+Use Broadcast setup for profiles, saved destinations, stream-info drafts and the
+no-publish Rehearsal room. Recording always needs its separate file and confirmation.
+Do not present Google setup, provider editing grants, StackThis producer sign-in or
+actual Twitch/Kick/YouTube reception as completed without their recorded acceptance.

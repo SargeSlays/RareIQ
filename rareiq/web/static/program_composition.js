@@ -4,6 +4,7 @@
   const SOURCE=/^(?:camera:([1-4])|guest:([a-f0-9]{32}):(camera|screen|audio)|(image|video|text|browser):([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}))$/;
   const FRAME_TTL=2500,STATE_TTL=4500;
   function parseSource(value){
+    if(typeof value==='string'&&/^producer:screen:[a-f0-9]{32}$/.test(value))return {id:value,kind:'producer_screen',slot:null,participantId:value};
     const match=typeof value==='string'&&SOURCE.exec(value);
     return match?{id:value,kind:match[1]?'local':match[4]||match[3],slot:match[1]?Number(match[1]):null,participantId:match[2]||null,...(match[4]?{assetId:match[5]}:{})}:null;
   }
@@ -25,6 +26,7 @@
   const liveTrack=track=>Boolean(track&&track.readyState==='live'&&track.enabled!==false&&track.muted!==true);
   function participantFor(room,id){return room?.participants?.find(p=>p.id===id&&p.state==='admitted'&&p.connected===true&&!p.expired)||null;}
   function permitted(source,room){
+    if(source.kind==='producer_screen')return room?.producer_sources?.some(item=>item.id===source.id&&item.available===true)===true;
     if(['local','image','video','text','browser'].includes(source.kind))return true;
     const participant=participantFor(room,source.participantId);
     return Boolean(participant&&participant.media?.[source.kind==='audio'?'microphone':source.kind]===true);
@@ -33,7 +35,7 @@
     const result=new Map();
     for(const id of sources){
       const source=parseSource(id);
-      if(!source||['local','image','video','text','browser'].includes(source.kind)||!permitted(source,room))continue;
+      if(!source||['producer_screen','local','image','video','text','browser'].includes(source.kind)||!permitted(source,room))continue;
       const participant=participantFor(room,source.participantId),media=tracks(source.participantId)||{};
       if(participant.program_audio?.microphone_muted!==true&&participant.media.microphone===true&&liveTrack(media.microphone))result.set(source.participantId+':microphone',media.microphone);
       if(participant.program_audio?.screen_muted!==true&&source.kind==='screen'&&participant.media.screen_audio===true&&liveTrack(media.screen_audio))result.set(source.participantId+':screen_audio',media.screen_audio);
@@ -167,7 +169,7 @@
         const avatar=this.document.createElement('span');avatar.className='composition-avatar';avatar.textContent='●';
         const label=this.document.createElement('figcaption');label.className='composition-speaker';label.textContent='Guest';node.append(avatar,label);tile.label=label;
       }else{
-        const video=this.document.createElement('video');video.autoplay=true;video.muted=true;video.playsInline=true;video.setAttribute('playsinline','');video.setAttribute('aria-label',source.kind==='screen'?'Guest screen':'Guest camera');node.append(video);tile.video=video;
+        const video=this.document.createElement('video');video.autoplay=true;video.muted=true;video.playsInline=true;video.setAttribute('playsinline','');video.setAttribute('aria-label',source.kind==='producer_screen'?'Producer screen · video only':source.kind==='screen'?'Guest screen':'Guest camera');node.append(video);tile.video=video;
         const observe=()=>{if(!tile.disposed&&video.readyState>=2&&video.videoWidth>0&&liveTrack(tile.track)){tile.frameSeen=true;tile.lastFrame=this.now();}};
         this._listen(video,'loadeddata',observe,tile.cleanups);this._listen(video,'timeupdate',observe,tile.cleanups);
         this._listen(video,'error',()=>{tile.frameSeen=false;tile.ready=false;node.dataset.ready='false';this.refresh();},tile.cleanups);
@@ -210,7 +212,7 @@
         tile.ready=Boolean(!tile.videoFailed&&tile.video.readyState>=2&&tile.video.videoWidth>0);
       }else{
         const allowed=permitted(source,this.room),tracks=this._tracks(source.participantId);
-        const track=allowed?tracks[source.kind==='audio'?'microphone':source.kind]:null;
+        const track=allowed?tracks[source.kind==='producer_screen'?'screen':source.kind==='audio'?'microphone':source.kind]:null;
         this._bindTrack(tile,liveTrack(track)?track:null);
         if(tile.label){const p=participantFor(this.room,source.participantId);tile.label.textContent=typeof p?.name==='string'?p.name.slice(0,60):'Guest';}
         if(tile.video&&!tile.video.requestVideoFrameCallback&&tile.video.readyState>=2&&tile.video.videoWidth>0&&tile.video.currentTime!==tile.mediaTime){

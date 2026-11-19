@@ -3,6 +3,7 @@
   'use strict';
   const ASSET=/^(image|video|text|browser):[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
   function sourceKind(id){
+    if(/^producer:screen:[a-f0-9]{32}$/.test(id))return 'content';
     if(/^camera:[1-4]$/.test(id))return 'camera';
     const guest=/^guest:[a-f0-9]{32}:(camera|screen|audio)$/.exec(id);if(guest)return guest[1]==='screen'?'content':guest[1];
     const asset=ASSET.exec(id);return asset?(asset[1]==='text'?'text':'content'):null;
