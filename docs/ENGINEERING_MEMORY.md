@@ -1417,3 +1417,14 @@ that source in an explicitly inventoried, hashed private overlay tree, run its
 checks, and package both layers from that same immutable tree. Do not commit
 owner experiments, move the active checkout or copy runtime/credentials into a
 source snapshot to make a release appear clean.
+
+## November 19, 2026 — Embedded worker companion bootstrap
+
+Actual bundled Main/Rehearsal acceptance caught an encoder startup failure before
+any frame or audio: embedded Python's isolated search path omitted the immutable
+resources directory containing encoder_worker, which shared_encoder_worker imports.
+Developer Python implicitly found the script directory, so source tests missed it.
+The package now explicitly includes only that installed directory; CWD and Python
+environment overrides remain ignored. A focused synthetic archive/path regression
+keeps an untrusted CWD companion out. Bundled acceptance captures authoritative
+Start/failure state before cleanup; actual rebuilt acceptance remains separate.

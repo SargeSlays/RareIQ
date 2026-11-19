@@ -1,7 +1,9 @@
 from tools import package_desktop_runtime as package
 import hashlib
+from importlib.machinery import PathFinder
 import json
 import subprocess
+import zipfile
 
 import pytest
 
@@ -52,6 +54,34 @@ def test_runtime_source_allowlist_excludes_operator_files_and_build_artifacts():
 def test_embedded_runtime_is_pinned_to_a_verified_archive():
     assert package.PYTHON_URL.startswith('https://www.python.org/ftp/python/')
     assert len(package.PYTHON_SHA256) == 64
+
+
+def test_isolated_embedded_bootstrap_resolves_packaged_worker_companion_without_cwd_or_environment(tmp_path, monkeypatch):
+    cache = tmp_path / "verified-cache"
+    cache.mkdir()
+    archive = cache / f"python-{package.PYTHON_VERSION}-embed-amd64.zip"
+    with zipfile.ZipFile(archive, "w") as output:
+        output.writestr("python.exe", b"inert synthetic interpreter")
+        output.writestr("python313.zip", b"inert synthetic standard library")
+    monkeypatch.setattr(package, "PYTHON_SHA256", package.digest(archive))
+    resources = tmp_path / "immutable-resources"
+    interpreter = resources / "python"
+    package.embedded_python(interpreter, cache)
+    worker = resources / "encoder_worker.py"
+    worker.write_text("# inert packaged companion\n", encoding="utf-8")
+    decoy = tmp_path / "untrusted-cwd"
+    decoy.mkdir()
+    (decoy / "encoder_worker.py").write_text("raise AssertionError('wrong companion')", encoding="utf-8")
+    (decoy / "private_cwd_module.py").write_text("# must never be on runtime path", encoding="utf-8")
+    monkeypatch.chdir(decoy)
+    monkeypatch.setenv("PYTHONPATH", str(decoy))
+    monkeypatch.setenv("PYTHONHOME", str(decoy))
+    entries = (interpreter / "python313._pth").read_text(encoding="utf-8").splitlines()
+    assert entries == ["python313.zip", ".", "Lib/site-packages", "..", "../backend"]
+    search = [str((interpreter / entry).resolve()) for entry in entries]
+    assert all((interpreter / entry).resolve().is_relative_to(resources) for entry in entries)
+    assert PathFinder.find_spec("encoder_worker", search).origin == str(worker)
+    assert PathFinder.find_spec("private_cwd_module", search) is None
 
 
 def test_stage_source_optional_pinned_tree_ignores_later_index_and_working_source(source_project, tmp_path):

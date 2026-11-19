@@ -1916,3 +1916,15 @@ unrelated owner source excluded from that checkpoint. The reviewed initial data
 plan has no replacements/conflicts/review blockers: 3,178 new files, including
 3,163 exact catalog references and three reference-library files. No actual
 profile adoption has occurred at this checkpoint.
+
+## November 19, 2026 — Standalone acceptance follow-up
+
+Preserved working-source canonical gate passed 4,402 Python checks. Workspace UI
+passed 539 checks/36 views, camera controls 83/40 simulated movements, and full
+tools 576/30 views. Full-tools needed an external corrected synthetic audience
+fixture; original runtime source and failed evidence were retained unchanged.
+Actual bundled backend imports/resource immutability passed. Actual native
+Rehearsal failed before media because the isolated interpreter omitted a packaged
+worker companion directory; a minimal bootstrap correction and regression are
+now implemented. Rebuilt native acceptance and primary data adoption remain
+pending; disconnected configured OBS must not be bypassed to force promotion.

@@ -203,9 +203,10 @@ def embedded_python(destination, cache):
             if name.is_absolute() or ".." in name.parts or "\\" in item.filename:
                 raise ValueError("embedded_python_archive_escape")
         source.extractall(destination)
-    # Isolated embedded Python ignores PYTHONPATH. These are the only app roots.
+    # Isolated embedded Python ignores PYTHONPATH/CWD. The immutable resources
+    # parent contains encoder_worker, imported by its shared worker companion.
     (destination / "python313._pth").write_text(
-        "python313.zip\n.\nLib/site-packages\n../backend\n", encoding="utf-8")
+        "python313.zip\n.\nLib/site-packages\n..\n../backend\n", encoding="utf-8")
 
 
 def build(resources, *, cache=Path("F:/Caches/ProducerPlease/embedded-python"), source_tree=None):
