@@ -1116,3 +1116,16 @@ and Desktop registration, new metadata editing permission and StackThis producer
 identity. YouTube account-linked output needs an explicit existing owned stream or
 bound-broadcast selection, auto-start awareness and fresh private retrieval; it
 must not create/bind/transition a YouTube broadcast as a side effect of signing in.
+
+## November 19, 2026 — Safe standalone primary preparation
+
+Implemented immutable-tree packaging, portable writable state/catalog paths and
+reviewed resumable profile adoption with private backups and bounded image-copy
+closures. The owner working tree also contains newer Card Studio source/assets;
+a private frozen source overlay must retain those existing workflows without
+staging or committing unrelated owner work on the development branch.
+
+Before promotion: finish both canonical source baselines, intercepted card UI
+checks, actual bundled import/resource/native checks, reviewed private data copy,
+fresh saved-account validation and guest-only HTTPS after controlled restart.
+No claim that building a candidate alone migrates or verifies the primary profile.

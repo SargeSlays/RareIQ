@@ -32,7 +32,7 @@ from rareiq.core.orchestrator import RareIQOrchestrator
 from rareiq.core.secrets import secrets as secret_store
 from rareiq.core.platform_credentials import PlatformCredentialVault, PlatformCredentialsError
 from rareiq.core.storage import storage
-from rareiq.core.runtime_paths import desktop_data_root
+from rareiq.core.runtime_paths import desktop_data_root, desktop_config_path
 from rareiq.services.provenance_capture_service import ProvenanceCaptureService
 from rareiq.services.spotify_service import spotify
 from rareiq.services.instant_replay_service import InstantReplayService
@@ -974,7 +974,7 @@ PRODUCTION_SWITCHER_STATE: dict[str, Any] = {"program_slot": 1, "preview_slot": 
 PRODUCTION_SWITCHER_LOCK = threading.RLock()
 PRODUCTION_SHOW_START_LOCK = asyncio.Lock()
 PRODUCTION_CAMERA_FRESHNESS_SECONDS = 2.0
-PRODUCTION_SCENE_PATH = BASE_DIR.parent.parent / "production_scenes.json"
+PRODUCTION_SCENE_PATH = desktop_config_path("production_scenes.json") or BASE_DIR.parent.parent / "production_scenes.json"
 DEFAULT_PRODUCTION_SCENES = [
     {"id": "main-card", "name": "Main Card", "program_slot": 1, "preview_slot": 2, "transition": "fade", "duration_ms": 500, "spotify_action": "keep", "soundboard_action": "keep", "screen_action": "hide"},
     {"id": "overhead-grid", "name": "Overhead Grid", "program_slot": 2, "preview_slot": 1, "transition": "slide", "duration_ms": 500, "spotify_action": "keep", "soundboard_action": "keep"},
@@ -1223,10 +1223,11 @@ def _scene_principal(request: Request) -> VerifiedPrincipal | None:
 def _scene_permission_error() -> JSONResponse:
     return JSONResponse(status_code=403, content={"ok": False, "reason": "studio_permission_denied"}, headers={"Cache-Control": "no-store"})
 PRODUCTION_SESSION_LOCK = threading.RLock()
-PRODUCTION_SESSION_PATH = BASE_DIR.parent.parent / "production_session.json"
-PRODUCTION_HISTORY_PATH = BASE_DIR.parent.parent / "production_history.json"
+PRODUCTION_SESSION_PATH = desktop_config_path("production_session.json") or BASE_DIR.parent.parent / "production_session.json"
+PRODUCTION_HISTORY_PATH = desktop_config_path("production_history.json") or BASE_DIR.parent.parent / "production_history.json"
 PRODUCTION_SESSION: dict[str, Any] = {"active": False, "session_id": None, "started_at": 0.0, "ended_at": 0.0, "events": [], "metadata": {"name": "", "customer": "", "break_id": "", "operator_notes": ""}, "output_intent": {"obs_stream": False, "obs_recording": False, "verified_destinations": []}, "health_monitor": {"active_risks": {}, "journal": [], "incident_history": []}, "pack_economics": {"pack_cost": 0.0, "box_cost": 0.0, "packs_per_box": 1, "currency": "USD"}, "recording": {"configured": bool(os.getenv("RAREIQ_RECORDING_COMMAND")), "active": False, "mode": "hook"}}
 def _save_production_session() -> None:
+    PRODUCTION_SESSION_PATH.parent.mkdir(parents=True, exist_ok=True)
     temp = PRODUCTION_SESSION_PATH.with_suffix(".tmp")
     temp.write_text(json.dumps(PRODUCTION_SESSION, indent=2), encoding="utf-8")
     temp.replace(PRODUCTION_SESSION_PATH)
@@ -1237,6 +1238,7 @@ def _load_production_history() -> list[dict[str, Any]]:
     except (OSError, ValueError, TypeError):
         return []
 def _save_production_history(history: list[dict[str, Any]]) -> None:
+    PRODUCTION_HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
     temp = PRODUCTION_HISTORY_PATH.with_suffix(".tmp")
     temp.write_text(json.dumps(history[-100:], indent=2), encoding="utf-8")
     temp.replace(PRODUCTION_HISTORY_PATH)
@@ -1268,7 +1270,7 @@ recording = RecordingService(
     storage.get_path("recording_path"),
     config_path=storage.get_path("config_path") / "recording_settings.json",
 )
-obs = ObsService(BASE_DIR.parent.parent / "obs_settings.json")
+obs = ObsService(desktop_config_path("obs_settings.json") or BASE_DIR.parent.parent / "obs_settings.json")
 
 
 async def _rehearsal_idle():

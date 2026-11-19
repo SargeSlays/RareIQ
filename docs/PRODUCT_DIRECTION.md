@@ -1156,3 +1156,20 @@ broadcast confirmation still apply. Synthetic native/browser/store checks passed
 and actual saved Kick authorization plus private secure-ingest retrieval passed
 without starting media. YouTube destinations still use manual settings pending its
 registration/sign-in and an explicit existing-stream selection workflow.
+
+## November 19, 2026 — Standalone runtime preservation
+
+Bundled builds now pin desktop UI, backend, encoder workers and dependency inputs
+to one immutable Git tree. Native session/history/scene/OBS paths and card catalog
+loaders use the private desktop data root instead of writing into resources or
+resolving user references against the installed source. Explicit custom paths and
+development behavior remain compatible.
+
+Profile adoption is an explicit reviewed, backed-up operation, not an automatic
+first-run import of developer files. It keeps the existing native outer profile,
+configured storage roots and originals. Optional durable card/reference adoption
+preserves selected sets, learned transition settings, overrides, reference index
+and exact catalog image references. Active sessions, process receipts, transient
+scan continuity and unrelated data trees are excluded. Copying neither activates
+paid RareIQ enforcement nor initiates production. Actual standalone adoption and
+private working-source preservation are separate acceptance below.

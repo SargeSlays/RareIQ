@@ -1390,7 +1390,7 @@ class MultiCardRecognitionService:
         live = self._sift_descriptors(crop, treatment=False)
         live_treatment = self._sift_descriptors(crop, treatment=True)
         live_marker = ArtworkIndexService.variant_marker_fingerprint(crop)
-        project_root = Path(__file__).resolve().parents[2]
+        project_root = desktop_config_path(".") or Path(__file__).resolve().parents[2]
         matches: list[tuple[float, dict[str, Any]]] = []
         for record in self._reference_cards:
             record_name = str(record.get("canonical_name") or record.get("english_name") or "")
@@ -1421,7 +1421,7 @@ class MultiCardRecognitionService:
         relative = record.get("reference_image") or record.get("image_path")
         path = Path(str(relative or ""))
         if not path.is_absolute():
-            path = (project_root or Path(__file__).resolve().parents[2]) / path
+            path = (project_root or desktop_config_path(".") or Path(__file__).resolve().parents[2]) / path
         try:
             stamp = path.stat().st_mtime_ns
         except OSError:
@@ -1904,7 +1904,7 @@ class MultiCardRecognitionService:
         if crop is None:
             return ""
         live = self._sift_descriptors(crop, treatment=False)
-        project_root = Path(__file__).resolve().parents[2]
+        project_root = desktop_config_path(".") or Path(__file__).resolve().parents[2]
         representatives: dict[str, dict[str, Any]] = {}
         for record in self._reference_cards:
             name = str(record.get("canonical_name") or record.get("english_name") or "").strip()
@@ -1928,12 +1928,8 @@ class MultiCardRecognitionService:
 
     @staticmethod
     def _load_reference_cards() -> list[dict[str, Any]]:
-        path = (
-            Path(__file__).resolve().parents[2]
-            / "catalog_master"
-            / "recognition"
-            / "pokipair_cards.json"
-        )
+        catalog_root = desktop_config_path("catalog_master") or Path(__file__).resolve().parents[2] / "catalog_master"
+        path = catalog_root / "recognition" / "pokipair_cards.json"
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
             records = payload.get("records", []) if isinstance(payload, dict) else payload
@@ -2089,7 +2085,7 @@ class MultiCardRecognitionService:
                         changed = True
             groups.append(sorted(group))
 
-        project_root = Path(__file__).resolve().parents[2]
+        project_root = desktop_config_path(".") or Path(__file__).resolve().parents[2]
         for slots in groups:
             if len(slots) < 2:
                 continue

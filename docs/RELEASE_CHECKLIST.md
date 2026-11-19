@@ -1893,3 +1893,26 @@ new account permission. Canonical gate passed 4,345 Python and 990 JavaScript ch
 The tested local-development candidate is 0.1.0-20261119104449532; primary activation
 is being combined with the subsequent backed-up standalone-runtime adoption so
 that the idle guest backend needs only one further controlled transition.
+
+## November 19, 2026 — Standalone preservation foundation
+
+- [x] Pinned tree/byte receipts for desktop, backend, workers and dependency inputs;
+  synthetic index/working drift, export attribute and requirement closure guards.
+- [x] Actual server state writers and card relative-image loaders exercised against
+  isolated profile/resource decoys; explicit custom/development paths retained.
+- [x] Reviewed configuration/card/reference adoption, private backups, late target
+  checks, no-follow/hard-link lock guards, streaming catalog closure and interrupted
+  replay exercised synthetically. No original data moved or deleted.
+- [ ] Full own-source and preserved-working-source canonical acceptance.
+- [ ] Actual bundled native/import/resource acceptance and private primary adoption.
+- [ ] Saved accounts, private guest boundary and card reference counts/readability
+  after promotion. Hardware listening and real platform delivery stay separate.
+
+Evidence: F:/Temp/jonat/ProducerPlease-primary-bundle-20261119. Data adoption must
+not be inferred from a successful build or source-only tests.
+
+Own-source canonical gate passed 4,402 Python and 997 JavaScript checks, with
+unrelated owner source excluded from that checkpoint. The reviewed initial data
+plan has no replacements/conflicts/review blockers: 3,178 new files, including
+3,163 exact catalog references and three reference-library files. No actual
+profile adoption has occurred at this checkpoint.

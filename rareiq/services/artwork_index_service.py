@@ -143,7 +143,7 @@ class ArtworkIndexService:
 
     @staticmethod
     def _load_identity_overrides() -> dict[str, dict[str, Any]]:
-        root = Path(__file__).resolve().parents[2] / "catalog_master"
+        root = desktop_config_path("catalog_master") or Path(__file__).resolve().parents[2] / "catalog_master"
         merged: dict[str, dict[str, Any]] = {}
         for name in (
             "pokipair_identity_overrides.json",

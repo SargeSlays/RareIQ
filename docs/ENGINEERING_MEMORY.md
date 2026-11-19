@@ -1381,3 +1381,39 @@ Windows Python file reads and writes must both specify UTF-8. A default-codepage
 read followed by a UTF-8 write can silently transcode an otherwise valid existing
 document. Rebuild the intended edit from the UTF-8 Git source, inspect its diff,
 and guard the desktop setup guide against replacement/mojibake punctuation.
+
+## November 19, 2026 — One-source-tree builds and lossless profile adoption
+
+Bundled UI copied from the working directory can diverge from a backend captured
+from the index. Pin one tree for UI, brand assets, backend, workers and recursive
+requirements/constraints; receipt hashes must agree. Git archive may apply local
+export attributes or CRLF conversion, so read raw Git blobs rather than relying
+on an archive as byte-identical source. Keep developer quick builds separate.
+
+A relocated runtime needs more than storage_config.json. Route session/history,
+scene and OBS defaults through desktop_config_path. Route private catalog tables
+and all default relative reference-image bases through the same profile root,
+while preserving explicit custom roots/absolute references. Source-based unit
+checks must actually execute persistence against resource decoys.
+
+Durable card preferences and learned transition scopes are not transient scan
+continuity. A safe adoption preserves those files, bounded reference libraries
+and the exact catalog-reference closure; fixed corpus JSON alone omits thousands
+of images. Stream large images, pin directory/corpus inventories and every hash,
+rebase only reviewed known references, and keep all original files. Passive .txt
+library notes are data and must remain bytes, never instructions.
+
+Back up every old target before any replacement. Recheck fixed JSON target hashes
+after temporary-file preparation, immediately before replace, as well as streaming
+image targets. Guard lock files before permissions/sentinel writes: regular-file
+identity alone does not reject hard links. Reject links/reparse points, multiple
+links and changed opened/current identities; apply Windows ACLs through the
+verified handle. Partial journal replay must retain the reviewed source/scope and
+reject newly changed source or target inventories. These classes have synthetic
+regressions, including changes during fsync and foreign lock descriptors.
+
+A clean committed tree can omit active uncommitted owner frontend work. Preserve
+that source in an explicitly inventoried, hashed private overlay tree, run its
+checks, and package both layers from that same immutable tree. Do not commit
+owner experiments, move the active checkout or copy runtime/credentials into a
+source snapshot to make a release appear clean.
