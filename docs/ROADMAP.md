@@ -1180,3 +1180,20 @@ The 86-row comparison is the finite backlog, not an all-feature completion claim
 Current native slice has local generated-media acceptance: recording, both Stop
 orders, producer screen Preview/Take/invalidation and Settings diagnostics. The
 remaining editor/capture/audio/platform items above remain open.
+
+
+## November 19, 2026 — Layer editor and Program replay checkpoint
+
+Current slice: advanced Preview layer drafts with exact-ID readiness/Take,
+Save Preview as scene and saved geometry recall; full Program A/V RAM replay with
+keyframe-aligned MKV Save and independent streaming/recording/replay ownership.
+Generated-media worker, full Settings, exact packaged Main and final Standalone
+Preview acceptance pass. The composed-source gate passed 4522 Python and 1145
+JavaScript tests. Build 0.1.0-20261119192451732 is open in the separate Preview
+profile; main production and its private guest host remain unchanged.
+
+Remaining editor work: groups/nesting, rotation/flip, broader geometry/anchor and
+filter facilities. Remaining replay work: direct clip import/playout, fast replay
+hotkeys, isolated audio tracks and longer endurance/hardware tests. Dedicated
+game capture, computer audio, virtual camera, provider grants and real delivery
+remain separate from this checkpoint. No auto-start follows app restart.

@@ -5,6 +5,14 @@ const {createSharedOutputCapture} = require('../shared-output-capture.cjs');
 const turn = () => new Promise(resolve => setImmediate(resolve));
 const settle = async () => { for (let n = 0; n < 12; n++) await turn(); };
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return {promise, resolve, reject}; };
+
+test('replay survives independent recording and broadcast stops on one physical Program capture',async()=>{
+ const f=fixture(),replay=f.shared.forConsumer('replay'),received=[];
+ await Promise.all([f.broadcast.startCapture(()=>true,()=>true),f.recording.startCapture(()=>true,()=>true),replay.startCapture((_b,p)=>{received.push(p);return true;},()=>true)]);
+ f.audio(Buffer.alloc(1920),0);f.video(Buffer.from('generated'),10000);await settle();assert.equal(f.starts,1);assert.equal(received.length,1);
+ await f.broadcast.stopCapture();await f.recording.stopCapture();assert.equal(f.stops,0);f.audio(Buffer.alloc(1920),20000);f.video(Buffer.from('generated2'),30000);await settle();assert.equal(received.length,2);
+ await replay.stopCapture();assert.equal(f.stops,1);await f.shared.close();assert.equal(f.closes,1);
+});
 function fixture(options = {}) {
   const f = {starts: 0, stops: 0, closes: 0, prepares: 0, prepare: deferred()};
   f.raw = {status: () => ({prepared: true, capturing: f.starts > f.stops, error: null}), prepare: async () => { f.prepares++; },

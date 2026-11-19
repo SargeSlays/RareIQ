@@ -151,7 +151,7 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
     html = read("control.html")
     styles = re.findall(r'<link rel="stylesheet" href="([^"]+)"', html)
     version = re.search(r'data-studiox-build="([^"]+)"', html).group(1)
-    assert styles[-27:] == [
+    assert styles[-28:] == [
         f"/static/studiox_ui4_tokens.css?v={version}",
         f"/static/studiox_update15.css?v={version}&amp;shell=6.8.93-camera-workspace1&amp;media=20260830-2&amp;grid=20260830-1&amp;audit=20260830-2",
         f"/static/pack_run_coach.css?v={version}",
@@ -167,20 +167,21 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
         "/static/studio_shell.css?v=20261118-4&amp;refinish=20260907-2&amp;session-tools=20260908-2&amp;sarge=20260908-2&amp;studio-refinish=20260908-2&amp;noise-gate=20260908-1",
         "/static/producer-please.motion.css?v=20260908-1",
         "/static/studio_voice_rules.css?v=20261115-1",
-        "/static/program_composition.css?v=20261119-screen1",
+        "/static/program_composition.css?v=20261119-layer1",
+        "/static/production_layer_editor.css?v=20261119-layer1",
         "/static/greenroom_controls.css?v=20261118-compact1",
         "/static/greenroom_chat.css?v=20261115-chat1",
         "/static/production_image_library.css?v=20261115-1",
         "/static/production_media_library.css?v=20261115-1",
         "/static/production_browser_library.css?v=20261115-1",
         "/static/production_layouts.css?v=20261115-1",
-        "/static/desktop_bridge.css?v=20261118-4",
+        "/static/desktop_bridge.css?v=20261119-replay1",
         "/static/audience_controls.css?v=20261115-1",
         "/static/platform_accounts.css?v=20261118-2",
         "/static/viewer_chat.css?v=20261118-1",
         "/static/production_vision.css?v=20261115-1",
     ]
-    assert len(styles) == 29
+    assert len(styles) == 30
     assert not any("studiox_60.css" in style for style in styles)
     assert not any("studiox_604.css" in style for style in styles)
 

@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('producerDesktop',Object.freeze({
   info:()=>ipcRenderer.invoke('producer:info'),
   openBroadcastSettings:()=>ipcRenderer.invoke('producer:settings'),
   openRecordingSettings:()=>ipcRenderer.invoke('producer:recording:settings'),
+  openReplaySettings:()=>ipcRenderer.invoke('producer:replay:settings'),
   authorizeAccount:value=>{
     if(!value||Object.prototype.toString.call(value)!=='[object Object]'||Object.keys(value).length!==2
       ||!Object.hasOwn(value,'platform')||!Object.hasOwn(value,'flowId')||value.platform!=='youtube'

@@ -6,6 +6,7 @@ E drains shared codecs and all remaining targets. No devices or implicit retry.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections import deque
 from fractions import Fraction
 from io import BytesIO, RawIOBase
 from pathlib import Path
@@ -41,6 +42,7 @@ SAFE_CODES = frozenset({
     "shared_encoder_shutdown_unconfirmed",
     "invalid_recording_file", "recording_file_exists", "recording_storage_unavailable",
     "insufficient_recording_space", "recording_finalize_failed",
+    "replay_buffer_empty", "replay_save_busy", "replay_save_failed", "replay_cancelled",
 })
 
 
@@ -56,7 +58,7 @@ def safe_code(error):
 
 def validate_config(value):
     allowed = {"width", "height", "fps", "bitrate", "codec", "audioBitrateKbps", "keyframeSeconds",
-               "twitchVod", "targets", "artifactRoot", "rehearsal", "recordingFile"}
+               "twitchVod", "targets", "artifactRoot", "rehearsal", "recordingFile", "replay"}
     if not isinstance(value, dict) or set(value) - allowed:
         base.fail("invalid_encoder_config")
     if "rehearsal" in value and value["rehearsal"] is not True:
@@ -64,6 +66,13 @@ def validate_config(value):
     config = base.validate_config(value)
     rehearsal = value.get("rehearsal") is True
     recording = "recordingFile" in value
+    replay = "replay" in value
+    if replay:
+        ring = value["replay"]
+        if (recording or rehearsal or "artifactRoot" in value or config["twitchVod"] or not isinstance(ring, dict)
+                or set(ring) != {"seconds", "maximumBytes"} or type(ring["seconds"]) is not int or ring["seconds"] not in {15, 30, 60}
+                or type(ring["maximumBytes"]) is not int or not 1024 ** 2 <= ring["maximumBytes"] <= 128 * 1024 ** 2):
+            base.fail("invalid_encoder_config")
     if recording:
         file = value["recordingFile"]
         if (rehearsal or "artifactRoot" in value or config["twitchVod"]
@@ -77,17 +86,19 @@ def validate_config(value):
         base.fail("invalid_encoder_config")
     if recording and targets != [{"id": "recording-local", "recording": True, "twitchVod": False}]:
         base.fail("invalid_encoder_config")
+    if replay and targets != [{"id": "replay-local", "replay": True, "twitchVod": False}]:
+        base.fail("invalid_encoder_config")
     if rehearsal and (len(targets) != 1 or "artifactRoot" in value):
         base.fail("invalid_encoder_config")
     seen, normalized = set(), []
     for target in targets:
-        allowed_target = {"id", "recording", "twitchVod"} if recording else {"id", "rehearsal", "twitchVod"} if rehearsal else {"id", "destination", "testOutput", "testTransport", "twitchVod"}
+        allowed_target = {"id", "replay", "twitchVod"} if replay else {"id", "recording", "twitchVod"} if recording else {"id", "rehearsal", "twitchVod"} if rehearsal else {"id", "destination", "testOutput", "testTransport", "twitchVod"}
         if (not isinstance(target, dict) or set(target) - allowed_target
                 or not isinstance(target.get("id"), str) or not _ID.fullmatch(target["id"]) or target["id"] in seen
                 or type(target.get("twitchVod", False)) is not bool):
             base.fail("invalid_encoder_config")
         seen.add(target["id"])
-        if recording:
+        if recording or replay:
             normalized.append(dict(target))
             continue
         if rehearsal:
@@ -110,7 +121,7 @@ def validate_config(value):
         normalized.append({**target, "twitchVod": target.get("twitchVod", False)})
     if config["twitchVod"] != any(target["twitchVod"] for target in normalized):
         base.fail("invalid_encoder_config")
-    return {**config, "targets": normalized, **({"recordingFile": dict(value["recordingFile"])} if recording else {})}
+    return {**config, "targets": normalized, **({"recordingFile": dict(value["recordingFile"])} if recording else {}), **({"replay": dict(value["replay"])} if replay else {})}
 
 
 class RecordingWriter(RawIOBase):
@@ -391,6 +402,138 @@ class TargetMux:
                 self.queue_bytes = 0
 
 
+class ReplayRing:
+    """Encoded payload capped at 128 MiB; one retained snapshot has the same cap."""
+    def __init__(self, seconds, maximum_bytes):
+        self.seconds, self.maximum_bytes = seconds, maximum_bytes
+        self.packets, self.bytes = deque(), 0
+        self.end = Fraction(0)
+        self.lock = threading.RLock()
+
+    @staticmethod
+    def stamp(packet):
+        return Fraction(packet.dts if packet.dts is not None else packet.pts or 0) * packet.time_base
+
+    def append(self, packet):
+        with self.lock:
+            if packet.kind == "V": self.end = max(self.end, self.stamp(packet))
+            self.packets.append(packet)
+            self.bytes += len(packet.data)
+            cutoff = self.end - self.seconds
+            while self.packets and (self.bytes > self.maximum_bytes or len(self.packets) > 20000 or self.stamp(self.packets[0]) < cutoff):
+                self.bytes -= len(self.packets.popleft().data)
+
+    def snapshot(self):
+        with self.lock:
+            cutoff = self.end - self.seconds
+            key = next((packet for packet in self.packets if packet.kind == "V" and packet.keyframe and self.stamp(packet) >= cutoff), None)
+            if key is None: base.fail("replay_buffer_empty")
+            origin = self.stamp(key)
+            selected = tuple(packet for packet in self.packets if origin <= self.stamp(packet) <= self.end)
+            if self.end - origin < Fraction(1, 4) or sum(packet.kind == "A" for packet in selected) < 2:
+                base.fail("replay_buffer_empty")
+            return origin, selected
+
+    def public(self):
+        with self.lock:
+            try:
+                origin, _packets = self.snapshot()
+                ready, duration = True, max(0, round(float(self.end - origin) * 1000))
+            except base.EncoderError:
+                ready, duration = False, 0
+            return {"replay": True, "replayReady": ready, "bufferedMs": duration, "bufferBytes": self.bytes}
+
+
+class ReplayMux(TargetMux):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ring = ReplayRing(self.config["replay"]["seconds"], self.config["replay"]["maximumBytes"])
+        self.saver, self.save_lock = None, threading.Lock()
+        self.save_receipts = {}
+
+    def public(self):
+        return {**super().public(), **self.ring.public()}
+
+    def run(self):
+        self.ready.set()
+        emit("ready", targetId=self.spec["id"], running=True, **self.public())
+        report_at = 0.0
+        try:
+            while not self.abort.is_set():
+                try: packet = self.queue.get(timeout=.05)
+                except queue.Empty:
+                    if self.drain.is_set(): break
+                    continue
+                with self.lock: self.queue_bytes -= len(packet.data)
+                self.ring.append(packet)
+                self.counts["packets"] += 1
+                self.counts["bytesMuxed"] += len(packet.data)
+                if packet.kind == "V": self.counts["videoFrames"] += 1
+                else: self.counts["audioSamples"] += packet.duration
+                if time.monotonic() - report_at >= 1:
+                    emit("stats", targetId=self.spec["id"], running=True, **self.public())
+                    report_at = time.monotonic()
+        except Exception as error:
+            self.error = safe_code(error)
+        finally:
+            if self.saver: self.saver.join(STOP_TIMEOUT_SECONDS)
+            if self.saver and self.saver.is_alive(): self.error = "shared_encoder_shutdown_unconfirmed"
+            with self.ring.lock:
+                self.ring.packets.clear()
+                self.ring.bytes = 0
+
+    def save(self, value):
+        identifier = value["requestId"]
+        fingerprint = json.dumps(value, sort_keys=True, separators=(",", ":"))
+        with self.save_lock:
+            previous = self.save_receipts.get(identifier)
+            if previous:
+                emit("replaySaved", requestId=identifier, **(previous[1] if previous[0] == fingerprint else {"ok": False, "code": "replay_save_failed"}))
+                return
+            if self.saver and self.saver.is_alive():
+                emit("replaySaved", requestId=identifier, ok=False, code="replay_save_busy")
+                return
+            try: origin, packets = self.ring.snapshot()
+            except Exception as error:
+                emit("replaySaved", requestId=identifier, ok=False, code=safe_code(error))
+                return
+            def write_snapshot():
+                output = handle = None
+                result = {"ok": False, "code": "replay_save_failed"}
+                try:
+                    handle = RecordingWriter(value["recordingFile"])
+                    output = self.av.open(handle, "w", format="matroska")
+                    streams = {kind: output.add_stream_from_template(template, opaque=True) for kind, template in self.templates.items()}
+                    output.start_encoding()
+                    video, audio, duration = 0, 0, Fraction(0)
+                    for packet in sorted(packets, key=lambda item: (self.ring.stamp(item), item.kind != "V")):
+                        current = packet.rematerialize(self.av, streams[packet.kind])
+                        offset = round(origin / packet.time_base)
+                        if current.pts is not None: current.pts -= offset
+                        if current.dts is not None: current.dts -= offset
+                        output.mux(current)
+                        duration = max(duration, self.ring.stamp(packet) + packet.duration * packet.time_base - origin)
+                        if packet.kind == "V": video += 1
+                        else: audio += packet.duration
+                    output.close(); output = None
+                    size = handle.finalize()
+                    if not video or not audio or not size: base.fail("replay_buffer_empty")
+                    result = {"ok": True, "finalized": True, "savedBytes": size, "durationMs": round(float(duration) * 1000), "videoFrames": video, "audioSamples": audio}
+                except Exception as error:
+                    result = {"ok": False, "code": safe_code(error)}
+                finally:
+                    if output:
+                        try: output.close()
+                        except Exception: pass
+                    if handle: handle.close()
+                    with self.save_lock:
+                        self.save_receipts[identifier] = (fingerprint, result)
+                        if len(self.save_receipts) > 32: self.save_receipts.pop(next(iter(self.save_receipts)))
+                    emit("replaySaved", requestId=identifier, **result)
+            self.saver = threading.Thread(target=write_snapshot, daemon=True, name="replay-save")
+            self.saver.start()
+
+
 def monitor_targets(targets, stop):
     while not stop.is_set():
         all_closed = True
@@ -422,6 +565,17 @@ def stop_targets(targets, *, drain):
         base.fail("shared_encoder_shutdown_unconfirmed")
 
 
+def validate_replay_save(value):
+    if (not isinstance(value, dict) or set(value) != {"requestId", "recordingFile"}
+            or not isinstance(value["requestId"], str) or not _ID.fullmatch(value["requestId"])):
+        base.fail("invalid_encoder_packet")
+    validate_config({"width": 64, "height": 64, "fps": 30, "bitrate": 500000, "codec": "libx264",
+                     "audioBitrateKbps": 96, "keyframeSeconds": 1, "twitchVod": False,
+                     "recordingFile": value["recordingFile"],
+                     "targets": [{"id": "recording-local", "recording": True, "twitchVod": False}]})
+    return value
+
+
 def run(value, stream):
     import av
     import certifi
@@ -448,7 +602,7 @@ def run(value, stream):
     counts = {"videoFrames": 0, "audioSamples": 0, "audioSilenceSamples": 0,
               "vodAudioSamples": 0, "vodAudioSilenceSamples": 0, "packets": 0, "bytesMuxed": 0}
     def local_stats():
-        return ({"recording": True, "recordingFinalized": bool(targets) and all(target.recording_finalized for target in targets.values()),
+        return (targets["replay-local"].ring.public() if "replay" in config and targets else {"replay": True, "replayReady": False, "bufferedMs": 0, "bufferBytes": 0} if "replay" in config else {"recording": True, "recordingFinalized": bool(targets) and all(target.recording_finalized for target in targets.values()),
                  "recordingBytes": sum(target.recording_bytes for target in targets.values())}
                 if "recordingFile" in config else {"rehearsal": True, "localDiscard": True, "networkVerified": False,
                  "bytesDiscarded": sum(target.discard.bytes_written for target in targets.values() if target.discard)}
@@ -462,7 +616,7 @@ def run(value, stream):
                 target.enqueue(frozen)
     try:
         template.start_encoding()
-        targets = {spec["id"]: TargetMux(spec, config, templates, av, None if rehearsal else certifi.where(), codec=codec, wire_verified=wire_verified)
+        targets = {spec["id"]: (ReplayMux if "replay" in config else TargetMux)(spec, config, templates, av, None if rehearsal else certifi.where(), codec=codec, wire_verified=wire_verified)
                    for spec in config["targets"]}
         for target in targets.values():
             target.thread.start()
@@ -501,6 +655,13 @@ def run(value, stream):
                 except (ValueError, TypeError):
                     base.fail("invalid_encoder_packet")
                 targets[control["id"]].request_stop()
+                continue
+            if kind == "S":
+                if "replay" not in config or pts != 0 or not 1 <= length <= 8192:
+                    base.fail("invalid_encoder_packet")
+                try: command = validate_replay_save(json.loads(base.read_exact(stream, length)))
+                except (ValueError, TypeError): base.fail("invalid_encoder_packet")
+                targets["replay-local"].save(command)
                 continue
             if (kind not in last or not 0 <= pts <= base.MAX_PTS or pts <= last[kind]
                     or kind == "V" and length != config["width"] * config["height"] * 4

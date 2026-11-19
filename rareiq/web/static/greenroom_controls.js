@@ -39,7 +39,9 @@
     const browsers=sources.filter(source=>source.startsWith('browser:'));
     if(browsers.length&&(!output.connected||!Array.isArray(groups)||!groups.length||groups.length<Number(output.connected)||!groups.every(group=>Array.isArray(group)&&browsers.every(source=>group.includes(source)))))return {ready:false,message:'Review each Preview browser picture in every connected Studio Output before Take. Use Review in Studio Output below; blocked or blank pages are not ready.'};
     if(guests.length&&(!output.connected||!Array.isArray(groups)||!groups.some(group=>Array.isArray(group)&&guests.every(source=>group.includes(source)))))return {ready:false,message:sources.some(source=>/^(image|video|text):/.test(source))?'Waiting for one Studio Output to load every Preview source. If media cannot load or its codec is unsupported, remove it and import another file.':'Waiting for one Studio Output to receive every Preview guest feed.'};
-    if(JSON.stringify(sources)===JSON.stringify(program)&&layout===(switcher.program_layout||'auto'))return {ready:false,message:'This composition is already on Program.'};
+    if(layout==='custom'&&output.preview_composition_ready!==true)return {ready:false,message:'Waiting for Studio Output to confirm these exact Preview layers. Older picture receipts cannot confirm a new arrangement.'};
+    const sameGeometry=layout!=='custom'||(switcher.preview_composition_id&&switcher.program_composition_id?switcher.preview_composition_id===switcher.program_composition_id:JSON.stringify(switcher.preview_layers||{})===JSON.stringify(switcher.program_layers||{}));
+    if(JSON.stringify(sources)===JSON.stringify(program)&&layout===(switcher.program_layout||'auto')&&sameGeometry)return {ready:false,message:'This composition is already on Program.'};
     return {ready:true,message:'Preview is ready to take to Program.'};
   }
   function randomHex(bytes=20){const values=new Uint8Array(bytes);if(!host.crypto?.getRandomValues)throw Error('secure_random_unavailable');host.crypto.getRandomValues(values);return Array.from(values,value=>value.toString(16).padStart(2,'0')).join('');}
@@ -133,6 +135,8 @@
     const browserLibrary=host.ProducerBrowserLibrary?.mount({after:one('.production-media-library')||one('.production-image-library')||one('.greenroom-camera-sources'),catalog:()=>switcher.production_sources||[],selected:()=>previewSources(switcher),busy:()=>busy,select:source=>toggle(source),refresh,fetch:(...args)=>host.fetch(...args),document:doc});
     const screenSource=host.ProducerScreenSource?.mount({after:one('.greenroom-camera-sources'),room:()=>room,selected:()=>previewSources(switcher),busy:()=>busy,select:source=>toggle(source),refresh,fetch:(...args)=>host.fetch(...args),document:doc});
     const layouts=host.ProducerLayouts?.mount({controls:one('.greenroom-stage-controls'),selected:()=>previewSources(switcher),layout:()=>switcher.preview_layout||'auto',busy:()=>busy,apply:(sources,layout)=>setPreview(sources,layout),name:sourceName,document:doc});
+    const layerEditor=host.ProducerLayerEditor?.mount({after:one('.production-layouts')||one('.greenroom-camera-sources'),read:()=>switcher,room:()=>room,name:sourceName,mediaReceiver:()=>media,busy:()=>busy,document:doc,
+      apply:async body=>{if(busy||closed)throw Error('producer_request_busy');busy=true;render();try{const next=await api.request('/api/production/switcher/preview',{method:'POST',body:JSON.stringify(body)});forwardSwitcher(next);return next;}finally{busy=false;render();}}});
     const roomBody=one('.greenroom-body'),roomMain=doc.createElement('div');roomMain.className='greenroom-main';
     for(const child of Array.from(roomBody.children))if(child!==chatContainer)roomMain.append(child);
     roomBody.prepend(roomMain);
@@ -221,7 +225,7 @@
       for(const bus of ['program','preview']){
         const sources=bus==='program'?programSources(switcher):previewSources(switcher),entry=view(bus);
         if(!entry)continue;
-        const legacy=sources.length===1&&cameraId(sources[0])!==null;
+        const legacy=sources.length===1&&cameraId(sources[0])!==null&&switcher[bus+'_layout']!=='custom';
         entry.image.hidden=!legacy;entry.image.classList.toggle('greenroom-legacy-hidden',!legacy);entry.container.hidden=legacy;
         if(legacy){entry.composition.clear();const path=`/api/camera-slots/${cameraId(sources[0])}/stream?g=${Number(switcher.generation)||0}`;if(entry.image.getAttribute('src')!==path)entry.image.setAttribute('src',path);}
         else{entry.image.removeAttribute('src');entry.monitor.dataset.sourceState='connected';entry.monitor.dataset.sourceMessage='';entry.composition.render(switcher,room);}
@@ -233,7 +237,7 @@
     }
     async function setPreview(sources,layout=switcher.preview_layout||'auto'){
       if(busy||closed)return;busy=true;render();
-      try{const next=await api.request('/api/production/switcher/preview',{method:'POST',body:JSON.stringify({preview_sources:sources,layout})});forwardSwitcher(next);note('Preview updated. Program is unchanged.');}
+      try{const next=await api.request('/api/production/switcher/preview',{method:'POST',body:JSON.stringify({preview_sources:sources,layout,expected_generation:switcher.generation,expected_preview_revision:switcher.preview_revision,...(layout==='custom'?{layers:host.ProducerLayerEditor.normalizeLayers(sources,switcher.preview_layers||{})}:{})})});forwardSwitcher(next);note('Preview updated. Program is unchanged.');}
       catch(error){note(['image_source_unavailable','video_source_unavailable','text_source_unavailable','browser_source_unavailable'].includes(error.message)?'This source is unavailable. Add a replacement or clear Preview.':errorText(error));}
       finally{busy=false;render();refreshActivity(true);}
     }
@@ -326,6 +330,7 @@
       browserLibrary?.render();
       screenSource?.render();
       layouts?.render();
+      layerEditor?.render();
       const selected=previewSources(switcher);one('[data-preview-count]').textContent=`${selected.length} / 6 sources in Preview`;
       one('[data-room-layout]').value=switcher.preview_layout||'auto';
       const cameras=one('.greenroom-camera-sources');
@@ -409,7 +414,7 @@
     one('[data-preview-clear]').addEventListener('click',()=>setPreview([]));
     one('[data-room-take]').addEventListener('click',async()=>{
       if(busy||!takeReadiness(switcher,room).ready)return;busy=true;render();
-      try{const transition=one('[data-room-transition]').value,next=await api.request('/api/production/switcher/take',{method:'POST',body:JSON.stringify({preview_sources:previewSources(switcher),layout:switcher.preview_layout||'auto',transition,duration_ms:transition==='cut'?0:Number(one('[data-room-duration]').value),request_id:randomHex(),expires_at:Date.now()/1000+30})});forwardSwitcher(next);note('Program change requested. Studio Output confirmation is shown below.');}
+      try{const transition=one('[data-room-transition]').value,next=await api.request('/api/production/switcher/take',{method:'POST',body:JSON.stringify({preview_sources:previewSources(switcher),layout:switcher.preview_layout||'auto',expected_generation:switcher.generation,expected_preview_revision:switcher.preview_revision,transition,duration_ms:transition==='cut'?0:Number(one('[data-room-duration]').value),request_id:randomHex(),expires_at:Date.now()/1000+30})});forwardSwitcher(next);note('Program change requested. Studio Output confirmation is shown below.');}
       catch(error){note(errorText(error));}finally{busy=false;render();refreshActivity(true);}
     });
     activity.addEventListener('toggle',()=>{if(activity.open)refreshActivity(true);});
@@ -420,7 +425,7 @@
       media=host.ProducerGuestMedia.createReceiver({role:'producer',onState:message=>{mediaConnected=true;updateState(message.room);},onTracks:()=>{renderTiles();for(const entry of views.values())entry.composition.refresh();},onConnection:connection=>{if(connection.scope==='peer'){peerWarnings.update(connection);renderTiles();return;}if(!connection.participant_id){mediaConnected=connection.state==='connected';one('.greenroom-connection').textContent=mediaConnected?'Room connected':connection.state==='connecting'?'Connecting…':'Room connection interrupted';panel.dataset.connection=connection.state;if(!mediaConnected){peerWarnings.clear();room.output={...room.output,ready_sources:[]};render();}}},onError:()=>{}});
       media.connect().catch(()=>{one('.greenroom-connection').textContent='Room unavailable';});
     }else{one('.greenroom-connection').textContent='Guest media unavailable';}
-    const result={panel,media,renderSwitcher,refresh,close(){if(closed)return;closed=true;chat?.destroy();imageLibrary?.close();mediaLibrary?.close();browserLibrary?.close();screenSource?.close();layouts?.close();peerWarnings.clear();micGeneration++;host.clearInterval(pollTimer);setLink('');stopMic();media?.close();conference?.close();for(const entry of views.values())entry.composition.close();audioContext?.close();}};
+    const result={panel,media,renderSwitcher,refresh,close(){if(closed)return;closed=true;chat?.destroy();imageLibrary?.close();mediaLibrary?.close();browserLibrary?.close();screenSource?.close();layouts?.close();layerEditor?.close();peerWarnings.clear();micGeneration++;host.clearInterval(pollTimer);setLink('');stopMic();media?.close();conference?.close();for(const entry of views.values())entry.composition.close();audioContext?.close();}};
     workspace._producerGreenroom=result;instance=result;
     host.addEventListener('pagehide',()=>result.close(),{once:true});
     refresh();pollTimer=host.setInterval(()=>{if(!doc.hidden){refresh();refreshActivity();}},4000);render();

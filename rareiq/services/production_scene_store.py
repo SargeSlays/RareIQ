@@ -11,6 +11,7 @@ from typing import Any
 import uuid
 
 from rareiq.web.shared_scene_access import VerifiedPrincipal
+from rareiq.services.production_composition import normalize_scene_layers
 
 
 class ProductionSceneStore:
@@ -56,6 +57,7 @@ class ProductionSceneStore:
                         raise ValueError("invalid_legacy_scenes")
                     if len({s["id"] for s in scenes}) != len(scenes):
                         raise ValueError("duplicate_legacy_scene_ids")
+                    scenes = [normalize_scene_layers(scene) for scene in scenes]
                     db.execute("INSERT INTO scene_state VALUES (1,0,?)", (json.dumps(scenes, allow_nan=False),))
             return db
         except Exception:
@@ -65,7 +67,7 @@ class ProductionSceneStore:
     @staticmethod
     def _snapshot(db: sqlite3.Connection) -> dict[str, Any]:
         row = db.execute("SELECT revision,scenes FROM scene_state WHERE id=1").fetchone()
-        return {"ok": True, "revision": row["revision"], "scenes": json.loads(row["scenes"])}
+        return {"ok": True, "revision": row["revision"], "scenes": [normalize_scene_layers(scene) for scene in json.loads(row["scenes"])]}
 
     @staticmethod
     def _identity(principal: VerifiedPrincipal) -> str:
@@ -150,6 +152,8 @@ class ProductionSceneStore:
             raise ValueError("invalid_scene_operation")
         if type(expected_revision) is not int or expected_revision < 0 or not isinstance(request_id, str) or not 1 <= len(request_id) <= 80 or not all(c.isascii() and (c.isalnum() or c in "_-") for c in request_id):
             raise ValueError("invalid_scene_precondition")
+        if action == "save":
+            scene = normalize_scene_layers(scene)
         fingerprint_parts = [action, target, scene, expected_revision, actor_kind]
         if identity:
             fingerprint_parts.append(identity)

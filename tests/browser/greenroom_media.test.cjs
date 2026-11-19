@@ -97,6 +97,14 @@ test('output playback health is typed and bound to the current signaling generat
   receiver.close();
 });
 
+test('layer output receipts carry distinct staged Preview and rendered Program composition IDs',async()=>{
+  const f=fixture(),receiver=f.api.createReceiver({role:'output'}),ws=await connect(f,receiver,'output');ws.message(receiverState());
+  receiver.sendReady([], {generation:3,audioBlocked:false,rendered:true,compositionId:'a'.repeat(64),previewCompositionId:'b'.repeat(64)});
+  assert.equal(ws.sent.at(-1).playback.composition_id,'a'.repeat(64));assert.equal(ws.sent.at(-1).preview_composition_id,'b'.repeat(64));
+  receiver.sendReady([], {generation:3,audioBlocked:false,rendered:true,compositionId:'invalid',previewCompositionId:'not-a-receipt'});
+  assert.equal('composition_id' in ws.sent.at(-1).playback,false);assert.equal('preview_composition_id' in ws.sent.at(-1),false);receiver.close();
+});
+
 test('publisher requires explicit connection/caller tracks and fixed transceiver order',async()=>{
   const f=fixture(),publisher=f.api.createPublisher({token:'a'.repeat(64)});
   const mic=new f.Track('audio'),camera=new f.Track('video'),screen=new f.Track('video'),game=new f.Track('audio');

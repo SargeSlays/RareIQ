@@ -16,7 +16,10 @@ function cleanSnapshot(value) {
       || !Number.isSafeInteger(value.generation) || value.generation < 0 || typeof value.rendered !== 'boolean'
       || typeof value.browserReviewOpen !== 'boolean' || typeof value.audioBlocked !== 'boolean') return null;
   const readySources = Array.isArray(value.readySources) ? value.readySources.filter(s => typeof s === 'string' && /^(camera:[1-4]|producer:screen:[a-f0-9]{32}|guest:[a-f0-9]{32}:(camera|screen|audio)|(image|video|text|browser):[a-f0-9-]{36})$/.test(s)).slice(0, 6) : [];
-  return { peerId: value.peerId, generation: value.generation, rendered: value.rendered, browserReviewOpen: value.browserReviewOpen, reviewOpen: value.browserReviewOpen, audioBlocked: value.audioBlocked, readySources };
+  const ids={};for(const key of ['programCompositionId','previewCompositionId']){
+    if(value[key]!==undefined){if(typeof value[key]!=='string'||!/^[a-f0-9]{64}$/.test(value[key]))return null;ids[key]=value[key];}
+  }
+  return { peerId: value.peerId, generation: value.generation, rendered: value.rendered, browserReviewOpen: value.browserReviewOpen, reviewOpen: value.browserReviewOpen, audioBlocked: value.audioBlocked, readySources,...ids };
 }
 function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirname, width = 1280, height = 720, fps = 30, audioRouting = {}, requireVod = false, clockUs = () => Number(process.hrtime.bigint() / 1000n), routingTimeoutMs=1500,rehearsalTimeoutMs=6500,createMonitor=createLocalMonitor,partition = 'persist:producer-output', onError = () => {} } = {}) {
   if (!BrowserWindow || !ipcMain || !SIZES.has(width + 'x' + height) || ![30,60].includes(fps) || !path.isAbsolute(baseDir)||!Number.isInteger(routingTimeoutMs)||routingTimeoutMs<10||routingTimeoutMs>5000) throw Error('output_capture_configuration_invalid');

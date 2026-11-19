@@ -22,6 +22,10 @@
       const record=document.createElement('button');record.type='button';record.className=button.className;record.dataset.desktopRecording='';record.textContent='Record Program';record.title='Open local recording controls. Choose a file and confirm before recording starts.';
       record.addEventListener('click',()=>Promise.resolve(bridge.openRecordingSettings()).catch(()=>{record.title='Recording controls could not open. Use the desktop app menu to retry.';}));button.parentNode.insertBefore(record,button.nextSibling);
     }
+    if(button?.parentNode&&typeof document.createElement==='function'&&typeof bridge.openReplaySettings==='function'&&!document.querySelector('[data-desktop-replay]')){
+      const replay=document.createElement('button');replay.type='button';replay.className=button.className;replay.dataset.desktopReplay='';replay.textContent='Replay buffer';replay.title='Open full Program picture and audio replay controls. Start and save are separate actions.';
+      replay.addEventListener('click',()=>Promise.resolve(bridge.openReplaySettings()).catch(()=>{replay.title='Replay controls could not open. Use the desktop app menu to retry.';}));button.parentNode.append(replay);
+    }
     if(typeof bridge.info==='function'&&typeof bridge.broadcastStatus==='function')Promise.resolve(bridge.info()).then(info=>{
       if(info.engine!=='standalone')return;document.body.dataset.desktopEngine='standalone';
       const parent=document.querySelector('#showPreflight');if(!parent)return;

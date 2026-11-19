@@ -9,16 +9,19 @@ let twitchAccountCard=null,providerAccountCards=[],accountBusy=false;
 let streamInfoEditor=null,streamMetadataEditor=null,youtubeDestinationPicker=null;
 let rehearsalEditor=null,rehearsalState=null,rehearsalUiState=null,rehearsalBusy=false,lastBroadcastRehearsal=null;
 let recordingEditor=null,recordingState=null,recordingBusy=false,outputStats=null;
+let replayEditor=null,replayState=null,replayBusy=false;
 const accountBusySources=new Set();
 function acceptRehearsal(value){if(!value?.room)return;const previous=rehearsalState?.room;if(previous&&Number.isSafeInteger(previous.revision)&&Number.isSafeInteger(value.room.revision)&&value.room.revision<previous.revision)return;rehearsalState=value;}
 function rehearsalRoomActive(){return Boolean(rehearsalState?.room?.active)||['entering','rehearsal','recovery_required'].includes(rehearsalState?.room?.mode);}
 function rehearsalLocalBusy(){const local=rehearsalState?.local;return Boolean(local?.running||local?.ownershipPending)||['starting','encoding','running','stopping'].includes(local?.state)||Boolean(rehearsalUiState&&['start','stop'].includes(rehearsalUiState.pendingAction)&&(rehearsalUiState.busy||rehearsalUiState.uncertain));}
 function publishingBlocked(){const room=rehearsalState?.room;return rehearsalBusy||Boolean(rehearsalUiState?.uncertain||rehearsalUiState?.statusUnavailable)||broadcastState?.publishingAllowed===false||Boolean(room&&(room.mode!=='production'||room.active||room.publishing_allowed!==true))||Boolean(!room&&typeof producerSettings.rehearsal==='function');}
 function recordingActive(){return Boolean((broadcastState?.recording||recordingState)?.active||(broadcastState?.recording||recordingState)?.ownershipPending);}
-function metadataLocked(){return Boolean(recordingActive()||recordingBusy||accountBusy||locked||broadcastBusy||profileBusy||startPending||stopBusy||targetStops.size||broadcastState?.active||broadcastState?.ownershipPending||editing);}
+function replayActive(){return Boolean((broadcastState?.replay||replayState)?.active||(broadcastState?.replay||replayState)?.ownershipPending);}
+function retainedOutputActive(){return recordingActive()||replayActive();}
+function metadataLocked(){return Boolean(retainedOutputActive()||recordingBusy||replayBusy||accountBusy||locked||broadcastBusy||profileBusy||startPending||stopBusy||targetStops.size||broadcastState?.active||broadcastState?.ownershipPending||editing);}
 function updateAccountBusy(platform,value){if(value)accountBusySources.add(platform);else accountBusySources.delete(platform);accountBusy=accountBusySources.size>0;renderBroadcast();}
 function busy(value){locked=value;renderBroadcast();}
-function destinationBusy(includeRecording=true){return recordingBusy||Boolean(includeRecording&&recordingActive())||accountBusy||locked||broadcastBusy||profileBusy||startPending||stopBusy||rehearsalBusy||rehearsalLocalBusy()||targetStops.size>0||broadcastState?.active||broadcastState?.ownershipPending;}
+function destinationBusy(includeRecording=true){return recordingBusy||replayBusy||Boolean(includeRecording&&retainedOutputActive())||accountBusy||locked||broadcastBusy||profileBusy||startPending||stopBusy||rehearsalBusy||rehearsalLocalBusy()||targetStops.size>0||broadcastState?.active||broadcastState?.ownershipPending;}
 function platform(){const twitch=form.elements.platform.value==='twitch';document.querySelector('#serverLabel').hidden=twitch;form.elements.serverUrl.required=!twitch&&!editing;form.elements.streamKey.required=!editing||editing.keyConfigured!==true;document.querySelector('#platformDashboard').hidden=!dashboards[form.elements.platform.value];}
 function draft(){return Object.fromEntries(['name','platform','serverUrl','streamKey'].map(key=>[key,form.elements[key].value]));}
 function setDraft(value){for(const key of ['name','platform','serverUrl','streamKey'])form.elements[key].value=value?.[key]??(key==='platform'?'twitch':'');}
@@ -64,11 +67,11 @@ function renderBroadcast(){
   Object.assign(reasons,{producer_screen_source_unavailable:'Your shared screen or window is no longer available. Share it again and take the new source.',producer_screen_output_not_ready:'Wait for the shared screen to appear in the output before starting.',destination_dns_failed:'The stream server address could not be found. Check the address and your connection.',tls_connection_failed:'The secure stream connection could not be opened. Check the connection and destination.',tls_verification_failed:'The secure stream connection could not be verified.',tls_trust_unavailable:'The secure connection trust settings are unavailable. Reopen the app and retry.',encoder_transport_interrupted:'The connection to the stream server was interrupted.',encoder_start_timeout:'The encoder did not become ready in time. Check the connection and output.',encoder_dependency_missing:'The encoder runtime is incomplete. Reopen or repair the desktop build.',video_encoder_unavailable:'The video encoder could not initialize. Reopen the app and retry.'});
   summary.textContent=value.phase==='failed'?(reasons[value.reason]||(value.active?'Transmission shutdown is not confirmed. Keep the studio open and try Stop again.':'Transmission stopped unexpectedly. Check the output and connection, then retry.')):value.phase==='sending'?(value.reason?'Waiting for output readiness. Transmission will stop if it cannot recover.':'Sending picture and audio · platform receipt unverified'):value.active?'Broadcast '+value.phase+'…':value.ready?'Ready to send. Choose Start broadcast for a destination.':reasons[value.reason]||'Choose a working Program source, then prepare and review the clean output.';
   if(value.available===false&&value.phase!=='failed')summary.textContent='Broadcasting needs the managed desktop runtime. Open this studio from the installed desktop app.';
-  const working=recordingBusy||accountBusy||broadcastBusy||profileBusy||startPending||stopBusy||rehearsalBusy;
+  const working=recordingBusy||replayBusy||accountBusy||broadcastBusy||profileBusy||startPending||stopBusy||rehearsalBusy;
   const mixWaiting=Boolean(liveMix.outputId&&(liveMix.dirty||liveMix.busy||liveMix.blocked||liveMix.invalid.size));
   const infoWaiting=Boolean(streamInfoEditor&&(!streamInfoEditor.ready||streamInfoEditor.dirty||streamInfoEditor.busy));
   const stopRequired=value.active||value.ownershipPending===true;
-  const setupLocked=stopRequired||localBusy,outputSetupLocked=setupLocked||recordingActive();
+  const setupLocked=stopRequired||localBusy,outputSetupLocked=setupLocked||retainedOutputActive();
   const profileMatches=profileMatchesOutput(value);
   const sending=!rehearsalActive&&value.phase==='sending',outputReady=(value.ready===true&&value.format===format.value&&profileMatches&&!profileDirty)||sending;
   const programStep=document.querySelector('#programStep'),outputStep=document.querySelector('#outputStep'),destinationStep=document.querySelector('#destinationStep');
@@ -80,7 +83,7 @@ function renderBroadcast(){
   form.elements.platform.disabled=form.elements.platform.disabled||Boolean(editing);
   document.querySelector('#cancelEdit').disabled=destinationBusy();
   document.querySelector('#platformDashboard').disabled=locked||working;
-  prepare.disabled=locked||working||outputSetupLocked||profileDirty||value.available===false;prepare.title=recordingActive()?'Stop recording before preparing another output.':localBusy?'Stop local encoding before preparing another output.':profileDirty?'Save or discard profile changes before preparing output.':'';format.disabled=locked||working||outputSetupLocked;stop.hidden=!stopRequired&&!startPending&&!stopBusy;stop.disabled=broadcastBusy||stopBusy||value.phase==='stopping';stop.textContent=startPending?'Cancel start':'Stop broadcast';
+  prepare.disabled=locked||working||outputSetupLocked||profileDirty||value.available===false;prepare.title=retainedOutputActive()?'Stop recording or replay before preparing another output.':localBusy?'Stop local encoding before preparing another output.':profileDirty?'Save or discard profile changes before preparing output.':'';format.disabled=locked||working||outputSetupLocked;stop.hidden=!stopRequired&&!startPending&&!stopBusy;stop.disabled=broadcastBusy||stopBusy||value.phase==='stopping';stop.textContent=startPending?'Cancel start':'Stop broadcast';
   document.querySelector('#viewOutput').disabled=locked||broadcastBusy||stopBusy||viewBusy||!value.prepared;
   for(const button of document.querySelectorAll('[data-destination-id]')){button.disabled=publishBlocked||locked||working||mixWaiting||infoWaiting||Boolean(editing)||!storageAvailable||button.dataset.configured!=='true'||!value.ready||setupLocked||value.format!==format.value||!profileMatches||profileDirty;button.title=button.disabled?(publishBlocked?'Broadcasting is blocked in rehearsal or until production status is confirmed. Leave rehearsal separately before starting.':infoWaiting?'Open Stream info and save or discard your draft before starting.':mixWaiting?'Confirm the current audio mix before starting.':editing?'Save or cancel editing before starting.':profileDirty?'Save or discard profile changes before preparing output.':value.ownershipPending?'Confirm Stop before starting again.':'Prepare a ready output before starting.'):'A confirmation appears before anything is sent.';}
   if(value.phase!=='failed'&&value.prepared&&!value.active&&value.format!==format.value)summary.textContent='Output format changed. Choose Prepare output to apply it.';
@@ -100,9 +103,11 @@ function renderBroadcast(){
   streamInfoEditor?.setContext({locked:Boolean(destinationBusy()||editing)});
   streamMetadataEditor?.setContext({locked:metadataLocked(),publishingBlocked:publishBlocked});
   if(value.recording)recordingState=value.recording;
-  recordingEditor?.setContext({recording:value.recording,locked:Boolean(accountBusy||locked||broadcastBusy||profileBusy||startPending||stopBusy||rehearsalBusy||editing||profileDirty||liveMix.dirty||liveMix.busy||liveMix.blocked),publishingBlocked:publishBlocked});
+  recordingEditor?.setContext({recording:value.recording,locked:Boolean(replayBusy||accountBusy||locked||broadcastBusy||profileBusy||startPending||stopBusy||rehearsalBusy||editing||profileDirty||liveMix.dirty||liveMix.busy||liveMix.blocked),publishingBlocked:publishBlocked});
+  if(value.replay)replayState=value.replay;
+  replayEditor?.setContext({replay:value.replay,locked:Boolean(recordingBusy||accountBusy||locked||broadcastBusy||profileBusy||startPending||stopBusy||rehearsalBusy||editing||profileDirty||liveMix.dirty||liveMix.busy||liveMix.blocked),publishingBlocked:publishBlocked});
   outputStats?.update(value);
-  rehearsalEditor?.setContext({locked:Boolean(recordingActive()||recordingBusy||accountBusy||locked||broadcastBusy||profileBusy||startPending||stopBusy||targetStops.size||editing||profileDirty||broadcastState?.active||broadcastState?.ownershipPending)});
+  rehearsalEditor?.setContext({locked:Boolean(retainedOutputActive()||recordingBusy||replayBusy||accountBusy||locked||broadcastBusy||profileBusy||startPending||stopBusy||targetStops.size||editing||profileDirty||broadcastState?.active||broadcastState?.ownershipPending)});
   if(rehearsalActive){const local=rehearsalState?.local;summary.textContent=rehearsalState.room.mode==='recovery_required'?'REHEARSAL — recovery required. Publishing remains blocked.':local?.running?'REHEARSAL — local encoding · not broadcasting':'REHEARSAL — not broadcasting. Prepare output to practice locally.';document.querySelector('#broadcastDetails').textContent='Local rehearsal · '+Number(local?.frames||0)+' frames · '+Math.round(Number(local?.audioSamples||0)/48000)+' seconds of Live audio. No platform delivery has been verified.';for(const row of destinationRows.values()){row.note.textContent=String(row.platform).toUpperCase()+' · Rehearsal · destination not broadcasting';row.stopTarget.hidden=true;}}
   else if(publishBlocked)summary.textContent='Broadcasting is blocked until production status is confirmed. Check the Rehearsal room status.';
   renderProfileControls();
@@ -112,7 +117,7 @@ function renderBroadcast(){
 async function startBroadcast(destinationId){
   if(publishingBlocked()){document.querySelector('#rehearsalRoom').open=true;status.textContent='Broadcasting is blocked. Leave rehearsal separately and confirm production status before starting.';return;}
   if(streamInfoEditor&&(!streamInfoEditor.ready||streamInfoEditor.dirty||streamInfoEditor.busy)){const section=document.querySelector('#streamInfo');section.open=true;document.querySelector('#streamInfoSharedTitle').focus();status.textContent='Save or discard the Stream info draft before starting.';return;}
-  if(recordingBusy||accountBusy||locked||broadcastBusy||profileBusy||profileDirty||startPending||stopBusy||editing||liveMix.outputId&&(liveMix.dirty||liveMix.busy||liveMix.blocked||liveMix.invalid.size)||broadcastState?.active||broadcastState?.ownershipPending||!broadcastState?.ready||!profileMatchesOutput(broadcastState))return;
+  if(recordingBusy||replayBusy||accountBusy||locked||broadcastBusy||profileBusy||profileDirty||startPending||stopBusy||editing||liveMix.outputId&&(liveMix.dirty||liveMix.busy||liveMix.blocked||liveMix.invalid.size)||broadcastState?.active||broadcastState?.ownershipPending||!broadcastState?.ready||!profileMatchesOutput(broadcastState))return;
   const operation=++broadcastOperation;startPending=true;renderBroadcast();
   try{
     const destinations=Array.isArray(destinationId)?{destinationIds:[...destinationId]}:{destinationId},output=profileState?{profileId:profileState.selectedProfileId}:{format:document.querySelector('#outputFormat').value};
@@ -278,6 +283,8 @@ async function stopDestination(id){
 }
 
 recordingEditor=window.ProducerRecordingUI?.mount({root:document.querySelector('#recordingPanel'),api:producerSettings,onBusy:value=>{recordingBusy=value;++broadcastOperation;renderBroadcast();},onStatus:value=>{recordingState=value;if(broadcastState)broadcastState={...broadcastState,recording:value};renderBroadcast();}})||null;
+replayEditor=window.ProducerReplayUI?.mount({root:document.querySelector('#replayPanel'),api:producerSettings,onBusy:value=>{replayBusy=value;++broadcastOperation;renderBroadcast();},onStatus:value=>{replayState=value;if(broadcastState)broadcastState={...broadcastState,replay:value};renderBroadcast();}})||null;
+if(replayEditor)replayEditor.run('status');
 outputStats=window.ProducerOutputStats?.mount({root:document.querySelector('[data-output-stats]')})||null;
 if(recordingEditor)recordingEditor.run('status');
 // Account controls keep their own status and never reset destination or profile drafts.
@@ -290,4 +297,4 @@ if(streamInfoEditor){streamInfoEditor.setContext({destinations:[]});void streamI
 if(typeof producerSettings.rehearsal==='function'){rehearsalEditor=window.ProducerRehearsalUI?.create({root:document.querySelector('#rehearsalRoom'),api:producerSettings,onBusy:value=>{rehearsalBusy=value;if(value)++broadcastOperation;renderBroadcast();},onChange:value=>{rehearsalUiState=value;acceptRehearsal(value);renderBroadcast();}})||null;rehearsalEditor?.start();}else document.querySelector('#rehearsalRoom').hidden=true;
 twitchAccountCard?.start();
 for(const card of providerAccountCards)card.start();
-addEventListener('pagehide',()=>{recordingEditor?.close();outputStats?.destroy();youtubeDestinationPicker?.close();twitchAccountCard?.close();for(const card of providerAccountCards)card.close();streamInfoEditor?.close();streamMetadataEditor?.close();rehearsalEditor?.close();},{once:true});
+addEventListener('pagehide',()=>{recordingEditor?.close();replayEditor?.close();outputStats?.destroy();youtubeDestinationPicker?.close();twitchAccountCard?.close();for(const card of providerAccountCards)card.close();streamInfoEditor?.close();streamMetadataEditor?.close();rehearsalEditor?.close();},{once:true});

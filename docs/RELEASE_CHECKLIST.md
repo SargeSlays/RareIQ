@@ -2032,3 +2032,40 @@ trigger. Actual reopened Preview uses the expected embedded process, no active
 outputs, correct scene sizing and preserved RareIQ workspace. Primary settings
 hashes and guest-only HTTPS isolation remain unchanged. Main promotion remains
 blocked by its configured disconnected OBS integration.
+
+
+## November 19, 2026 — Layer editor and full Program replay
+
+- [x] Bounded layer maps, Preview revision/CAS, exact-ID single-output receipt,
+  custom native readiness, both bus scene persistence and removal/Safe guards.
+- [x] Layer scene hooks preserve drafts, stage saved geometry and keep explicit
+  Take separate; Save Preview opens a form without changing Program.
+- [x] Actual generated Program replay worker/coordinator integration: five files
+  decode with H.264 and non-silent AAC; keyframe start, common timing, bounded
+  history, no-overwrite/low-disk Save guards and independent stop orders pass.
+- [x] Full Replay Settings: eight dark/light viewport checks, three independent
+  Stops, readable 44px controls, no overflow and safe close/retry behavior.
+- [x] Generated-image layer Apply/Take/save/recall pixel proof, eight responsive
+  measurements and twelve corrected actual editor viewport captures pass.
+- [x] Exact composed-source canonical gate: 4522 Python / 1145 JavaScript pass.
+- [x] Actual packaged Main: seven decoded media files, three saved replay clips,
+  exact custom composition through Take, retries/cancel/no-clobber and both
+  three-output Stop orders; four actual native-header theme/layout checks pass.
+- [x] Packaged backend and discard-only Rehearsal pass; external/device/provider
+  guards remain zero and test processes/ports close.
+- [x] Build 0.1.0-20261119192451732 is open in Standalone Preview with separate
+  profile/owned backend, correct immutable source and unchanged primary settings.
+- [x] Existing private guest ingress remains guest-only: guest/assets return 200;
+  producer controls, setup, metadata writes and Rehearsal controls return 404.
+- [ ] Physical device/audio, real platform receipt, direct replay playout,
+  isolated tracks, groups/nesting and rotation/flip remain outside this proof.
+
+Evidence: F:/Temp/jonat/ProducerPlease-layers-replay-20261119,
+F:/Temp/jonat/ProducerPlease-layers-20261119 and
+F:/Temp/jonat/ProducerPlease-recording-20261119/replay-native01 and replay-settings-ui01.
+Only generated test media is used; no real stream or personal recording starts.
+
+Accepted compiled source: f6da989f47f8fc45cde327db6c07d0f8dbd531e7.
+Activation and private-ingress proofs are in the phase evidence directory.
+Checkpoint hash and verified recovery locations are recorded in its checkpoint.json
+and the external backup manifest. Main-profile promotion is not part of this slice.

@@ -5,6 +5,7 @@ import asyncio
 from collections import deque
 from dataclasses import dataclass, field
 import json
+import re
 from pathlib import Path
 import sqlite3
 import time
@@ -90,6 +91,9 @@ class Peer:
     send_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     screen_active: bool = False
     last_seen: float = field(default_factory=time.monotonic)
+    ready_composition_id: str | None = None
+    ready_composition_at: float = 0
+    playback_composition_id: str | None = None
 
 
 class GreenroomHub:
@@ -155,26 +159,46 @@ class GreenroomHub:
         outputs = [p for p in list(self.peers.values()) if p.role == "output"]
         now = time.monotonic()
         groups = [sorted(s for s, stamp in dict(p.ready).items() if now - stamp < 6) for p in outputs]
-        generation = self.switcher()["generation"]
-        fresh = [p for p in outputs if p.playback_generation == generation and now - p.playback_reported_at < 6]
+        state = self.switcher()
+        generation = state["generation"]
+        program_id = state.get("program_composition_id")
+        preview_id = state.get("preview_composition_id")
+        preview_sources = set(state.get("preview_sources", []))
+        preview_ready = bool(isinstance(preview_id, str) and re.fullmatch(r"[a-f0-9]{64}", preview_id)
+            and any(peer.ready_composition_id == preview_id and 0 <= now - peer.ready_composition_at < 6
+                    and preview_sources.issubset({source for source, stamp in dict(peer.ready).items() if 0 <= now - stamp < 6})
+                    for peer in outputs))
+        fresh = [p for p in outputs if p.playback_generation == generation and now - p.playback_reported_at < 6
+                 and (state.get("program_layout") != "custom" or isinstance(program_id, str)
+                      and re.fullmatch(r"[a-f0-9]{64}", program_id) and p.playback_composition_id == program_id)]
         confirmed = [p.rendered_generation for p in fresh if not p.audio_blocked and p.playback_rendered and p.rendered_generation == generation]
         return {"connected": len(outputs), "ready_sources": sorted({s for group in groups for s in group}), "ready_groups": groups,
+                "preview_composition_ready": preview_ready,
                 "rendered_generation": max(confirmed, default=-1),
                 "audio_blocked": any(p.audio_blocked for p in fresh)}
 
     def source_ready(self, source):
-        available = self.producer_source_available(source) if PRODUCER_SCREEN.fullmatch(source) else self.source_available(source) if source.startswith(("image:", "video:", "text:", "browser:")) else self.service.source_available(source)
+        available = self._source_available(source)
         status = self.output_status()
         if source.startswith("browser:"):
             return bool(available and status["ready_groups"] and all(source in group for group in status["ready_groups"]))
         return available and source in status["ready_sources"]
 
-    def composition_ready(self, sources):
-        received = {source for source in sources if source.startswith(("producer:", "guest:", "image:", "video:", "text:", "browser:"))}
+    def _source_available(self, source):
+        return self.producer_source_available(source) if PRODUCER_SCREEN.fullmatch(source) else self.source_available(source) if source.startswith(("camera:", "image:", "video:", "text:", "browser:")) else self.service.source_available(source)
+
+    def composition_ready(self, sources, *, composition_id=None):
+        received = set(sources) if composition_id else {source for source in sources if source.startswith(("producer:", "guest:", "image:", "video:", "text:", "browser:"))}
         groups = self.output_status()["ready_groups"]
         browsers = {source for source in received if source.startswith("browser:")}
         if browsers and (not groups or any(not browsers.issubset(group) for group in groups)):
             return False
+        if composition_id:
+            now = time.monotonic()
+            return any(peer.role == "output" and peer.ready_composition_id == composition_id
+                       and now - peer.ready_composition_at < 6
+                       and received.issubset({source for source, stamp in dict(peer.ready).items() if now - stamp < 6})
+                       for peer in list(self.peers.values()))
         return not received or any(received.issubset(group) for group in groups)
 
     def _snapshot(self):
@@ -571,8 +595,11 @@ class GreenroomHub:
                                 + [source["id"] for source in snapshot.get("producer_sources", [])]))
         state = snapshot["switcher"]
         sources = state.get("program_sources", [f"camera:{state.get('program_slot', 1)}"]) + state.get("preview_sources", [f"camera:{state.get('preview_slot', 2)}"])
+        custom_cameras = {source for bus in ("program", "preview") if state.get(bus + "_layout") == "custom"
+                          for source in state.get(bus + "_sources", []) if source.startswith("camera:")}
         return tuple(sorted({s for s in sources if (PRODUCER_SCREEN.fullmatch(s) and self.producer_source_available(s))
                              or (s.startswith("guest:") and self.service.source_available(s))
+                             or (s in custom_cameras and self.source_available(s))
                              or (s.startswith(("image:", "video:", "text:", "browser:")) and self.source_available(s))}))
 
     async def _pump(self):
@@ -690,20 +717,31 @@ class GreenroomHub:
             sources = message.get("sources")
             if not isinstance(sources, list) or len(sources) > 12 or any(not isinstance(s, str) for s in sources):
                 raise ValueError("invalid_ready_sources")
+            staged = message.get("preview_composition_id")
+            if staged is not None and (not isinstance(staged, str) or not re.fullmatch(r"[a-f0-9]{64}", staged)):
+                raise ValueError("invalid_ready_composition")
+            state = self.switcher()
+            peer.ready_composition_id = staged if staged == state.get("preview_composition_id") else None
+            peer.ready_composition_at = time.monotonic() if peer.ready_composition_id else 0
             if "playback" in message:
                 playback = message["playback"]
-                if (not isinstance(playback, dict) or set(playback) != {"generation", "audio_blocked", "rendered"}
+                if (not isinstance(playback, dict) or set(playback) - {"generation", "audio_blocked", "rendered", "composition_id"}
+                        or not {"generation", "audio_blocked", "rendered"}.issubset(playback)
                         or type(playback["generation"]) is not int or not 0 <= playback["generation"] <= 2**53 - 1
                         or type(playback["audio_blocked"]) is not bool or type(playback["rendered"]) is not bool
                         or playback["audio_blocked"] and playback["rendered"]):
+                    raise ValueError("invalid_playback_state")
+                rendered_id = playback.get("composition_id")
+                if rendered_id is not None and (not isinstance(rendered_id, str) or not re.fullmatch(r"[a-f0-9]{64}", rendered_id)):
                     raise ValueError("invalid_playback_state")
                 if playback["generation"] == self.switcher()["generation"]:
                     peer.playback_generation = playback["generation"]
                     peer.playback_reported_at = time.monotonic()
                     peer.audio_blocked = playback["audio_blocked"]
                     peer.playback_rendered = playback["rendered"]
+                    peer.playback_composition_id = rendered_id
             peer.ready = {s: time.monotonic() for s in sources if s in peer.subscriptions and
-                          (self.producer_source_available(s) if PRODUCER_SCREEN.fullmatch(s) else self.source_available(s) if s.startswith(("image:", "video:", "text:", "browser:")) else self.service.source_available(s))}
+                          self._source_available(s)}
             return
         if kind == "rendered" and peer.role == "output":
             generation = message.get("generation")
@@ -711,6 +749,10 @@ class GreenroomHub:
             if (type(generation) is not int or generation != state["generation"]
                     or peer.playback_generation != generation or time.monotonic() - peer.playback_reported_at >= 6
                     or peer.audio_blocked or not peer.playback_rendered):
+                return
+            if state.get("program_layout") == "custom" and (not isinstance(state.get("program_composition_id"), str)
+                    or not re.fullmatch(r"[a-f0-9]{64}", state["program_composition_id"])
+                    or peer.playback_composition_id != state["program_composition_id"]):
                 return
             if generation != peer.rendered_generation:
                 peer.rendered_generation = generation

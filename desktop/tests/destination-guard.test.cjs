@@ -7,7 +7,7 @@ function fixture(){
   const settings={isDestroyed:()=>false,webContents:{mainFrame:settingsFrame}},event={sender:settings.webContents,senderFrame:settingsFrame};
   const broadcast={active:()=>false,status:()=>({ownershipPending:false}),start:async()=>{calls.push('start');}};
   const destinations={save:async value=>{calls.push(['save',value]);return {saved:true};},remove:async id=>{calls.push(['remove',id]);return {removed:true};}};
-  const context={settings,broadcast,rehearsal:null,recording:null,recordingContext:null,recordingTransition:()=>false,destinations,destinationMutation:false,path,pathToFileURL,__dirname:desktop,publicBroadcast:()=>({ready:true}),ipcMain:{handle:(name,handler)=>handlers.set(name,handler)}};
+  const context={settings,broadcast,rehearsal:null,recording:null,recordingContext:null,recordingTransition:()=>false,replay:null,replayContext:null,replayTransition:()=>false,destinations,destinationMutation:false,path,pathToFileURL,__dirname:desktop,publicBroadcast:()=>({ready:true}),ipcMain:{handle:(name,handler)=>handlers.set(name,handler)}};
   vm.createContext(context);
   vm.runInContext(source.slice(source.indexOf('function settingsEvent('),source.indexOf('app.whenReady()')),context);
   const streamInfo={save:async()=>({revision:1})};context.streamInfoActions=require('../stream-info.cjs').createStreamInfoActions({store:streamInfo,trustedSender:context.settingsEvent,mutate:context.changeDestination,append:()=>{}});

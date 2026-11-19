@@ -3,6 +3,12 @@ function fixture(){let captureState={peerId:'output-one',rendered:true,browserRe
 
 const youtubeBinding={broadcastId:'exact-broadcast',streamId:'exact-stream',settingsFingerprint:'b'.repeat(64),autoStart:true,autoStop:false,privacyStatus:'unlisted'};
 const youtubePrivate=()=>({platform:'youtube',accountRef:'a'.repeat(64),youtubeSelection:{...youtubeBinding},name:'Exact selected YouTube',serverUrl:'rtmps://a.rtmps.youtube.com/live2',streamKey:'synthetic-reviewed-key'});
+
+test('custom Program readiness pins actual geometry while unrelated Preview edits do not interrupt output',async()=>{
+ const f=fixture(),id='a'.repeat(64),state={peerId:'output-one',rendered:true,browserReviewOpen:false,audioBlocked:false,generation:3,programCompositionId:id,previewCompositionId:'b'.repeat(64)};f.captureState=state;f.preflight={ready:true,generation:3,composition_id:id,blockers:[]};await f.app.prepare();assert.equal(f.app.status().ready,true);
+ f.captureState={...state,previewCompositionId:'c'.repeat(64)};await f.app.check();assert.equal(f.app.status().ready,true);
+ for(const programCompositionId of [undefined,'d'.repeat(64),'invalid']){f.captureState={...state,programCompositionId};await f.app.check();assert.equal(f.app.status().ready,false);}
+});
 test('saved YouTube Start freshly resolves after native confirmation and strips private selection from encoder input',async()=>{
  const f=fixture();let lookups=0,received;f.app.destinations.getPrivateDestination=async()=>{lookups++;return {...youtubePrivate(),streamKey:lookups===1?'synthetic-reviewed-key':'synthetic-refreshed-key'};};f.app.confirm=async selected=>{assert.equal(lookups,1);assert.equal(selected.youtubeSelection.autoStart,true);return true;};f.encoder.start=async value=>{received=value;};await f.app.prepare();await f.app.start({destinationId:'one'});assert.equal(lookups,2);assert.equal(received.destination.streamKey,'synthetic-refreshed-key');assert.equal(received.destination.accountRef,undefined);assert.equal(received.destination.youtubeSelection,undefined);await f.app.stop();
 });

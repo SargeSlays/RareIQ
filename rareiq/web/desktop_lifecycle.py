@@ -89,7 +89,7 @@ class NativeEncodingState:
         return result
 
 
-def native_output_readiness(peers, *, output_peer_id, generation, sources, now):
+def native_output_readiness(peers, *, output_peer_id, generation, sources, now, composition_id=None):
     """Require source and rendered evidence from the specific captured output."""
     result = {"ready": False, "peer_id": output_peer_id,
               "rendered_generation": None, "reason": "output_not_identified"}
@@ -101,7 +101,8 @@ def native_output_readiness(peers, *, output_peer_id, generation, sources, now):
     fresh = {source for source, stamp in dict(peer.ready).items() if 0 <= now - stamp < 6}
     if (not required.issubset(fresh) or peer.playback_generation != generation
             or not 0 <= now - peer.playback_reported_at < 6 or peer.audio_blocked
-            or not peer.playback_rendered or peer.rendered_generation != generation):
+            or not peer.playback_rendered or peer.rendered_generation != generation
+            or composition_id is not None and getattr(peer, "playback_composition_id", None) != composition_id):
         return result
     return {**result, "ready": True, "rendered_generation": generation, "reason": None}
 

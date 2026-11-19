@@ -1,7 +1,7 @@
 'use strict';
 
 const fail = code => Object.assign(Error(code), {code});
-const PURPOSES = new Set(['broadcast', 'recording', 'rehearsal']);
+const PURPOSES = new Set(['broadcast', 'recording', 'replay', 'rehearsal']);
 
 // All leases observe the same physical Program capture. A slow or failed sink
 // loses only its own lease; its promise is never returned to the raw PCM source.

@@ -97,7 +97,7 @@ class NativeBroadcast{
         const value=await this.request('/api/production/native-preflight?output_peer_id='+encodeURIComponent(own.peerId));this.preflight=value.preflight;
         const latest=this.capture?.status();
         if(value.native_encoding?.active&&value.native_encoding.owner_pid!==this.ownerPid)this.preflight={ready:false,blockers:['another_broadcast_active']};
-        if(this.capture!==capture||!latest||latest.peerId!==own.peerId||latest.generation!==this.preflight?.generation||!latest.rendered||latest.prepared===false||latest.browserReviewOpen||latest.audioBlocked||latest.audioReady===false||latest.error||this.preflight?.generation!==own.generation)this.preflight={ready:false,blockers:['output_generation_changed']};
+        if(this.capture!==capture||!latest||latest.peerId!==own.peerId||latest.generation!==this.preflight?.generation||!latest.rendered||latest.prepared===false||latest.browserReviewOpen||latest.audioBlocked||latest.audioReady===false||latest.error||this.preflight?.generation!==own.generation||this.preflight?.composition_id!==undefined&&(!/^[a-f0-9]{64}$/.test(this.preflight.composition_id)||own.programCompositionId!==this.preflight.composition_id||latest.programCompositionId!==this.preflight.composition_id))this.preflight={ready:false,blockers:['output_generation_changed']};
         if(latest?.error)durableFailure=safeReason(latest.error,'output_lost');else if(latest?.browserReviewOpen)durableFailure='output_review_open';
       }catch(_){this.preflight={ready:false,blockers:['studio_unavailable']};}
     }

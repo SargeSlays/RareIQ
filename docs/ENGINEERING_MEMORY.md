@@ -1528,3 +1528,47 @@ remove max-height clamps and verify the populated Live left dock, including the
 Private immutable source overlays must honor Git text normalization. Keep owner
 working bytes intact, normalize only frozen text and retain raw source in the
 private backup. An unfiltered CRLF blob otherwise fails staged whitespace checks.
+
+
+## November 19, 2026 — Composition identity and bounded replay
+
+Source membership alone cannot prove a transformed scene has rendered. Keep a
+separate Preview revision and deterministic composition IDs; Preview-only edits
+must not change Program generation. Both Take and its UI need a fresh matching
+composition receipt containing every selected source from one complete output.
+Do not combine old geometry, stale receipts or split outputs. Native capture must
+match Program composition identity whenever custom geometry is active.
+
+Hidden pictures retain existing audio routing and selected-source readiness;
+locking prevents edits, not video updates. Scene save/recall roundtrips both bus
+maps/layouts. Load custom scenes into Preview explicitly before Take; do not return
+staged success to a rundown operation expecting a Program change. Save Preview as
+scene pins its reviewed ID and opens a form without saving or changing Program.
+
+Replay stores encoded packets with bounded time, bytes and count. Retain a
+decodable keyframe plus aligned audio, rebase from one shared origin, and bound a
+single asynchronous save snapshot separately. Disk/overwrite failures affect Save,
+not other output consumers. Start retains no media files; every export uses native
+private path inspection and exclusive creation. Stop waits for save cleanup and
+releases only its own capture lease/aggregate reservation. Keep Start/Save retries
+idempotent and Settings closure separate from committed work.
+
+
+Quantize pointer geometry to the same six decimal places as backend normalization
+before comparing Apply results. Otherwise successful fractional drags look like
+conflicts. Preserve a regression using real pointer events and Apply/Take pixels.
+Source-ready alone cannot enable transformed Take: expose readiness for the exact
+composition from a single complete output, including visually hidden selections.
+
+Element screenshot dimensions and interaction measurements are not visual proof
+that the captured region contains the editor. The initial element captures showed
+the top of Studio instead. Verify actual viewport pixels after scrolling to the
+controls, canvas and actions; keep failed captures as labeled evidence.
+
+Legacy portrait CSS hid the whole desktop command bar. Scope the correction to
+the native standalone workspace and resize the real packaged window in both
+themes; do not inject a test-only stylesheet or change ordinary mobile behavior.
+
+Always specify UTF-8 for source reads and writes on Windows. A default-codepage
+helper corrupted menu bullets and dialog ellipses. Restore the intended Unicode
+and retain the native menu/confirmation label regression test.

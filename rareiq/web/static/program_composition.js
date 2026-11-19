@@ -3,6 +3,8 @@
   'use strict';
   const SOURCE=/^(?:camera:([1-4])|guest:([a-f0-9]{32}):(camera|screen|audio)|(image|video|text|browser):([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}))$/;
   const FRAME_TTL=2500,STATE_TTL=4500;
+  const layerApi=host.ProducerLayerEditor||(typeof require==='function'?require('./production_layer_editor.js'):null);
+  const compositionId=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value)?value:null;
   function parseSource(value){
     if(typeof value==='string'&&/^producer:screen:[a-f0-9]{32}$/.test(value))return {id:value,kind:'producer_screen',slot:null,participantId:value};
     const match=typeof value==='string'&&SOURCE.exec(value);
@@ -18,9 +20,11 @@
     if(!state||typeof state!=='object'||!Number.isSafeInteger(state.generation)||state.generation<0)return null;
     const sources=sourceList(state,bus),preview=sourceList(state,'preview');
     if(!sources||!preview)return null;
-    const layout=['auto','grid','spotlight','pip'].includes(state[bus+'_layout'])?state[bus+'_layout']:'auto';
+    const layout=['auto','grid','spotlight','pip','custom'].includes(state[bus+'_layout'])?state[bus+'_layout']:'auto';
+    let layers={},previewLayers={};
+    try{if(layout==='custom')layers=layerApi.normalizeLayers(sources,state[bus+'_layers']||{});if(state.preview_layout==='custom')previewLayers=layerApi.normalizeLayers(preview,state.preview_layers||{});}catch(_){return null;}
     const transition=['cut','fade','slide','zoom'].includes(state.transition)?state.transition:'cut';
-    return {generation:state.generation,sources,preview,layout,transition,
+    return {generation:state.generation,previewRevision:Number.isSafeInteger(state.preview_revision)&&state.preview_revision>=0?state.preview_revision:0,sources,preview,layout,layers,previewLayers,previewLayout:state.preview_layout||'auto',compositionId:compositionId(state[bus+'_composition_id']),previewCompositionId:compositionId(state.preview_composition_id),transition,
       duration:transition==='cut'?0:Math.min(5000,Math.max(0,Number(state.duration_ms)||0))};
   }
   const liveTrack=track=>Boolean(track&&track.readyState==='live'&&track.enabled!==false&&track.muted!==true);
@@ -55,6 +59,7 @@
         now,later,cancel,repeat,cancelRepeat,frame,cancelFrame,makeStream,request});
       this.current=null;this.outgoing=null;this.preloads=new Map();this.audio=new Map();this.room=null;this.roomRevision=-1;
       this.state=null;this.lastReceived=0;this.epoch=0;this.timer=null;this.frameTimer=null;this.lastStatus='';this.lastRendered=null;this.closed=false;this.browserReviewOpen=false;
+      this.previewPaintEpoch=0;this.previewPaintedId=null;
       container.classList.add('producer-composition');container.dataset.compositionBus=bus;
       this.preloadHost=document.createElement('div');this.preloadHost.className='composition-preload';this.preloadHost.setAttribute('aria-hidden','true');container.append(this.preloadHost);
       this.audioHost=document.createElement('div');this.audioHost.className='composition-audio';this.audioHost.setAttribute('aria-hidden','true');container.append(this.audioHost);
@@ -73,10 +78,15 @@
       const next=normalizeState(value,this.bus);
       if(!next){this.clear();return false;}
       if(this.state&&next.generation<this.state.generation)return false;
+      if(this.state&&next.generation===this.state.generation&&next.previewRevision<this.state.previewRevision)return false;
       this.lastReceived=this.now();
       const changed=!this.state||next.generation!==this.state.generation||next.layout!==this.state.layout||JSON.stringify(next.sources)!==JSON.stringify(this.state.sources);
+      const geometryChanged=!this.state||JSON.stringify(next.layers)!==JSON.stringify(this.state.layers)||next.compositionId!==this.state.compositionId;
+      const stagedChanged=!this.state||next.previewCompositionId!==this.state.previewCompositionId;
       this.state=next;
       if(changed)this._transition(next);
+      else if(geometryChanged&&this.current){this._applyLayers(this.current.node,this.current.tiles,next);this.lastRendered=null;}
+      if(stagedChanged){const version=++this.previewPaintEpoch;this.previewPaintedId=null;if(next.previewCompositionId)this.frame(()=>this.frame(()=>{if(!this.closed&&version===this.previewPaintEpoch){this.previewPaintedId=next.previewCompositionId;this.refresh();}}));}
       this._preload();this.refresh();return true;
     }
     _transition(state){
@@ -101,6 +111,7 @@
       const pictures=tiles.filter(tile=>tile.source.kind!=='text'&&!tile.node.hidden);
       for(const [index,tile] of pictures.entries())tile.node.style.setProperty('--composition-inset-index',String(Math.max(0,index-1)));
       for(const tile of [...pictures,...tiles.filter(tile=>tile.node.hidden),...tiles.filter(tile=>tile.source.kind==='text')])this._placeTile(node,tile);
+      this._applyLayers(node,tiles,state);
       this.current={node,tiles,generation:state.generation,visible:false};
       this.container.dataset.transition=state.transition;
       if(this.outgoing){this.outgoing.node.style.setProperty('--composition-duration',state.duration+'ms');this.outgoing.node.classList.add('composition-outgoing');}
@@ -119,13 +130,20 @@
         if(outgoing)this._disposeLayer(outgoing);this.outgoing=null;
       },state.duration);
     }
+    _applyLayers(node,tiles,state){
+      for(const tile of tiles){const layer=state.layout==='custom'?state.layers[tile.id]:null;
+        tile.node.dataset.layerHidden=String(layer?.hidden===true);tile.node.dataset.layerCropped=String(Boolean(layer&&Object.values(layer.crop).some(value=>value>0)));
+        for(const key of ['x','y','width','height','opacity','z'])if(layer)tile.node.style.setProperty('--layer-'+key,String(layer[key]));else tile.node.style.removeProperty?.('--layer-'+key);
+        for(const edge of ['top','right','bottom','left'])if(layer)tile.node.style.setProperty('--layer-crop-'+edge,String(layer.crop[edge]));else tile.node.style.removeProperty?.('--layer-crop-'+edge);
+      }
+    }
     _placeTile(parent,tile){
       if(tile.source.kind==='browser'&&tile.node.isConnected){
         try{if(typeof parent.moveBefore!=='function')throw Error('browser_preservation_unavailable');parent.moveBefore(tile.node,null);}catch(_){tile.browserMoveFailed=true;tile.browser?.destroy();tile.ready=false;}
       }else parent.append(tile.node);
     }
     _preload(){
-      const desired=new Set(this.state.preview.filter(id=>parseSource(id)?.kind!=='local'&&!this.state.sources.includes(id)));
+      const desired=new Set(this.state.preview.filter(id=>(this.state.previewLayout==='custom'||parseSource(id)?.kind!=='local')&&!this.state.sources.includes(id)));
       for(const [id,tile] of this.preloads)if(!desired.has(id)){this._disposeTile(tile);this.preloads.delete(id);}
       for(const id of desired)if(!this.preloads.has(id)){let tile=id.startsWith('browser:')?this.outgoing?.tiles.find(item=>item.id===id):null;if(tile)this.outgoing.tiles=this.outgoing.tiles.filter(item=>item!==tile);else tile=this._tile(id);this.preloads.set(id,tile);this._placeTile(this.preloadHost,tile);}
     }
@@ -225,7 +243,8 @@
     _allTiles(){return [...(this.current?.tiles||[]),...(this.outgoing?.tiles||[]),...this.preloads.values()];}
     readySources(){
       const allowed=new Set([...(this.state?.sources||[]),...(this.state?.preview||[])]);
-      return [...new Set(this._allTiles().filter(tile=>tile.source.kind!=='local'&&tile.ready&&allowed.has(tile.id)).map(tile=>tile.id))].sort();
+      const custom=this.state?.layout==='custom'||this.state?.previewLayout==='custom';
+      return [...new Set(this._allTiles().filter(tile=>(custom||tile.source.kind!=='local')&&tile.ready&&allowed.has(tile.id)).map(tile=>tile.id))].sort();
     }
     _disposeAudio(entry){entry.disposed=true;entry.playing=false;entry.blocked=false;entry.node.muted=true;entry.node.pause?.();entry.node.srcObject=null;entry.node.remove();}
     _clearAudio(){for(const entry of this.audio.values())this._disposeAudio(entry);this.audio.clear();}
@@ -261,10 +280,13 @@
       const files=(this.current?.tiles||[]).filter(tile=>tile.source.kind==='video');
       const audioBlocked=[...this.audio.values()].some(entry=>entry.blocked)||files.some(tile=>tile.blocked);
       const rendered=Boolean(this.current?.visible&&this.current.tiles.every(tile=>tile.ready)&&[...this.audio.values()].every(entry=>entry.playing)&&(this.bus==='preview'||files.every(tile=>tile.playing&&!tile.buffering)));
-      const status={generation:this.state?.generation??-1,rendered,audioBlocked,readySources:this.readySources(),muted:this.muted};
+      const readySources=this.readySources(),staged=this.state?.previewCompositionId;
+      const stagedReady=Boolean(staged&&this.previewPaintedId===staged&&this.state.preview.every(id=>readySources.includes(id)||(this.state.previewLayout!=='custom'&&parseSource(id)?.kind==='local')));
+      const status={generation:this.state?.generation??-1,rendered,audioBlocked,readySources,muted:this.muted,
+        compositionId:this.state?.compositionId||null,previewCompositionId:stagedReady?staged:null};
       this.container.dataset.audioBlocked=String(audioBlocked);this.container.dataset.rendered=String(rendered);
       const serialized=JSON.stringify(status);if(serialized!==this.lastStatus){this.lastStatus=serialized;this._emit(this.onStatus,status);}
-      if(rendered&&this.state){const signature=this.state.generation+':'+JSON.stringify(this.state.sources);if(signature!==this.lastRendered){
+      if(rendered&&this.state){const signature=this.state.generation+':'+(this.state.compositionId?this.state.compositionId+':':'')+JSON.stringify(this.state.sources);if(signature!==this.lastRendered){
         // The HTTP state poll can beat signaling. Retry when its authenticated
         // receiver has not yet accepted this generation, rather than losing the receipt.
         try{if(this.onRendered(this.state.generation)!==false)this.lastRendered=signature;}catch(_){/* Retry on the next refresh. */}
@@ -293,7 +315,7 @@
       if(this.current)this._disposeLayer(this.current);if(this.outgoing)this._disposeLayer(this.outgoing);
       this.current=null;this.outgoing=null;
       for(const tile of this.preloads.values())this._disposeTile(tile);this.preloads.clear();this._clearAudio();
-      this.state=null;this.room=null;this.roomRevision=-1;this.lastRendered=null;this._status();
+      this.state=null;this.room=null;this.roomRevision=-1;this.lastRendered=null;this.previewPaintEpoch++;this.previewPaintedId=null;this._status();
     }
     close(){if(this.closed)return;this.clear();this.closed=true;this.cancelRepeat(this.watchdog);this.preloadHost.remove();this.audioHost.remove();}
   }
@@ -327,7 +349,7 @@
     // The containing Studio Output calls this synchronously from a real click.
     // postMessage cannot carry the browser's transient user activation reliably.
     const browserReview=host.ProducerBrowserReview?.mount({view,document:host.document,fetch:host.fetch.bind(host)});
-    host.ProducerProgramOutput={resumeAudio:resume,reviewBrowserSources:()=>browserReview?.open(),snapshot:()=>({peerId:outputPeerId,generation:playback?.generation??-1,rendered:playback?.rendered===true,browserReviewOpen:view.browserReviewOpen,readySources:view.readySources(),programSources:(view.state?.sources||[]).slice(),previewSources:(view.state?.preview||[]).slice(),audioBlocked:playback?.audioBlocked===true})};
+    host.ProducerProgramOutput={resumeAudio:resume,reviewBrowserSources:()=>browserReview?.open(),snapshot:()=>({peerId:outputPeerId,generation:playback?.generation??-1,rendered:playback?.rendered===true,browserReviewOpen:view.browserReviewOpen,readySources:view.readySources(),programSources:(view.state?.sources||[]).slice(),previewSources:(view.state?.preview||[]).slice(),programCompositionId:playback?.compositionId||null,previewCompositionId:playback?.previewCompositionId||null,audioBlocked:playback?.audioBlocked===true})};
     if(browserReview&&host.URLSearchParams&&new host.URLSearchParams(host.location?.search||'').get('browser-review')==='1')browserReview?.open();
     host.addEventListener('pagehide',()=>{stopped=true;host.clearInterval(ready);stopPoll();browserReview?.close();view.close();receiver.close();host.removeEventListener('pointerdown',resume);host.removeEventListener('keydown',resume);soundButton?.removeEventListener('click',resume);delete host.ProducerProgramOutput;},{once:true});
     Promise.resolve(receiver.connect()).catch(()=>view.clear());return {view,receiver};

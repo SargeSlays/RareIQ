@@ -1224,3 +1224,19 @@ Rehearsal Live/VOD gain updates. This does not establish real platform receipt.
 
 The accepted standalone Preview is now build 0.1.0-20261119184055985, opened on
 8767. Main-profile promotion and real provider delivery remain separate.
+
+
+## November 19, 2026 — Layers and full Program replay
+
+The advanced layer editor adds bounded free position/size, crop, opacity, stacking,
+locking and visual hiding within the existing six-source composition. Drafts are
+Preview-only; exact composition identity and revision protect Apply, decoded
+readiness, Take, native output and saved-scene recall. Source selection and public
+audio remain separate. Existing smart layouts and plain scenes stay compatible.
+
+Full Program replay retains composed H.264 picture and the Live AAC mix in bounded
+RAM for 15/30/60-second history, with explicit Start and MKV Save. It has independent
+ownership and Stop alongside broadcasting and recording. It is distinct from the
+older silent camera replay, and does not imply automatic replay playout, isolated
+tracks, platform receipt, new hardware acceptance or exhaustive OBS parity.
+Acceptance for this slice is recorded in RELEASE_CHECKLIST.md.

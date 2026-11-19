@@ -1,7 +1,7 @@
 'use strict';
 
 const ROUTE = '/api/desktop/encoding-status';
-const PURPOSES = new Set(['broadcast', 'recording', 'rehearsal']);
+const PURPOSES = new Set(['broadcast', 'recording', 'replay', 'rehearsal']);
 const fail = code => Object.assign(Error(code), {code});
 
 // The backend owns one process reservation. This broker owns its local reasons

@@ -39,7 +39,7 @@ from rareiq.services.instant_replay_service import InstantReplayService
 from rareiq.services.auto_clip_service import AutoClipService
 from rareiq.services.production_action_service import ActionSpec, ProductionActions
 from rareiq.services.production_scene_store import ProductionSceneStore
-from rareiq.services.production_composition import composition_state, validate_sources, IMAGE_SOURCE, LOCAL_SOURCE, LAYOUTS
+from rareiq.services.production_composition import composition_state, validate_sources, normalize_layers, IMAGE_SOURCE, LOCAL_SOURCE, LAYOUTS, MAX_REVISION
 from rareiq.services.production_source_store import ProductionSourceStore, ProductionSourceError
 from rareiq.services.greenroom_service import GreenroomService, GreenroomError
 from rareiq.services.greenroom_network import GreenroomNetwork
@@ -895,7 +895,10 @@ class ProductionSwitcherRequest(BaseModel):
     expires_at: float | None = Field(default=None, allow_inf_nan=False)
     preview_slot: int | None = Field(default=None, ge=1, le=4)
     preview_sources: list[str] | None = Field(default=None, max_length=6)
-    layout: Literal["auto", "grid", "spotlight", "pip"] | None = None
+    layout: Literal["auto", "grid", "spotlight", "pip", "custom"] | None = None
+    layers: dict[str, dict[str, Any]] | None = Field(default=None, max_length=6)
+    expected_generation: int | None = Field(default=None, ge=0, le=MAX_REVISION, strict=True)
+    expected_preview_revision: int | None = Field(default=None, ge=0, le=MAX_REVISION, strict=True)
     transition: str | None = None
     duration_ms: int | None = Field(default=None, ge=0, le=5000)
 
@@ -909,7 +912,10 @@ class ProductionSceneRequest(BaseModel):
     preview_slot: int = Field(default=2, ge=1, le=4)
     program_sources: list[str] | None = Field(default=None, max_length=6)
     preview_sources: list[str] | None = Field(default=None, max_length=6)
-    layout: Literal["auto", "grid", "spotlight", "pip"] = "auto"
+    layout: Literal["auto", "grid", "spotlight", "pip", "custom"] = "auto"
+    layers: dict[str, dict[str, Any]] | None = Field(default=None, max_length=6)
+    preview_layout: Literal["auto", "grid", "spotlight", "pip", "custom"] | None = None
+    preview_layers: dict[str, dict[str, Any]] | None = Field(default=None, max_length=6)
     transition: str = "fade"
     duration_ms: int = Field(default=500, ge=0, le=5000)
     spotify_action: str = "keep"
@@ -1015,6 +1021,8 @@ def _production_image_sources():
             if asset.get("kind") == "visual" and IMAGE_SOURCE.fullmatch(f"image:{asset['id']}")]
 
 def _production_source_available(source):
+    if isinstance(source, str) and source in {"camera:1", "camera:2", "camera:3", "camera:4"}:
+        return _production_slot_is_ready(int(source.rsplit(":", 1)[1]), orchestrator.camera_manager.camera_slots())
     if isinstance(source, str) and source.startswith("producer:screen:"):
         return greenroom_hub.producer_source_available(source)
     match = LOCAL_SOURCE.fullmatch(source) if isinstance(source, str) else None
@@ -1046,9 +1054,13 @@ def _greenroom_removed(participant_id):
             remaining = [s for s in state[key] if not s.startswith(f"guest:{participant_id}:")]
             if remaining != state[key]:
                 PRODUCTION_SWITCHER_STATE[key] = remaining
+                PRODUCTION_SWITCHER_STATE[bus + "_layers"] = normalize_layers(remaining, state[bus + "_layers"], layout=state[bus + "_layout"])
+                if bus == "program":
+                    PRODUCTION_SWITCHER_STATE["generation"] += 1
+                else:
+                    PRODUCTION_SWITCHER_STATE["preview_revision"] = state["preview_revision"] + 1
                 changed = True
         if changed:
-            PRODUCTION_SWITCHER_STATE["generation"] += 1
             PRODUCTION_SWITCHER_STATE["updated_at"] = time.time()
 
 
@@ -1061,9 +1073,13 @@ def _producer_screen_removed(source_id):
             remaining = [source for source in state[key] if source != source_id]
             if remaining != state[key]:
                 PRODUCTION_SWITCHER_STATE[key] = remaining
+                PRODUCTION_SWITCHER_STATE[bus + "_layers"] = normalize_layers(remaining, state[bus + "_layers"], layout=state[bus + "_layout"])
+                if bus == "program":
+                    PRODUCTION_SWITCHER_STATE["generation"] += 1
+                else:
+                    PRODUCTION_SWITCHER_STATE["preview_revision"] = state["preview_revision"] + 1
                 changed = True
         if changed:
-            PRODUCTION_SWITCHER_STATE["generation"] += 1
             PRODUCTION_SWITCHER_STATE["updated_at"] = time.time()
 
 def _greenroom_operator(connection):
@@ -2704,11 +2720,11 @@ def _program_composition_readiness(slots, program_slot):
     with PRODUCTION_SWITCHER_LOCK:
         state = composition_state(PRODUCTION_SWITCHER_STATE)
         sources = state["program_sources"]
-    if sources == [f"camera:{program_slot}"]:
+    if sources == [f"camera:{program_slot}"] and state["program_layout"] != "custom":
         return _program_camera_readiness(slots, program_slot)
     problem = _production_source_problem(sources, require_output=True, slots=slots)
     ready = bool(sources) and not problem
-    if ready and any(source.startswith(("producer:", "guest:", "image:", "video:", "text:", "browser:")) for source in sources):
+    if ready and (state["program_layout"] == "custom" or any(source.startswith(("producer:", "guest:", "image:", "video:", "text:", "browser:")) for source in sources)):
         ready = greenroom_hub.output_status()["rendered_generation"] == state["generation"]
     return {"ready": ready, "state": "pass" if ready else "fail",
             "reason": "composition_ready" if ready else (problem or {}).get("reason", "composition_not_rendered"),
@@ -2717,17 +2733,40 @@ def _program_composition_readiness(slots, program_slot):
             "slot_id": program_slot, "source_ids": sources, "frame_age_seconds": None}
 
 
+def _preview_precondition(request, state, *, required=False):
+    if required and (request.expected_generation is None or request.expected_preview_revision is None):
+        return {"ok": False, "reason": "preview_revision_required"}
+    if ((request.expected_generation is not None and request.expected_generation != state["generation"])
+            or (request.expected_preview_revision is not None and request.expected_preview_revision != state["preview_revision"])):
+        return {"ok": False, "reason": "preview_revision_conflict", "generation": state["generation"],
+                "preview_revision": state["preview_revision"]}
+    if state["preview_revision"] >= MAX_REVISION:
+        return {"ok": False, "reason": "preview_revision_exhausted"}
+    return None
+
+
 @app.post("/api/production/switcher/preview")
 async def production_switcher_preview(request: ProductionSwitcherRequest):
     with PRODUCTION_SWITCHER_LOCK:
         vision_controller.manual_override()
         state = composition_state(PRODUCTION_SWITCHER_STATE)
         sources = request.preview_sources if request.preview_sources is not None else [f"camera:{request.preview_slot}"] if request.preview_slot else state["preview_sources"]
+        layout = request.layout or state["preview_layout"]
+        precondition = _preview_precondition(request, state, required=layout == "custom" or state["preview_layout"] == "custom" or request.layers is not None)
+        if precondition:
+            return JSONResponse(status_code=409, content=precondition)
+        try:
+            layers = normalize_layers(sources, request.layers if request.layers is not None else state["preview_layers"] if layout == state["preview_layout"] else None, layout=layout)
+        except ValueError as error:
+            return JSONResponse(status_code=400, content={"ok": False, "reason": str(error)})
         problem = _production_source_problem(sources)
         if problem:
             return JSONResponse(status_code=409, content=problem)
         greenroom_service.record_production_event("program.preview", "preview", "requested", actor_kind="producer_control", details={"source_ids": sources})
         PRODUCTION_SWITCHER_STATE["preview_sources"] = sources
+        PRODUCTION_SWITCHER_STATE["preview_layout"] = layout
+        PRODUCTION_SWITCHER_STATE["preview_layers"] = layers
+        PRODUCTION_SWITCHER_STATE["preview_revision"] = state["preview_revision"] + 1
         camera = next((int(s.rsplit(":", 1)[1]) for s in sources if s.startswith("camera:")), None)
         if camera is not None:
             PRODUCTION_SWITCHER_STATE["preview_slot"] = camera
@@ -2752,9 +2791,22 @@ def _take_program_action(payload: dict[str, Any]) -> dict[str, Any]:
             vision_controller.manual_override()
         state = composition_state(PRODUCTION_SWITCHER_STATE)
         sources = request.preview_sources if request.preview_sources is not None else [f"camera:{request.preview_slot}"] if request.preview_slot else state["preview_sources"]
+        layout = request.layout or state["preview_layout"]
+        custom = layout == "custom"
+        precondition = _preview_precondition(request, state, required=custom or state["preview_layout"] == "custom")
+        if precondition:
+            return precondition
+        try:
+            layers = normalize_layers(sources, request.layers if request.layers is not None else state["preview_layers"] if layout == state["preview_layout"] else None, layout=layout)
+        except ValueError as error:
+            return {"ok": False, "reason": str(error)}
+        if (custom or state["preview_layout"] == "custom") and (sources != state["preview_sources"] or layout != state["preview_layout"] or layers != state["preview_layers"]):
+            return {"ok": False, "reason": "composition_output_not_ready"}
         problem = _production_source_problem(sources, require_output=True)
         if problem:
             return problem
+        if custom and not greenroom_hub.composition_ready(sources, composition_id=state["preview_composition_id"]):
+            return {"ok": False, "reason": "composition_output_not_ready", "preview_composition_id": state["preview_composition_id"]}
         target = next((int(s.rsplit(":", 1)[1]) for s in sources if s.startswith("camera:")), int(state["preview_slot"]))
         previous = int(PRODUCTION_SWITCHER_STATE["program_slot"])
         transition = request.transition if request.transition in {"cut", "fade", "slide", "zoom"} else PRODUCTION_SWITCHER_STATE["transition"]
@@ -2766,7 +2818,9 @@ def _take_program_action(payload: dict[str, Any]) -> dict[str, Any]:
             details={"generation": generation, "duration_ms": 0 if transition == "cut" else duration, "source_ids": sources})
         PRODUCTION_SWITCHER_STATE.update({"program_slot": target, "preview_slot": previous,
             "program_sources": sources, "preview_sources": state["program_sources"],
-            "program_layout": request.layout or state["preview_layout"], "preview_layout": state["program_layout"],
+            "program_layout": layout, "preview_layout": state["program_layout"],
+            "program_layers": layers, "preview_layers": state["program_layers"],
+            "preview_revision": state["preview_revision"] + 1,
             "transition": transition, "duration_ms": 0 if transition == "cut" else duration,
             "generation": generation, "updated_at": time.time()})
         return {"ok": True, **composition_state(PRODUCTION_SWITCHER_STATE)}
@@ -3379,7 +3433,8 @@ async def production_native_preflight(output_peer_id: str | None = Query(default
             slots = orchestrator.camera_manager.camera_slots()
             program = _program_composition_readiness(slots, int(state["program_slot"]))
             output = native_output_readiness(greenroom_hub.peers, output_peer_id=output_peer_id,
-                generation=generation, sources=sources, now=time.monotonic())
+                generation=generation, sources=sources, now=time.monotonic(),
+                composition_id=state["program_composition_id"] if state.get("program_layout") == "custom" else None)
             blockers = []
             if DESKTOP_ADMISSION.closing:
                 blockers.append("desktop_closing")
@@ -3391,6 +3446,7 @@ async def production_native_preflight(output_peer_id: str | None = Query(default
                 blockers.append("program_changed")
             return {"ok": True, "preflight": {"ready": not blockers,
                     "generation": generation, "program_sources": sources,
+                    **({"composition_id": state["program_composition_id"]} if state.get("program_layout") == "custom" else {}),
                     "blockers": blockers, "program": program, "output": output},
                     "native_encoding": encoding, "platform_live_verified": False}
     except (KeyError, TypeError, ValueError, RuntimeError, OSError):
@@ -4193,6 +4249,7 @@ async def production_safe_recovery():
         PRODUCTION_SWITCHER_STATE.update({"program_slot": 1, "preview_slot": previous if previous != 1 else 2,
             "program_sources": ["camera:1"], "preview_sources": [f"camera:{previous if previous != 1 else 2}"],
             "program_layout": "auto", "preview_layout": "auto", "transition": "cut", "duration_ms": 0,
+            "program_layers": {}, "preview_layers": {}, "preview_revision": int(PRODUCTION_SWITCHER_STATE.get("preview_revision", 0)) + 1,
             "generation": int(PRODUCTION_SWITCHER_STATE.get("generation", 0)) + 1, "updated_at": time.time(), "active_scene_id": "main-card"})
     overlay = orchestrator.overlay_state.get()
     screen = dict(overlay.get("production_screen") or {}) | {"visible": False, "generation": int((overlay.get("production_screen") or {}).get("generation", 0)) + 1}
@@ -4221,6 +4278,14 @@ async def save_production_scene(request: ProductionSceneRequest, http_request: R
     if request.transition not in {"cut", "fade", "slide", "zoom"} or request.spotify_action not in {"keep", "play", "pause"} or request.soundboard_action not in {"keep", "stop"} or request.screen_action not in {"keep", "show", "hide"} or request.screen_mode not in {"starting-soon", "brb", "ending", "countdown"} or request.screen_accent not in {"cyan", "purple", "gold", "green", "red"}:
         return JSONResponse(status_code=400, content={"ok": False, "reason": "invalid_scene_configuration"})
     scene = request.model_dump(exclude={"expected_revision", "request_id"})
+    for key in ("layers", "preview_layers", "preview_layout"):
+        if scene[key] is None:
+            scene.pop(key)
+    try:
+        normalize_layers(scene.get("program_sources") if scene.get("program_sources") is not None else [f"camera:{scene['program_slot']}"], scene.get("layers"), layout=scene["layout"])
+        normalize_layers(scene.get("preview_sources") if scene.get("preview_sources") is not None else [f"camera:{scene['preview_slot']}"], scene.get("preview_layers"), layout=scene.get("preview_layout", "auto"))
+    except ValueError as error:
+        return JSONResponse(status_code=400, content={"ok": False, "reason": str(error)})
     with PRODUCTION_SWITCHER_LOCK:
         try:
             result = production_scene_store.edit(action="save", target=request.id, scene=scene,
@@ -4270,8 +4335,10 @@ def _take_scene_action(payload):
         ):
             return {"ok": False, "reason": "scene_requires_audio_controls",
                 "detail": "This scene includes browser audio actions. Use its TAKE button, or choose a scene that keeps audio unchanged."}
+        current = composition_state(PRODUCTION_SWITCHER_STATE)
         result = _take_program_action({"preview_sources": scene.get("program_sources") if scene.get("program_sources") is not None else [f"camera:{scene['program_slot']}"],
-            "transition": scene.get("transition", "fade"), "duration_ms": scene.get("duration_ms", 500), "layout": scene.get("layout", "auto")})
+            "transition": scene.get("transition", "fade"), "duration_ms": scene.get("duration_ms", 500), "layout": scene.get("layout", "auto"),
+            "layers": scene.get("layers"), "expected_generation": current["generation"], "expected_preview_revision": current["preview_revision"]})
         if not result.get("ok"):
             return result
         PRODUCTION_SWITCHER_STATE["active_scene_id"] = scene_id

@@ -5,7 +5,7 @@
   "scope": "Internal finite capability inventory for gameplay, podcast and general-production demo planning. Not a claim to enumerate every third-party extension or all product features.",
   "obsBaseline": "Official OBS Studio 33.0.1, released October 29; official release and download pages checked 2026-11-19.",
   "streamlabsBaseline": "Current official Desktop/product/support pages checked 2026-11-19; Desktop/free, Ultra, Ultra+ and separate services/apps distinguished. No Producer prices or entitlements inferred.",
-  "producerBaseline": "Repository contracts and recorded local acceptance, including generated-media producer-screen and actual bundled native-recording checks. Main 8765 and Standalone Preview 8767 remain separate; physical-device and platform-delivery acceptance is not inferred.",
+  "producerBaseline": "Current layer/browser evidence and frozen source gates are recorded separately from the prior accepted recording/screen checkpoint. Main 8765 and Standalone Preview 8767 are separate. No physical-device or platform-delivery acceptance is inferred.",
   "statusLegend": {
     "locally_verified": "Existing implementation with recorded local acceptance; only the explicitly recorded layer is established.",
     "implemented_partial": "Working code covers a narrower workflow; the row limitation is part of its status.",
@@ -29,8 +29,8 @@
   "todayFocus": [
     {
       "workflow": "Gameplay",
-      "demo": "Scene Preview/Take, generated producer-screen pixels, Live/VOD mix controls and native MKV recording have local acceptance.",
-      "remaining": "Physical game/window selection and audio still need operator testing; native game hooks, global hotkeys and full Program replay remain missing."
+      "demo": "Scene Preview/Take, six-source layer arrangements, emitted crop/opacity pixels, saved-scene recall and native MKV recording are locally exercised at their recorded layers.",
+      "remaining": "Physical game/window selection and audio, native game hooks, global hotkeys, rotation/flip and platform receipt remain separate. Native replay saves MKV explicitly and does not play clips to Program."
     },
     {
       "workflow": "Podcast/interview",
@@ -39,8 +39,8 @@
     },
     {
       "workflow": "General production",
-      "demo": "Images/video, bounded titles, smart layouts, reviewed HTTPS visual sources, native Program MKV recording and output settings/statistics are locally exercised at the recorded layers.",
-      "remaining": "Free geometry/groups/filter rack, dual native canvas, provider permissions and real platform receipt remain separate. Main-profile promotion is not claimed."
+      "demo": "Images/video, bounded titles, custom layer positions/crop/stacking, smart layouts, reviewed HTTPS visual sources and local recording/settings are exercised at the recorded layers.",
+      "remaining": "Anchors, rotation/flip, groups/nested scenes, Program filter racks, dual native canvas, provider permissions and platform receipt remain separate. Main-profile promotion is not claimed."
     }
   ],
   "sources": {
@@ -379,17 +379,26 @@
       "feature": "Free position, scale and anchor transforms",
       "obs": "Native transform editor and snapping.",
       "streamlabs": "Desktop: source transform editing.",
-      "producerStatus": "missing",
+      "producerStatus": "implemented_partial",
       "evidencepaths": [
         "rareiq/services/production_composition.py",
+        "rareiq/web/static/production_layer_editor.js",
+        "rareiq/web/static/production_layer_editor.css",
         "rareiq/web/static/program_composition.js",
-        "tests/browser/production_layouts.test.cjs"
+        "tests/test_production_layers.py",
+        "tests/browser/production_layer_editor.test.cjs",
+        "tools/qa_production_layers.cjs"
       ],
-      "limit": "Smart presets and lead ordering do not provide arbitrary x/y/width/height transforms.",
+      "limit": "Six-source custom maps provide normalized Left/Top/Width/Height, pointer drag/resize and numeric/keyboard alternatives. Drafts require Apply to Preview, then separate Take with revision/composition guards; fractional geometry is canonical to six decimals. Anchor editing, groups, nested scenes and rotation are absent.",
       "priority": "P1",
       "officialURLs": [
         "https://obsproject.com/kb/sources-guide",
         "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ],
+      "acceptanceEvidence": [
+        "F:/Temp/jonat/ProducerPlease-layers-20261119/browser07/results.json",
+        "F:/Temp/jonat/ProducerPlease-layers-20261119/text-crop01/results.json",
+        "F:/Temp/jonat/ProducerPlease-layers-20261119/visual02/results.json"
       ]
     },
     {
@@ -398,17 +407,29 @@
       "feature": "Crop, rotate, flip and bounds",
       "obs": "Native transform/crop controls.",
       "streamlabs": "Desktop: source transform/crop controls.",
-      "producerStatus": "missing",
+      "producerStatus": "implemented_partial",
       "evidencepaths": [
         "rareiq/services/production_composition.py",
+        "rareiq/web/static/production_layer_editor.js",
+        "rareiq/web/static/production_layer_editor.css",
         "rareiq/web/static/program_composition.js",
-        "tests/browser/production_layouts.test.cjs"
+        "tests/test_production_layers.py",
+        "tests/browser/production_layer_editor.test.cjs",
+        "tools/qa_production_layers.cjs",
+        "rareiq/web/static/program_composition.css",
+        "tools/qa_layer_text_crop.cjs",
+        "tests/browser/program_output.test.cjs"
       ],
-      "limit": "No supported general Program crop/rotation/flip/bounds editor.",
+      "limit": "Per-source edge crop, including literal text clipping, and opacity passed emitted-pixel tests and saved-scene recall. Rotation, flip and a general bounds/anchor editor remain absent. Text crop clips its intrinsic text layout; picture crop scales the remaining picture into its layer box.",
       "priority": "P1",
       "officialURLs": [
         "https://obsproject.com/kb/sources-guide",
         "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ],
+      "acceptanceEvidence": [
+        "F:/Temp/jonat/ProducerPlease-layers-20261119/browser07/results.json",
+        "F:/Temp/jonat/ProducerPlease-layers-20261119/text-crop01/results.json",
+        "F:/Temp/jonat/ProducerPlease-layers-20261119/visual02/results.json"
       ]
     },
     {
@@ -417,20 +438,26 @@
       "feature": "Layer ordering, source visibility and locking",
       "obs": "Native source ordering, eye controls and locking.",
       "streamlabs": "Desktop: source stack and visibility controls.",
-      "producerStatus": "implemented_partial",
+      "producerStatus": "locally_verified",
       "evidencepaths": [
         "rareiq/services/production_composition.py",
+        "rareiq/web/static/production_layer_editor.js",
+        "rareiq/web/static/production_layer_editor.css",
         "rareiq/web/static/program_composition.js",
-        "tests/browser/production_layouts.test.cjs",
-        "rareiq/services/production_scene_store.py",
-        "rareiq/web/static/production_layouts.js",
-        "tests/test_production_scene_store.py"
+        "tests/test_production_layers.py",
+        "tests/browser/production_layer_editor.test.cjs",
+        "tools/qa_production_layers.cjs"
       ],
-      "limit": "Composition membership and lead order exist; no arbitrary layer stack/lock workflow.",
+      "limit": "Custom stack order, visual-only Hide, edit Lock and Reset are locally exercised with scene preservation/recall. Hidden sources retain availability/decode requirements; Hide does not mute audio, and Lock does not freeze video. Eight responsive measurements plus actual viewport review at 1920 / 390 in both skins are recorded.",
       "priority": "P1",
       "officialURLs": [
         "https://obsproject.com/kb/sources-guide",
         "https://streamlabs.com/content-hub/post/streamlabs-desktop-patch-notes"
+      ],
+      "acceptanceEvidence": [
+        "F:/Temp/jonat/ProducerPlease-layers-20261119/browser07/results.json",
+        "F:/Temp/jonat/ProducerPlease-layers-20261119/text-crop01/results.json",
+        "F:/Temp/jonat/ProducerPlease-layers-20261119/visual02/results.json"
       ]
     },
     {
@@ -895,7 +922,7 @@
         "rareiq/services/recording_service.py",
         "tests/test_recording_service.py"
       ],
-      "limit": "Final candidate actual bundled Main/backend03 recorded native MKV with composed generated picture and one mixed AAC track; record-only Settings reopen and five decoded generated files passed. Packaged fixture audio was generated silence; separate worker native05 proved non-silent AAC and low-disk guards. Physical capture and live show audio remain separate.",
+      "limit": "Prior basic-recording/screen checkpoint: actual bundled Main/backend03 recorded native MKV with composed generated picture and one mixed AAC track; record-only Settings reopen and five decoded generated files passed. Packaged fixture audio was generated silence; separate worker native05 proved non-silent AAC and low-disk guards. Physical capture and live show audio remain separate.",
       "priority": "P0",
       "officialURLs": [
         "https://obsproject.com/kb/standard-recording-output-guide",
@@ -923,7 +950,7 @@
         "desktop/tests/broadcast.test.cjs",
         "docs/PRODUCT_DIRECTION.md"
       ],
-      "limit": "Final candidate bundled03 generated-media acceptance passed both stream/record stop orders and independent cleanup; five generated output files decoded. Transport stayed local, with no external broadcast, devices or credentials. This is short local acceptance, not platform receipt or endurance.",
+      "limit": "Prior basic-recording/screen checkpoint: bundled03 generated-media acceptance passed both stream/record stop orders and independent cleanup; five generated output files decoded. Transport stayed local, with no external broadcast, devices or credentials. This is short local acceptance, not platform receipt or endurance.",
       "priority": "P0",
       "officialURLs": [
         "https://obsproject.com/kb/standard-recording-output-guide",
@@ -963,17 +990,27 @@
       "feature": "Full-Program A/V rolling replay",
       "obs": "Native replay buffer.",
       "streamlabs": "Free Desktop: replay buffer and Instant Replay source.",
-      "producerStatus": "missing",
+      "producerStatus": "locally_verified",
       "evidencepaths": [
-        "rareiq/services/instant_replay_service.py",
-        "tests/test_instant_replay_reliability.py",
-        "docs/RELEASE_CHECKLIST.md"
+        "desktop/replay.cjs",
+        "desktop/settings-replay.js",
+        "desktop/shared_encoder_worker.py",
+        "desktop/tests/replay.test.cjs",
+        "desktop/tests/test_program_replay_worker.py",
+        "desktop/tests/native-replay.cjs",
+        "desktop/tests/bundled-replay.cjs",
+        "desktop/tests/replay-settings-ui.cjs"
       ],
-      "limit": "Existing camera replay does not capture composed Program, graphics or mixed show audio.",
+      "limit": "Native replay uses a 120 MiB encoded ring plus at most one save snapshot; 15/30/60-second history targets and explicit Save produce MKV with one Live AAC mix. Memory capacity can shorten retained history. No automatic playout or Take, isolated stems or VOD mix. Generated native tests decoded five non-silent files and eight mocked Settings layouts passed. Final packaged generated-media acceptance decoded seven files, including three saved clips and composed black-margin/colour-centre pixels. Preview-only edits left Program/Replay unchanged; explicit Take changed the captured composition ID without restarting capture. Retry, cancellation, no-clobber and two three-output stop-order runs passed. Four native-header dark/light layouts used actual CSS. Physical devices, platform receipt and endurance remain unverified.",
       "priority": "P1",
       "officialURLs": [
         "https://obsproject.com/kb/standard-recording-output-guide",
         "https://streamlabs.com/content-hub/post/streamlabs-desktop-recording-functionality"
+      ],
+      "acceptanceEvidence": [
+        "F:/Temp/jonat/ProducerPlease-recording-20261119/replay-native01/results.json",
+        "F:/Temp/jonat/ProducerPlease-recording-20261119/replay-settings-ui01/results.json",
+        "F:/Temp/jonat/ProducerPlease-recording-20261119/bundled-replay04/results.json"
       ]
     },
     {
@@ -988,7 +1025,7 @@
         "tests/test_instant_replay_reliability.py",
         "docs/RELEASE_CHECKLIST.md"
       ],
-      "limit": "Program-camera JPEG buffer; default 5 fps/20 s. MP4 export is silent mp4v at up to 1280 px, not full-show replay.",
+      "limit": "Legacy Program-camera JPEG replay remains a separate path: default 5 fps / 20 s, silent mp4v MP4 up to 1280 px. It does not become full-show replay when the separate native Program replay feature is used.",
       "priority": "P1",
       "officialURLs": [
         "https://obsproject.com/kb/standard-recording-output-guide",
@@ -1474,7 +1511,7 @@
         "rareiq/services/rehearsal_service.py",
         "desktop/tests/rehearsal.test.cjs"
       ],
-      "limit": "Final candidate actual bundled Main/backend/discard-encoder Rehearsal02 passed with generated media. Monitoring remained off; physical listening/echo and platform receipt are not established. Main-profile adoption remains separate from fixture acceptance.",
+      "limit": "Prior basic-recording/screen checkpoint: actual bundled Main/backend/discard-encoder Rehearsal02 passed with generated media. Monitoring remained off; physical listening/echo and platform receipt are not established. Main-profile adoption remains separate from fixture acceptance.",
       "priority": "P1",
       "officialURLs": [
         "https://obsproject.com/",
@@ -1847,7 +1884,7 @@
         "tests/test_desktop_package.py",
         "docs/RELEASE_CHECKLIST.md"
       ],
-      "limit": "Final Windows self-contained candidate passed actual bundled import/backend/recording/Rehearsal acceptance with unchanged resources. Main8765 and Preview8767 remain separate; final Preview activation and main promotion are not claimed. No cross-platform Producer release accepted.",
+      "limit": "Final Windows self-contained candidate passed actual packaged generated-media layer/replay acceptance. Prior basic-recording/screen checkpoint passed bundled import/backend/recording/Rehearsal acceptance with unchanged resources. Main 8765 and Preview 8767 remain separate; Standalone Preview activation is separately verified; main promotion is not claimed. No cross-platform Producer release accepted.",
       "priority": "P1",
       "officialURLs": [
         "https://obsproject.com/download",
@@ -1882,24 +1919,39 @@
       ]
     }
   ],
-  "acceptancePolicy": "The producer-screen and native-recording rows are locally_verified at their explicitly recorded generated-media layers. Final composed canonical gate passed. Local acceptance does not establish production readiness, physical capture or platform receipt. Main-profile promotion and final Preview activation are not claimed.",
+  "acceptancePolicy": "Layer controls and native full-Program replay have the explicitly recorded local generated-media acceptance. Source gates and actual packaged acceptance do not establish production readiness, physical capture or platform receipt.",
   "candidate": {
-    "build": "0.1.0-20261119184055985",
-    "sourceTree": "765f0af9cf432cab0ed3af90a5831bff62ac8853",
+    "build": "0.1.0-20261119192451732",
+    "sourceTree": "f6da989f47f8fc45cde327db6c07d0f8dbd531e7",
+    "packagedReplayAcceptance": "passed_generated_media",
     "mainProfilePromotion": "not claimed by this report",
-    "previewActivation": "Root handles final Preview activation separately; this report does not claim it occurred."
+    "previewActivation": "passed: separate Preview profile, owned backend, unchanged primary settings; existing private guest-only ingress preserved"
   },
   "canonicalGate": {
     "status": "passed",
-    "pythonTests": 4491,
-    "javascriptTests": 1102,
-    "evidenceLog": "F:/Temp/jonat/ProducerPlease-parity-20261119/release-composed02.log",
-    "priorOwnGate": {
-      "pythonTests": 4491,
-      "javascriptTests": 1091,
-      "evidence": "canonical03"
+    "priorOwnSource": {
+      "status": "passed",
+      "evidenceLog": "F:/Temp/jonat/ProducerPlease-layers-replay-20261119/release-own01.log",
+      "pythonTests": 4521,
+      "pythonSkipped": 1,
+      "javascriptTests": 1133,
+      "checkpoint": "Prior f4aed26 source gate; not a rerun of the final candidate."
     },
-    "scope": "Local composed-source canonical gate; no physical capture or external platform receipt."
+    "composedSource": {
+      "status": "passed",
+      "evidenceLog": "F:/Temp/jonat/ProducerPlease-layers-replay-20261119/release-composed02.log",
+      "pythonTests": 4522,
+      "pythonSkipped": 0,
+      "javascriptTests": 1145,
+      "sourceTree": "f6da989f47f8fc45cde327db6c07d0f8dbd531e7"
+    },
+    "latestFocusedChecks": {
+      "stylesheetTests": 36,
+      "mainTests": 22,
+      "status": "passed",
+      "reportedBy": "Root acceptance"
+    },
+    "scope": "Final composed frozen-source gate; prior own-source gate is labeled separately. Not hardware or platform receipt."
   },
   "acceptanceEvidence": {
     "producerScreen": "F:/Temp/jonat/ProducerPlease-parity-20261119/producer-screen-ui06/results.json",
@@ -1909,6 +1961,34 @@
     "rehearsal": "F:/Temp/jonat/ProducerPlease-parity-20261119/rehearsal02/results.json",
     "backend": "F:/Temp/jonat/ProducerPlease-parity-20261119/backend02/results.json",
     "sceneControls": "F:/Temp/jonat/ProducerPlease-parity-20261119/scene-controls-ui01/live/results.json",
-    "canonicalGate": "F:/Temp/jonat/ProducerPlease-parity-20261119/release-composed02.log"
+    "canonicalGate": "F:/Temp/jonat/ProducerPlease-parity-20261119/release-composed02.log",
+    "layerBrowser": "F:/Temp/jonat/ProducerPlease-layers-20261119/browser07/results.json",
+    "layerTextCrop": "F:/Temp/jonat/ProducerPlease-layers-20261119/text-crop01/results.json",
+    "layerVisual": "F:/Temp/jonat/ProducerPlease-layers-20261119/visual02/results.json",
+    "programReplayNative": "F:/Temp/jonat/ProducerPlease-recording-20261119/replay-native01/results.json",
+    "programReplaySettings": "F:/Temp/jonat/ProducerPlease-recording-20261119/replay-settings-ui01/results.json",
+    "programReplayPackaged": "F:/Temp/jonat/ProducerPlease-recording-20261119/bundled-replay04/results.json",
+    "previewActivation": "F:/Temp/jonat/ProducerPlease-layers-replay-20261119/preview-activation.json",
+    "privateGuestIsolation": "F:/Temp/jonat/ProducerPlease-layers-replay-20261119/private-ingress-proof.json"
+  },
+  "previousAcceptedCheckpoint": {
+    "candidate": {
+      "build": "0.1.0-20261119184055985",
+      "sourceTree": "765f0af9cf432cab0ed3af90a5831bff62ac8853",
+      "mainProfilePromotion": "not claimed by this report",
+      "previewActivation": "Root handles final Preview activation separately; this report does not claim it occurred."
+    },
+    "canonicalGate": {
+      "status": "passed",
+      "pythonTests": 4491,
+      "javascriptTests": 1102,
+      "evidenceLog": "F:/Temp/jonat/ProducerPlease-parity-20261119/release-composed02.log",
+      "priorOwnGate": {
+        "pythonTests": 4491,
+        "javascriptTests": 1091,
+        "evidence": "canonical03"
+      },
+      "scope": "Local composed-source canonical gate; no physical capture or external platform receipt."
+    }
   }
 }

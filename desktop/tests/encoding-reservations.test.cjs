@@ -9,6 +9,12 @@ const ack = value => ({ok: true, native_encoding: {active: value.active, owner_p
   ...(value.active && value.mode === 'rehearsal' ? {mode: 'rehearsal', rehearsal_generation: value.rehearsal_generation} : {})}});
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return {promise, resolve, reject}; };
 
+test('broadcast, recording and replay keep independent holds until the final output stops',async()=>{
+ const calls=[],broker=createEncodingReservations({identity,ownerPid:34,request:async(_url,value)=>{calls.push(value);return ack(value);}}),sinks=['broadcast','recording','replay'].map(p=>broker.requestFor(p));
+ await Promise.all(sinks.map(request=>request(route,body(true))));assert.equal(broker.status().holds.length,3);
+ await sinks[0](route,body(false));await sinks[2](route,body(false));assert.equal(calls.at(-1).active,true);assert.deepEqual(broker.status().holds.map(h=>h.purpose),['recording']);await sinks[1](route,body(false));assert.equal(calls.at(-1).active,false);
+});
+
 test('broadcast and recording release only their own hold, with final backend release last', async () => {
   const calls = [], broker = createEncodingReservations({identity, ownerPid: 34, request: async (url, value) => { calls.push({url, value}); return ack(value); }});
   const broadcast = broker.requestFor('broadcast'), recording = broker.requestFor('recording');

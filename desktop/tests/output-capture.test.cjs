@@ -4,6 +4,11 @@ const { createOutputCapture, cleanSnapshot, CHANNELS } = require('../output-capt
 const {createLocalMonitor,CHANNELS:MONITOR_CHANNELS}=require('../local-monitor.cjs');
 const ORIGIN = 'http://127.0.0.1:54321';
 const goodSnapshot = () => ({ peerId: 'fixture-peer', generation: 2, rendered: true, browserReviewOpen: false, audioBlocked: false, readySources: ['camera:1'] });
+test('native snapshots retain exact composition identities and reject malformed identity fields',()=>{
+ const value={...goodSnapshot(),programCompositionId:'a'.repeat(64),previewCompositionId:'b'.repeat(64)};assert.equal(cleanSnapshot(value).programCompositionId,value.programCompositionId);assert.equal(cleanSnapshot(value).previewCompositionId,value.previewCompositionId);
+ for(const invalid of [null,1,'abc','A'.repeat(64),'a'.repeat(65)])assert.equal(cleanSnapshot({...value,programCompositionId:invalid}),null);
+ assert.equal(Object.hasOwn(cleanSnapshot(goodSnapshot()),'programCompositionId'),false);
+});
 function fixture(options = {}) {
   const ipc = new EventEmitter(); ipc.handlers = new Map(); ipc.handle = (channel, fn) => ipc.handlers.set(channel, fn); ipc.removeHandler = channel => ipc.handlers.delete(channel);
   const errors = [], sent = [],windows=[]; let instance;

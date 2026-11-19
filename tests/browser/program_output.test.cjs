@@ -1,5 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const model=require('../../rareiq/web/static/program_composition.js');
+const layerModel=require('../../rareiq/web/static/production_layer_editor.js');
 const ROOT=path.resolve(__dirname,'../../rareiq/web/static');
 const moduleSource=fs.readFileSync(path.join(ROOT,'program_composition.js'),'utf8');
 const runtimeSource=fs.readFileSync(path.join(ROOT,'overlay_runtime.js'),'utf8');
@@ -13,6 +14,39 @@ function track(kind='video'){
 }
 const room=()=>({revision:1,participants:[{id:G,name:'Fixture guest',state:'admitted',connected:true,expired:false,media:{camera:true,microphone:true,screen:true,screen_audio:true}}]});
 const state=(values={})=>({generation:0,program_slot:1,preview_slot:2,program_sources:['camera:1'],preview_sources:['camera:2'],program_layout:'auto',transition:'cut',duration_ms:0,...values});
+
+test('custom geometry updates emitted tiles while hidden pictures retain decode and readiness requirements',async()=>{
+  const f=fixture(),id='image:12345678-1234-1234-1234-123456789abc';
+  const layers=layerModel.normalizeLayers(['camera:1',id],{[id]:{...layerModel.defaults(1),x:.2,y:.3,width:.4,height:.5,opacity:.6,hidden:true,crop:{top:0,right:.1,bottom:0,left:.2}}});
+  f.view.render(state({program_sources:['camera:1',id],preview_sources:[],program_layout:'custom',program_layers:layers,program_composition_id:'a'.repeat(64)}));
+  const tile=f.view.current.tiles.find(tile=>tile.id===id);
+  assert.equal(tile.node.style['--layer-x'],'0.2');assert.equal(tile.node.style['--layer-width'],'0.4');assert.equal(tile.node.dataset.layerHidden,'true');
+  await f.run(16);assert.equal(f.statuses.at(-1).rendered,false);
+  tile.image.complete=true;tile.image.naturalWidth=640;tile.image.naturalHeight=360;f.view.refresh();
+  assert.equal(f.statuses.at(-1).rendered,true);assert.equal(f.statuses.at(-1).compositionId,'a'.repeat(64));
+  assert.ok(f.view.readySources().includes('camera:1'));assert.ok(f.view.readySources().includes(id));
+  f.close();
+});
+
+test('a new staged composition ID cannot inherit old readiness before paint and source decode',async()=>{
+  const f=fixture(),id='image:12345678-1234-1234-1234-123456789abc',layers=layerModel.normalizeLayers(['camera:1',id]);
+  const first=state({preview_sources:['camera:1',id],preview_layout:'custom',preview_layers:layers,preview_composition_id:'b'.repeat(64)});
+  f.view.render(first);await f.run(16);await f.run(16);await f.run(16);
+  assert.equal(f.statuses.at(-1).previewCompositionId,null);
+  const tile=f.view.preloads.get(id);tile.image.complete=true;tile.image.naturalWidth=640;tile.image.naturalHeight=360;f.view.refresh();
+  assert.equal(f.statuses.at(-1).previewCompositionId,'b'.repeat(64));
+  f.view.render({...first,preview_composition_id:'c'.repeat(64),preview_layers:{...layers,[id]:{...layers[id],x:.3}}});
+  assert.equal(f.statuses.at(-1).previewCompositionId,null);assert.equal(f.view.current.generation,0);
+  await f.run(16);assert.equal(f.statuses.at(-1).previewCompositionId,null);await f.run(16);
+  assert.equal(f.statuses.at(-1).previewCompositionId,'c'.repeat(64));f.close();
+});
+
+test('late same-generation Preview polls cannot restore an earlier custom arrangement or receipt',()=>{
+  const f=fixture(),layers=layerModel.normalizeLayers(['camera:1']);
+  f.view.render(state({preview_revision:8,preview_sources:['camera:1'],preview_layout:'custom',preview_layers:layers,preview_composition_id:'a'.repeat(64)}));
+  assert.equal(f.view.render(state({preview_revision:7,preview_sources:['camera:2'],preview_layout:'auto',preview_composition_id:'b'.repeat(64)})),false);
+  assert.equal(f.view.state.previewCompositionId,'a'.repeat(64));f.close();
+});
 function fixture(options={}){
   let clock=1000,next=0;const timers=new Map(),intervals=new Map(),nodes=[],statuses=[],acks=[],tracks=new Map(),events=new Map();
   const settings={rejectAudio:false,...options};

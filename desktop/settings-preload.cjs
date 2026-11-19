@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('producerSettings',Object.freeze({
   streamMetadata:value=>ipcRenderer.invoke('producer:stream-metadata',value),
   rehearsal:value=>ipcRenderer.invoke('producer:rehearsal',value),
   recordingActions:value=>ipcRenderer.invoke('producer:recording',value),
+  replayActions:value=>ipcRenderer.invoke('producer:replay',value),
   saveOutputProfile:value=>ipcRenderer.invoke('producer:profiles:save',value),
   removeOutputProfile:id=>ipcRenderer.invoke('producer:profiles:remove',id),
   selectOutputProfile:id=>ipcRenderer.invoke('producer:profiles:select',id),

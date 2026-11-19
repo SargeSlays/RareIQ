@@ -6,6 +6,14 @@ test('returning a guest to waiting has a distinct activity label from ending acc
   assert.equal(controls.activityEntry({action:'guest.remove',outcome:'succeeded'}).action,'Guest removed');
 });
 const {sourceAvailable,togglePreview,takeReadiness,createRequests}=controls;
+
+test('custom geometry needs an exact staged output receipt and changed IDs count as a new shot',()=>{
+  const {room,switcher}=fixture();switcher.preview_sources=['camera:1'];switcher.program_sources=['camera:1'];switcher.preview_layout='custom';switcher.program_layout='custom';
+  switcher.preview_composition_id='a'.repeat(64);switcher.program_composition_id='b'.repeat(64);
+  room.output.preview_composition_ready=false;assert.equal(takeReadiness(switcher,room).ready,false);assert.match(takeReadiness(switcher,room).message,/exact Preview layers/);
+  room.output.preview_composition_ready=true;assert.equal(takeReadiness(switcher,room).ready,true);
+  switcher.program_composition_id=switcher.preview_composition_id;assert.equal(takeReadiness(switcher,room).ready,false);assert.match(takeReadiness(switcher,room).message,/already on Program/);
+});
 test('current audio blockage overrides a previous renderer receipt with a concrete recovery action',()=>{
   assert.match(controls.outputStatusLabel({connected:1,rendered_generation:3,audio_blocked:true},3),/open Studio Output and choose Enable output sound/);
   assert.match(controls.outputStatusLabel({connected:1,rendered_generation:3,audio_blocked:false},3),/reports this Program shot/);

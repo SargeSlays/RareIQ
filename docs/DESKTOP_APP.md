@@ -385,3 +385,32 @@ Use Broadcast setup for profiles, saved destinations, stream-info drafts and the
 no-publish Rehearsal room. Recording always needs its separate file and confirmation.
 Do not present Google setup, provider editing grants, StackThis producer sign-in or
 actual Twitch/Kick/YouTube reception as completed without their recorded acceptance.
+
+
+## Layer arrangements and full Program replay
+
+Open Sources & backstage, select the pictures for Preview, then expand **Arrange
+layers**. Drag pictures or use numeric position/size, crop and opacity controls.
+Stack order controls overlap. Lock prevents edits; Hide affects the picture while
+audio stays under the mixer. **Apply to Preview** stages the draft. **Take** changes
+Program only after the output receives that exact composition. A conflicting
+Preview edit keeps your draft and asks you to reload instead of overwriting it.
+
+After applying, **Create scene from Preview** opens the existing scene form without
+changing Program. Enter a name and Save Scene. A custom scene's **Preview** button
+loads its saved layers; use the main Take control when ready. Existing simple
+scenes retain their Take behavior. There are six selected sources; groups, nested
+scenes, rotation and flipping remain separate work.
+
+In desktop **Replay buffer**, choose 15, 30 or 60 seconds, then **Start buffer** and
+review its confirmation. This keeps the composed Program picture and Live AAC mix
+in RAM. **Save clip** chooses and confirms a new MKV file, defaulting to
+F:/Users/<user>/Videos/ProducerPlease/Replays. **Stop buffer** discards unsaved history;
+saved clips remain. Stream, recording and replay have independent Stop controls.
+Closing setup keeps an explicitly started buffer running. Rehearsal blocks replay.
+
+Memory is bounded to 120 MiB for encoded history, with one additional snapshot
+while saving. Actual history can be shorter at high bitrates and clips begin on
+decodable keyframes. This is one Live mix; isolated tracks and automatic replay
+playback/Take are not provided by saving an MKV clip. Use Show last clip to review
+the saved file in a compatible player.

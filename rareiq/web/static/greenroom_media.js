@@ -368,6 +368,8 @@
         if(role!=='output'||!Array.isArray(sources))return false;
         const message={type:'ready',sources:[...new Set(sources)].filter(source=>typeof source==='string'&&state?.subscriptions?.includes(source)).slice(0,12)};
         if(playback&&Number.isSafeInteger(playback.generation)&&playback.generation>=0&&playback.generation===state?.room?.switcher?.generation&&typeof playback.audioBlocked==='boolean'&&typeof playback.rendered==='boolean')message.playback={generation:playback.generation,audio_blocked:playback.audioBlocked,rendered:playback.rendered};
+        if(message.playback&&typeof playback.compositionId==='string'&&/^[a-f0-9]{64}$/.test(playback.compositionId))message.playback.composition_id=playback.compositionId;
+        if(typeof playback?.previewCompositionId==='string'&&/^[a-f0-9]{64}$/.test(playback.previewCompositionId))message.preview_composition_id=playback.previewCompositionId;
         return send(message);
       },
       rendered(value){return role==='output'&&Number.isInteger(value)&&value===state?.room?.switcher?.generation&&send({type:'rendered',generation:value});},
