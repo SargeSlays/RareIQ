@@ -926,3 +926,20 @@ uncertain Add save. Store, Settings and actual packaged DPAPI regressions cover
 these contracts. Layout help text inside the form grid must span both columns.
 The first native harness attempted to fill Twitch's hidden server field; the
 corrected harness respects preset visibility and has an explicit action timeout.
+
+## November 18, 2026 — Preserve aspect ratios in the final CSS owner
+
+Symptom: header art looked stretched and camera input previews looked flattened;
+tally badges collided with labels. The older header rule imposed a 208px minimum
+while the later owner reduced height to 44px, distorting the 2400:680 lockup. A
+legacy test incorrectly enshrined the old minimum. The final owner now clears it,
+contains the art, and explicitly preserves the 32px compact mark. Input rows had
+fixed 76px/40px heights independent of width; media/empty states now share 16:9
+geometry with a bounded width. Labels reserve space for badges.
+
+Guards check the final owner, removal of flattening overrides, matching empty/media
+geometry and badge space. Actual isolated browser measurements cover eight skin/
+viewport combinations, including short screens: correct ratios, no horizontal
+overflow or nested dock scrolling, and readable label gaps. Existing API/readiness
+contracts were not changed. Cache-bust only the owned stylesheet token while
+preserving unrelated working-tree additions and their test-count adjustments.

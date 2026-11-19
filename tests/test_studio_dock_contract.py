@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 STATIC = Path(__file__).resolve().parents[1] / 'rareiq/web/static'
 
@@ -30,6 +31,38 @@ def test_hidden_workspace_resize_does_not_erase_floating_position():
     assert 'if(view!=="live"||item.wrapper.hidden||!bounds.width||!bounds.height)return;' in js
 
 
-def test_parent_lockup_retains_height_when_css_image_changes():
+def test_parent_lockup_clears_inherited_minimum_and_preserves_narrow_mark():
     css = (STATIC / "studio_shell.css").read_text(encoding="utf-8")
-    assert "width:208px !important; min-width:208px !important; height:59px !important" in css
+    rules = re.findall(r'\.appbar \.brand-lockup-image \{([^}]+)\}', css)
+    assert len(rules) == 2
+    desktop, narrow = [dict(part.strip().split(':', 1) for part in rule.split(';') if part.strip()) for rule in rules]
+    # The legacy 208px minimum stretched the 2400:680 asset after height became 44px.
+    assert desktop['width'] == 'auto!important'
+    assert desktop['min-width'] == '0!important'
+    assert desktop['object-fit'] == 'contain!important'
+    assert desktop['max-width'] == '100%!important'
+    # The final height owner must also leave the compact SVG square.
+    assert narrow['width'] == narrow['height'] == narrow['max-height'] == '32px!important'
+    assert '@container studio-content (max-width:760px)' in css[css.index(rules[0]):css.index(rules[1])]
+
+
+def test_input_picture_and_empty_state_use_the_same_responsive_video_geometry():
+    css = (STATIC / 'studio_shell.css').read_text(encoding='utf-8')
+    for selector in ('.production-inputs img', '.production-input-empty'):
+        rule = re.findall(re.escape(selector) + r' \{([^}]+)\}', css)[-1]
+        properties = dict(part.strip().split(':', 1) for part in rule.split(';') if part.strip())
+        assert properties['aspect-ratio'] == '16/9!important'
+        assert properties['height'] == 'auto!important'
+        assert properties['max-height'] == 'none!important'
+        assert properties['width'] == 'min(100%,320px)!important'
+    # A later short-screen override must not flatten the same pictures back to 40px.
+    assert '.production-inputs :is(img,.production-input-empty) { height:40px' not in css
+    assert 'grid-template-rows:auto 76px' not in css
+    assert 'grid-template-rows:auto 40px' not in css
+
+
+def test_input_tallies_reserve_space_beside_camera_labels():
+    css = (STATIC / 'studio_shell.css').read_text(encoding='utf-8')
+    label = re.search(r'\.production-inputs button:is\(\.is-program,\.is-preview\) > strong \{([^}]+)\}', css).group(1)
+    # Cover the badge plus a readable gap even when compact cards use 7px padding.
+    assert 'padding-inline-end:40px!important' in label

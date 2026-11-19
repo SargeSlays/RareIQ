@@ -800,3 +800,17 @@ replacement-key requirement for server changes, Cancel/Add-draft recovery, and
 Main guards in both directions between destination persistence and transmission.
 Six dark/light narrow/1080p/4K layouts passed. No platform login, destination receipt
 or physical acceptance is implied; those earlier gates remain open.
+
+## November 18, 2026 — Studio sizing and two-PC test preparation
+
+Corrected stretched header art, flattened input thumbnails and overlapping tally
+badges in the existing CSS owner. Dark/light 1920×1080, 3840×2160, 960×900 and
+1366×768 passed geometry, overflow and label-gap checks. Actual development
+desktop loaded the cache-busted CSS; the bundled candidate passed isolated native
+startup/source navigation. Broader visual refinish remains ongoing.
+
+The stopped local studio was started through the managed controller. Private
+guest-only HTTPS passed 21 boundary checks and the second PC displayed its guest
+page. Hardware join/admission, gate tuning and listening/echo checks remain
+pending owner action. Temporary mapping/invitation cleanup is required after the
+test; private configuration and invite material stay outside Git.

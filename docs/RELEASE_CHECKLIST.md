@@ -1372,3 +1372,27 @@ No real platform stream, user recording, credentials or physical capture were us
 Evidence: `F:/Temp/jonat/ProducerPlease-destination-edit-20261118/native02/results.json`,
 the six layout captures and `release-gate-final.log`. `native01` is a preserved
 failed harness probe, not passing acceptance evidence.
+
+## November 18, 2026 — Studio asset-sizing checkpoint
+
+- [x] Canonical isolated staged-source gate: **3535 Python + 621 JavaScript tests**.
+- [x] Proportional header lockup and 32px compact mark; matching 16:9 camera/empty
+  thumbnails capped at 320px; PGM/PVW badges do not overlap camera labels.
+- [x] Eight isolated dark/light layouts at 1920×1080, 3840×2160, 960×900 and
+  1366×768: ratio 1.7778, no horizontal overflow, clipped buttons or nested dock
+  scrolling. Final evidence is `visual03`; `visual02` is a preserved failed probe.
+- [x] Actual primary development desktop inspected after stylesheet cache bust.
+- [x] Bundled candidate `0.1.0-20261119013309197` passed isolated native startup,
+  protected storage readiness and source navigation without Take or capture.
+- [x] Current private guest-only HTTPS boundary: 21/21 checks pass. Second PC
+  actually displayed the secure guest page; no operator routes exposed there.
+- [ ] Owner joins/enables physical camera and mic; verify admission, waiting,
+  readmission, received picture, noise gate, speech, conversation and echo.
+- [ ] Restore the temporary private mapping and revoke the test invitation after
+  the two-PC test. Do not call this network cleanup complete before observing it.
+
+Sizing evidence: `F:/Temp/jonat/ProducerPlease-makeover-sizing-20261118/visual03/`.
+Gate/native evidence: `F:/Temp/jonat/ProducerPlease-makeover-room-20261118/`.
+Private configuration, invitation material and physical images are excluded from
+source/backups. No public stream, recording, platform receipt or producer login
+acceptance is claimed. This is a first sizing pass, not the full visual refinish.

@@ -779,3 +779,19 @@ requires a replacement key. Cancel restores the Add draft. Destination mutations
 and transmission startup are mutually guarded in Main, including pending ownership.
 Actual packaged Settings/DPAPI acceptance passed with synthetic profiles; real
 platform identity, OAuth and delivery remain separate. See [desktop evidence](DESKTOP_APP.md).
+
+## November 18, 2026 — Asset sizing makeover, first pass
+
+Studio header art now keeps its natural proportions and compact square mark.
+Camera input thumbnails and empty states share a responsive 16:9 picture area,
+capped at 320px wide. Short screens retain that aspect instead of flattening it.
+PGM/PVW badges reserve room beside camera names. Existing themes, controls, source
+selection, dock choices and production behavior remain intact. Eight isolated
+dark/light viewport checks and the actual running desktop inspection passed.
+This corrects concrete scaling defects; it is the first pass of the requested
+broader makeover, not a claim that the whole interface has been redesigned.
+
+The owner's second PC reached the invitation-only guest page over the temporary
+private HTTPS route. Actual joining, new physical camera/mic reception and spoken/
+echo acceptance are awaiting the owner enabling those controls. No public stream
+or recording was started. Guest access remains distinct from producer sign-in.
