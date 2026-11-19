@@ -1022,3 +1022,25 @@ Twitch's streaming consent; the real saved grant and private stream-key lookup w
 verified. Actual platform broadcast receipt remains separate acceptance.
 YouTube sign-in remains read-only and needs Google app setup; other platforms
 retain manual destinations. Producer/team identity remains separate StackThis work.
+
+
+## November 18, 2026 — Saved YouTube and Kick account controls
+
+Native Broadcast setup now includes YouTube and Kick account cards, explicit
+provider consent handoff, saved identity, Check/reconnect, Cancel and local
+Disconnect. Provider tokens and client secrets stay in the Windows-user encrypted
+vault; Main returns bounded public status and opaque flow IDs only. Manual
+destination/profile drafts and Stop remain available through account activity.
+
+YouTube retains read-only channel/chat scope. Kick uses PKCE/state, a dedicated
+localhost:8770 callback and verified self user/channel identity, with channel and
+stream-key read scopes. Kick currently requires an owner app secret; personal
+local testing can use a privately registered app, while a distributable customer
+login requires a confidential broker or documented public-client support. Never
+ship a shared Kick app secret. Account login is separate from chat webhook setup.
+
+Neither provider app is configured on the primary machine yet, so their actual
+connections are not verified. Cards truthfully show setup required. These account
+connections do not create streaming destinations; YouTube/Kick outputs remain
+manual server/key setup in this checkpoint. The real Twitch linked destination
+was observed saved in the open app; no broadcast or recording was started.

@@ -5,7 +5,9 @@ let locked=false,storageAvailable=false,pending=null,broadcastState=null,broadca
 let profileState=null,profileEditingId=null,profileDirty=false,profileBusy=false,profilePending=null,audioRoutingDraft={},audioSourceStamp='',routingInputs=[];
 let liveMix={outputId:null,revision:0,routing:{},draft:{},dirty:false,busy:false,pending:null,blocked:'',message:'',serial:0,generation:0,timer:null,stamp:'',controls:[],invalid:new Set(),closed:false};
 const selectedDestinations=new Set(),destinationRows=new Map(),targetStops=new Set();
-let twitchAccountCard=null,accountBusy=false;
+let twitchAccountCard=null,providerAccountCards=[],accountBusy=false;
+const accountBusySources=new Set();
+function updateAccountBusy(platform,value){if(value)accountBusySources.add(platform);else accountBusySources.delete(platform);accountBusy=accountBusySources.size>0;renderBroadcast();}
 function busy(value){locked=value;renderBroadcast();}
 function destinationBusy(){return accountBusy||locked||broadcastBusy||profileBusy||startPending||stopBusy||targetStops.size>0||broadcastState?.active||broadcastState?.ownershipPending;}
 function platform(){const twitch=form.elements.platform.value==='twitch';document.querySelector('#serverLabel').hidden=twitch;form.elements.serverUrl.required=!twitch&&!editing;form.elements.streamKey.required=!editing||editing.keyConfigured!==true;document.querySelector('#platformDashboard').hidden=!dashboards[form.elements.platform.value];}
@@ -79,6 +81,7 @@ function renderBroadcast(){
   document.querySelector('#selectAllDestinations').disabled=destinationBusy()||Boolean(editing)||!configuredDestinations;document.querySelector('#clearDestinationSelection').disabled=destinationBusy()||Boolean(editing)||!selectedDestinations.size;
   const startSelected=document.querySelector('#startSelectedDestinations');startSelected.disabled=locked||working||mixWaiting||Boolean(editing)||!storageAvailable||!value.ready||stopRequired||!profileMatches||profileDirty||!selectedDestinations.size;startSelected.title=startSelected.disabled?(mixWaiting?'Confirm the current audio mix before starting.':'Select configured destinations and prepare the saved output profile before starting.'):'One confirmation lists every selected destination before sending.';
   twitchAccountCard?.setLocked(Boolean(destinationBusy()||editing));
+  for(const card of providerAccountCards)card.setLocked(Boolean(destinationBusy()||editing));
   renderProfileControls();
   renderLiveMixer();
   renderAudioMeters();
@@ -250,6 +253,8 @@ async function stopDestination(id){
 }
 
 // Account controls keep their own status and never reset destination or profile drafts.
-twitchAccountCard=window.ProducerTwitchAccountUI?.mount({document,api:producerSettings,onDestinationsChanged:refresh,onBusyChange:value=>{accountBusy=value;renderBroadcast();}})||null;
+twitchAccountCard=window.ProducerTwitchAccountUI?.mount({document,api:producerSettings,onDestinationsChanged:refresh,onBusyChange:value=>updateAccountBusy('twitch',value)})||null;
+providerAccountCards=window.ProducerProviderAccounts?.mount({document,api:producerSettings,onBusyChange:updateAccountBusy})||[];
 twitchAccountCard?.start();
-addEventListener('pagehide',()=>twitchAccountCard?.close(),{once:true});
+for(const card of providerAccountCards)card.start();
+addEventListener('pagehide',()=>{twitchAccountCard?.close();for(const card of providerAccountCards)card.close();},{once:true});

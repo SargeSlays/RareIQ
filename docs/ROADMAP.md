@@ -1016,3 +1016,19 @@ connection requires its own registered app, suitable consent and live eligibilit
 Kick and remaining providers need individual official integration contracts. Do not
 label all platform logins connected. Remote producer/team sign-in still requires
 the StackThis identity contract. The planned Rehearsal room remains unimplemented.
+
+
+## November 18, 2026 — YouTube/Kick saved-login checkpoint
+
+Implemented and locally tested: native provider cards, strict Main authorization
+URL validators, producer-only account routes, refresh/check/forget controls and
+Windows-encrypted persistence. Kick account authorization no longer depends on
+chat webhook delivery. Public metadata cannot expose credentials or consent URLs.
+
+Remaining owner prerequisite: identify or register the Producer, Please Google
+Desktop app with YouTube Data API/consent setup, plus an owner-private Kick app
+with http://localhost:8770/callback. Configure credentials privately, then review
+actual Google/Kick consent and verify real saved-account reopening. No provider
+registrations, credentials, real Google/Kick grants or broadcasts were created by
+this checkpoint. Automatic account-linked YouTube/Kick output selection remains
+separate work; current streaming destinations use manual server/key setup.

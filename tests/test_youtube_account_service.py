@@ -30,6 +30,146 @@ def record(**changes):
             "public_label": "Fixture channel"} | changes
 
 
+def test_explicit_check_verifies_the_owned_channel_without_extending_token_expiry_or_exposing_secrets():
+    async def run():
+        f = Fixture(stored=record())
+        async def delay(_request, _form):
+            f.now += 8
+        f.hook = delay
+        status = await f.service.check()
+        assert status["authorized"] and status["reason"] == "account_authorized"
+        assert len(f.calls) == 1 and f.calls[0][0] == "GET"
+        assert f.vault.value["expires_at"] == NOW + 3600
+        assert_redacted(status)
+        await f.service.close()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("response,reason", [
+    ((401, {"error": "private-provider-detail"}), "authorization_rejected"),
+    ({"items": [{"id": "UC" + "b" * 22, "snippet": {"title": "Different channel"}}]}, "account_identity_mismatch"),
+])
+def test_check_rejects_revoked_or_switched_channel_and_never_serves_its_cached_authorization(response, reason):
+    async def run():
+        f = Fixture(stored=record())
+        f.channels = response
+        status = await f.service.check()
+        assert not status["authorized"] and status["reason"] == reason
+        assert await f.service.ensure_authorization() is None
+        assert len(f.calls) == 1 and f.vault.saves == []
+        assert_redacted(status)
+        await f.service.close()
+    asyncio.run(run())
+
+
+def test_check_provider_outage_preserves_saved_record_but_reports_the_failure():
+    async def run():
+        previous = record()
+        f = Fixture(stored=previous)
+        f.channels = (500, {"error": "private-provider-detail"})
+        status = await f.service.check()
+        assert status["authorized"] and status["reason"] == "provider_unavailable"
+        assert f.vault.value == previous and f.vault.saves == []
+        await f.service.close()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("remaining", [3600, 20])
+def test_owned_check_or_refresh_during_pending_sign_in_preserves_the_callback_snapshot(remaining):
+    async def run():
+        f = Fixture(stored=record(expires_at=NOW + remaining))
+        await f.service.begin()
+        flow = f.service._pending["flow_id"]
+        checked = await f.service.check()
+        assert checked["state"] == "pending" and checked["flow_id"] == flow
+        response = await f.callback()
+        assert b"Sign-in complete" in response
+        assert f.service.status()["reason"] == "account_authorized"
+        await f.service.close()
+    asyncio.run(run())
+
+
+def test_external_vault_write_after_owned_check_still_rejects_stale_sign_in():
+    async def run():
+        f = Fixture(stored=record())
+        await f.service.begin()
+        await f.service.check()
+        f.vault.value["access_token"] = "newer-external-private-token"
+        await f.callback()
+        assert f.service.status()["reason"] == "account_state_changed"
+        assert f.vault.value["access_token"] == "newer-external-private-token"
+        await f.service.close()
+    asyncio.run(run())
+
+
+def test_disconnect_invalidates_an_inflight_check_and_forgets_only_authorization():
+    async def run():
+        f = Fixture(stored=record())
+        entered, release = asyncio.Event(), asyncio.Event()
+        async def hold(_request, _form):
+            entered.set()
+            await release.wait()
+        f.hook = hold
+        checking = asyncio.create_task(f.service.check())
+        await entered.wait()
+        disconnecting = asyncio.create_task(f.service.disconnect())
+        await asyncio.sleep(0)
+        release.set()
+        await checking
+        status = await disconnecting
+        assert not status["authorized"] and status["reason"] == "account_disconnected"
+        assert status["app_configured"]
+        assert f.vault.value["client_id"] == CLIENT and f.vault.value["client_secret"] == SECRET
+        assert all(not f.vault.value[k] for k in ["access_token", "refresh_token", "channel_id", "scopes", "public_label"])
+        assert len(f.vault.saves) == 1
+        assert_redacted(status)
+        await f.service.close()
+    asyncio.run(run())
+
+
+def test_disconnect_survives_encrypted_vault_reopen_and_preserves_other_accounts(tmp_path):
+    from rareiq.core.platform_credentials import PlatformCredentialVault
+    class Cipher:
+        available = True
+        def encrypt(self, value):
+            return b"synthetic-cipher:" + value[::-1]
+        def decrypt(self, value):
+            assert value.startswith(b"synthetic-cipher:")
+            return value[len(b"synthetic-cipher:"):][::-1]
+    async def run():
+        path = tmp_path / "accounts.json"
+        vault = PlatformCredentialVault(path, cipher=Cipher())
+        vault.set("youtube", record())
+        vault.set("twitch", {"client_id": "other-client", "refresh_token": "other-private-refresh"})
+        other = vault.get("twitch")
+        service = YouTubeAccountService(vault, clock=lambda: NOW)
+        assert (await service.disconnect())["reason"] == "account_disconnected"
+        reopened = PlatformCredentialVault(path, cipher=Cipher())
+        saved = reopened.get("youtube")
+        assert saved["client_id"] == CLIENT and saved["client_secret"] == SECRET
+        assert all(not saved[k] for k in ["access_token", "refresh_token", "channel_id", "scopes", "public_label"])
+        assert reopened.get("twitch") == other
+        assert YouTubeAccountService(reopened, clock=lambda: NOW).status()["authorized"] is False
+        assert ACCESS not in path.read_text() and REFRESH not in path.read_text()
+        await service.close()
+    asyncio.run(run())
+
+
+def test_missing_configuration_check_disconnect_are_network_free_and_storage_failures_are_redacted():
+    async def run():
+        f = Fixture(stored=None)
+        assert not (await f.service.check())["app_configured"] and f.calls == []
+        assert not (await f.service.disconnect())["authorized"] and f.calls == []
+        await f.service.close()
+        f = Fixture(stored=record())
+        f.vault.fail_set = True
+        status = await f.service.disconnect()
+        assert status["reason"] == "account_storage_unavailable" and f.vault.value == record()
+        assert_redacted(status)
+        await f.service.close()
+    asyncio.run(run())
+
+
 def token(**changes):
     return {"access_token": ACCESS, "refresh_token": REFRESH, "token_type": "Bearer",
             "expires_in": 3600, "scope": SCOPE} | changes

@@ -105,7 +105,7 @@ app.whenReady().then(async()=>{
   const publicBroadcast=()=>({...broadcast.status(),available:Boolean(runtime.encoderWorker&&fs.existsSync(runtime.encoderWorker)&&runtime.sharedEncoderWorker&&fs.existsSync(runtime.sharedEncoderWorker)&&backend?.started?.identity)});
   const {createAccountAuthorization}=require('./account-authorization.cjs');
   const authorizeAccount=createAccountAuthorization({origin,
-    trustedSender:event=>Boolean(studio&&!studio.isDestroyed()&&policy.trustedMain(event,studio.webContents,origin)
+    trustedSender:event=>settingsEvent(event)||Boolean(studio&&!studio.isDestroyed()&&policy.trustedMain(event,studio.webContents,origin)
       &&new URL(event.senderFrame.url).pathname==='/control'),
     openExternal:url=>shell.openExternal(url)});
 
@@ -113,6 +113,8 @@ app.whenReady().then(async()=>{
   const twitchConnection=createTwitchConnection({origin,store:destinations,trustedSender:settingsEvent,mutate:changeDestination,
     append:entry=>fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify(entry)+'\n',{mode:0o600})});
   ipcMain.handle('producer:accounts:twitch',twitchConnection);
+  const providerConnection=require('./provider-connection.cjs').createProviderConnection({origin,trustedSender:settingsEvent,mutate:changeDestination,authorize:authorizeAccount});
+  ipcMain.handle('producer:accounts:provider',providerConnection);
   ipcMain.handle('producer:info',event=>{if(!policy.trustedMain(event,studio.webContents,origin))throw Error('Untrusted request');return {name:'Producer, Please',version:app.getVersion(),desktop:true,engine:'standalone',preview};});
   ipcMain.handle('producer:settings',event=>{if(!policy.trustedMain(event,studio.webContents,origin))throw Error('Untrusted request');return openSettings();});
   ipcMain.handle('producer:sources:open',openSources);

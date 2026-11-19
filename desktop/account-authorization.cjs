@@ -9,7 +9,18 @@ const failure=reason=>({ok:false,reason});
 function authorizationRequest(value){
   return Boolean(value&&Object.prototype.toString.call(value)==='[object Object]'
     &&Object.keys(value).length===2&&Object.hasOwn(value,'platform')&&Object.hasOwn(value,'flowId')
-    &&value.platform==='youtube'&&typeof value.flowId==='string'&&/^[a-f0-9]{32}$/.test(value.flowId));
+    &&['youtube','kick'].includes(value.platform)&&typeof value.flowId==='string'&&/^[a-f0-9]{32}$/.test(value.flowId));
+}
+
+function kickAuthorizationUrl(value){
+  try{
+    if(typeof value!=='string'||value.length>8192||/[^\x21-\x7e]/.test(value)||!value.startsWith('https://id.kick.com/oauth/authorize?'))return null;
+    const u=new URL(value),pairs=[...u.searchParams],q=Object.fromEntries(pairs),fields=['client_id','redirect_uri','response_type','scope','state','code_challenge','code_challenge_method'];
+    if(u.origin!=='https://id.kick.com'||u.port||u.username||u.password||u.hash||u.pathname!=='/oauth/authorize'||pairs.length!==fields.length||new Set(pairs.map(([k])=>k)).size!==fields.length||pairs.some(([k])=>!fields.includes(k)))return null;
+    const scopes=q.scope.split(' ');
+    if(!/^[A-Za-z0-9_-]{1,220}$/.test(q.client_id)||q.redirect_uri!=='http://localhost:8770/callback'||q.response_type!=='code'||q.code_challenge_method!=='S256'||!/^[A-Za-z0-9_-]{43}$/.test(q.code_challenge)||!/^[A-Za-z0-9_-]{32,128}$/.test(q.state)||scopes.length!==3||!['user:read','channel:read','streamkey:read'].every(s=>scopes.includes(s)))return null;
+    return value;
+  }catch(_){return null;}
 }
 
 function googleAuthorizationUrl(value){
@@ -53,9 +64,9 @@ function createAccountAuthorization({origin,trustedSender,openExternal,fetchImpl
   return async function authorizeAccount(event,value){
     if(!trusted(event))return failure('local_operator_required');
     if(!authorizationRequest(value))return failure('invalid_authorization_request');
-    if(pending)return pending.flowId===value.flowId?pending.promise:failure('authorization_open_pending');
+    if(pending)return pending.flowId===value.flowId&&pending.platform===value.platform?pending.promise:failure('authorization_open_pending');
     const frame=event.senderFrame,frameUrl=frame?.url;
-    const endpoint=localOrigin+'/api/production/accounts/youtube/authorization?flow_id='+value.flowId;
+    const endpoint=localOrigin+'/api/production/accounts/'+value.platform+'/authorization?flow_id='+value.flowId;
     const work=(async()=>{
       try{
         const response=await fetchImpl(endpoint,{method:'GET',redirect:'error',cache:'no-store',credentials:'omit',
@@ -64,16 +75,16 @@ function createAccountAuthorization({origin,trustedSender,openExternal,fetchImpl
         const payload=await boundedJson(response,endpoint);
         if(!payload||Object.prototype.toString.call(payload)!=='[object Object]'
           ||Object.keys(payload).length!==1||!Object.hasOwn(payload,'authorization_url'))return failure('authorization_unavailable');
-        const url=googleAuthorizationUrl(payload.authorization_url);
+        const url=(value.platform==='youtube'?googleAuthorizationUrl:kickAuthorizationUrl)(payload.authorization_url);
         if(!url||new URL(new URL(url).searchParams.get('redirect_uri')).port===new URL(localOrigin).port)return failure('authorization_unavailable');
         if(!trusted(event)||event.senderFrame!==frame||frame?.url!==frameUrl)return failure('local_operator_required');
         try{await openExternal(url);}catch(_){return failure('authorization_open_failed');}
         return {ok:true};
       }catch(_){return failure('authorization_unavailable');}
     })();
-    pending={flowId:value.flowId,promise:work};
+    pending={platform:value.platform,flowId:value.flowId,promise:work};
     try{return await work;}finally{if(pending?.promise===work)pending=null;}
   };
 }
 
-module.exports={authorizationRequest,googleAuthorizationUrl,createAccountAuthorization};
+module.exports={authorizationRequest,googleAuthorizationUrl,kickAuthorizationUrl,createAccountAuthorization};

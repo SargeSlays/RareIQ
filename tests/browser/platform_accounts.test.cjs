@@ -1,6 +1,18 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const {createController,normalize,account,googleAuthorizationUrl,VERIFY_URL}=require('../../rareiq/web/static/platform_accounts.js');
 const accountSource=fs.readFileSync(require.resolve('../../rareiq/web/static/platform_accounts.js'),'utf8'),viewerSource=fs.readFileSync(require.resolve('../../rareiq/web/static/viewer_chat.js'),'utf8');
+test('Kick saved account status is distinct from chat delivery and does not fabricate a web Use action',()=>{
+  const {explanation}=require('../../rareiq/web/static/platform_accounts.js');
+  const ready=account({platform:'kick',state:'authorized',authorized:true,app_configured:true,reason:'account_authorized',public_label:'Fixture Kick',expires_at:1700003600},1700000000);
+  assert.equal(ready.state,'authorized');assert.equal(ready.authorized,true);assert.match(explanation(ready),/access is saved/);assert.match(explanation(ready),/desktop Broadcast setup/);assert.doesNotMatch(explanation(ready),/Choose Use account/);
+  const setup=account({platform:'kick',state:'not_authorized',authorized:false,app_configured:false,reason:'app_setup_required'},1700000000);assert.equal(setup.reason,'app_setup_required');assert.match(explanation(setup),/one-time app setup/);
+});
+test('Kick pending uses only a bounded flow ID and legacy missing-callback state stays unavailable',()=>{
+  const p=account({platform:'kick',state:'pending',authorized:false,app_configured:true,reason:'authorization_pending',flow_id:'d'.repeat(32),expires_at:1700000600,authorization_url:'https://private.invalid/?code=secret',access_token:'private-token'},1700000000);
+  assert.equal(p.state,'pending');assert.equal(p.flow_id,'d'.repeat(32));assert.equal(p.authorization_url,undefined);assert.equal(p.access_token,undefined);
+  assert.equal(account({...p,expires_at:1699999999},1700000000).reason,'authorization_expired');
+  const unavailable=account({platform:'kick',state:'unavailable',reason:'kick_public_callback_required',authorized:true},1700000000);assert.equal(unavailable.authorized,false);assert.equal(unavailable.reason,'kick_public_callback_required');
+});
 const NOW=1700000000,settle=async()=>{for(let i=0;i<40;i++)await Promise.resolve();};
 const twitch=(extra={})=>({platform:'twitch',state:'not_authorized',reason:'authorization_required',authorized:false,app_configured:true,...extra});
 const pending=(extra={})=>twitch({state:'pending',reason:'authorization_pending',flow_id:'a'.repeat(32),user_code:'ABCD-1234',verification_url:VERIFY_URL,expires_at:NOW+600,...extra});

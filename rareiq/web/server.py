@@ -57,6 +57,7 @@ from rareiq.web.platform_accounts import create_platform_accounts_router
 from rareiq.web.audience import create_audience_router
 from rareiq.services.twitch_audience_connector import TwitchAudienceConnector
 from rareiq.services.twitch_account_service import TwitchAccountService
+from rareiq.services.kick_account_service import KickAccountService
 from rareiq.web.twitch_audience import create_twitch_audience_router
 from rareiq.services.youtube_audience_connector import YouTubeAudienceConnector
 from rareiq.services.youtube_account_service import YouTubeAccountService
@@ -194,6 +195,7 @@ async def lifespan(_app: FastAPI):
         viewer_chat_service.set_listening(False)
         await twitch_account_service.close()
         await youtube_account_service.close()
+        await kick_account_service.close()
         await guest_ingress.close()
         await twitch_audience_connector.close()
         await youtube_audience_connector.close()
@@ -1083,6 +1085,20 @@ youtube_account_service = YouTubeAccountService(platform_credential_vault,
     app_config_provider=_youtube_app_configuration)
 
 
+def _kick_app_configuration():
+    fields = ("client_id", "client_secret")
+    configured = {name: os.getenv("RAREIQ_KICK_" + name.upper(), "").strip() for name in fields}
+    if any(configured.values()):
+        return configured
+    stored = _stored_platform_credentials("kick")
+    return {name: stored.get(name, "") for name in fields}
+
+
+kick_account_service = KickAccountService(platform_credential_vault,
+    app_config_provider=_kick_app_configuration)
+
+
+
 def _platform_account_audit(*, action, outcome):
     platform, operation = action.split(".", 1)
     result = "requested" if outcome in {"pending", "requested"} else (
@@ -1161,7 +1177,8 @@ app.include_router(create_youtube_audience_router(youtube_audience_connector, _g
 app.include_router(create_kick_audience_router(kick_audience_connector, _greenroom_operator, audit=_platform_chat_audit))
 app.include_router(create_platform_accounts_router(twitch_account_service, _greenroom_operator,
     vault=platform_credential_vault, youtube_service=youtube_account_service, audit=_platform_account_audit,
-    twitch_disconnect=twitch_audience_connector.disconnect))
+    twitch_disconnect=twitch_audience_connector.disconnect, kick_service=kick_account_service,
+    youtube_disconnect=youtube_audience_connector.disconnect, kick_disconnect=kick_audience_connector.disconnect))
 app.include_router(create_viewer_chat_router(viewer_chat_service, _greenroom_operator, audit=_viewer_chat_audit,
     sources_provider=lambda: [connector.cached_status() for connector in
         (twitch_audience_connector, youtube_audience_connector, kick_audience_connector)]))

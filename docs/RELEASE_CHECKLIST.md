@@ -1721,3 +1721,23 @@ archived. No real stream, recording, platform post or public deployment was used
   controls were called. Primary saved chat authorization passed real Twitch
   validation after the controlled restart; real streaming consent and private
   stream-key retrieval subsequently passed. No broadcast was started.
+
+
+## November 18, 2026 — YouTube/Kick saved-account controls
+
+- [x] Focused provider service, encrypted reopen, refresh/check, pending consent,
+  denial/stale identity/scope, local forget and guarded HTTP/audit checks.
+- [x] Native provider status and untrusted rejection exercised with original Main
+  handlers in the packaged app; no external provider/browser or broadcast calls.
+- [x] Dark/light 390/860/1920/3840 layout and pointer controls, 44 px targets,
+  aggregated busy locks, consent flow IDs and manual-draft preservation.
+- [ ] Real Google and Kick app setup, consent, account persistence and platform
+  acceptance. Both primary provider cards remain setup required.
+
+Evidence: F:/Temp/jonat/ProducerPlease-provider-signin-20261118. Synthetic captures
+use fixture accounts. Real Twitch destination-save confirmation was observed in
+the primary app. No new provider credentials, stream or recording was created.
+
+Canonical isolated gate passed 3,986 Python and 841 JavaScript checks. Packaged
+native proof retains Twitch persistence and confirms original YouTube/Kick status
+handlers and untrusted rejection. Real Google/Kick consent is not claimed.

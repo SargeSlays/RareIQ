@@ -45,6 +45,7 @@ class YouTubeAccountService:
         "authorization_denied", "account_identity_mismatch", "account_state_changed",
         "chat_scope_required", "offline_access_required", "youtube_channel_required",
         "channel_selection_required", "callback_listener_unavailable",
+        "account_disconnected",
     })
 
     def __init__(self, vault, *, app_config_provider=None, http_factory=None,
@@ -58,6 +59,11 @@ class YouTubeAccountService:
         self._pending = None
         self._reason = None
         self._closed = False
+        self._rejected_access = None
+
+    @staticmethod
+    def _access_ref(record):
+        return hashlib.sha256(record["access_token"].encode("utf-8")).digest()
 
     @staticmethod
     def _secret(value, limit=4096):
@@ -142,6 +148,8 @@ class YouTubeAccountService:
             config = self._configuration(stored)
             mismatch = self._mismatch(config, stored)
             authorized = config is not None and not mismatch and self._valid_record(stored)
+            if authorized and self._access_ref(stored) == self._rejected_access:
+                authorized = False
             if mismatch:
                 reason = "account_identity_mismatch"
             elif reason == "app_setup_required" and config is not None:
@@ -245,11 +253,20 @@ class YouTubeAccountService:
                 "expires_at": self._clock() + expires, "scopes": list(scopes),
                 "channel_id": channel["id"], "public_label": title[:80]}
 
-    def _save(self, record):
+    def _save(self, record, *, previous=None):
         try:
             self._vault.set("youtube", record)
         except Exception:
             raise _AccountError("account_storage_unavailable") from None
+        pending = self._pending
+        if (previous is not None and pending is not None and self._current(pending)
+                and pending["stored_before"] == previous
+                and record.get("client_id") == previous.get("client_id")
+                and record.get("channel_id") == previous.get("channel_id")):
+            # This owner may refresh/check an existing account while consent is
+            # pending. External writes still fail the callback's snapshot guard.
+            pending["stored_before"] = dict(record)
+        self._rejected_access = None
 
     async def _dispose(self, pending):
         if pending is None:
@@ -438,6 +455,9 @@ class YouTubeAccountService:
                 if code != 200:
                     raise _AccountError("authorization_rejected")
                 record = await self._verified_record(pending["config"], value)
+                prior = pending["stored_before"]
+                if self._valid_record(prior, allow_expired=True) and record["channel_id"] != prior["channel_id"]:
+                    raise _AccountError("account_identity_mismatch")
                 async with self._credential_lock:
                     if not self._current(pending):
                         return
@@ -485,7 +505,12 @@ class YouTubeAccountService:
         """Internal access token for the observer; this service owns any rotation."""
         return await self._ensure_credentials(authorization=True)
 
-    async def _ensure_credentials(self, *, authorization=False):
+    async def check(self):
+        """Explicitly verify/refresh the saved channel; public metadata only."""
+        await self._ensure_credentials(force_validate=True)
+        return self.status()
+
+    async def _ensure_credentials(self, *, authorization=False, force_validate=False):
         def output(record, config):
             if authorization:
                 return {"access_token": record["access_token"], "channel_id": record["channel_id"],
@@ -506,14 +531,24 @@ class YouTubeAccountService:
                 if self._mismatch(config, stored):
                     raise _AccountError("account_identity_mismatch")
                 if self._valid_record(stored, headroom=self.REFRESH_HEADROOM_SECONDS):
-                    return output(stored, config)
-                if not self._valid_record(stored, allow_expired=True):
-                    raise _AccountError("authorization_required")
-                code, value = await self._request("POST", self.TOKEN_URL, data={
-                    **config, "refresh_token": stored["refresh_token"], "grant_type": "refresh_token"})
-                if code != 200:
-                    raise _AccountError("authorization_refresh_required")
-                record = await self._verified_record(config, value, prior=stored)
+                    if not force_validate:
+                        if self._access_ref(stored) == self._rejected_access:
+                            raise _AccountError("authorization_rejected")
+                        return output(stored, config)
+                    remaining = min(86400, int(stored["expires_at"] - self._clock()))
+                    record = await self._verified_record(config, {
+                        "access_token": stored["access_token"], "token_type": "bearer",
+                        "expires_in": remaining}, prior=stored)
+                    # Validation cannot extend a token's original lifetime.
+                    record["expires_at"] = min(record["expires_at"], stored["expires_at"])
+                else:
+                    if not self._valid_record(stored, allow_expired=True):
+                        raise _AccountError("authorization_required")
+                    code, value = await self._request("POST", self.TOKEN_URL, data={
+                        **config, "refresh_token": stored["refresh_token"], "grant_type": "refresh_token"})
+                    if code != 200:
+                        raise _AccountError("authorization_refresh_required")
+                    record = await self._verified_record(config, value, prior=stored)
                 if self._closed or generation != self._generation:
                     return None
                 current, current_config = self._stored(), self._configuration()
@@ -523,14 +558,38 @@ class YouTubeAccountService:
                     if self._mismatch(current_config, current):
                         raise _AccountError("account_identity_mismatch")
                     return output(current, current_config) if self._valid_record(current) else None
-                self._save(record)
+                self._save(record, previous=stored)
                 self._reason = "account_authorized"
                 return output(record, current_config)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
+                if self._closed or generation != self._generation:
+                    return None
                 self._reason = self._safe_reason(exc)
+                if self._reason in {"authorization_rejected", "authorization_refresh_required", "account_identity_mismatch"} and isinstance(locals().get("stored"), dict):
+                    try:
+                        self._rejected_access = self._access_ref(stored)
+                    except (KeyError, TypeError, ValueError):
+                        pass
                 return None
+
+    async def disconnect(self):
+        generation, pending = self._invalidate("account_disconnected")
+        await self._dispose(pending)
+        async with self._credential_lock:
+            if self._closed or generation != self._generation:
+                return self.status()
+            try:
+                stored = self._stored()
+                if stored:
+                    self._save({"client_id": stored.get("client_id", ""),
+                        "client_secret": stored.get("client_secret", ""), "access_token": "",
+                        "refresh_token": "", "channel_id": "", "channel_name": "",
+                        "public_label": "", "token_type": "", "scopes": [], "expires_at": 0})
+            except Exception as exc:
+                self._reason = self._safe_reason(exc)
+        return self.status()
 
     async def cancel(self):
         _, pending = self._invalidate("authorization_cancelled")

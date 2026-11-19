@@ -1210,3 +1210,24 @@ Native bundled helpers must set PRODUCER_DESKTOP=1 alongside their installed dat
 root. A data-root variable alone is deliberately ignored by the path boundary.
 A native spawn-contract regression now guards the opt-in flag, cwd and data root;
 local development explicitly drops a stale bundled data root.
+
+
+## November 18, 2026 — Provider login and chat delivery are separate contracts
+
+Kick sign-in was previously reported unavailable solely because chat webhook
+hosting was missing. Account status now uses its own credential owner; web and
+native controls keep chat delivery separate. A private Kick app secret is not a
+public desktop credential: never embed it in customer builds. Main pins provider
+endpoint, read scopes, callback, PKCE and state before opening a consent page;
+renderers receive only public account metadata and opaque flow IDs.
+
+All provider controls share an aggregated busy set, preventing a completed Twitch
+action from unlocking destination edits while a Google/Kick action is pending.
+Local disconnect must forget saved authorization even when history fails, stop
+its observer separately and warn if shutdown is unconfirmed. Owned checks/refresh
+advance matching pending credential snapshots; external writes remain stale.
+
+Adding an account owner also extends lifespan cleanup. The extracted-lifespan test
+namespace now supplies Kick and asserts its close is awaited in desktop/web modes.
+The full gate initially exposed that missing test dependency; focused provider
+tests alone did not exercise the shared shutdown contract.

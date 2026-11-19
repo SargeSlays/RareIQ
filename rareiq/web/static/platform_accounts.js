@@ -18,7 +18,8 @@
   function account(raw,now=Date.now()/1000){
     const platform=Object.hasOwn(NAMES,raw?.platform)?raw.platform:null;if(!platform)return null;
     const value={platform,state:['not_authorized','pending','authorized','unavailable'].includes(raw.state)?raw.state:'unavailable',reason:text(raw.reason,100),authorized:raw.authorized===true,app_configured:raw.app_configured===true};
-    if(platform==='kick')return {...value,state:'unavailable',authorized:false,reason:'kick_public_callback_required'};
+    if(platform==='kick'&&raw.reason==='kick_public_callback_required')return {...value,state:'unavailable',authorized:false,reason:'kick_public_callback_required'};
+    if(platform==='kick'&&value.state==='unavailable')value.authorized=false;
     if(platform==='twitch'){value.streaming_authorized=value.authorized&&raw.streaming_authorized===true;value.authorization_kind=raw.authorization_kind==='streaming'?'streaming':'chat';}
     const invalid=(reason,state='unavailable')=>({...value,state,authorized:false,reason,...(platform==='twitch'?{streaming_authorized:false}:{})});
     if(typeof raw.public_label==='string')value.public_label=raw.public_label.slice(0,80);
@@ -26,7 +27,7 @@
     if(value.state==='pending'){
       if(typeof raw.flow_id!=='string'||!/^[a-f0-9]{32}$/.test(raw.flow_id)||!value.expires_at)return invalid('invalid_provider_response');
       if(value.expires_at<=now)return invalid('authorization_expired','not_authorized');
-      if(platform==='youtube')return {...value,flow_id:raw.flow_id};
+      if(platform==='youtube'||platform==='kick')return {...value,flow_id:raw.flow_id};
       if(raw.verification_url!==VERIFY_URL||typeof raw.user_code!=='string'||!/^[A-Za-z0-9-]{4,32}$/.test(raw.user_code))return invalid(raw.verification_url!==VERIFY_URL?'invalid_provider_endpoint':'invalid_provider_response');
       return {...value,flow_id:raw.flow_id,user_code:raw.user_code,verification_url:VERIFY_URL};
     }
@@ -41,6 +42,7 @@
     return value?.state==='pending'&&value.authorization_kind==='streaming'?'Chat-reading and stream-key access. Review both permissions on Twitch. Saving the connection never starts a broadcast.':value?.streaming_authorized?'Chat-reading and stream-key access are saved. Broadcast setup checks this account before starting.':'Read-only chat permission. Complete sign-in and review consent on Twitch. This account permission does not grant streaming or message-sending access.';
   }
   function explanation(value){
+    if(value?.platform==='kick')return value.reason==='kick_public_callback_required'?REASONS.kick_public_callback_required:(value.state==='authorized'&&value.authorized?'Kick account access is saved. ':!value.app_configured?'Kick sign-in needs its one-time app setup. ':value.state==='pending'?'Finish sign-in in the provider browser. ':'Check the saved account connection. ')+'Manage Kick sign-in in desktop Broadcast setup; chat delivery is separate.';
     if(!value)return 'Account status is unavailable. Retry to check again.';if(value.platform==='twitch'&&value.state==='pending'&&value.authorization_kind==='streaming')return 'Enter this code on Twitch and approve chat-reading and stream-key access. Nothing starts broadcasting.';
     if(value.state==='authorized'&&value.authorized)return value.platform==='twitch'&&value.streaming_authorized?'Streaming and chat access are saved. Choose Use account to connect viewer chat; broadcast setup is separate.':'Account ready. Choose Use account to connect viewer chat.';
     if(value.platform==='youtube'){

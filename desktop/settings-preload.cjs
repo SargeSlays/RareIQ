@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('producerSettings',Object.freeze({
   broadcastStatus:()=>ipcRenderer.invoke('producer:broadcast:status'),
   setLiveAudio:value=>ipcRenderer.invoke('producer:broadcast:audio',value),
   twitchAccount:value=>ipcRenderer.invoke('producer:accounts:twitch',value),
+  providerAccount:value=>ipcRenderer.invoke('producer:accounts:provider',value),
   status:()=>ipcRenderer.invoke('producer:destinations:status'),
   save:value=>ipcRenderer.invoke('producer:destinations:save',value),
   remove:id=>ipcRenderer.invoke('producer:destinations:remove',id),

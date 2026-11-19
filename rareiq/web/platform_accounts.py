@@ -29,7 +29,7 @@ streaming_scope_required account_disconnected
 """.split())
 _STORAGE = {"empty", "stored", "locked", "unavailable"}
 _FLAGS = ("stored", "has_client_id", "has_client_secret", "has_access_token", "has_refresh_token", "has_channel")
-_YOUTUBE_REASONS = _REASONS | {"account_state_changed", "offline_access_required", "youtube_channel_required",
+_YOUTUBE_REASONS = _REASONS | {"account_state_changed", "account_disconnected", "offline_access_required", "youtube_channel_required",
     "channel_selection_required", "callback_listener_unavailable", "validating_authorization"}
 
 
@@ -119,8 +119,43 @@ def _google_authorization_url(value):
     return value
 
 
+def _kick_status(raw):
+    if not isinstance(raw, dict):
+        raise ValueError("invalid_account_status")
+    safe = _YOUTUBE_REASONS | {"account_scope_required", "kick_user_required", "kick_channel_required", "streaming_scope_required"}
+    value = dict(raw)
+    if value.get("reason") not in safe:
+        value.update(state="unavailable", reason="account_unavailable", authorized=False)
+    reason = value.get("reason")
+    if reason not in _YOUTUBE_REASONS:
+        value["reason"] = "authorization_required"
+    result = _youtube_status(value)
+    result.update(platform="kick", reason=reason)
+    return result
+
+
+def _kick_authorization_url(value):
+    if not isinstance(value, str) or len(value) > 8192 or any(ord(c) <= 32 or ord(c) >= 127 for c in value):
+        raise ValueError("invalid_authorization_url")
+    url = urlsplit(value)
+    pairs = parse_qsl(url.query, strict_parsing=True, max_num_fields=8)
+    query = dict(pairs)
+    fields = {"client_id", "redirect_uri", "response_type", "scope", "state", "code_challenge", "code_challenge_method"}
+    if (url.scheme != "https" or url.netloc != "id.kick.com" or url.path != "/oauth/authorize" or url.fragment
+            or len(pairs) != len(query) or set(query) != fields or query["response_type"] != "code"
+            or query["redirect_uri"] != "http://localhost:8770/callback" or query["code_challenge_method"] != "S256"
+            or not re.fullmatch(r"[A-Za-z0-9_-]{1,220}", query["client_id"])
+            or not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", query["state"])
+            or not re.fullmatch(r"[A-Za-z0-9_-]{43}", query["code_challenge"])
+            or len(query["scope"].split(" ")) != 3
+            or set(query["scope"].split(" ")) != {"user:read", "channel:read", "streamkey:read"}):
+        raise ValueError("invalid_authorization_url")
+    return value
+
+
 def create_platform_accounts_router(twitch_service, authorize_operator, *, vault=None, audit=None,
-                                   youtube_service=None, twitch_disconnect=None):
+                                   youtube_service=None, twitch_disconnect=None, kick_service=None,
+                                   youtube_disconnect=None, kick_disconnect=None):
     router = APIRouter()
 
     def response(value, status=200):
@@ -170,7 +205,8 @@ def create_platform_accounts_router(twitch_service, authorize_operator, *, vault
         try:
             account = _twitch_status(await _result(twitch_service.status()))
             youtube = _youtube_status(await _result(youtube_service.status())) if youtube_service is not None else other_status("youtube")
-            return response({"accounts": [account, youtube, other_status("kick")]})
+            kick = _kick_status(await _result(kick_service.status())) if kick_service is not None else other_status("kick")
+            return response({"accounts": [account, youtube, kick]})
         except Exception:
             return unavailable()
 
@@ -215,11 +251,12 @@ def create_platform_accounts_router(twitch_service, authorize_operator, *, vault
         outcome = "failed"
         payload = None
         try:
-            service = twitch_service if platform == "twitch" else youtube_service
-            sanitize = _twitch_status if platform == "twitch" else _youtube_status
-            if platform == "twitch" and action == "disconnect" and twitch_disconnect is not None:
+            service = {"twitch": twitch_service, "youtube": youtube_service, "kick": kick_service}[platform]
+            sanitize = {"twitch": _twitch_status, "youtube": _youtube_status, "kick": _kick_status}[platform]
+            stop = {"twitch": twitch_disconnect, "youtube": youtube_disconnect, "kick": kick_disconnect}[platform]
+            if action == "disconnect" and stop is not None:
                 try:
-                    await _result(twitch_disconnect())
+                    await _result(stop())
                 except Exception:
                     # Still forget local credentials; a failed stop must not suppress it.
                     connection_stop_warning = True
@@ -273,6 +310,36 @@ def create_platform_accounts_router(twitch_service, authorize_operator, *, vault
     @router.post("/api/production/accounts/youtube/cancel")
     async def youtube_cancel(request: Request):
         return await command(request, "cancel", "youtube")
+
+    @router.post("/api/production/accounts/youtube/check")
+    async def youtube_check(request: Request):
+        return await command(request, "check", "youtube")
+
+    @router.post("/api/production/accounts/youtube/disconnect")
+    async def youtube_disconnect_account(request: Request):
+        return await command(request, "disconnect", "youtube")
+
+    @router.post("/api/production/accounts/kick/{action}")
+    async def kick_command(action: str, request: Request):
+        if action not in {"begin", "cancel", "check", "disconnect"}:
+            return response({"ok": False, "reason": "invalid_account_action"}, 404)
+        return await command(request, action, "kick")
+
+    @router.get("/api/production/accounts/kick/authorization")
+    async def kick_authorization(request: Request):
+        denied = await guard(request)
+        if denied is not None:
+            return denied
+        flows = request.query_params.getlist("flow_id")
+        if set(request.query_params) != {"flow_id"} or len(flows) != 1 or not re.fullmatch(r"[a-f0-9]{32}", flows[0]):
+            return response({"ok": False, "reason": "invalid_authorization_flow"}, 400)
+        try:
+            value = await _result(kick_service.authorization_url(flows[0]))
+            if value is None:
+                return response({"ok": False, "reason": "authorization_flow_unavailable"}, 409)
+            return response({"authorization_url": _kick_authorization_url(value)})
+        except Exception:
+            return unavailable()
 
     @router.get("/api/production/accounts/youtube/authorization")
     async def youtube_authorization(request: Request):
