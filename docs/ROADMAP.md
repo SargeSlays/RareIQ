@@ -1063,3 +1063,23 @@ fresh provider check; backend restart/token-refresh acceptance remains separate.
 Google project creation passed; confirm API enablement,
 then prepare its Desktop client/consent for review. Account-linked YouTube/Kick
 output selection, metadata writes and actual stream receipt remain separate work.
+
+## November 19, 2026 — Direct metadata implementation checkpoint
+
+Implemented provider adapters and in-app Apply workflow for Twitch, Kick and an
+explicitly selected existing YouTube broadcast. Official category IDs, field
+capabilities, saved drafts, permission handoff, identity/revision checks, guarded
+provider writes, readback and uncertainty recovery are implemented and locally
+tested. The optional dashboard shortcut is no longer required by the workflow.
+
+Remaining external acceptance: approve/save Kick's additional app permission;
+complete Google consent/Desktop client configuration; review each new editing
+grant; approve concrete real metadata test values; verify provider readback and
+saved authorization after restart. No live stream or recording is needed for a
+metadata test. Creating/scheduling YouTube broadcasts and automatic account-linked
+YouTube/Kick media destinations remain separate workflows.
+
+Owner direction while asleep: continue independent implementation/verification up
+to the explicit 100% usage ceiling, leave personal sign-in/security/permission
+reviews pending, and move to another safe item. Planned next major slice after
+this tested checkpoint is the isolated Rehearsal room. No public output is authorized.

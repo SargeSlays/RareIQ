@@ -60,6 +60,8 @@ from rareiq.services.twitch_account_service import TwitchAccountService
 from rareiq.services.kick_account_service import KickAccountService
 from rareiq.services.platform_app_setup import PlatformAppSetupService
 from rareiq.web.platform_app_setup import create_platform_app_setup_router
+from rareiq.web.stream_metadata import create_stream_metadata_router
+from rareiq.services.stream_metadata_service import StreamMetadataService
 from rareiq.web.twitch_audience import create_twitch_audience_router
 from rareiq.services.youtube_audience_connector import YouTubeAudienceConnector
 from rareiq.services.youtube_account_service import YouTubeAccountService
@@ -1185,6 +1187,13 @@ platform_app_setup = PlatformAppSetupService(platform_credential_vault,
     {"youtube": youtube_account_service, "kick": kick_account_service})
 app.include_router(create_platform_app_setup_router(platform_app_setup, _greenroom_operator,
     audit=_platform_account_audit))
+stream_metadata_service = StreamMetadataService({'twitch': twitch_account_service,
+    'youtube': youtube_account_service, 'kick': kick_account_service},
+    receipt_path=storage.get_path('config_path') / 'stream_metadata_receipts.json')
+app.include_router(create_stream_metadata_router(stream_metadata_service, _greenroom_operator,
+    can_apply=lambda: not DESKTOP_ADMISSION.native_encoding.snapshot()['active'],
+    audit=lambda platform, outcome: greenroom_service.record_production_event(
+        'platform.metadata.apply', platform, outcome, actor_kind='local_operator')))
 app.include_router(create_viewer_chat_router(viewer_chat_service, _greenroom_operator, audit=_viewer_chat_audit,
     sources_provider=lambda: [connector.cached_status() for connector in
         (twitch_audience_connector, youtube_audience_connector, kick_audience_connector)]))

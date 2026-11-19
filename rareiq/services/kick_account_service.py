@@ -30,6 +30,7 @@ class KickAccountService(YouTubeAccountService):
     CHANNELS_URL = "https://api.kick.com/public/v1/channels"
     SCOPE = "user:read channel:read streamkey:read"
     SCOPES = frozenset(SCOPE.split())
+    METADATA_SCOPE = "channel:write"
     REDIRECT_URI = "http://localhost:8770/callback"
     _CLIENT = re.compile(r"[A-Za-z0-9_-]{1,160}\Z")
     _CHANNEL = re.compile(r"[0-9]{1,24}\Z")
@@ -85,10 +86,10 @@ class KickAccountService(YouTubeAccountService):
         if result["authorized"]:
             try:
                 if self._access_ref(self._stored()) == self._rejected_access:
-                    result.update(authorized=False, state="pending" if self._pending else "not_authorized")
+                    result.update(authorized=False, metadata_authorized=False, state="pending" if self._pending else "not_authorized")
                     result.pop("public_label", None)
             except Exception:
-                result.update(authorized=False, state="unavailable", reason="account_storage_unavailable")
+                result.update(authorized=False, metadata_authorized=False, state="unavailable", reason="account_storage_unavailable")
         return result
 
     async def _request(self, method, url, **kwargs):
@@ -123,7 +124,7 @@ class KickAccountService(YouTubeAccountService):
                 except Exception:
                     pass
 
-    async def _verified_record(self, config, token, *, prior=None):
+    async def _verified_record(self, config, token, *, prior=None, required_scopes=None):
         access = self._secret(token.get("access_token"))
         refresh = self._secret(token.get("refresh_token", prior.get("refresh_token") if prior else None))
         expires = token.get("expires_in")
@@ -142,6 +143,8 @@ class KickAccountService(YouTubeAccountService):
         scopes = scopes.split()
         if len(scopes) > 32 or any(len(s) > 128 or any(not 33 <= ord(c) <= 126 for c in s) for s in scopes):
             raise _AccountError("invalid_provider_response")
+        if required_scopes and not set(required_scopes).issubset(scopes):
+            raise _AccountError("metadata_scope_required")
         deadline = auth.get("exp")
         if type(deadline) not in (int, float) or not math.isfinite(deadline) or deadline <= self._clock() + 30:
             raise _AccountError("authorization_rejected")
@@ -184,6 +187,9 @@ class KickAccountService(YouTubeAccountService):
             pending["stored_before"] = dict(record)
 
     async def begin(self):
+        return await self._begin(metadata=False)
+
+    async def _begin(self, *, metadata):
         if self._closed:
             return self.status()
         generation, previous = self._invalidate(None)
@@ -196,10 +202,15 @@ class KickAccountService(YouTubeAccountService):
             config = self._configuration(stored)
             if config is None:
                 raise _AccountError("app_setup_required")
+            scopes = self.SCOPE.split()
+            if metadata or (self._valid_record(stored, allow_expired=True)
+                            and self.METADATA_SCOPE in stored["scopes"]):
+                scopes.append(self.METADATA_SCOPE)
             verifier = secrets.token_urlsafe(64)
             challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
             pending = {"generation": generation, "flow_id": uuid.uuid4().hex, "config": config,
                        "stored_before": stored, "state": secrets.token_urlsafe(32), "verifier": verifier,
+                       "scopes": scopes, "authorization_kind": "metadata" if metadata else "chat",
                        "expires_at": self._clock() + self.FLOW_LIFETIME_SECONDS, "claimed": False,
                        "server": None, "writers": {}, "tasks": set(), "expiry_task": None}
             try:
@@ -216,7 +227,7 @@ class KickAccountService(YouTubeAccountService):
             pending["redirect_uri"] = "http://" + pending["host"] + "/callback"
             pending["authorization_url"] = self.AUTHORIZE_URL + "?" + urlencode({
                 "response_type": "code", "client_id": config["client_id"], "redirect_uri": pending["redirect_uri"],
-                "scope": self.SCOPE, "state": pending["state"], "code_challenge": challenge, "code_challenge_method": "S256"})
+                "scope": " ".join(scopes), "state": pending["state"], "code_challenge": challenge, "code_challenge_method": "S256"})
             self._pending = pending
             pending["expiry_task"] = asyncio.create_task(self._expire(pending), name="kick-account-expiry")
         except asyncio.CancelledError:

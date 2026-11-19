@@ -508,7 +508,7 @@ class GreenroomService:
 
     def record_production_event(self, action, target, outcome, actor_kind="local_operator", *,
                                 principal=None, request_id=None, details=None):
-        platform_actions = {"platform.account.begin", "platform.account.begin_streaming", "platform.account.check", "platform.account.configure_app",
+        platform_actions = {"platform.account.begin", "platform.account.begin_streaming", "platform.account.begin_metadata", "platform.account.check", "platform.account.configure_app", "platform.metadata.apply",
                             "platform.account.cancel", "platform.account.disconnect", "platform.chat.connect", "platform.chat.disconnect"}
         account_actions = platform_actions | {"viewer_chat.listening"}
         if action not in {"program.preview", "program.take", "program.rendered", "host.microphone"} | account_actions:

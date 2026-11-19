@@ -25,7 +25,7 @@ provider_response_too_large provider_rate_limited authorization_rejected account
 chat_scope_required account_storage_unavailable authorization_required authorization_expired
 authorization_denied authorization_refresh_required account_authorized authorization_pending
 account_service_closed authorization_cancelled account_unavailable account_state_changed
-streaming_scope_required account_disconnected
+streaming_scope_required metadata_scope_required account_disconnected
 """.split())
 _STORAGE = {"empty", "stored", "locked", "unavailable"}
 _FLAGS = ("stored", "has_client_id", "has_client_secret", "has_access_token", "has_refresh_token", "has_channel")
@@ -56,6 +56,7 @@ def _twitch_status(raw):
               "authorized": raw.get("authorized") is True if state != "unavailable" else False,
               "app_configured": raw.get("app_configured") is True}
     result["streaming_authorized"] = result["authorized"] and raw.get("streaming_authorized") is True
+    result["metadata_authorized"] = result["authorized"] and raw.get("metadata_authorized") is True
     account_ref = raw.get("account_ref")
     if result["authorized"] and isinstance(account_ref, str) and re.fullmatch(r"[a-f0-9]{64}", account_ref):
         result["account_ref"] = account_ref
@@ -70,9 +71,9 @@ def _twitch_status(raw):
                 or not isinstance(flow, str) or not re.fullmatch(r"[a-f0-9]{32}", flow)
                 or not _number(raw.get("expires_at"))):
             return {"platform": "twitch", "state": "unavailable", "reason": "account_unavailable",
-                    "authorized": False, "app_configured": result["app_configured"]}
+                    "authorized": False, "metadata_authorized": False, "app_configured": result["app_configured"]}
         result.update(user_code=code, flow_id=flow, verification_url=VERIFICATION_URL)
-        result["authorization_kind"] = "streaming" if raw.get("authorization_kind") == "streaming" else "chat"
+        result["authorization_kind"] = raw.get("authorization_kind") if raw.get("authorization_kind") in {"streaming", "metadata"} else "chat"
         if _number(raw.get("poll_after"), 60) and raw["poll_after"] >= 1:
             result["poll_after"] = raw["poll_after"]
     return result
@@ -87,6 +88,7 @@ def _youtube_status(raw):
     result = {"platform": "youtube", "state": state, "reason": reason,
               "authorized": state != "unavailable" and raw.get("authorized") is True,
               "app_configured": raw.get("app_configured") is True}
+    result["metadata_authorized"] = result["authorized"] and raw.get("metadata_authorized") is True
     label = _public_label(raw.get("public_label"))
     if label and result["authorized"]:
         result["public_label"] = label
@@ -97,6 +99,7 @@ def _youtube_status(raw):
         if not isinstance(flow, str) or not re.fullmatch(r"[a-f0-9]{32}", flow) or not _number(raw.get("expires_at")):
             raise ValueError("invalid_account_flow")
         result["flow_id"] = flow
+        result["authorization_kind"] = "metadata" if raw.get("authorization_kind") == "metadata" else "chat"
     return result
 
 
@@ -110,6 +113,10 @@ def _google_authorization_url(value):
     query = dict(pairs)
     allowed = {"client_id", "redirect_uri", "response_type", "scope", "access_type", "prompt", "state", "code_challenge", "code_challenge_method"}
     if len(query) != len(pairs) or set(query) != allowed or query["response_type"] != "code" or query["code_challenge_method"] != "S256":
+        raise ValueError("invalid_authorization_url")
+    scopes = query["scope"].split(" ")
+    base = {"https://www.googleapis.com/auth/youtube.readonly"}
+    if len(scopes) != len(set(scopes)) or set(scopes) not in (base, base | {"https://www.googleapis.com/auth/youtube.force-ssl"}):
         raise ValueError("invalid_authorization_url")
     redirect = urlsplit(query["redirect_uri"])
     if (redirect.scheme != "http" or redirect.hostname not in {"127.0.0.1", "::1"}
@@ -147,8 +154,9 @@ def _kick_authorization_url(value):
             or not re.fullmatch(r"[A-Za-z0-9_-]{1,220}", query["client_id"])
             or not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", query["state"])
             or not re.fullmatch(r"[A-Za-z0-9_-]{43}", query["code_challenge"])
-            or len(query["scope"].split(" ")) != 3
-            or set(query["scope"].split(" ")) != {"user:read", "channel:read", "streamkey:read"}):
+            or len(query["scope"].split(" ")) != len(set(query["scope"].split(" ")))
+            or set(query["scope"].split(" ")) not in ({"user:read", "channel:read", "streamkey:read"},
+                {"user:read", "channel:read", "streamkey:read", "channel:write"})):
         raise ValueError("invalid_authorization_url")
     return value
 
@@ -189,6 +197,7 @@ def create_platform_accounts_router(twitch_service, authorize_operator, *, vault
         storage = raw.get("state") if raw.get("state") in _STORAGE else "unavailable"
         stored = storage == "stored" and raw.get("stored") is True
         result = {"platform": provider, "state": "setup_required", "authorized": False,
+                  "metadata_authorized": False,
                   "reason": "youtube_sign_in_setup_required" if provider == "youtube" else "kick_public_callback_required",
                   "storage_state": storage,
                   **{flag: stored and raw.get(flag) is True for flag in _FLAGS}}
@@ -299,6 +308,10 @@ def create_platform_accounts_router(twitch_service, authorize_operator, *, vault
     async def check(request: Request):
         return await command(request, "check")
 
+    @router.post("/api/production/accounts/twitch/begin-metadata")
+    async def begin_metadata(request: Request):
+        return await command(request, "begin_metadata")
+
     @router.post("/api/production/accounts/twitch/disconnect")
     async def disconnect(request: Request):
         return await command(request, "disconnect")
@@ -310,6 +323,10 @@ def create_platform_accounts_router(twitch_service, authorize_operator, *, vault
     @router.post("/api/production/accounts/youtube/cancel")
     async def youtube_cancel(request: Request):
         return await command(request, "cancel", "youtube")
+
+    @router.post("/api/production/accounts/youtube/begin-metadata")
+    async def youtube_begin_metadata(request: Request):
+        return await command(request, "begin_metadata", "youtube")
 
     @router.post("/api/production/accounts/youtube/check")
     async def youtube_check(request: Request):
@@ -326,6 +343,10 @@ def create_platform_accounts_router(twitch_service, authorize_operator, *, vault
     @router.post("/api/production/accounts/kick/cancel")
     async def kick_cancel(request: Request):
         return await command(request, "cancel", "kick")
+
+    @router.post("/api/production/accounts/kick/begin-metadata")
+    async def kick_begin_metadata(request: Request):
+        return await command(request, "begin_metadata", "kick")
 
     @router.post("/api/production/accounts/kick/check")
     async def kick_check(request: Request):

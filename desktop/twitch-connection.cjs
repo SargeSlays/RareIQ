@@ -2,7 +2,7 @@
 // Main only: credentials travel over an owned child-process pipe, never HTTP/IPC.
 const path=require('node:path'),{spawn}=require('node:child_process');
 const {studioOrigin}=require('./policy.cjs');
-const ACTIONS=new Set(['status','begin','cancel','check','link','disconnect']);
+const ACTIONS=new Set(['status','begin','begin_metadata','cancel','check','link','disconnect']);
 const SAFE=new Set(['account_unavailable','account_authorization_required','account_identity_mismatch','streaming_scope_required','authorization_refresh_required','provider_unavailable','streaming_not_available','destination_broadcast_busy','destination_change_pending','invalid_account_request','local_operator_required','account_storage_unavailable','secure_storage_unavailable','destination_library_full','destination_request_conflict','destination_request_retired','account_destination_managed']);
 const reason=error=>SAFE.has(error?.message)?error.message:'account_unavailable';
 const plain=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
@@ -42,7 +42,7 @@ function createTwitchConnection({origin,store,trustedSender,mutate,fetchImpl=glo
   const base=studioOrigin(origin);let pending=null,epoch=0;
   const trusted=event=>{try{return trustedSender(event)===true;}catch(_){return false;}};
   async function request(action){
-    const endpoint=base+'/api/production/accounts'+(action==='status'?'':'/twitch/'+({begin:'begin-streaming'}[action]||action));
+    const endpoint=base+'/api/production/accounts'+(action==='status'?'':'/twitch/'+({begin:'begin-streaming',begin_metadata:'begin-metadata'}[action]||action));
     const response=await fetchImpl(endpoint,{method:action==='status'?'GET':'POST',redirect:'error',cache:'no-store',credentials:'omit',headers:{Accept:'application/json',Origin:base,...(action==='status'?{}:{'Content-Type':'application/json'})},...(action==='status'?{}:{body:'{}'}),signal:AbortSignal.timeout(20000)});
     if(!response||response.status!==200||response.redirected||response.url!==endpoint||!response.body||response.headers?.get('content-type')?.split(';',1)[0].trim().toLowerCase()!=='application/json')throw Error('account_unavailable');
     const chunks=[];let size=0;
@@ -51,7 +51,7 @@ function createTwitchConnection({origin,store,trustedSender,mutate,fetchImpl=glo
     const raw=action==='status'?value.accounts?.find(item=>item.platform==='twitch'):value.account;
     if(!plain(raw)||raw.platform!=='twitch'||!['authorized','not_authorized','pending','unavailable'].includes(raw.state))throw Error('account_unavailable');
     // Explicit allowlist: even a compromised/malformed response cannot carry tokens over IPC.
-    const account={platform:'twitch',state:raw.state,authorized:raw.authorized===true,streaming_authorized:raw.streaming_authorized===true,app_configured:raw.app_configured===true};
+    const account={platform:'twitch',state:raw.state,authorized:raw.authorized===true,streaming_authorized:raw.streaming_authorized===true,metadata_authorized:raw.authorized===true&&raw.metadata_authorized===true,app_configured:raw.app_configured===true};
     if(typeof raw.reason==='string'&&/^[a-z_]{1,80}$/.test(raw.reason))account.reason=raw.reason;
     if(typeof raw.public_label==='string'&&/^[a-z0-9_]{1,25}$/.test(raw.public_label))account.public_label=raw.public_label;
     if(typeof raw.account_ref==='string'&&/^[a-f0-9]{64}$/.test(raw.account_ref))account.account_ref=raw.account_ref;
@@ -59,6 +59,7 @@ function createTwitchConnection({origin,store,trustedSender,mutate,fetchImpl=glo
     if(raw.state==='pending'){
       if(typeof raw.user_code!=='string'||!/^[A-Za-z0-9-]{4,32}$/.test(raw.user_code)||typeof raw.flow_id!=='string'||!/^[a-f0-9]{32}$/.test(raw.flow_id))throw Error('account_unavailable');
       Object.assign(account,{user_code:raw.user_code,flow_id:raw.flow_id,verification_url:'https://www.twitch.tv/activate'});
+      account.authorization_kind=['streaming','metadata'].includes(raw.authorization_kind)?raw.authorization_kind:'chat';
     }
     return {ok:true,account,...(value.activity_history_warning===true?{activity_history_warning:true}:{}),...(value.connection_stop_warning===true?{connection_stop_warning:true}:{})};
   }

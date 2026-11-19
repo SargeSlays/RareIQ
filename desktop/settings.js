@@ -6,7 +6,7 @@ let profileState=null,profileEditingId=null,profileDirty=false,profileBusy=false
 let liveMix={outputId:null,revision:0,routing:{},draft:{},dirty:false,busy:false,pending:null,blocked:'',message:'',serial:0,generation:0,timer:null,stamp:'',controls:[],invalid:new Set(),closed:false};
 const selectedDestinations=new Set(),destinationRows=new Map(),targetStops=new Set();
 let twitchAccountCard=null,providerAccountCards=[],accountBusy=false;
-let streamInfoEditor=null;
+let streamInfoEditor=null,streamMetadataEditor=null;
 const accountBusySources=new Set();
 function updateAccountBusy(platform,value){if(value)accountBusySources.add(platform);else accountBusySources.delete(platform);accountBusy=accountBusySources.size>0;renderBroadcast();}
 function busy(value){locked=value;renderBroadcast();}
@@ -260,8 +260,9 @@ async function stopDestination(id){
 // Account controls keep their own status and never reset destination or profile drafts.
 twitchAccountCard=window.ProducerTwitchAccountUI?.mount({document,api:producerSettings,onDestinationsChanged:refresh,onBusyChange:value=>updateAccountBusy('twitch',value)})||null;
 providerAccountCards=window.ProducerProviderAccounts?.mount({document,api:producerSettings,onBusyChange:updateAccountBusy})||[];
-streamInfoEditor=window.ProducerStreamInfo?.create({root:document.querySelector('#streamInfo'),api:producerSettings,onBusy:value=>updateAccountBusy('stream-info',value),onChange:()=>renderBroadcast()})||null;
+streamMetadataEditor=window.ProducerStreamMetadata?.create({root:document.querySelector('#streamMetadata'),api:producerSettings,onBusy:value=>updateAccountBusy('stream-metadata',value),onPermission:platform=>{const card=platform==='twitch'?twitchAccountCard:providerAccountCards.find(item=>item.platform===platform);void card?.controller.run('status');if(platform==='twitch')twitchAccountCard?.focus();}})||null;
+streamInfoEditor=window.ProducerStreamInfo?.create({root:document.querySelector('#streamInfo'),api:producerSettings,onBusy:value=>updateAccountBusy('stream-info',value),onChange:()=>renderBroadcast(),onContext:value=>streamMetadataEditor?.setContext(value)})||null;
 if(streamInfoEditor){streamInfoEditor.setContext({destinations:[]});void streamInfoEditor.load();}
 twitchAccountCard?.start();
 for(const card of providerAccountCards)card.start();
-addEventListener('pagehide',()=>{twitchAccountCard?.close();for(const card of providerAccountCards)card.close();streamInfoEditor?.close();},{once:true});
+addEventListener('pagehide',()=>{twitchAccountCard?.close();for(const card of providerAccountCards)card.close();streamInfoEditor?.close();streamMetadataEditor?.close();},{once:true});

@@ -14,7 +14,7 @@
     }
     return result;
   }
-  function create({root,api,onBusy=()=>{},onChange=()=>{}}){
+  function create({root,api,onBusy=()=>{},onChange=()=>{},onContext=()=>{}}){
     if(!root)return null;
     const node=id=>root.querySelector('#streamInfo'+id),sharedTitle=node('SharedTitle'),sharedDescription=node('SharedDescription'),picker=node('Destination'),customize=node('Customize'),override=node('Override'),saveButton=node('Save'),reloadButton=node('Reload'),dashboardButton=node('Dashboard'),status=node('Status'),badge=node('Badge');
     const fields={title:node('Title'),description:node('Description'),category:node('Category'),tags:node('Tags')};
@@ -31,9 +31,10 @@
       saveButton.disabled=disabled||!dirty()||conflict;saveButton.textContent=pending?'Retry save':'Save stream info';saveButton.title=conflict?'Reload saved details to resolve the newer saved version.':disabled?'Wait until stream info editing is available.':!dirty()?'There are no unsaved stream info changes.':'';
       reloadButton.disabled=locked||busy;reloadButton.textContent=dirty()?'Discard draft and reload saved details':'Reload saved details';reloadButton.title=locked?'Stop the broadcast or wait for the current action before reloading.':'';
       dashboardButton.disabled=disabled||!url;dashboardButton.title=!url?'This destination has no supported dashboard shortcut. Open its platform dashboard yourself.':disabled?'Wait until the current action finishes.':'';
-      node('DashboardHint').textContent=!item?'Save a destination to open its dashboard.':url?'Update on platform: enter these details in your dashboard before going live.':'Open this platform’s dashboard yourself to update its stream info.';
+      node('DashboardHint').textContent=!item?'Save a destination to open its dashboard.':url?'Optional shortcut. Apply supported fields to the connected account above.':'Direct updates are available for Twitch, YouTube and Kick. Open this platform’s dashboard for its stream info.';
       node('DestinationHint').textContent=!item?'Save a destination to customize its details.':custom?'This destination uses its own saved copy of the details.':'This destination uses the shared title and description.';
       badge.textContent=busy?'Working…':uncertain||conflict?'Check saved details':dirty()?'Unsaved changes':saved?'Saved locally':'Local drafts';status.textContent=message;notify();
+      onContext({destination:item||null,locked:disabled,dirty:!ready()||dirty(),revision:saved?.revision||0});
     }
     function showFields(){
       if(!draft)return;
@@ -41,7 +42,7 @@
       const values=draft.overrides[selected]||{...draft.shared,category:'',tags:''};
       for(const [name,input]of Object.entries(fields))input.value=values[name];
     }
-    function changed(){pending=null;message=conflict?'A newer saved version is available. Your draft is kept. Copy any details you need, then choose Discard draft and reload saved details.':uncertain?'The previous save is unconfirmed. Reload saved details before starting, or save your updated draft.':'Unsaved changes. Save your local draft, then update the platform dashboard.';render();}
+    function changed(){pending=null;message=conflict?'A newer saved version is available. Your draft is kept. Copy any details you need, then choose Discard draft and reload saved details.':uncertain?'The previous save is unconfirmed. Reload saved details before starting, or save your updated draft.':'Unsaved changes. Save your draft before applying it to the connected account.';render();}
     for(const [name,input]of [['title',sharedTitle],['description',sharedDescription]])input.addEventListener('input',()=>{if(blocked())return;draft.shared[name]=input.value;changed();});
     for(const [name,input]of Object.entries(fields))input.addEventListener('input',()=>{if(blocked()||!draft.overrides[selected])return;draft.overrides[selected][name]=input.value;changed();});
     picker.addEventListener('change',()=>{if(blocked()){picker.value=selected;return;}selected=picker.value;showFields();render();});
@@ -51,7 +52,7 @@
       const generation=++operation;busy=true;message='Loading saved local details…';render();
       try{
         const result=normalize(await api.streamInfo());if(generation!==operation)return false;
-        saved=result;draft=clone(result);pending=null;conflict=false;uncertain=false;loadError=false;showFields();message='Saved locally. Update each platform dashboard before going live.';return true;
+        saved=result;draft=clone(result);pending=null;conflict=false;uncertain=false;loadError=false;showFields();message='Saved locally. Apply supported fields to the connected account below.';return true;
       }catch(_){loadError=true;message='Saved details could not load. Your current draft is kept. Retry loading when ready.';return false;}
       finally{busy=false;render();}
     }
@@ -61,7 +62,7 @@
       if(!pending)pending={requestId:crypto.randomUUID(),revision:saved.revision,shared:clone(draft.shared),overrides:clone(draft.overrides)};
       const generation=++operation;busy=true;saving=true;onBusy(true);message='Saving on this computer…';render();
       try{
-        const response=await api.saveStreamInfo(clone(pending));if(closed||generation!==operation)return false;const result=normalize(response);saved=result;draft=clone(result);pending=null;conflict=false;uncertain=false;loadError=false;showFields();message=response.activity_history_warning?'Saved locally. Local activity history could not be written. Update your platform dashboard before going live.':'Saved locally. Update each platform dashboard before going live.';return true;
+        const response=await api.saveStreamInfo(clone(pending));if(closed||generation!==operation)return false;const result=normalize(response);saved=result;draft=clone(result);pending=null;conflict=false;uncertain=false;loadError=false;showFields();message=response.activity_history_warning?'Saved locally. Local activity history could not be written. Apply supported fields to the connected account below.':'Saved locally. Apply supported fields to the connected account below.';return true;
       }catch(error){
         const code=error?.code||error?.message||'';conflict=/revision_conflict|stale_revision/.test(code);uncertain=!conflict;
         message=conflict?'A newer saved version is available. Your draft is kept. Copy any details you need, then choose Discard draft and reload saved details.':'Save could not be confirmed. Your draft is kept. Retry save to confirm the same details.';return false;

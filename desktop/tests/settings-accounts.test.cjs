@@ -25,6 +25,10 @@ test('saved chat connection is preserved during upgrade and pending polling uses
   assert.equal(await f.controller.run('link'),false);await f.controller.copyCode();assert.deepEqual(f.copies,['DEMO-1234']);await f.controller.openSignIn();assert.deepEqual(f.opens,[VERIFY_URL]);
   f.result={account:{...saved,reason:'authorization_cancelled'}};await f.controller.run('cancel');assert.equal(f.controller.snapshot().account.authorized,true);assert.equal(f.controller.snapshot().account.streaming_authorized,false);assert.equal([...f.timers.values()].filter(item=>item.delay===2000).length,0);
 });
+
+test('metadata consent copy retains the prior grant and independent history warning',async()=>{
+  const f=fixture();f.result={account:{...pending,authorization_kind:'metadata'},activity_history_warning:true};await f.controller.start();const value=f.controller.snapshot();assert.equal(value.account.authorized,true);assert.equal(value.account.authorization_kind,'metadata');assert.equal(value.historyWarning,true);assert.match(value.message,/edit stream title, category and tags/);await f.controller.copyCode();assert.deepEqual(f.copies,['DEMO-1234']);
+});
 test('link retry keeps its request id after ambiguous failure and a status check',async()=>{
   const f=fixture();f.result={account:streaming};await f.controller.start();f.result=Error('secret exception');await f.controller.run('link');assert.equal(f.controller.snapshot().stale,true);assert.doesNotMatch(f.controller.snapshot().message,/secret/);const request=f.calls.at(-1);
   assert.equal(await f.controller.run('link'),false);f.result={account:streaming};await f.controller.run('check');await f.controller.run('link');assert.deepEqual(f.calls.at(-1),request);assert.equal(f.changed,1);

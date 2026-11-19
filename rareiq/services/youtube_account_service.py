@@ -29,6 +29,7 @@ class YouTubeAccountService:
     TOKEN_URL = "https://oauth2.googleapis.com/token"
     CHANNELS_URL = "https://www.googleapis.com/youtube/v3/channels"
     SCOPE = "https://www.googleapis.com/auth/youtube.readonly"
+    METADATA_SCOPE = "https://www.googleapis.com/auth/youtube.force-ssl"
     FLOW_LIFETIME_SECONDS = 600
     MAX_BYTES = 16384
     MAX_CALLBACK_HEADERS = 8192
@@ -45,7 +46,12 @@ class YouTubeAccountService:
         "authorization_denied", "account_identity_mismatch", "account_state_changed",
         "chat_scope_required", "offline_access_required", "youtube_channel_required",
         "channel_selection_required", "callback_listener_unavailable",
-        "account_disconnected",
+        "account_disconnected", "metadata_scope_required",
+    })
+    _STREAM_INFO_FAILURES = frozenset({
+        "app_setup_required", "provider_unavailable", "invalid_provider_response",
+        "provider_rate_limited", "account_storage_unavailable", "authorization_refresh_required",
+        "authorization_rejected", "account_identity_mismatch",
     })
 
     def __init__(self, vault, *, app_config_provider=None, http_factory=None,
@@ -161,6 +167,7 @@ class YouTubeAccountService:
         result = {"platform": "youtube", "state": "authorized" if authorized else "not_authorized",
                   "reason": reason or ("account_authorized" if authorized else "authorization_required"),
                   "authorized": authorized, "app_configured": config is not None}
+        result["metadata_authorized"] = bool(authorized and self.METADATA_SCOPE in stored["scopes"])
         if authorized:
             result.update(public_label=stored["public_label"], expires_at=stored["expires_at"])
         pending = self._pending
@@ -170,6 +177,7 @@ class YouTubeAccountService:
             else:
                 result.update(state="pending", reason="validating_authorization" if pending["claimed"] else "authorization_pending",
                               flow_id=pending["flow_id"], expires_at=pending["expires_at"])
+                result["authorization_kind"] = pending.get("authorization_kind", "chat")
                 if not pending["claimed"]:
                     result["authorization_url"] = pending["authorization_url"]
         if self._closed:
@@ -208,7 +216,7 @@ class YouTubeAccountService:
                 except Exception:
                     pass
 
-    async def _verified_record(self, config, token, *, prior=None):
+    async def _verified_record(self, config, token, *, prior=None, required_scopes=None):
         access = self._secret(token.get("access_token"))
         refresh = token.get("refresh_token", prior.get("refresh_token") if prior else None)
         if not refresh:
@@ -229,6 +237,8 @@ class YouTubeAccountService:
                 or any(not isinstance(scope, str) or len(scope) > 128
                        or any(not 33 <= ord(c) <= 126 for c in scope) for scope in scopes)):
             raise _AccountError("chat_scope_required")
+        if required_scopes and not set(required_scopes).issubset(scopes):
+            raise _AccountError("metadata_scope_required")
         code, channels = await self._request("GET", self.CHANNELS_URL,
             headers={"Authorization": "Bearer " + access}, params={
                 "part": "id,snippet", "mine": "true", "maxResults": 50,
@@ -301,6 +311,12 @@ class YouTubeAccountService:
         return self._generation, pending
 
     async def begin(self):
+        return await self._begin(metadata=False)
+
+    async def begin_metadata(self):
+        return await self._begin(metadata=True)
+
+    async def _begin(self, *, metadata):
         if self._closed:
             return self.status()
         generation, previous = self._invalidate(None)
@@ -313,10 +329,15 @@ class YouTubeAccountService:
             config = self._configuration(stored)
             if config is None:
                 raise _AccountError("app_setup_required")
+            scopes = [self.SCOPE]
+            if metadata or (self._valid_record(stored, allow_expired=True)
+                            and self.METADATA_SCOPE in stored["scopes"]):
+                scopes.append(self.METADATA_SCOPE)
             verifier = secrets.token_urlsafe(64)
             challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
             pending = {"generation": generation, "flow_id": uuid.uuid4().hex,
                        "config": config, "stored_before": stored, "state": secrets.token_urlsafe(32),
+                       "scopes": scopes, "authorization_kind": "metadata" if metadata else "chat",
                        "verifier": verifier, "expires_at": self._clock() + self.FLOW_LIFETIME_SECONDS,
                        "claimed": False, "server": None, "writers": {}, "tasks": set(), "expiry_task": None}
             try:
@@ -333,7 +354,7 @@ class YouTubeAccountService:
             pending["redirect_uri"] = "http://" + pending["host"] + "/callback"
             pending["authorization_url"] = self.AUTHORIZE_URL + "?" + urlencode({
                 "client_id": config["client_id"], "redirect_uri": pending["redirect_uri"],
-                "response_type": "code", "scope": self.SCOPE, "access_type": "offline", "prompt": "consent",
+                "response_type": "code", "scope": " ".join(scopes), "access_type": "offline", "prompt": "consent",
                 "state": pending["state"], "code_challenge": challenge, "code_challenge_method": "S256"})
             self._pending = pending
             pending["expiry_task"] = asyncio.create_task(self._expire(pending), name="youtube-account-expiry")
@@ -454,7 +475,7 @@ class YouTubeAccountService:
                     raise _AccountError("authorization_expired")
                 if code != 200:
                     raise _AccountError("authorization_rejected")
-                record = await self._verified_record(pending["config"], value)
+                record = await self._verified_record(pending["config"], value, required_scopes=pending["scopes"])
                 prior = pending["stored_before"]
                 if self._valid_record(prior, allow_expired=True) and record["channel_id"] != prior["channel_id"]:
                     raise _AccountError("account_identity_mismatch")
@@ -573,6 +594,54 @@ class YouTubeAccountService:
                     except (KeyError, TypeError, ValueError):
                         pass
                 return None
+
+    async def with_stream_info_access(self, operation, *, require_edit=False):
+        """Keep account credentials and an operation's authority inside the owner lock."""
+        generation = self._generation
+        try:
+            config = self._configuration()
+        except _AccountError as exc:
+            reason = str(exc)
+            raise _AccountError(reason if reason in self._STREAM_INFO_FAILURES else "authorization_required") from None
+        credentials = await self.ensure_authorization()
+        if credentials is None and not self._closed and generation == self._generation:
+            raise _AccountError(self._reason if self._reason in self._STREAM_INFO_FAILURES
+                                else "authorization_required")
+        try:
+            changed = self._closed or generation != self._generation or self._configuration() != config
+        except _AccountError:
+            changed = True
+        if changed:
+            raise _AccountError("account_state_changed")
+        async with self._credential_lock:
+            try:
+                record = self._stored()
+            except _AccountError as exc:
+                reason = str(exc)
+                raise _AccountError(reason if reason in self._STREAM_INFO_FAILURES else "authorization_required") from None
+            active = True
+            def guard():
+                try:
+                    changed = (not active or not self._credential_lock.locked()
+                               or self._closed or generation != self._generation or self._configuration() != config
+                               or self._stored() != record)
+                except _AccountError:
+                    changed = True
+                if changed:
+                    raise _AccountError("account_state_changed")
+                if (not self._valid_record(record) or config is None or self._mismatch(config, record)
+                        or record["access_token"] != credentials["access_token"]
+                        or record["channel_id"] != credentials["channel_id"]
+                        or self._access_ref(record) == self._rejected_access):
+                    raise _AccountError("authorization_required")
+                if require_edit and self.METADATA_SCOPE not in record["scopes"]:
+                    raise _AccountError("metadata_scope_required")
+            guard()
+            private = {**record, "scopes": list(record["scopes"])}
+            try:
+                return await operation(private, guard)
+            finally:
+                active = False
 
     async def disconnect(self):
         generation, pending = self._invalidate("account_disconnected")

@@ -26,7 +26,7 @@ test('local drafts preserve complete overrides and destination selection without
   f.node('Customize').checked=true;f.node('Customize').fire('change');assert.equal(f.node('Title').value,'Shared title');input(f,'Title','Twitch draft');input(f,'Category','Category notes');input(f,'Tags','tag notes');
   f.node('Destination').value=TWO;f.node('Destination').fire('change');assert.equal(f.node('Override').hidden,true);input(f,'SharedTitle','New shared title');
   f.node('Destination').value=ONE;f.node('Destination').fire('change');assert.equal(f.node('Title').value,'Twitch draft');assert.equal(f.node('Category').value,'Category notes');assert.equal(f.editor.dirty,true);assert.equal(f.writes.length,0);assert.equal(f.opens.length,0);
-  await f.editor.save();assert.equal(f.saved.shared.title,'New shared title');assert.equal(f.saved.overrides[ONE].title,'Twitch draft');assert.equal(f.saved.overrides[ONE].tags,'tag notes');assert.equal(f.editor.dirty,false);assert.deepEqual(f.busy,[true,false]);assert.match(f.node('Status').textContent,/Saved locally/);assert.match(f.node('Status').textContent,/Update each platform/);
+  await f.editor.save();assert.equal(f.saved.shared.title,'New shared title');assert.equal(f.saved.overrides[ONE].title,'Twitch draft');assert.equal(f.saved.overrides[ONE].tags,'tag notes');assert.equal(f.editor.dirty,false);assert.deepEqual(f.busy,[true,false]);assert.match(f.node('Status').textContent,/Saved locally/);assert.match(f.node('Status').textContent,/Apply supported fields/);
   f.node('Customize').checked=false;f.node('Customize').fire('change');await f.editor.save();assert.equal(Object.hasOwn(f.saved.overrides,ONE),false);
 });
 test('an ambiguous save retains its exact request until editing, and save locks controls',async()=>{

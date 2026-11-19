@@ -1799,3 +1799,41 @@ guards, the complete JavaScript behavior gate passed 869 checks. Native original
 IPC acceptance and ui02 captures passed separately. Primary local-development
 desktop build: 0.1.0-20261119091320505. Current account grants remain read-only for
 stream metadata; no platform title/category was changed by this checkpoint.
+
+## November 19, 2026 — Direct platform metadata
+
+- [x] Read grants preserved across declined, missing-scope and wrong-channel
+  upgrades; exact OAuth URL scope sets and private credential-owner access guards.
+- [x] Official Twitch/Kick/YouTube metadata/category contracts exercised through
+  local HTTP simulations, including supported fields, identity/ownership, readback,
+  idempotent retries, uncertainty, provider failures and bounded safe output.
+- [x] YouTube selected-event inspection and required ETag/If-Match regressions.
+- [x] Atomic user-only recovery fingerprints/states, restart read-only
+  reconciliation, pre-write storage failure guard and post-write warning.
+- [x] Producer-only native/HTTP boundary, saved draft/revision enforcement,
+  actual Greenroom audit allowlist and post-write history warning behavior.
+- [x] Full Settings synthetic interaction at dark/light 390/860/1920/3840,
+  explicit YouTube selection, saved revision forwarding, permission-code handoff,
+  dirty/active locks and available Stop. No real provider/media actions.
+- [ ] Real editing consent and approved platform metadata updates/readback.
+- [ ] Google consent/Desktop client registration and real saved YouTube sign-in.
+
+Evidence: F:/Temp/jonat/ProducerPlease-stream-metadata-20261119. Current external
+permissions remain unchanged until owner review. Google API enablement was
+independently observed; Kick app permission Save remains pending. No broadcast,
+recording, public release, paid action or provider metadata test was initiated.
+
+Final canonical gate passed 4,156 Python and 893 JavaScript checks. Original
+packaged handler/provider simulation passed in native03, including isolated
+recovery state; final full Settings layouts/interactions passed in ui09. Primary
+local-development build 0.1.0-20261119095029311 and Start-menu shortcut are activated.
+Fresh actual Twitch/Kick account checks and read-only metadata inspection passed;
+Google correctly reports app setup required. Existing private guest HTTPS returns
+200 for guests and 404 for producer controls, setup ingress and metadata Apply.
+
+Provider contracts checked against the official references:
+- https://dev.twitch.tv/docs/api/reference/channels
+- https://docs.kick.com/apis/channels
+- https://docs.kick.com/apis/categories
+- https://developers.google.com/youtube/data/reference/rest/v3/videos/update
+- https://developers.google.com/youtube/data/live/reference/rest/v3/liveBroadcasts/list

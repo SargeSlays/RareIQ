@@ -10,3 +10,18 @@ test('provider bridge saves no secrets in renderer status and blocks untrusted c
 test('provider authorization passes only provider/flow to Main and never returns an OAuth URL',async()=>{const f=fixture();for(const platform of ['youtube','kick']){const r=await f.run(f.e,{platform,action:'authorize',flowId:flow});assert.equal(r.ok,true);assert.equal(r.authorization_opened,true);}assert.deepEqual(f.opens,[{platform:'youtube',flowId:flow},{platform:'kick',flowId:flow}]);assert.equal((await f.run(f.e,{platform:'kick',action:'authorize',flowId:flow,url:'https://bad.invalid'})).reason,'invalid_account_request');});
 test('Kick authorization only accepts the registered local callback and exact read scopes',()=>{assert.equal(kickAuthorizationUrl(kickUrl),kickUrl);for(const [key,value] of [['redirect_uri','https://bad.invalid/callback'],['redirect_uri','http://localhost:8771/callback'],['scope','user:read chat:write'],['code_challenge_method','plain'],['state','short']]){const u=new URL(kickUrl);u.searchParams.set(key,value);assert.equal(kickAuthorizationUrl(u.href),null);}assert.equal(kickAuthorizationUrl(kickUrl+'&client_secret=private'),null);assert.equal(kickAuthorizationUrl(kickUrl.replace('id.kick.com','id.kick.com.evil.invalid')),null);});
 test('real native Kick authorization handoff uses its own fixed local flow lookup',async()=>{const e={senderFrame:{url:'file:///settings.html'}},opens=[],calls=[];const open=createAccountAuthorization({origin,trustedSender:v=>v===e,openExternal:async url=>opens.push(url),fetchImpl:async url=>{calls.push(url);const r=new Response(JSON.stringify({authorization_url:kickUrl}),{headers:{'Content-Type':'application/json'}});Object.defineProperty(r,'url',{value:url});return r;}});assert.equal((await open(e,{platform:'kick',flowId:flow})).ok,true);assert.deepEqual(calls,[origin+'/api/production/accounts/kick/authorization?flow_id='+flow]);assert.deepEqual(opens,[kickUrl]);});
+
+test('Kick metadata handoff permits only the existing read grant plus channel:write',()=>{
+  const u=new URL(kickUrl),base=u.searchParams.get('scope');
+  u.searchParams.set('scope',base+' channel:write');assert.equal(kickAuthorizationUrl(u.href),u.href);
+  for(const scope of ['channel:write',base+' arbitrary:write',base+' channel:write channel:write',base+'  channel:write']){u.searchParams.set('scope',scope);assert.equal(kickAuthorizationUrl(u.href),null);}
+});
+
+test('provider metadata upgrade maps to a separate protected action without exposing tokens',async()=>{
+  const f=fixture();
+  for(const platform of ['youtube','kick']){
+    const result=await f.run(f.e,{platform,action:'begin_metadata'});
+    assert.equal(result.ok,true);assert.equal(result.account.metadata_authorized,false);
+    assert.equal(f.calls.at(-1).url,origin+'/api/production/accounts/'+platform+'/begin-metadata');assert.equal(JSON.stringify(result).includes('private'),false);
+  }
+});

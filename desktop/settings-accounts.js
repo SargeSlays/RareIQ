@@ -9,6 +9,7 @@
     const value={platform:'twitch',state:raw.state,reason:Object.hasOwn(REASONS,raw.reason)||raw.reason==='account_authorized'?raw.reason:'account_unavailable',authorized:raw.authorized===true,streaming_authorized:raw.authorized===true&&raw.streaming_authorized===true,app_configured:raw.app_configured===true};
     if(typeof raw.public_label==='string'&&/^[a-z0-9_]{1,25}$/.test(raw.public_label))value.public_label=raw.public_label;
     if(typeof raw.account_ref==='string'&&/^[a-f0-9]{64}$/.test(raw.account_ref))value.account_ref=raw.account_ref;
+    if(raw.authorization_kind==='metadata')value.authorization_kind='metadata';
     if(Number.isFinite(raw.expires_at)&&raw.expires_at>0)value.expires_at=raw.expires_at;
     if(raw.state==='pending'){
       if(typeof raw.user_code!=='string'||!/^[A-Za-z0-9-]{4,32}$/.test(raw.user_code)||typeof raw.flow_id!=='string'||!/^[a-f0-9]{32}$/.test(raw.flow_id)||!value.expires_at)throw Error('invalid_account_status');
@@ -30,6 +31,7 @@
       if(payload.activity_history_warning===true)state.historyWarning=true;
       if(payload.connection_stop_warning===true)state.stopWarning=true;
       state.message=action==='link'?'Twitch destination saved. Review Program and explicitly start when ready.':action==='disconnect'?'Twitch sign-in removed. Linked destinations require reconnecting the same channel.':action==='check'&&account.authorized?'Saved Twitch connection checked.':REASONS[account.reason]||(account.streaming_authorized?'Twitch streaming access is saved securely.':account.authorized?'Chat access is saved. Enable streaming to use this account as a broadcast destination.':'Check your saved Twitch connection.');
+      if(account.state==='pending'&&account.authorization_kind==='metadata')state.message='Review Twitch permission to edit stream title, category and tags. Existing saved access stays available if you decline.';
     }
     async function run(action){
       if(closed||!['status','begin','cancel','check','link','disconnect'].includes(action))return false;

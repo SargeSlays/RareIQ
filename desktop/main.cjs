@@ -93,7 +93,7 @@ app.whenReady().then(async()=>{
       const vodTargets=output.twitchVod?chosen.filter(target=>target.platform==='twitch').length:0;
       const upload=(chosen.length*(output.videoBitrateKbps+output.audioBitrateKbps)+vodTargets*output.audioBitrateKbps)/1000;
       const info=await streamInfo.public();
-      const streamInfoReview='\n\nStream info saved on this computer (platform updates unverified):\n'+chosen.map((p,index)=>'• '+p.name+': '+((info.overrides[selectionInfo.destinationIds[index]]||info.shared).title.trim()||'No title drafted')).join('\n')+'\nReview the actual title, category and visibility in each platform dashboard before starting.';
+      const streamInfoReview='\n\nSaved stream info drafts:\n'+chosen.map((p,index)=>'• '+p.name+': '+((info.overrides[selectionInfo.destinationIds[index]]||info.shared).title.trim()||'No title drafted')).join('\n')+'\nCheck each destination’s update status in Stream info before starting. Saved drafts alone do not confirm platform updates.';
       const detail='Your current Program picture and Live audio will be sent to:\n'+chosen.map(p=>'• '+p.name).join('\n')+'\n\n'+output.name+': '+output.fps+' fps, '+output.videoBitrateKbps+' kbps video, '+output.audioBitrateKbps+' kbps AAC. Approximate combined upload: '+upload.toFixed(1)+' Mbps before overhead.'+(output.twitchVod?'\nA separate VOD mix is sent to Twitch destinations; Twitch archive receipt is not yet verified.':'')+'\nCheck each platform dashboard to confirm receipt.';
       const answer=await dialog.showMessageBox(settings&&!settings.isDestroyed()?settings:studio,{type:'warning',message:'Start a live broadcast?',detail:detail+streamInfoReview,buttons:['Cancel','Start broadcast'],defaultId:0,cancelId:0});return answer.response===1;
     },
@@ -121,6 +121,21 @@ app.whenReady().then(async()=>{
   ipcMain.handle('producer:accounts:twitch',twitchConnection);
   const providerConnection=require('./provider-connection.cjs').createProviderConnection({origin,trustedSender:settingsEvent,mutate:changeDestination,authorize:authorizeAccount});
   ipcMain.handle('producer:accounts:provider',providerConnection);
+  const streamMetadata=require('./stream-metadata.cjs').createStreamMetadataHandler({origin,store:streamInfo,destinations,
+    trustedSender:settingsEvent,mutate:changeDestination,
+    permission:async(event,platform)=>{
+      if(platform==='twitch')return twitchConnection(event,{action:'begin_metadata'});
+      const started=await providerConnection(event,{platform,action:'begin_metadata'});
+      if(started?.ok!==true||started.account?.state!=='pending')return started;
+      return providerConnection(event,{platform,action:'authorize',flowId:started.account.flow_id});
+    },
+    confirm:async review=>{
+      const target=review.channelLabel+(review.broadcastId?' · broadcast '+review.broadcastId:'');
+      const fields=Object.keys(review.values).map(name=>name==='category_id'?'category':name).join(', ');
+      const answer=await dialog.showMessageBox(settings,{type:'question',message:'Update stream info on '+review.platform+'?',detail:'Connected channel: '+target+'\nDraft: '+review.destinationName+'\nTitle: '+review.values.title+'\nFields to replace: '+fields+'\n\nThis changes the connected channel’s stream information. A manually entered stream key does not verify which channel it belongs to. No broadcast will start.',buttons:['Cancel','Apply stream info'],defaultId:0,cancelId:0});
+      return answer.response===1;
+    }});
+  ipcMain.handle('producer:stream-metadata',streamMetadata);
   const importAppSetup=require('./app-setup-import.cjs').createAppSetupImporter({origin,trustedSender:settingsEvent,
     chooseFile:async({platform,defaultPath})=>{
       const choice=await dialog.showOpenDialog(settings,{title:'Load '+(platform==='youtube'?'Google Desktop':'Kick private app')+' setup',defaultPath,properties:['openFile'],filters:[{name:'App setup JSON',extensions:['json']}]});

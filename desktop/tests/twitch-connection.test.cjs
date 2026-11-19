@@ -29,6 +29,15 @@ test('device-code sign-in uses fixed streaming route; IPC returns only a bounded
   const f=fixture({account:{...account,state:'pending',user_code:'DEMO-1234',flow_id:'b'.repeat(32),device_code:'secret-device',verification_url:'https://bad.invalid/'}});
   const result=await f.run(f.event,{action:'begin'});assert.equal(result.account.verification_url,'https://www.twitch.tv/activate');assert.equal(result.account.device_code,undefined);assert.equal(f.calls[0].url,origin+'/api/production/accounts/twitch/begin-streaming');
 });
+
+test('metadata upgrade has its own guarded route and public permission flag',async()=>{
+  const f=fixture({account:{...account,metadata_authorized:true,state:'pending',authorization_kind:'metadata',user_code:'DEMO-1234',flow_id:'c'.repeat(32),access_token:'private'}});
+  const result=await f.run(f.event,{action:'begin_metadata'});
+  assert.equal(result.ok,true);assert.equal(result.account.metadata_authorized,true);assert.equal(result.account.authorization_kind,'metadata');
+  assert.equal(f.calls[0].url,origin+'/api/production/accounts/twitch/begin-metadata');assert.equal(JSON.stringify(result).includes('private'),false);
+  const blocked=fixture({mutate:async()=>{throw Error('destination_broadcast_busy');}});
+  assert.equal((await blocked.run(blocked.event,{action:'begin_metadata'})).reason,'destination_broadcast_busy');assert.equal(blocked.calls.length,0);
+});
 test('stale settings navigation cannot finish a new destination link',async()=>{
   const f=fixture();const fetchImpl=async url=>{f.event.senderFrame.url='file:///changed';const r=new Response(JSON.stringify({account}),{headers:{'Content-Type':'application/json'}});Object.defineProperty(r,'url',{value:url});return r;};
   const g=fixture({fetchImpl,trustedSender:event=>event===f.event});assert.equal((await g.run(f.event,{action:'link',requestId:'one'})).reason,'local_operator_required');assert.equal(g.saved.length,0);

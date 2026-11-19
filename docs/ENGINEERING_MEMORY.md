@@ -1273,3 +1273,41 @@ Private encoder destination records omit public destination UUIDs. Native Start
 review therefore receives a separate ordered destination-ID list, instead of
 matching names or assuming private records carry IDs. A regression uses multiple
 IDs with matching destination records to guard correct stream-info association.
+
+## November 19, 2026 — Provider metadata requires binding and reconciliation
+
+Local drafts are inputs, never proof that a platform changed. Main resolves saved
+values/revisions and destination IDs; renderers cannot supply arbitrary provider
+payloads. A manually saved stream key does not prove its channel, so Apply shows
+the connected channel and requires an explicit confirmation. Credential owners
+hold their lock through provider operations and issue generation/token guards.
+
+Guardian review caught two YouTube failures before activation. Selected broadcast
+inspection omits the list, so rebuilding options from an absent collection erased
+the selected event and disabled Apply. Preserve the confirmed ID/options and
+regression-test selection through inspection to Apply. Replacing a full snippet
+without a fresh ETag can overwrite an unrelated concurrent edit: reject writes
+without a valid ETag and always use If-Match; read-only inspection can still work.
+
+Never blindly repeat a timed-out metadata mutation. Reserve a fingerprinted
+receipt before writing and reconcile exact retries by reading. Failed readback
+remains unconfirmed. Persist a user-only fingerprint/state reservation before
+writing; restored requests reconcile by reads across backend restarts, and an
+invalid recovery file blocks new writes. Confirmed readback remains successful if
+final recovery-state persistence fails, with a separate warning. History contains platform/outcome only.
+The real Greenroom audit owner must accept begin_metadata and platform.metadata.apply.
+
+Windows can report a child receipt as missing when its parent is a regular file.
+Validate the parent directory before treating a missing recovery file as an empty
+store; that failure must block Apply before credential access or HTTP mutations.
+
+Real read-only acceptance caught an empty offline Kick channel returning exact
+integer category 0 with an empty name, plus null custom_tags. Normalize only those
+empty sentinels; malformed alternatives still fail closed. Credential-hook failures
+must retain safe provider/setup/storage reasons so a transient check failure does
+not incorrectly tell a user to replace a saved login. Keep actual provider shapes
+in synthetic regressions without recording identity, text or credential payloads.
+
+When a fixture substitutes HTTP/account owners, every newly added persistent
+collaborator must also use the fixture root. Native acceptance now asserts its
+recovery store is isolated and contains no provider metadata or credentials.

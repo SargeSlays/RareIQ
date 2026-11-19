@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('producerSettings',Object.freeze({
   listOutputProfiles:()=>ipcRenderer.invoke('producer:profiles:list'),
   streamInfo:()=>ipcRenderer.invoke('producer:stream-info:list'),
   saveStreamInfo:value=>ipcRenderer.invoke('producer:stream-info:save',value),
+  streamMetadata:value=>ipcRenderer.invoke('producer:stream-metadata',value),
   saveOutputProfile:value=>ipcRenderer.invoke('producer:profiles:save',value),
   removeOutputProfile:id=>ipcRenderer.invoke('producer:profiles:remove',id),
   selectOutputProfile:id=>ipcRenderer.invoke('producer:profiles:select',id),

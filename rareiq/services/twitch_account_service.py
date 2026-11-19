@@ -27,6 +27,7 @@ class TwitchAccountService:
     VERIFICATION_URL = "https://www.twitch.tv/activate"
     SCOPE = "user:read:chat"
     STREAM_SCOPE = "channel:read:stream_key"
+    METADATA_SCOPE = "channel:manage:broadcast"
     DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
     MAX_BYTES = 16384
     CLOSE_TIMEOUT_SECONDS = 2
@@ -42,7 +43,12 @@ class TwitchAccountService:
         "authorization_rejected", "account_identity_mismatch", "chat_scope_required",
         "account_storage_unavailable", "authorization_required", "authorization_expired",
         "authorization_denied", "authorization_refresh_required", "account_state_changed",
-        "streaming_scope_required", "account_disconnected",
+        "streaming_scope_required", "metadata_scope_required", "account_disconnected",
+    })
+    _STREAM_INFO_FAILURES = frozenset({
+        "app_setup_required", "provider_unavailable", "invalid_provider_response",
+        "provider_rate_limited", "account_storage_unavailable", "authorization_refresh_required",
+        "authorization_rejected", "account_identity_mismatch",
     })
 
     def __init__(self, vault, *, client_id_provider=None, http_factory=None,
@@ -147,6 +153,7 @@ class TwitchAccountService:
                   "reason": storage_reason or configuration_reason or ("account_identity_mismatch" if mismatch else None)
                             or reason or ("account_authorized" if authorized else "authorization_required"),
                   "authorized": authorized, "streaming_authorized": bool(authorized and self.STREAM_SCOPE in stored["scopes"]),
+                  "metadata_authorized": bool(authorized and self.METADATA_SCOPE in stored["scopes"]),
                   "app_configured": configured_id is not None}
         if authorized:
             # Public account metadata describes stored authorization, not a live chat socket.
@@ -227,7 +234,8 @@ class TwitchAccountService:
                 or any(not isinstance(scope, str) or len(scope) > 160 for scope in scopes)):
             raise _AccountError("chat_scope_required")
         if required_scopes and not set(required_scopes).issubset(scopes):
-            raise _AccountError("streaming_scope_required")
+            raise _AccountError("metadata_scope_required" if self.METADATA_SCOPE in required_scopes
+                                and self.METADATA_SCOPE not in scopes else "streaming_scope_required")
         valid_expires = self._number(value.get("expires_in"), 60, 31536000)
         return {"client_id": client_id, "access_token": access, "refresh_token": refresh,
                 "token_type": "bearer", "expires_at": self._clock() + min(expires, valid_expires),
@@ -281,7 +289,10 @@ class TwitchAccountService:
     async def begin_streaming(self):
         return await self._begin(streaming=True)
 
-    async def _begin(self, *, streaming):
+    async def begin_metadata(self):
+        return await self._begin(streaming=False, metadata=True)
+
+    async def _begin(self, *, streaming, metadata=False):
         if self._closed:
             return self.status()
         # Reserve this invocation's generation before waiting for old cleanup;
@@ -299,6 +310,9 @@ class TwitchAccountService:
             if streaming or (self._valid_record(stored_before, allow_expired=True)
                              and self.STREAM_SCOPE in stored_before["scopes"]):
                 scopes.append(self.STREAM_SCOPE)
+            if metadata or (self._valid_record(stored_before, allow_expired=True)
+                            and self.METADATA_SCOPE in stored_before["scopes"]):
+                scopes.append(self.METADATA_SCOPE)
             code, value = await self._request("POST", self.DEVICE_URL,
                                               data={"client_id": client_id, "scopes": " ".join(scopes)})
             if not self._current(generation):
@@ -315,8 +329,8 @@ class TwitchAccountService:
                              "device_code": device_code, "client_id": client_id,
                              "user_code": user_code.upper(), "expires_at": self._clock() + expires,
                              "interval": interval, "stored_before": stored_before, "scopes": scopes,
-                             "authorization_kind": "streaming" if streaming else "chat",
-                             "expected_channel": stored_before["channel_id"] if streaming
+                             "authorization_kind": "metadata" if metadata else "streaming" if streaming else "chat",
+                             "expected_channel": stored_before["channel_id"] if (streaming or metadata)
                                  and self._valid_record(stored_before, allow_expired=True) else None}
             self._task = asyncio.create_task(self._poll(generation), name="twitch-account-authorization")
         except asyncio.CancelledError:
@@ -475,6 +489,58 @@ class TwitchAccountService:
                     except (KeyError, TypeError, ValueError):
                         pass
                 return None
+
+    async def with_stream_info_access(self, operation, *, require_edit=False):
+        """Run an internal operation with the current owned account; never publish credentials."""
+        generation = self._generation
+        try:
+            configured = self._configured_client_id()
+            original = self._stored()
+            identity = (original.get("client_id"), original.get("channel_id")) if original else None
+        except _AccountError as exc:
+            reason = str(exc)
+            raise _AccountError(reason if reason in self._STREAM_INFO_FAILURES else "authorization_required") from None
+        credentials = await self.ensure_credentials()
+        if credentials is None and self._current(generation):
+            raise _AccountError(self._reason if self._reason in self._STREAM_INFO_FAILURES
+                                else "authorization_required")
+        try:
+            changed = not self._current(generation) or self._configured_client_id() != configured
+        except _AccountError:
+            changed = True
+        if changed:
+            raise _AccountError("account_state_changed")
+        async with self._credential_lock:
+            try:
+                record = self._stored()
+            except _AccountError as exc:
+                reason = str(exc)
+                raise _AccountError(reason if reason in self._STREAM_INFO_FAILURES else "authorization_required") from None
+            active = True
+            def guard():
+                try:
+                    changed = (not active or not self._credential_lock.locked()
+                               or not self._current(generation) or self._configured_client_id() != configured
+                               or self._stored() != record)
+                except _AccountError:
+                    changed = True
+                if changed:
+                    raise _AccountError("account_state_changed")
+                if (not self._valid_record(record) or self._app_mismatch(configured, record)
+                        or (record["client_id"], record["channel_id"]) != identity
+                        or record["access_token"] != credentials["user_access_token"]
+                        or record["client_id"] != credentials["client_id"]
+                        or record["channel_login"] != credentials["channel_login"]
+                        or self._access_ref(record) == self._rejected_access):
+                    raise _AccountError("authorization_required")
+                if require_edit and self.METADATA_SCOPE not in record["scopes"]:
+                    raise _AccountError("metadata_scope_required")
+            guard()
+            private = {**record, "scopes": list(record["scopes"])}
+            try:
+                return await operation(private, guard)
+            finally:
+                active = False
 
     async def disconnect(self):
         generation, task = self._invalidate("account_disconnected")

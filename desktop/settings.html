@@ -4,7 +4,7 @@
 <p class="notice">Saving a destination prepares it. Nothing goes live until you explicitly start a broadcast.</p>
 <details class="stream-info" id="streamInfo">
   <summary>Stream info <span id="streamInfoBadge">Local drafts</span></summary>
-  <p id="streamInfoHelp">Prepare a title and details for each destination. These drafts stay on this computer. Update your platform dashboard before going live; saving here does not update a platform.</p>
+  <p id="streamInfoHelp">Save shared details or customize each destination, then apply them to its connected account. Enable editing to update supported fields here before going live.</p>
   <div class="stream-info-layout">
   <div class="stream-info-fields stream-info-shared">
     <label>Shared title<input id="streamInfoSharedTitle" maxlength="100" autocomplete="off" aria-describedby="streamInfoHelp"></label>
@@ -18,16 +18,30 @@
       <label>Destination title<input id="streamInfoTitle" maxlength="100" autocomplete="off"></label>
       <label>Destination description<textarea id="streamInfoDescription" maxlength="5000" rows="3"></textarea></label>
       <div class="stream-info-optional">
-        <label>Category or game<input id="streamInfoCategory" maxlength="100" autocomplete="off"><small>Draft name; select the matching category on the platform.</small></label>
-        <label>Tags<input id="streamInfoTags" maxlength="300" autocomplete="off"><small>Notes for tags to enter on the platform.</small></label>
+        <label>Category notes<input id="streamInfoCategory" maxlength="100" autocomplete="off"><small>Choose the official category in Update connected channel.</small></label>
+        <label>Tags<input id="streamInfoTags" maxlength="300" autocomplete="off"><small>Separate tags with commas. Applying a customized blank clears tags on supported platforms.</small></label>
       </div>
     </div>
-    <div class="actions"><button type="button" id="streamInfoDashboard">Open platform dashboard</button></div>
-    <p id="streamInfoDashboardHint">Choose a supported destination to open its dashboard.</p>
   </div>
   </div>
   <div class="actions"><button type="button" class="primary" id="streamInfoSave">Save stream info</button><button type="button" id="streamInfoReload">Reload saved details</button></div>
   <p id="streamInfoStatus" role="status" aria-live="polite">Loading local drafts…</p>
+    <section class="stream-metadata" id="streamMetadata" aria-labelledby="streamMetadataTitle">
+      <div class="stream-metadata-heading"><h3 id="streamMetadataTitle">Update connected channel</h3><p id="streamMetadataAccount">Choose a supported destination and check its connected account.</p></div>
+      <p id="streamMetadataBinding">Updates the connected account shown here.</p>
+      <div id="streamMetadataBroadcastRow" hidden><label>YouTube broadcast<select id="streamMetadataBroadcast" aria-describedby="streamMetadataBroadcastHint"><option value="">Choose a broadcast…</option></select></label><p id="streamMetadataBroadcastHint">Choose an existing broadcast explicitly. This does not create a broadcast or start streaming.</p></div>
+      <div class="stream-metadata-category" id="streamMetadataCategoryRow" hidden>
+        <label>Category or game search<input id="streamMetadataQuery" maxlength="100" autocomplete="off"></label>
+        <div class="actions"><button type="button" id="streamMetadataSearch" aria-label="Find platform categories">Find</button></div>
+        <label>Platform category<select id="streamMetadataCategory"><option value="">Leave current category unchanged</option></select></label>
+      </div>
+      <p id="streamMetadataFields">Save your local draft before applying its supported fields.</p>
+      <div class="actions"><button type="button" id="streamMetadataCheck">Check connection</button><button type="button" id="streamMetadataPermission" hidden>Enable stream info editing</button><button type="button" id="streamMetadataApply" class="primary" aria-describedby="streamMetadataStatus">Update connected channel</button></div>
+      <p id="streamMetadataStatus" role="status" aria-live="polite">Choose a supported destination to check stream info editing.</p>
+    </section>
+    <details class="stream-info-dashboard"><summary>Platform dashboard (optional)</summary><div class="actions"><button type="button" id="streamInfoDashboard">Open platform dashboard</button></div>
+    <p id="streamInfoDashboardHint">Choose a supported destination to open its dashboard.</p>
+    </details>
 </details>
 <section class="broadcast-steps" aria-label="Get ready to broadcast"><h2>Get ready in three steps</h2><ol><li><div><strong>Build your Program</strong><p>Add a camera, guest, image, video, text or browser page. Select sources in Preview, then Take when you’re ready.</p></div><div class="step-actions"><span id="programStep">Check Program</span><button type="button" id="chooseSources">Choose sources</button></div></li><li><div><strong>Check the clean output</strong><p>Choose Prepare output below. Check its picture and sound, and close any browser review.</p></div><span id="outputStep">Not prepared</span></li><li><div><strong>Save your destination</strong><p>Connect Twitch or add your platform’s stream key. Save the destination, then review before starting.</p></div><div class="step-actions"><span id="destinationStep">Not saved</span><button type="button" id="addDestination">Add destination</button></div></li></ol></section>
 <section class="output-profiles live-audio-mixer" id="liveAudioMixer" aria-labelledby="liveAudioMixerTitle" hidden>
@@ -66,7 +80,7 @@
 <section aria-label="Saved destinations"><h2>Your destinations</h2><div class="destination-selection"><p id="destinationSelectionStatus">Select up to eight configured destinations.</p><div class="actions"><button type="button" id="selectAllDestinations">Select configured</button><button type="button" id="clearDestinationSelection">Clear selection</button><button type="button" id="startSelectedDestinations" class="primary">Start selected</button></div></div><div id="destinations"></div></section>
 <section class="platform-account" id="twitchAccount" aria-labelledby="twitchAccountTitle">
   <div class="account-heading"><div><p class="eyebrow">CONNECTED ACCOUNTS</p><h2 id="twitchAccountTitle">Twitch</h2><strong id="twitchIdentity">Connect your channel</strong></div><span id="twitchBadge">Checking connection</span></div>
-  <p>Sign in on Twitch and review chat-reading and stream-key access. Your connection stays encrypted on this Windows account. Passwords stay with Twitch.</p>
+  <p>Sign in on Twitch and review the requested permissions. Stream info editing is optional. Your connection stays encrypted on this Windows account. Passwords stay with Twitch.</p>
   <p id="twitchStatus" role="status" aria-live="polite">Checking your Twitch connection…</p>
   <div id="twitchPending" class="account-pending" hidden><label for="twitchCode">Your Twitch sign-in code</label><output id="twitchCode" tabindex="0"></output><div class="actions"><button type="button" id="twitchCopy">Copy code</button><button type="button" id="twitchOpen" class="primary">Open Twitch sign-in</button></div><small>Enter this temporary code only on twitch.tv. Closing setup leaves the pending sign-in available until it expires.</small></div>
   <div class="actions"><button type="button" id="twitchBegin" class="primary">Sign in with Twitch</button><button type="button" id="twitchLink" class="primary" hidden>Save Twitch destination</button><button type="button" id="twitchCheck">Check connection</button><button type="button" id="twitchCancel" hidden>Cancel sign-in</button><button type="button" id="twitchDisconnect" hidden>Disconnect</button></div>
@@ -76,7 +90,7 @@
 <div class="provider-accounts">
 <section class="platform-account" id="youtubeAccount" aria-labelledby="youtubeAccountTitle">
   <div class="account-heading"><div><h2 id="youtubeAccountTitle">YouTube</h2><strong id="youtubeIdentity">Connect your channel</strong></div><span id="youtubeBadge">Checking connection</span></div>
-  <p>Save read-only access to your YouTube channel and live chat. Your sign-in stays encrypted on this Windows account. Streaming destinations are currently added manually.</p>
+  <p>Connect your YouTube channel and review permissions on Google. Enable optional editing from Stream info above. Your sign-in stays encrypted on this Windows account. Streaming destinations are currently added manually.</p>
   <p id="youtubeStatus" role="status" aria-live="polite">Checking YouTube…</p>
   <details id="youtubeSetup"><summary>One-time app setup needed</summary><p>A Google Desktop app registration, YouTube Data API and consent setup are required before signing in.</p><button type="button" id="youtubeLoadSetup">Load app setup file</button><p>Choose the downloaded Google Desktop app client JSON file. This prepares sign-in; it does not connect your account.</p></details>
   <p id="youtubePending" hidden>Review the permissions on Google, then return here. Closing setup keeps this attempt available until it expires.</p>
@@ -85,7 +99,7 @@
 </section>
 <section class="platform-account" id="kickAccount" aria-labelledby="kickAccountTitle">
   <div class="account-heading"><div><h2 id="kickAccountTitle">Kick</h2><strong id="kickIdentity">Connect your channel</strong></div><span id="kickBadge">Checking connection</span></div>
-  <p>Save your Kick account connection with channel and stream-key read access. Review permission on Kick. Streaming destinations are currently added manually; chat delivery needs separate setup.</p>
+  <p>Connect your Kick channel and review permissions on Kick. Enable optional editing from Stream info above. Streaming destinations are currently added manually; chat delivery needs separate setup.</p>
   <p id="kickStatus" role="status" aria-live="polite">Checking Kick…</p>
   <details id="kickSetup"><summary>One-time app setup needed</summary><p>A private Kick app registration is required with the local return address <code>http://localhost:8770/callback</code>.</p><button type="button" id="kickLoadSetup">Load app setup file</button><p>Choose the private Kick app setup JSON file. This prepares sign-in; it does not connect your account.</p></details>
   <p id="kickPending" hidden>Review the permissions on Kick, then return here. Closing setup keeps this attempt available until it expires.</p>
@@ -95,4 +109,4 @@
 </div>
 <form id="destinationForm"><h2 id="destinationFormTitle">Add a destination manually</h2><p id="destinationFormHint">Your server address and stream key stay protected on this Windows account.</p><label>Name<input name="name" required maxlength="60" placeholder="My Twitch channel" autocomplete="off"></label><label>Platform<select name="platform"><option value="twitch">Twitch</option><option value="youtube">YouTube</option><option value="kick">Kick</option><option value="rumble">Rumble</option><option value="facebook">Facebook</option><option value="tiktok">TikTok</option><option value="x">X</option><option value="instagram">Instagram</option><option value="custom">Custom RTMPS</option></select></label><label id="serverLabel">Server URL<input name="serverUrl" type="url" maxlength="2048" placeholder="rtmps://…" autocomplete="off" spellcheck="false"><small id="serverHint">Each platform needs its own eligible account, secure RTMPS server and stream key from its dashboard.</small></label><label>Stream key<input name="streamKey" type="password" required maxlength="2048" autocomplete="new-password" spellcheck="false"><small id="keyHint">Stored with Windows account encryption. The app never displays a saved key.</small></label><div class="actions"><button type="submit" id="saveDestination" class="primary">Save destination</button><button type="button" id="cancelEdit" hidden>Cancel editing</button><button type="button" id="platformDashboard">Open platform dashboard</button></div></form>
 <p role="status" aria-live="polite" id="status">Checking protected storage…</p><footer><span>Configured, encoder sending, and platform live are separate states.</span><button type="button" id="closeSettings">Close setup</button></footer>
-</main><script src="settings-accounts.js"></script><script src="settings-provider-accounts.js"></script><script src="settings-stream-info.js"></script><script src="settings.js"></script></body></html>
+</main><script src="settings-accounts.js"></script><script src="settings-provider-accounts.js"></script><script src="settings-stream-metadata.js"></script><script src="settings-stream-info.js"></script><script src="settings.js"></script></body></html>

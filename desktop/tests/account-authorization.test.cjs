@@ -65,6 +65,12 @@ test('native handoff fetches only the trusted local flow lookup and returns no U
   assert.equal(policy.allowedExternal(authorizationUrl()),false,'the general external navigation policy remains unchanged');
 });
 
+test('Google metadata handoff admits only readonly plus the explicit force-ssl upgrade',()=>{
+  const edit='https://www.googleapis.com/auth/youtube.force-ssl',base=QUERY.scope;
+  for(const scope of [base+' '+edit,edit+' '+base])assert.equal(googleAuthorizationUrl(authorizationUrl({scope})),authorizationUrl({scope}));
+  for(const scope of [edit,base+' '+base,base+' '+edit+' '+edit,base+' '+edit+' arbitrary:write',base+'  '+edit])assert.equal(googleAuthorizationUrl(authorizationUrl({scope})),null);
+});
+
 test('unknown payloads, subframes, other contents and untrusted pages never fetch or open',async()=>{
   const f=fixture();
   for(const incoming of [{sender:{},senderFrame:f.frame},{sender:f.contents,senderFrame:{url:f.frame.url}}])

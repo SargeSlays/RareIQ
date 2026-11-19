@@ -2,6 +2,8 @@
 const {studioOrigin}=require('./policy.cjs');
 
 const SCOPE='https://www.googleapis.com/auth/youtube.readonly';
+const METADATA_SCOPE='https://www.googleapis.com/auth/youtube.force-ssl';
+const exactScopes=(raw,base,extra)=>{const scopes=raw.split(' ');return scopes.length===new Set(scopes).size&&(scopes.length===base.length||scopes.length===base.length+1&&scopes.includes(extra))&&base.every(s=>scopes.includes(s));};
 const MAX_RESPONSE_BYTES=16384;
 const FIELDS=new Set(['client_id','redirect_uri','response_type','scope','access_type','prompt','state','code_challenge','code_challenge_method']);
 const failure=reason=>({ok:false,reason});
@@ -17,8 +19,7 @@ function kickAuthorizationUrl(value){
     if(typeof value!=='string'||value.length>8192||/[^\x21-\x7e]/.test(value)||!value.startsWith('https://id.kick.com/oauth/authorize?'))return null;
     const u=new URL(value),pairs=[...u.searchParams],q=Object.fromEntries(pairs),fields=['client_id','redirect_uri','response_type','scope','state','code_challenge','code_challenge_method'];
     if(u.origin!=='https://id.kick.com'||u.port||u.username||u.password||u.hash||u.pathname!=='/oauth/authorize'||pairs.length!==fields.length||new Set(pairs.map(([k])=>k)).size!==fields.length||pairs.some(([k])=>!fields.includes(k)))return null;
-    const scopes=q.scope.split(' ');
-    if(!/^[A-Za-z0-9_-]{1,220}$/.test(q.client_id)||q.redirect_uri!=='http://localhost:8770/callback'||q.response_type!=='code'||q.code_challenge_method!=='S256'||!/^[A-Za-z0-9_-]{43}$/.test(q.code_challenge)||!/^[A-Za-z0-9_-]{32,128}$/.test(q.state)||scopes.length!==3||!['user:read','channel:read','streamkey:read'].every(s=>scopes.includes(s)))return null;
+    if(!/^[A-Za-z0-9_-]{1,220}$/.test(q.client_id)||q.redirect_uri!=='http://localhost:8770/callback'||q.response_type!=='code'||q.code_challenge_method!=='S256'||!/^[A-Za-z0-9_-]{43}$/.test(q.code_challenge)||!/^[A-Za-z0-9_-]{32,128}$/.test(q.state)||!exactScopes(q.scope,['user:read','channel:read','streamkey:read'],'channel:write'))return null;
     return value;
   }catch(_){return null;}
 }
@@ -32,7 +33,7 @@ function googleAuthorizationUrl(value){
       ||url.pathname!=='/o/oauth2/v2/auth'||url.hash||pairs.length!==FIELDS.size
       ||new Set(pairs.map(([key])=>key)).size!==FIELDS.size||pairs.some(([key])=>!FIELDS.has(key)))return null;
     if(!/^[A-Za-z0-9_-]{1,220}\.apps\.googleusercontent\.com$/.test(query.client_id)
-      ||query.response_type!=='code'||query.scope!==SCOPE||query.access_type!=='offline'||query.prompt!=='consent'
+      ||query.response_type!=='code'||!exactScopes(query.scope,[SCOPE],METADATA_SCOPE)||query.access_type!=='offline'||query.prompt!=='consent'
       ||query.code_challenge_method!=='S256'||!/^[A-Za-z0-9_-]{43}$/.test(query.code_challenge)
       ||!/^[A-Za-z0-9_-]{32,128}$/.test(query.state))return null;
     const callback=/^http:\/\/127\.0\.0\.1:([1-9][0-9]{3,4})\/callback$/.exec(query.redirect_uri);

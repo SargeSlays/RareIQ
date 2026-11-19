@@ -1084,3 +1084,32 @@ the backend was reused, so this does not prove a new backend token reload/refres
 The dedicated Google project was created; YouTube API enablement was requested
 but not yet independently confirmed. Google OAuth client/consent remains pending.
 No billing, public app publication or stream was initiated by those setup steps.
+
+## November 19, 2026 — Direct platform stream information
+
+Implemented direct metadata controls in Broadcast setup: saved shared/destination
+drafts, official category selection, connected-account binding, editing-permission
+handoff, explicit Apply confirmation and per-platform readback. Twitch supports
+title/category/tags; Kick supports title/category/custom tags; YouTube supports
+title/description/category/tags for an explicitly selected existing owned broadcast.
+YouTube writes preserve unrelated snippet fields and require a fresh ETag. No
+broadcast creation, stream start, recording, scheduling or privacy change is implied.
+
+Saved read grants stay valid. Separate opt-in metadata consent requests only the
+documented editing scopes; declined/missing scopes retain the prior connection.
+Native and HTTP commands retain producer-only controls, saved revision checks,
+account/generation guards, metadata-only history and an independent Stop path.
+An unconfirmed write is reconciled by readback on exact retry, without blindly
+repeating the write. Production receipt fingerprints/states persist atomically
+outside source and survive backend restart; recovery files contain no provider
+metadata, channel identities or credentials. Corrupt/unwritable recovery storage
+blocks writes while account inspection remains available.
+
+Mutation verification is local/synthetic. Actual read-only Twitch/Kick checks
+and metadata inspection passed after a controlled restart; saved grants correctly
+report editing unavailable pending new consent.
+Real Twitch/Kick editing consent and actual platform metadata changes remain
+pending. Kick's existing app edit form has Update channel information selected
+but Save is awaiting explicit approval. Google YouTube Data API enablement is
+confirmed in the dedicated Producer Please project; consent/client setup remains
+in progress. No new provider grant or public metadata write is claimed here.
