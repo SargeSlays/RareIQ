@@ -64,6 +64,7 @@ app.whenReady().then(async()=>{
   });
   const {DestinationStore}=require('./destinations.cjs');destinations=new DestinationStore({directory:profile,cipher:require('electron').safeStorage});
   const {OutputProfileStore}=require('./output-profiles.cjs');outputProfiles=new OutputProfileStore({directory:profile});
+  const profileActions=require('./profile-actions.cjs').createProfileActions({store:outputProfiles,append:entry=>fs.appendFileSync(path.join(profile,'activity.jsonl'),JSON.stringify(entry)+'\n',{mode:0o600})});
   studio=new BrowserWindow(windowOptions({webPreferences:{partition:'persist:producer-studio',preload:path.join(__dirname,'preload.cjs')}}));secureWindow(studio,origin);
   const {createCapturePicker}=require('./capture-picker.cjs');capturePicker=createCapturePicker({BrowserWindow,ipcMain,desktopCapturer,studio,origin});partition.setDisplayMediaRequestHandler(capturePicker.handler);
   studio.on('close',event=>{if(backend&&!quit?.finished){event.preventDefault();app.quit();}});
@@ -102,9 +103,9 @@ app.whenReady().then(async()=>{
   ipcMain.handle('producer:destinations:save',(event,value)=>changeDestination(event,()=>destinations.save(value)));
   ipcMain.handle('producer:destinations:remove',(event,id)=>changeDestination(event,()=>destinations.remove(id)));
   ipcMain.handle('producer:profiles:list',event=>{if(!settingsEvent(event))throw Error('Untrusted request');return outputProfiles.public();});
-  ipcMain.handle('producer:profiles:save',(event,value)=>changeDestination(event,()=>outputProfiles.save(value)));
-  ipcMain.handle('producer:profiles:remove',(event,id)=>changeDestination(event,()=>outputProfiles.remove(id)));
-  ipcMain.handle('producer:profiles:select',(event,id)=>changeDestination(event,()=>outputProfiles.select(id)));
+  ipcMain.handle('producer:profiles:save',(event,value)=>changeDestination(event,()=>profileActions.save(value)));
+  ipcMain.handle('producer:profiles:remove',(event,id)=>changeDestination(event,()=>profileActions.remove(id)));
+  ipcMain.handle('producer:profiles:select',(event,id)=>changeDestination(event,()=>profileActions.select(id)));
   ipcMain.handle('producer:broadcast:stop-target',async(event,id)=>{if(!settingsEvent(event))throw Error('Untrusted request');await broadcast.stopTarget(id);return publicBroadcast();});
   ipcMain.handle('producer:broadcast:prepare',async(event,value)=>{if(!settingsEvent(event))throw Error('Untrusted request');await broadcast.prepare(value);return publicBroadcast();});
   ipcMain.handle('producer:broadcast:start',async(event,value)=>{if(!settingsEvent(event))throw Error('Untrusted request');if(destinationMutation)throw Error('destination_change_pending');await broadcast.start(value);return publicBroadcast();});

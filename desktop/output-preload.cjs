@@ -8,6 +8,7 @@ if (process.isMainFrame) {
     constructor() {
       super(); this.enabled = false; this.credit = 0; this.offset = 0;
       this.samples = new Float32Array(960); this.vodSamples = new Float32Array(960); this.queue = []; this.dropped = 0;
+      this.meterFrames=0;this.meterPeaks=[0,0];this.meterSums=[0,0];this.meterClips=[0,0];
       this.port.onmessage = event => {
         const data = event.data;
         if (data.type === 'start') {
@@ -28,17 +29,24 @@ if (process.isMainFrame) {
     }
     process(inputs, outputs) {
       for (const output of outputs) for (const channel of output) channel.fill(0);
-      if (!this.enabled) return true;
       const input = inputs[0] || [], vodInput = inputs[1] || [], count = outputs[0]?.[0]?.length || 128;
       for (let i = 0; i < count; i++) {
-        if (this.offset === 0) this.first = currentFrame + i;
+        if (this.enabled&&this.offset === 0) this.first = currentFrame + i;
         for (let c = 0; c < 2; c++) {
-          const value = input[c]?.[i] ?? input[0]?.[i] ?? 0;
-          this.samples[this.offset * 2 + c] = Number.isFinite(value) ? Math.max(-1, Math.min(1, value)) : 0;
-          const vodValue = vodInput[c]?.[i] ?? vodInput[0]?.[i] ?? 0;
-          this.vodSamples[this.offset * 2 + c] = Number.isFinite(vodValue) ? Math.max(-1, Math.min(1, vodValue)) : 0;
+          for(let bus=0;bus<2;bus++){
+            const channels=bus===0?input:vodInput,raw=channels[c]?.[i]??channels[0]?.[i]??0;
+            const value=Number.isFinite(raw)?Math.max(-1,Math.min(1,raw)):0;
+            this.meterPeaks[bus]=Math.max(this.meterPeaks[bus],Math.abs(value));this.meterSums[bus]+=value*value;
+            if(Number.isFinite(raw)&&Math.abs(raw)>1)this.meterClips[bus]++;
+            if(this.enabled)(bus===0?this.samples:this.vodSamples)[this.offset*2+c]=value;
+          }
         }
-        if (++this.offset === 480) {
+        if(++this.meterFrames===4800){
+          const level=bus=>({peak:this.meterPeaks[bus],rms:Math.sqrt(this.meterSums[bus]/9600),clipCount:this.meterClips[bus]});
+          this.port.postMessage({type:'meters',frame:currentFrame+i,meters:{live:level(0),vod:level(1)}});
+          this.meterFrames=0;this.meterPeaks=[0,0];this.meterSums=[0,0];this.meterClips=[0,0];
+        }
+        if (this.enabled&&++this.offset === 480) {
           // At most 40 ms queued behind one in-flight IPC packet.
           if (this.queue.length === 4) { this.queue.shift(); this.dropped++; }
           this.queue.push({ frame: this.first, pcm: this.samples.buffer, vodPcm: this.vodSamples.buffer });
@@ -51,6 +59,7 @@ if (process.isMainFrame) {
   registerProcessor('public-output-tap', PublicOutputTap);`;
   const frames = [['iframe.program', '/program','program'], ['iframe.audio', '/output/soundboard','soundboard'], ['iframe.graphics', '/overlay/graphics','graphics'], ['iframe.audience', '/overlay/audience','audience']];
   let context, node, mixer, vodMixer, stopped = false, capture = null, poll, healthTimer, token = 0, audioRouting={};
+  let meterAt=null,latestMeters=null;const clipAt={live:null,vod:null};
   const entries = new Map(), documents = new Map();
   // Sandbox preloads cannot require application modules. Main validates saved
   // profiles with audio-routing.cjs; this private boundary validates IPC again.
@@ -75,17 +84,35 @@ if (process.isMainFrame) {
     if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length>128)throw Error('invalid_audio_routing');
     const next={};
     for(const [id,route] of Object.entries(value)){
-      if(!validSourceId(id)||!route||typeof route!=='object'||Array.isArray(route)||Object.keys(route).length!==2||typeof route.live!=='boolean'||typeof route.vod!=='boolean')throw Error('invalid_audio_routing');
+      if(!validSourceId(id)||!route||typeof route!=='object'||Array.isArray(route)||Object.keys(route).some(key=>!['live','vod','liveGainDb','vodGainDb'].includes(key))||typeof route.live!=='boolean'||typeof route.vod!=='boolean')throw Error('invalid_audio_routing');
       next[id]={live:route.live,vod:route.vod};
+      for(const key of ['liveGainDb','vodGainDb'])if(Object.hasOwn(route,key)){
+        if(typeof route[key]!=='number'||!Number.isFinite(route[key])||route[key]<-60||route[key]>12)throw Error('invalid_audio_routing');
+        if(route[key]!==0)next[id][key]=route[key];
+      }
     }
     audioRouting=next;for(const entry of entries.values())refresh(entry);
   }
   const validTop = () => location.origin === origin && location.pathname === '/output/studio' && window.top === window;
+  function audioMeters(error=false){
+    const now=performance.now(),available=!error&&!stopped&&context?.state==='running'&&meterAt!==null&&now-meterAt>=0&&now-meterAt<=750;
+    const level=bus=>available?{...latestMeters[bus],clipped:clipAt[bus]!==null&&now-clipAt[bus]>=0&&now-clipAt[bus]<=2000}:{peak:0,rms:0,clipCount:0,clipped:false};
+    return {available,live:level('live'),vod:level('vod')};
+  }
+  function updateMeters(value){
+    const valid=value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length===2&&['live','vod'].every(bus=>{
+      const level=value[bus];return level&&typeof level==='object'&&!Array.isArray(level)&&Object.keys(level).length===3&&Number.isFinite(level.peak)&&level.peak>=0&&level.peak<=1&&Number.isFinite(level.rms)&&level.rms>=0&&level.rms<=level.peak+1e-9&&Number.isSafeInteger(level.clipCount)&&level.clipCount>=0&&level.clipCount<=9600;
+    });
+    if(!valid){meterAt=latestMeters=null;clipAt.live=clipAt.vod=null;return;}
+    meterAt=performance.now();latestMeters={};
+    for(const bus of ['live','vod']){latestMeters[bus]={peak:value[bus].peak,rms:value[bus].rms,clipCount:value[bus].clipCount};if(value[bus].clipCount>0)clipAt[bus]=meterAt;}
+  }
   function sendHealth(error = false) {
     if (!validTop()) return;
     ipcRenderer.send(CHANNELS.health, { ready: Boolean(context && node && !stopped), contextState: context?.state || 'closed', sourceCount: [...entries.values()].filter(entry => entry.source).length,
       unavailableCount: [...entries.values()].filter(entry => entry.failed && !entry.element.paused && !entry.element.muted).length,
       sources:[...new Map([...entries.values()].map(entry=>[entry.descriptor.id,entry.descriptor])).values()].slice(0,64),
+      audioMeters:audioMeters(error),
       ...(error ? { error: true } : {}), ...(capture ? { captureId: capture.id, started: true } : {}) });
   }
   function detach(entry) {
@@ -98,7 +125,7 @@ if (process.isMainFrame) {
     const element = entry.element;
     entry.descriptor=describeSource(element,entry.group);
     const route=routingFor(entry.descriptor),volume=element.paused||element.ended||element.muted?0:Math.max(0,Math.min(1,Number.isFinite(element.volume)?element.volume:0));
-    entry.gain.gain.setValueAtTime(route.live?volume:0,context.currentTime);entry.vodGain.gain.setValueAtTime(route.vod?volume:0,context.currentTime);
+    entry.gain.gain.setValueAtTime(route.live?volume*10**((route.liveGainDb??0)/20):0,context.currentTime);entry.vodGain.gain.setValueAtTime(route.vod?volume*10**((route.vodGainDb??0)/20):0,context.currentTime);
     try {
       const source = element.srcObject || element.currentSrc;
       if (source !== entry.mediaIdentity) { entry.source?.disconnect(); entry.source = null; entry.track = null; entry.stream = null; entry.mediaIdentity = source; }
@@ -170,6 +197,7 @@ if (process.isMainFrame) {
       mixer.connect(node,0,0);vodMixer.connect(node,0,1);node.connect(context.destination);
       node.port.onmessage = event => {
         const current = capture, data = event.data;
+        if(data?.type==='meters'){updateMeters(data.meters);return;}
         if (!current || data?.captureId !== current.id || current.outstanding !== null || !(data?.pcm instanceof ArrayBuffer) || data.pcm.byteLength !== 3840 || !(data.vodPcm instanceof ArrayBuffer)||data.vodPcm.byteLength!==3840|| !Number.isInteger(data.frame)) return;
         const ptsUs = Math.max(0, Math.round(current.epochUs + (data.frame / 48000 - current.contextTime) * 1000000)), seq = current.seq++;
         current.outstanding = seq;

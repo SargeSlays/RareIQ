@@ -1637,3 +1637,30 @@ build 0.1.0-20261119045648134 is open with broadcast setup visible; Start-menu s
 target verified. The backend was reused, not restarted. Private HTTPS guest 200 and
 producer 404 were rechecked. No active show, recording, OBS stream or native encoding
 was present before the desktop-only update.
+
+
+## November 18, 2026 — Saved gain and meter acceptance
+
+- [x] Real Electron generated public audio: Live +6.0206 dB ratio 1.9979; unchanged
+  VOD ratio .99895. Prepared meters show Live RMS .13811→.27622 before capture.
+- [x] +12 dB clipping: Live peak 1/RMS .8805/clipCount 6288, VOD peak .4883/clips 0.
+  Program mute, source removal/restart and borrowed tracks remain guarded.
+- [x] Meter privacy/freshness: owned frame only, finite bounded scalars, two-second
+  clipping hold, 750 ms stale clearing, no raw media or identities in status.
+- [x] Old static v1 profile/receipt loads and replays unchanged; explicit ±0 gains
+  retain old canonical shape. Independent nonzero gains persist/reload.
+- [x] Ten dark/light Settings widths 390/860/1366/1920/3840: real pointers, reduced
+  motion, no overflow, 44 px buttons and gain focus preserved through status polling.
+- [x] Actual packaged save/reload of Live +6.0206/VOD -8.75, trusted IPC, and exactly
+  three metadata-only local history rows; Program/Preview unchanged, no HTTP writes.
+- [x] Canonical gate: 3,910 Python and 772 JavaScript tests passed.
+- [ ] Physical microphone/listener/echo, live platform receipt and Twitch archive.
+
+Evidence: F:/Temp/jonat/ProducerPlease-audio-levels-20261118 (settings-dom02,
+settings-native01, release-gate01.log) and F:/Temp/jonat/ProducerPlease-audio-gains-20261119/native01.
+No public stream, production recording, physical capture or audible monitor was started.
+
+Primary local-development build 0.1.0-20261119061254273 is open with Broadcast setup.
+The Start-menu shortcut targets that build. The existing guest backend was reused;
+no show, recording, OBS stream or native encoding was active before the update.
+The update changed neither firewall rules nor the saved private guest ingress.

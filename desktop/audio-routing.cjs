@@ -17,8 +17,13 @@ function normalizeAudioRouting(value={}){
   if(!plain(value)||Object.keys(value).length>128)fail();
   const entries=[];
   for(const [id,route] of Object.entries(value)){
-    if(!validSourceId(id)||!plain(route)||Object.keys(route).length!==2||typeof route.live!=='boolean'||typeof route.vod!=='boolean')fail();
-    entries.push([id,{live:route.live,vod:route.vod}]);
+    if(!validSourceId(id)||!plain(route)||Object.keys(route).some(key=>!['live','vod','liveGainDb','vodGainDb'].includes(key))||typeof route.live!=='boolean'||typeof route.vod!=='boolean')fail();
+    const normalized={live:route.live,vod:route.vod};
+    for(const key of ['liveGainDb','vodGainDb'])if(Object.hasOwn(route,key)){
+      if(typeof route[key]!=='number'||!Number.isFinite(route[key])||route[key]<-60||route[key]>12)fail();
+      if(route[key]!==0)normalized[key]=route[key];
+    }
+    entries.push([id,normalized]);
   }
   return Object.fromEntries(entries);
 }
@@ -26,7 +31,7 @@ function routeFor(source,routing={}){
   const id=typeof source==='string'?source:source?.id,category=categoryForSource(id);
   const valid=normalizeAudioRouting(routing),group=['voice','screen','video','program'].includes(category)?'program':category;
   const route=valid[id]??valid[category+':default']??valid[group+':default']??DEFAULT_AUDIO_ROUTING[category+':default'];
-  return {...route};
+  return {...route,liveGainDb:route.liveGainDb??0,vodGainDb:route.vodGainDb??0};
 }
 function normalizeSourceManifest(value){
   if(!Array.isArray(value)||value.length>64)fail();

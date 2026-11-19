@@ -1,4 +1,5 @@
 'use strict';
+const {cleanMeterStatus}=require('./audio-meters.cjs');
 const FORMATS=Object.freeze({hd:{width:1280,height:720},fullhd:{width:1920,height:1080},portrait:{width:720,height:1280}});
 const START_FIELDS=new Set(['destinationId','destinationIds','format','profileId']);
 const PUBLIC_ENCODER_FAILURE_CODES=Object.freeze([
@@ -36,7 +37,7 @@ class NativeBroadcast{
     return {phase:this.phase,active:this.active(),format:this.format,prepared,ownershipPending:this.ownsEncoding&&!encoder?.running,
       ready:prepared&&this.preflight?.ready===true&&!this.active()&&!this.preparing&&!this.ownsEncoding,
       reason:this.failure||(blocker?safeReason(blocker?.reason||blocker,'output_not_ready'):null),destinationId:this.selected,destinationIds:this.targets.map(t=>t.destinationId),profileId:this.outputProfile?.id||null,outputProfile:this.outputProfile,
-      audioSourcesAvailable:own?.audioSourcesAvailable||[],targets:this.targets.map(t=>({destinationId:t.destinationId,phase:t.phase,reason:t.reason,...safeStats(t.encoder?.status?.()||t.lastStats)})),
+      audioSourcesAvailable:own?.audioSourcesAvailable||[],audioMeters:cleanMeterStatus(own?.audioMeters),targets:this.targets.map(t=>({destinationId:t.destinationId,phase:t.phase,reason:t.reason,...safeStats(t.encoder?.status?.()||t.lastStats)})),
       ...(encoder?safeStats(encoder):this.lastStats),platformLiveVerified:false,vodPlatformVerified:false};
   }
   notify(){try{this.onState(this.status());}catch(_){} }

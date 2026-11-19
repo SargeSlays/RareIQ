@@ -949,3 +949,27 @@ outputs contain 300 identical decoded frames. Ten seconds fed in 10.009 seconds,
 with 14.83 ms maximum observed scheduling lag in this generated test. This is
 short local acceptance, not platform delivery or endurance. Twitch VOD remains
 experimental until actual live/archive acceptance.
+
+
+## November 18, 2026 — Saved source levels and mix diagnostics
+
+Native output profiles now support independent Live/VOD per-source or category
+gain from -60 to +12 dB, alongside the existing inclusion flags. Zero is unity;
+explicit positive/negative zero canonicalizes to absence, so old profile bytes and
+retry receipts remain valid. Exact-source entries override category routes as a
+whole; an omitted gain in that entry resolves to 0 rather than inheriting a category
+boost. Gain changes save with the profile and apply on Prepare output; profile
+edits remain locked while broadcasting. These are not live performance faders.
+
+The prepared public output reports separate post-clamp peak/RMS and pre-clamp
+clipping diagnostics for Live and VOD, without recording or audible monitoring.
+Clip indicators hold for 2 seconds; missing/malformed/stale diagnostics become
+unavailable with zero levels. Main accepts only bounded scalar diagnostics from
+the owned output frame; media buffers, source titles, devices and URLs never enter
+meter status. A valid meter does not establish stream readiness or platform receipt.
+
+Profile save/select/remove actions append local metadata-only history identifying
+Desktop operator with identityVerified:false. Source routes/names/levels and secrets
+are omitted. A history write failure warns separately after a successful persisted
+action; it does not falsely report that the save failed. Named remote accountability
+still depends on the separately planned producer sign-in integration.

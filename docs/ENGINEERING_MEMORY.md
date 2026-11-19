@@ -1128,3 +1128,22 @@ replacing per-destination video encoders with shared encoding.
 - A non-UTF8 bullet in Main survived permissive JavaScript parsing and could garble
   confirmation text. The source is now UTF8 and the packaging regression strictly
   decodes every desktop UI/launcher source before acceptance.
+
+
+## November 18, 2026 — Audio gain compatibility and meter boundaries
+
+- Adding default gain keys during normalization would invalidate v1 profile JSON
+  equality and old retry fingerprints. Preserve the old two-boolean shape and
+  omit explicit ±0 gains. Test a static pre-gain file/receipt, original replay and
+  zero-field equivalent without rewriting, plus nonzero save/reload.
+- Measure clipping before clamping PCM, and peak/RMS after clamping. Keep meter
+  calculation independent of capture credits so preparing can show levels without
+  starting an encoder. Hold clipping briefly so a 1-second status poll does not miss
+  a 100 ms sample window. Apply the saved routing at Prepare, not only at Start.
+- Main receipt freshness (750ms), finite scalar bounds, clip counter bounds and
+  an explicit owned-frame check keep stale or forged diagnostics out. Invalid
+  diagnostics clear meters rather than retaining a previous peak or stopping good
+  media. Do not merge diagnostics into the strict source descriptor schema.
+- Local activity append is separate from persisted profile mutation. Preserve the
+  successful receipt and return activity_history_warning if the append fails; never
+  encourage a duplicate mutation by labeling an already-saved change as failed.

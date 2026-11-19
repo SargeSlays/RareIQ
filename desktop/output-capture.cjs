@@ -1,6 +1,7 @@
 'use strict';
 const path = require('node:path');
 const {loadInitialOutput}=require('./startup.cjs');
+const {emptyMeters,cleanMeterHealth}=require('./audio-meters.cjs');
 const { randomUUID } = require('node:crypto');
 const {normalizeAudioRouting,normalizeSourceManifest}=require('./audio-routing.cjs');
 const CHANNELS = Object.freeze({ health: 'producer:output:health', pcm: 'producer:output:pcm', sync: 'producer:output:sync', control: 'producer:output:control', ack: 'producer:output:ack' });
@@ -15,13 +16,13 @@ function cleanSnapshot(value) {
   const readySources = Array.isArray(value.readySources) ? value.readySources.filter(s => typeof s === 'string' && /^(camera:[1-4]|guest:[a-f0-9]{32}:(camera|screen|audio)|(image|video|text|browser):[a-f0-9-]{36})$/.test(s)).slice(0, 6) : [];
   return { peerId: value.peerId, generation: value.generation, rendered: value.rendered, browserReviewOpen: value.browserReviewOpen, reviewOpen: value.browserReviewOpen, audioBlocked: value.audioBlocked, readySources };
 }
-function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirname, width = 1280, height = 720, fps = 30, audioRouting = {}, requireVod = false, partition = 'persist:producer-output', onError = () => {} } = {}) {
+function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirname, width = 1280, height = 720, fps = 30, audioRouting = {}, requireVod = false, clockUs = () => Number(process.hrtime.bigint() / 1000n), partition = 'persist:producer-output', onError = () => {} } = {}) {
   if (!BrowserWindow || !ipcMain || !SIZES.has(width + 'x' + height) || ![30,60].includes(fps) || !path.isAbsolute(baseDir)) throw Error('output_capture_configuration_invalid');
   audioRouting=normalizeAudioRouting(audioRouting);
   const trusted = new URL(origin); if (trusted.origin !== origin || !/^https?:$/.test(trusted.protocol)) throw Error('output_capture_origin_invalid');
   let window = null, windowClosing = false, preparing = null, closed = false, active = null, starting = false, captureVersion = 0, captureUi = null, latest = null, polling = null, snapshotPending = null;
-  let snapshot = null, snapshotAt = 0, audioAt = 0, audio = { ready: false, contextState: 'unavailable', sourceCount: 0, unavailableCount: 0 }, fault = null;
-  const now = () => Number(process.hrtime.bigint() / 1000n);
+  let snapshot = null, snapshotAt = 0, audioAt = 0, meterAt = 0, meters=emptyMeters(), audio = { ready: false, contextState: 'unavailable', sourceCount: 0, unavailableCount: 0 }, fault = null;
+  const now = clockUs;
   const allowed = value => { try { const u = new URL(value); return u.origin === origin && u.pathname === '/output/studio' && !u.username && !u.password; } catch (_) { return false; } };
   function owned(event) { try { return window && !window.isDestroyed() && event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame && allowed(event.senderFrame.url) && allowed(window.webContents.getURL()); } catch (_) { return false; } }
   function report(code) { fault = code; try { onError(code); } catch (_) {} }
@@ -38,7 +39,7 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
     const fresh = window && !window.isDestroyed() && snapshot && now() - snapshotAt < 2000000;
     return { prepared: Boolean(window && !window.isDestroyed() && audio.ready), capturing: Boolean(active), width, height, fps, pixelFormat: 'bgra', audioFormat: 'f32le', sampleRate: RATE, channels: 2,
       ...(fresh ? snapshot : { peerId: null, generation: null, rendered: false, browserReviewOpen: false, reviewOpen: false, audioBlocked: true, readySources: [] }),
-      audioReady: audio.ready && now() - audioAt < 2000000 && audio.contextState === 'running' && audio.unavailableCount === 0, audioSources: audio.sourceCount,audioSourcesAvailable:audio.sources||[],
+      audioReady: audio.ready && now() - audioAt < 2000000 && audio.contextState === 'running' && audio.unavailableCount === 0, audioSources: audio.sourceCount,audioSourcesAvailable:audio.sources||[],audioMeters:window&&!window.isDestroyed()&&audio.ready&&audio.contextState==='running'&&!fault&&now()-meterAt<750000?meters:emptyMeters(),
       locallyMuted: Boolean(window && !window.isDestroyed() && window.webContents.isAudioMuted()), error: fault,
       capturedFrames: active?.frames || 0, droppedFrames: active?.droppedVideo || 0, audioPackets: active?.audioPackets || 0, droppedAudioPackets: (active?.droppedAudio || 0) + (active?.workletDropped || 0) };
   }
@@ -69,7 +70,7 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
   async function prepare() {
     if (closed) throw Error('output_capture_closed');
     if (preparing) return preparing;
-    if (window && !window.isDestroyed()) { window.show(); return status(); }
+    if (window && !window.isDestroyed()) { window.webContents.send(CHANNELS.control,{type:'routing',audioRouting});window.show(); return status(); }
     preparing = (async () => {
       fault = null; audio.ready = false; windowClosing = false;
       window = new BrowserWindow({ width, height, useContentSize: true, resizable: false, maximizable: false, fullscreenable: false, show: true,
@@ -96,6 +97,7 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
       while (!audio.ready && !fault && now() < deadline && !target.isDestroyed()) await new Promise(resolve => setTimeout(resolve, 25));
       if (closed || target.isDestroyed() || target !== window) throw Error('output_capture_closed');
       if (!audio.ready) throw Error(fault || 'output_audio_not_prepared');
+      contents.send(CHANNELS.control,{type:'routing',audioRouting});
       await readSnapshot();
       polling = setInterval(() => { void readSnapshot(); }, 250); polling.unref?.();
       return status();
@@ -162,11 +164,12 @@ function createOutputCapture({ BrowserWindow, ipcMain, origin, baseDir = __dirna
   }
   const onHealth = (event, value) => {
     if (!owned(event) || !value || typeof value !== 'object') return;
-    if (value.error) { audio.ready = false; if (active) stopCapture(); report('output_audio_unavailable'); return; }
+    if (value.error) { meters=emptyMeters();meterAt=0;audio.ready = false; if (active) stopCapture(); report('output_audio_unavailable'); return; }
     if (typeof value.ready !== 'boolean' || !['running', 'suspended', 'closed'].includes(value.contextState)) return;
     audio = { ready: value.ready, contextState: value.contextState, sourceCount: Number.isInteger(value.sourceCount) ? Math.min(64, Math.max(0, value.sourceCount)) : 0,
       sources:Array.isArray(value.sources)?value.sources.slice(0,64).flatMap(item=>{try{return normalizeSourceManifest([item]);}catch(_){return [];}}):[],
       unavailableCount: Number.isInteger(value.unavailableCount) ? Math.min(64, Math.max(0, value.unavailableCount)) : 0 };
+    meters=cleanMeterHealth(value.audioMeters);meterAt=meters.fresh?now():0;
     audioAt = now();
     if (active && (!audio.ready || audio.contextState !== 'running' || audio.unavailableCount > 0)) { stopCapture(); report('output_audio_unavailable'); return; }
     if (active && value.captureId === active.id && value.started === true) active.audioStarted = true;

@@ -41,3 +41,12 @@ test('bounded library retains at least one profile and selects a safe replacemen
 test('malformed persisted profile data is reported safely and never silently overwritten',async t=>{
   const {directory,file}=await fixture(t),raw=JSON.stringify({version:99,profiles:[],privateDetail:'never exposed'});await fs.writeFile(file,raw,'utf8');const store=new OutputProfileStore({directory});await rejects(store.public(),'output_profile_storage_invalid');await rejects(store.save(payload()),'output_profile_storage_invalid');assert.equal(await fs.readFile(file,'utf8'),raw);
 });
+
+test('static pre-gain v1 profile and receipt load/replay unchanged, including canonical explicit zero gains',async t=>{
+  const f=await fixture(t),raw=await fs.readFile(path.join(__dirname,'fixtures/output-profiles-v1-gainless.json'),'utf8');await fs.writeFile(f.file,raw,'utf8');const state=await f.store.public();assert.equal(state.selectedProfileId,'11111111-1111-1111-1111-111111111111');assert.deepEqual(state.profiles[0].audioRouting,{'voice:default':{live:true,vod:true},'video:default':{live:true,vod:false}});
+  const oldPayload={requestId:'legacy-save',name:'Legacy show',format:'hd',fps:30,videoBitrateKbps:4000,codec:'auto',keyframeSeconds:2,audioBitrateKbps:192,twitchVod:false,audioRouting:{'voice:default':{live:true,vod:true},'video:default':{live:true,vod:false}}};const replay=await f.store.save(oldPayload);assert.equal(replay.replayed,true);assert.equal(replay.savedProfileId,state.selectedProfileId);const zeroReplay=await f.store.save({...oldPayload,audioRouting:{'voice:default':{live:true,vod:true,liveGainDb:0,vodGainDb:-0},'video:default':{live:true,vod:false}}});assert.equal(zeroReplay.replayed,true);assert.equal(await fs.readFile(f.file,'utf8'),raw);
+});
+
+test('nonzero independent Live/VOD gains persist and reload without changing inclusion flags',async t=>{
+  const f=await fixture(t),saved=await f.store.save(payload({audioRouting:{'voice:default':{live:true,vod:true,liveGainDb:6.0206,vodGainDb:-8.75}}})),profile=await new OutputProfileStore({directory:f.directory}).getProfile(saved.savedProfileId);assert.deepEqual(profile.audioRouting['voice:default'],{live:true,vod:true,liveGainDb:6.0206,vodGainDb:-8.75});
+});

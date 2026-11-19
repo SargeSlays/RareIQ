@@ -218,3 +218,8 @@ test('shared child ownership is retained even when every destination reports sto
   await f.app.stop();assert.equal([...g.targets.values()].every(t=>!t.running),true);assert.equal(f.app.active(),true);assert.equal(f.app.status().reason,'encoder_stop_unconfirmed');assert.equal(f.app.ownsEncoding,true);assert.equal(f.calls.some(c=>c.body?.active===false),false);assert.equal(await f.app.close(),false);
   g.holdRunning=false;await f.app.stop();assert.equal(f.app.ownsEncoding,false);assert.equal(f.app.active(),false);
 });
+
+test('broadcast status exposes only fresh scalar Live/VOD diagnostics from the owned output',async()=>{
+  const f=fixture();await f.app.prepare();f.captureState={...healthy(),audioMeters:{fresh:true,live:{peak:.7,rms:.3,clipCount:0},vod:{peak:.2,rms:.1,clipCount:0}}};assert.equal(f.app.status().audioMeters.live.peak,.7);
+  f.captureState={...healthy(),audioMeters:{fresh:true,live:{peak:.7,rms:.3,clipCount:0},vod:{peak:.2,rms:.1,clipCount:0},privateBuffer:'never public'}};const status=f.app.status();assert.equal(status.audioMeters.fresh,false);assert.doesNotMatch(JSON.stringify(status),/privateBuffer|never public/);
+});

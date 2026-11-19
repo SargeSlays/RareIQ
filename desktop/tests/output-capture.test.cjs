@@ -38,7 +38,7 @@ function fixture(options = {}) {
   }
   const event = () => ({ sender: instance.webContents, senderFrame: instance.webContents.mainFrame });
   const health = extra => ipc.emit(CHANNELS.health, event(), { ready: true, contextState: 'running', sourceCount: 1, unavailableCount: 0, ...extra });
-  const capture = createOutputCapture({ BrowserWindow: Window, ipcMain: ipc, origin: ORIGIN, fps:options.fps??30,requireVod:options.requireVod??false,audioRouting:options.audioRouting||{},width: options.width || 1280, height: options.height || 720, onError: code => errors.push(code) });
+  const capture = createOutputCapture({ BrowserWindow: Window, ipcMain: ipc, origin: ORIGIN, clockUs:options.clockUs,fps:options.fps??30,requireVod:options.requireVod??false,audioRouting:options.audioRouting||{},width: options.width || 1280, height: options.height || 720, onError: code => errors.push(code) });
   return { capture, ipc, errors, sent, event, health, get window() { return instance; },
     packet(extra = {}) { return { captureId: sent.filter(s => s.channel === CHANNELS.control && s.value.type === 'start').at(-1).value.captureId, seq: 0, ptsUs: 100, pcm: new Uint8Array(3840), ...extra }; },
     async pcm(value, from = event()) { await ipc.listeners(CHANNELS.pcm)[0](from, value); },
@@ -212,4 +212,16 @@ test('audio source catalog is bounded, classified and never accepts arbitrary la
 
 test('output preparation follows trusted DOM readiness while an MJPEG load never finishes',async t=>{
   const f=fixture({loadWait:new Promise(()=>{})});t.after(()=>f.capture.close());await f.capture.prepare();assert.equal(f.capture.status().prepared,true);
+});
+
+test('prepared output applies saved routing without starting capture or broadcasting',async t=>{
+  const routes={'voice:default':{live:false,vod:true}},f=fixture({audioRouting:routes});t.after(()=>f.capture.close());await f.capture.prepare();
+  const control=f.sent.find(s=>s.channel===CHANNELS.control&&s.value.type==='routing');assert.deepEqual(control.value.audioRouting,routes);assert.equal(f.capture.status().capturing,false);
+});
+test('meter values expire independently from output readiness and reject untrusted frames',async t=>{
+  let clock=1000;const f=fixture({clockUs:()=>clock});t.after(()=>f.capture.close());await f.capture.prepare();
+  const value={available:true,live:{peak:.7,rms:.4,clipCount:0,clipped:false},vod:{peak:.2,rms:.1,clipCount:0,clipped:false}};f.health({audioMeters:value});assert.equal(f.capture.status().audioMeters.fresh,true);
+  f.ipc.emit(CHANNELS.health,{sender:f.window.webContents,senderFrame:{url:'http://private.invalid'}},{ready:true,contextState:'running',audioMeters:{...value,live:{peak:1,rms:1,clipCount:9600}}});assert.equal(f.capture.status().audioMeters.live.peak,.7);
+  clock+=750001;assert.equal(f.capture.status().audioMeters.fresh,false);assert.equal(f.capture.status().audioMeters.live.peak,0);assert.equal(f.capture.status().audioReady,true);
+  f.health({audioMeters:value});assert.equal(f.capture.status().audioMeters.fresh,true);f.health({audioMeters:{...value,pcm:new Uint8Array(8)}});assert.equal(f.capture.status().audioMeters.fresh,false);assert.equal(f.capture.status().audioReady,true);
 });

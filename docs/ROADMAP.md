@@ -939,3 +939,17 @@ reduces the operational video encoder count from 8 to 1; no 8x throughput claim 
 Remaining: actual platform/live/Twitch archive acceptance, longer secure-network
 and hardware endurance, separate guest soundboard stems, RTMP-only transports and
 broader OBS/Streamlabs output parity.
+
+
+## November 18, 2026 — Audio level controls checkpoint
+
+Completed locally: independent saved Live/VOD gain, 0 dB reset, fresh prepared-mix
+meters and clipping indicators, old profile/receipt compatibility and local
+metadata-only profile activity. The real Electron generated-tone test doubled
+Live at +6.0206 dB while VOD remained unchanged. Boosted clipping, Program mute,
+source changes and borrowed-track ownership passed.
+
+Remaining: live session faders/monitoring separate from immutable output profiles,
+independent guest soundboard stems, physical listening/echo and platform live/VOD
+acceptance. Current level edits require Save and Prepare before starting; they
+do not change an active broadcast profile.

@@ -5,12 +5,12 @@ const prepared={phase:'prepared',active:false,ready:true,prepared:true,format:'h
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 const settle=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
 class Element{
-  constructor(){this.listeners=new Map();this.children=[];this.dataset={};this.value='';this.textContent='';this.hidden=false;this.disabled=false;}
+  constructor(){this.listeners=new Map();this.children=[];this.dataset={};this.attributes={};this.style={};this.value='';this.textContent='';this.hidden=false;this.disabled=false;}
   addEventListener(name,fn){this.listeners.set(name,fn);}
   fire(name='click'){return this.listeners.get(name)?.({preventDefault(){}});}
   append(...items){this.children.push(...items);}
   replaceChildren(...items){this.children=items;}
-  setAttribute(){}
+  setAttribute(name,value){this.attributes[name]=value;}
   focus(){this.focused=true;}
   scrollIntoView(){this.scrolled=true;}
 }
@@ -153,6 +153,12 @@ test('profile save retry preserves the exact receipt and draft after an uncertai
   const f=await fixture({profiles:true}),attempts=[],save=f.api.saveOutputProfile;f.api.saveOutputProfile=async value=>{attempts.push(value);if(attempts.length===1)throw Error('private filesystem detail');return save(value);};f.node('#outputProfileName').value='My saved show';f.node('#profileFps').value='60';f.node('#profileTwitchVod').checked=true;f.node('#outputProfileName').fire('input');await f.node('#outputProfileForm').fire('submit');assert.equal(f.node('#outputProfileName').value,'My saved show');assert.match(f.node('#outputProfileStatus').textContent,/draft is kept/);assert.doesNotMatch(f.node('#outputProfileStatus').textContent,/private/);await f.node('#outputProfileForm').fire('submit');assert.deepEqual(attempts[0],attempts[1]);assert.equal(attempts[0].fps,60);assert.equal(attempts[0].twitchVod,true);assert.equal('streamKey' in attempts[0],false);
 });
 
+test('completed profile actions preserve their receipt and show a durable activity-history warning',async()=>{
+  const f=await fixture({profiles:true});for(const action of ['saveOutputProfile','selectOutputProfile','removeOutputProfile']){const original=f.api[action];f.api[action]=async value=>({...await original(value),activity_history_warning:true});}
+  f.node('#outputProfileName').value='Saved despite history warning';f.node('#outputProfileName').fire('input');await f.node('#outputProfileForm').fire('submit');assert.equal(f.profiles.profiles[0].name,'Saved despite history warning');assert.equal(f.node('#saveOutputProfile').disabled,true);assert.match(f.node('#outputProfileStatus').textContent,/profile saved, but local activity history could not be written/);await f.poll();assert.match(f.node('#outputProfileStatus').textContent,/history could not be written/);assert.doesNotMatch(f.node('#outputProfileStatus').textContent,/could not be confirmed|retry/i);
+  f.node('#outputProfileSelect').value='portrait-hd';await f.node('#outputProfileSelect').fire('change');assert.equal(f.profiles.selectedProfileId,'portrait-hd');assert.match(f.node('#outputProfileStatus').textContent,/profile selected, but local activity history could not be written/);await f.node('#removeOutputProfile').fire();assert.equal(f.profiles.profiles.some(profile=>profile.id==='portrait-hd'),false);assert.match(f.node('#outputProfileStatus').textContent,/profile removed, but local activity history could not be written/);assert.equal(f.calls.profileSave,1);assert.equal(f.calls.start,0);
+});
+
 test('profile selection and save-as-new preserve existing profile identity and prevent accidental transmission',async()=>{
   const f=await fixture({profiles:true});f.node('#outputProfileSelect').value='portrait-hd';await f.node('#outputProfileSelect').fire('change');assert.equal(f.node('#profileFormat').value,'portrait');assert.equal(f.node('#outputFormat').value,'portrait');assert.equal(f.start.disabled,true);f.node('#outputProfileName').value='Portrait show';await f.node('#saveOutputProfileAsNew').fire();assert.equal(f.profiles.profiles.length,4);assert.equal(f.profiles.profiles.find(item=>item.id==='portrait-hd').name,'Portrait HD');assert.equal(f.profiles.selectedProfileId,'new-profile');assert.equal(f.calls.start,0);
 });
@@ -177,4 +183,24 @@ test('Settings exposes every platform class with manual secure ingest guidance a
 
 test('saved-profile hints preserve a runtime-unavailable blocker and keep Prepare disabled',async()=>{
   const f=await fixture({profiles:true});f.state={...prepared,phase:'idle',available:false,prepared:false,ready:false,profileId:null,outputProfile:null};await f.poll();assert.match(f.node('#broadcastSummary').textContent,/managed desktop runtime/);assert.doesNotMatch(f.node('#broadcastSummary').textContent,/Output profile changed/);assert.equal(f.node('#prepareOutput').disabled,true);
+});
+
+test('independent gain edits preserve controls while polling and require saving/repreparing',async()=>{
+  const f=await fixture({profiles:true}),inputs=()=>f.descendants(f.node('#profileAudioRouting')),gain=bus=>inputs().find(element=>element.dataset.audioRouteSource==='voice:default'&&element.dataset.audioRouteGain===bus),live=gain('live'),vod=gain('vod');live.value='6.0206';live.fire('input');vod.value='-8.75';vod.fire('input');await f.poll();assert.equal(gain('live'),live);assert.equal(gain('vod'),vod);assert.equal(gain('live').value,'6.0206');assert.match(f.node('#liveAudioMeterText').textContent,/Save and prepare/);assert.equal(f.calls.prepare,0);assert.equal(f.calls.start,0);await f.node('#outputProfileForm').fire('submit');assert.deepEqual({...f.profiles.profiles[0].audioRouting['voice:default']},{live:true,vod:true,liveGainDb:6.0206,vodGainDb:-8.75});assert.equal(f.start.disabled,true);
+});
+
+test('unity reset removes gain keys and untouched profile saves never insert zero gain fields',async()=>{
+  const f=await fixture({profiles:true}),all=()=>f.descendants(f.node('#profileAudioRouting')),live=all().find(element=>element.dataset.audioRouteSource==='soundboard:default'&&element.dataset.audioRouteGain==='live');live.value='-12';live.fire('input');const reset=all().find(element=>element.dataset.audioRouteReset==='soundboard:default'&&element.dataset.audioRouteResetBus==='live');reset.fire();await f.node('#outputProfileForm').fire('submit');assert.equal('liveGainDb' in f.profiles.profiles[0].audioRouting['soundboard:default'],false);const fresh=await fixture({profiles:true});await fresh.node('#saveOutputProfileAsNew').fire();assert.ok(Object.values(fresh.profiles.profiles.at(-1).audioRouting).every(route=>!('liveGainDb' in route)&&!('vodGainDb' in route)));
+});
+
+test('invalid or unfinished gain drafts cannot save a stale valid profile accidentally',async()=>{
+  const f=await fixture({profiles:true}),gain=f.descendants(f.node('#profileAudioRouting')).find(element=>element.dataset.audioRouteSource==='voice:default'&&element.dataset.audioRouteGain==='live');for(const value of ['','-61','13','Infinity']){gain.value=value;gain.fire('input');await f.node('#outputProfileForm').fire('submit');assert.equal(f.calls.profileSave,0);assert.match(f.node('#outputProfileStatus').textContent,/from -60 to \+12 dB/);}gain.value='-60';gain.fire('input');await f.node('#outputProfileForm').fire('submit');assert.equal(f.calls.profileSave,1);
+});
+
+test('master meter states distinguish preparation, fresh silence, clipping and stale/invalid data',async()=>{
+  const f=await fixture({profiles:true}),base={...f.state},silent={peak:0,rms:0,clipCount:0,clipped:false};f.state={...base,prepared:false};await f.poll();assert.match(f.node('#liveAudioMeterText').textContent,/Prepare output/);f.state={...base,audioMeters:{fresh:true,live:silent,vod:silent}};await f.poll();assert.equal(f.node('#liveAudioMeterText').textContent,'No signal.');f.state={...base,audioMeters:{fresh:true,live:{peak:1,rms:.8,clipCount:1,clipped:true},vod:{peak:.5,rms:.25,clipCount:0,clipped:false}}};await f.poll();assert.equal(f.node('#liveAudioMeter').dataset.levelState,'clipped');assert.match(f.node('#vodAudioMeterText').textContent,/Peak -6.0 dBFS/);assert.equal(f.node('#vodAudioMeter').attributes['aria-valuenow'],String(20*Math.log10(.5)));f.state={...base,audioMeters:{fresh:true,live:{peak:.2,rms:.1,clipped:false},vod:silent}};await f.poll();assert.equal(f.node('#liveAudioMeter').dataset.levelState,'active');assert.doesNotMatch(f.node('#liveAudioMeterText').textContent,/Clipping/);f.state={...base,audioMeters:{fresh:false,live:{peak:1,rms:1},vod:silent}};await f.poll();assert.equal(f.node('#liveAudioMeterBar').style.width,'0%');assert.match(f.node('#liveAudioMeterText').textContent,/unavailable/);f.state={...base,audioMeters:{fresh:true,live:{peak:Infinity,rms:0},vod:silent}};await f.poll();assert.equal(f.node('#liveAudioMeter').dataset.levelState,'unavailable');assert.doesNotMatch(f.node('#liveAudioMeterText').textContent,/Infinity|NaN/);
+});
+
+test('fresh levels are hidden for unapplied profile drafts and live-session gain inputs remain locked',async()=>{
+  const f=await fixture({profiles:true}),base={...f.state,audioMeters:{fresh:true,live:{peak:.5,rms:.2,clipped:false},vod:{peak:.25,rms:.1,clipped:false}}};f.state=base;await f.poll();assert.match(f.node('#audioMeterProfile').textContent,/Prepared saved profile: HD balanced/);const gain=f.descendants(f.node('#profileAudioRouting')).find(element=>element.dataset.audioRouteSource==='voice:default'&&element.dataset.audioRouteGain==='vod');gain.value='-6';gain.fire('input');assert.equal(f.node('#vodAudioMeter').dataset.levelState,'unavailable');assert.match(f.node('#audioMeterProfile').textContent,/Save this profile and prepare/);f.state={...base,phase:'sending',active:true,ready:false};await f.poll();assert.equal(gain.disabled,true);assert.equal(f.calls.prepare,0);
 });
