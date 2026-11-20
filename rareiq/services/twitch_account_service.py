@@ -44,7 +44,7 @@ class TwitchAccountService:
         "authorization_rejected", "account_identity_mismatch", "chat_scope_required",
         "account_storage_unavailable", "authorization_required", "authorization_expired",
         "authorization_denied", "authorization_refresh_required", "account_state_changed",
-        "streaming_scope_required", "metadata_scope_required", "account_disconnected",
+        "streaming_scope_required", "metadata_scope_required", "account_disconnected", "chat_send_permission_required",
     })
     _STREAM_INFO_FAILURES = frozenset({
         "app_setup_required", "provider_unavailable", "invalid_provider_response",
@@ -155,6 +155,7 @@ class TwitchAccountService:
                             or reason or ("account_authorized" if authorized else "authorization_required"),
                   "authorized": authorized, "streaming_authorized": bool(authorized and self.STREAM_SCOPE in stored["scopes"]),
                   "metadata_authorized": bool(authorized and self.METADATA_SCOPE in stored["scopes"]),
+                  "chat_reply_authorized": bool(authorized and self.CHAT_REPLY_SCOPE in stored["scopes"]),
                   "app_configured": configured_id is not None}
         if authorized:
             # Public account metadata describes stored authorization, not a live chat socket.
@@ -235,6 +236,8 @@ class TwitchAccountService:
                 or any(not isinstance(scope, str) or len(scope) > 160 for scope in scopes)):
             raise _AccountError("chat_scope_required")
         if required_scopes and not set(required_scopes).issubset(scopes):
+            if self.CHAT_REPLY_SCOPE in required_scopes and self.CHAT_REPLY_SCOPE not in scopes:
+                raise _AccountError("chat_send_permission_required")
             raise _AccountError("metadata_scope_required" if self.METADATA_SCOPE in required_scopes
                                 and self.METADATA_SCOPE not in scopes else "streaming_scope_required")
         valid_expires = self._number(value.get("expires_in"), 60, 31536000)
@@ -293,7 +296,10 @@ class TwitchAccountService:
     async def begin_metadata(self):
         return await self._begin(streaming=False, metadata=True)
 
-    async def _begin(self, *, streaming, metadata=False):
+    async def begin_replies(self):
+        return await self._begin(streaming=False, replies=True)
+
+    async def _begin(self, *, streaming, metadata=False, replies=False):
         if self._closed:
             return self.status()
         # Reserve this invocation's generation before waiting for old cleanup;
@@ -314,6 +320,9 @@ class TwitchAccountService:
             if metadata or (self._valid_record(stored_before, allow_expired=True)
                             and self.METADATA_SCOPE in stored_before["scopes"]):
                 scopes.append(self.METADATA_SCOPE)
+            if replies or (self._valid_record(stored_before, allow_expired=True)
+                           and self.CHAT_REPLY_SCOPE in stored_before["scopes"]):
+                scopes.append(self.CHAT_REPLY_SCOPE)
             code, value = await self._request("POST", self.DEVICE_URL,
                                               data={"client_id": client_id, "scopes": " ".join(scopes)})
             if not self._current(generation):
@@ -330,8 +339,8 @@ class TwitchAccountService:
                              "device_code": device_code, "client_id": client_id,
                              "user_code": user_code.upper(), "expires_at": self._clock() + expires,
                              "interval": interval, "stored_before": stored_before, "scopes": scopes,
-                             "authorization_kind": "metadata" if metadata else "streaming" if streaming else "chat",
-                             "expected_channel": stored_before["channel_id"] if (streaming or metadata)
+                             "authorization_kind": "replies" if replies else "metadata" if metadata else "streaming" if streaming else "chat",
+                             "expected_channel": stored_before["channel_id"] if (streaming or metadata or replies)
                                  and self._valid_record(stored_before, allow_expired=True) else None}
             self._task = asyncio.create_task(self._poll(generation), name="twitch-account-authorization")
         except asyncio.CancelledError:

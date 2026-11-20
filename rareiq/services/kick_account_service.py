@@ -95,13 +95,13 @@ class KickAccountService(YouTubeAccountService):
                 config = self._configuration(stored)
                 if (self._closed or config is None or self._mismatch(config, stored)
                         or not self._valid_record(stored) or self._access_ref(stored) == self._rejected_access):
-                    result.update(authorized=False, metadata_authorized=False,
+                    result.update(authorized=False, metadata_authorized=False, chat_reply_authorized=False,
                                   state="unavailable" if self._closed else "pending" if self._pending else "not_authorized")
                     result.pop("public_label", None)
                 else:
                     result.update(streaming_authorized=True, account_ref=self.account_ref(stored))
             except Exception:
-                result.update(authorized=False, metadata_authorized=False, state="unavailable", reason="account_storage_unavailable")
+                result.update(authorized=False, metadata_authorized=False, chat_reply_authorized=False, state="unavailable", reason="account_storage_unavailable")
         return result
 
     async def _request(self, method, url, **kwargs):
@@ -156,6 +156,8 @@ class KickAccountService(YouTubeAccountService):
         if len(scopes) > 32 or any(len(s) > 128 or any(not 33 <= ord(c) <= 126 for c in s) for s in scopes):
             raise _AccountError("invalid_provider_response")
         if required_scopes and not set(required_scopes).issubset(scopes):
+            if self.CHAT_REPLY_SCOPE in required_scopes and self.CHAT_REPLY_SCOPE not in scopes:
+                raise _AccountError("chat_send_permission_required")
             raise _AccountError("metadata_scope_required")
         deadline = auth.get("exp")
         if type(deadline) not in (int, float) or not math.isfinite(deadline) or deadline <= self._clock() + 30:
@@ -201,7 +203,7 @@ class KickAccountService(YouTubeAccountService):
     async def begin(self):
         return await self._begin(metadata=False)
 
-    async def _begin(self, *, metadata):
+    async def _begin(self, *, metadata, replies=False):
         if self._closed:
             return self.status()
         generation, previous = self._invalidate(None)
@@ -218,11 +220,14 @@ class KickAccountService(YouTubeAccountService):
             if metadata or (self._valid_record(stored, allow_expired=True)
                             and self.METADATA_SCOPE in stored["scopes"]):
                 scopes.append(self.METADATA_SCOPE)
+            if replies or (self._valid_record(stored, allow_expired=True)
+                           and self.CHAT_REPLY_SCOPE in stored["scopes"]):
+                scopes.append(self.CHAT_REPLY_SCOPE)
             verifier = secrets.token_urlsafe(64)
             challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
             pending = {"generation": generation, "flow_id": uuid.uuid4().hex, "config": config,
                        "stored_before": stored, "state": secrets.token_urlsafe(32), "verifier": verifier,
-                       "scopes": scopes, "authorization_kind": "metadata" if metadata else "chat",
+                       "scopes": scopes, "authorization_kind": "replies" if replies else "metadata" if metadata else "chat",
                        "expires_at": self._clock() + self.FLOW_LIFETIME_SECONDS, "claimed": False,
                        "server": None, "writers": {}, "tasks": set(), "expiry_task": None}
             try:

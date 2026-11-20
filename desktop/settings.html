@@ -112,9 +112,10 @@
 <section class="platform-account" id="twitchAccount" aria-labelledby="twitchAccountTitle">
   <div class="account-heading"><div><p class="eyebrow">CONNECTED ACCOUNTS</p><h2 id="twitchAccountTitle">Twitch</h2><strong id="twitchIdentity">Connect your channel</strong></div><span id="twitchBadge">Checking connection</span></div>
   <p>Sign in on Twitch and review the requested permissions. Stream info editing is optional. Your connection stays encrypted on this Windows account. Passwords stay with Twitch.</p>
+  <p id="twitchReplyPermission">Optional: Enable replies lets you review permission to post public chat messages. Sign-in never sends a message.</p>
   <p id="twitchStatus" role="status" aria-live="polite">Checking your Twitch connection…</p>
   <div id="twitchPending" class="account-pending" hidden><label for="twitchCode">Your Twitch sign-in code</label><output id="twitchCode" tabindex="0"></output><div class="actions"><button type="button" id="twitchCopy">Copy code</button><button type="button" id="twitchOpen" class="primary">Open Twitch sign-in</button></div><small>Enter this temporary code only on twitch.tv. Closing setup leaves the pending sign-in available until it expires.</small></div>
-  <div class="actions"><button type="button" id="twitchBegin" class="primary">Sign in with Twitch</button><button type="button" id="twitchLink" class="primary" hidden>Save Twitch destination</button><button type="button" id="twitchCheck">Check connection</button><button type="button" id="twitchCancel" hidden>Cancel sign-in</button><button type="button" id="twitchDisconnect" hidden>Disconnect</button></div>
+  <div class="actions"><button type="button" id="twitchBegin" class="primary">Sign in with Twitch</button><button type="button" id="twitchLink" class="primary" hidden>Save Twitch destination</button><button type="button" id="twitchEnableReplies">Enable replies</button><button type="button" id="twitchCheck">Check connection</button><button type="button" id="twitchCancel" hidden>Cancel sign-in</button><button type="button" id="twitchDisconnect" hidden>Disconnect</button></div>
   <small id="twitchLocked" hidden>Stop the broadcast or finish the current action before changing account connections.</small>
   <p class="account-other">More platform connections are below. Manual streaming destinations remain available.</p>
 </section>
@@ -122,10 +123,11 @@
 <section class="platform-account" id="youtubeAccount" aria-labelledby="youtubeAccountTitle">
   <div class="account-heading"><div><h2 id="youtubeAccountTitle">YouTube</h2><strong id="youtubeIdentity">Connect your channel</strong></div><span id="youtubeBadge">Checking connection</span></div>
   <p>Connect your YouTube channel and review permissions on Google. Enable optional editing from Stream info above. Your sign-in stays encrypted on this Windows account. Choose an existing YouTube broadcast below, or add a destination manually.</p>
+  <p id="youtubeReplyPermission">Optional: Enable replies lets you review permission to post public chat messages. Sign-in never sends a message.</p>
   <p id="youtubeStatus" role="status" aria-live="polite">Checking YouTube…</p>
   <details id="youtubeSetup"><summary>One-time app setup needed</summary><p>A Google Desktop app registration, YouTube Data API and consent setup are required before signing in.</p><button type="button" id="youtubeLoadSetup">Load app setup file</button><p>Choose the downloaded Google Desktop app client JSON file. This prepares sign-in; it does not connect your account.</p></details>
   <p id="youtubePending" hidden>Review the permissions on Google, then return here. Closing setup keeps this attempt available until it expires.</p>
-  <div class="actions"><button type="button" id="youtubeBegin" class="primary">Sign in with YouTube</button><button type="button" id="youtubeAuthorize" class="primary" hidden>Open YouTube sign-in</button><button type="button" id="youtubeCheck">Check connection</button><button type="button" id="youtubeCancel" hidden>Cancel sign-in</button><button type="button" id="youtubeDisconnect" hidden>Disconnect</button></div>
+  <div class="actions"><button type="button" id="youtubeBegin" class="primary">Sign in with YouTube</button><button type="button" id="youtubeAuthorize" class="primary" hidden>Open YouTube sign-in</button><button type="button" id="youtubeEnableReplies">Enable replies</button><button type="button" id="youtubeCheck">Check connection</button><button type="button" id="youtubeCancel" hidden>Cancel sign-in</button><button type="button" id="youtubeDisconnect" hidden>Disconnect</button></div>
   <small id="youtubeLocked" hidden>Stop broadcasting or finish the current action before changing account connections.</small>
   <section id="youtubeDestination" class="youtube-destination" aria-labelledby="youtubeDestinationTitle">
     <h3 id="youtubeDestinationTitle">Streaming destination</h3>
@@ -146,10 +148,11 @@
 <section class="platform-account" id="kickAccount" aria-labelledby="kickAccountTitle">
   <div class="account-heading"><div><h2 id="kickAccountTitle">Kick</h2><strong id="kickIdentity">Connect your channel</strong></div><span id="kickBadge">Checking connection</span></div>
   <p>Sign in with Kick and review streaming permissions. Save this channel as a destination, then prepare output and explicitly start when ready. Each Start checks Kick secure ingest; platform receipt remains unverified.</p>
+  <p id="kickReplyPermission">Optional: Enable replies lets you review permission to post public chat messages. Sign-in never sends a message.</p>
   <p id="kickStatus" role="status" aria-live="polite">Checking Kick…</p>
   <details id="kickSetup"><summary>One-time app setup needed</summary><p>A private Kick app registration is required with the local return address <code>http://localhost:8770/callback</code>.</p><button type="button" id="kickLoadSetup">Load app setup file</button><p>Choose the private Kick app setup JSON file. This prepares sign-in; it does not connect your account.</p></details>
   <p id="kickPending" hidden>Review the permissions on Kick, then return here. Closing setup keeps this attempt available until it expires.</p>
-  <div class="actions"><button type="button" id="kickBegin" class="primary">Sign in with Kick</button><button type="button" id="kickAuthorize" class="primary" hidden>Open Kick sign-in</button><button type="button" id="kickLink" hidden>Save Kick destination</button><button type="button" id="kickCheck">Check connection</button><button type="button" id="kickCancel" hidden>Cancel sign-in</button><button type="button" id="kickDisconnect" hidden>Disconnect</button></div>
+  <div class="actions"><button type="button" id="kickBegin" class="primary">Sign in with Kick</button><button type="button" id="kickAuthorize" class="primary" hidden>Open Kick sign-in</button><button type="button" id="kickLink" hidden>Save Kick destination</button><button type="button" id="kickEnableReplies">Enable replies</button><button type="button" id="kickCheck">Check connection</button><button type="button" id="kickCancel" hidden>Cancel sign-in</button><button type="button" id="kickDisconnect" hidden>Disconnect</button></div>
   <small id="kickLocked" hidden>Stop broadcasting or finish the current action before changing account connections.</small>
 </section>
 </div>

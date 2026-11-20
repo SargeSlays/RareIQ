@@ -1259,3 +1259,13 @@ specific write permission, verified owned channel/live chat and private credenti
 owner. Persistent hashed receipts track per-platform results without retaining
 message text/tokens and prevent ambiguous reposts after restart. Local UI and
 mocked-provider acceptance do not establish new grants or actual platform delivery.
+
+
+## November 19, 2026 — Explicit viewer-reply consent
+
+Viewer replies have a dedicated optional Enable replies path for Twitch, YouTube
+and Kick. It uses the existing protected account owner and provider review flow;
+normal sign-in does not silently widen permissions. Required send scopes and
+already approved known permissions are requested explicitly, and missing scopes,
+identity changes, cancellation or refusal preserve the previous saved connection.
+A public capability flag is separate from real chat readiness and message receipt.

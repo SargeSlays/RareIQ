@@ -25,7 +25,7 @@ provider_response_too_large provider_rate_limited authorization_rejected account
 chat_scope_required account_storage_unavailable authorization_required authorization_expired
 authorization_denied authorization_refresh_required account_authorized authorization_pending
 account_service_closed authorization_cancelled account_unavailable account_state_changed
-streaming_scope_required metadata_scope_required account_disconnected
+streaming_scope_required metadata_scope_required account_disconnected chat_send_permission_required
 """.split())
 _STORAGE = {"empty", "stored", "locked", "unavailable"}
 _FLAGS = ("stored", "has_client_id", "has_client_secret", "has_access_token", "has_refresh_token", "has_channel")
@@ -57,6 +57,7 @@ def _twitch_status(raw):
               "app_configured": raw.get("app_configured") is True}
     result["streaming_authorized"] = result["authorized"] and raw.get("streaming_authorized") is True
     result["metadata_authorized"] = result["authorized"] and raw.get("metadata_authorized") is True
+    result["chat_reply_authorized"] = result["authorized"] and raw.get("chat_reply_authorized") is True
     account_ref = raw.get("account_ref")
     if result["authorized"] and isinstance(account_ref, str) and re.fullmatch(r"[a-f0-9]{64}", account_ref):
         result["account_ref"] = account_ref
@@ -73,7 +74,7 @@ def _twitch_status(raw):
             return {"platform": "twitch", "state": "unavailable", "reason": "account_unavailable",
                     "authorized": False, "metadata_authorized": False, "app_configured": result["app_configured"]}
         result.update(user_code=code, flow_id=flow, verification_url=VERIFICATION_URL)
-        result["authorization_kind"] = raw.get("authorization_kind") if raw.get("authorization_kind") in {"streaming", "metadata"} else "chat"
+        result["authorization_kind"] = raw.get("authorization_kind") if raw.get("authorization_kind") in {"streaming", "metadata", "replies"} else "chat"
         if _number(raw.get("poll_after"), 60) and raw["poll_after"] >= 1:
             result["poll_after"] = raw["poll_after"]
     return result
@@ -89,6 +90,7 @@ def _youtube_status(raw):
               "authorized": state != "unavailable" and raw.get("authorized") is True,
               "app_configured": raw.get("app_configured") is True}
     result["metadata_authorized"] = result["authorized"] and raw.get("metadata_authorized") is True
+    result["chat_reply_authorized"] = result["authorized"] and raw.get("chat_reply_authorized") is True
     result["streaming_authorized"] = result["authorized"] and raw.get("streaming_authorized") is True
     account_ref = raw.get("account_ref")
     if result["authorized"] and isinstance(account_ref, str) and re.fullmatch(r"[a-f0-9]{64}", account_ref):
@@ -103,7 +105,7 @@ def _youtube_status(raw):
         if not isinstance(flow, str) or not re.fullmatch(r"[a-f0-9]{32}", flow) or not _number(raw.get("expires_at")):
             raise ValueError("invalid_account_flow")
         result["flow_id"] = flow
-        result["authorization_kind"] = "metadata" if raw.get("authorization_kind") == "metadata" else "chat"
+        result["authorization_kind"] = raw.get("authorization_kind") if raw.get("authorization_kind") in {"metadata", "replies"} else "chat"
     return result
 
 
@@ -164,7 +166,9 @@ def _kick_authorization_url(value):
             or not re.fullmatch(r"[A-Za-z0-9_-]{43}", query["code_challenge"])
             or len(query["scope"].split(" ")) != len(set(query["scope"].split(" ")))
             or set(query["scope"].split(" ")) not in ({"user:read", "channel:read", "streamkey:read"},
-                {"user:read", "channel:read", "streamkey:read", "channel:write"})):
+                {"user:read", "channel:read", "streamkey:read", "channel:write"},
+                {"user:read", "channel:read", "streamkey:read", "chat:write"},
+                {"user:read", "channel:read", "streamkey:read", "channel:write", "chat:write"})):
         raise ValueError("invalid_authorization_url")
     return value
 
@@ -320,6 +324,10 @@ def create_platform_accounts_router(twitch_service, authorize_operator, *, vault
     async def begin_metadata(request: Request):
         return await command(request, "begin_metadata")
 
+    @router.post("/api/production/accounts/twitch/replies/begin")
+    async def twitch_begin_replies(request: Request):
+        return await command(request, "begin_replies")
+
     @router.post("/api/production/accounts/twitch/disconnect")
     async def disconnect(request: Request):
         return await command(request, "disconnect")
@@ -335,6 +343,10 @@ def create_platform_accounts_router(twitch_service, authorize_operator, *, vault
     @router.post("/api/production/accounts/youtube/begin-metadata")
     async def youtube_begin_metadata(request: Request):
         return await command(request, "begin_metadata", "youtube")
+
+    @router.post("/api/production/accounts/youtube/replies/begin")
+    async def youtube_begin_replies(request: Request):
+        return await command(request, "begin_replies", "youtube")
 
     @router.post("/api/production/accounts/youtube/check")
     async def youtube_check(request: Request):
@@ -355,6 +367,10 @@ def create_platform_accounts_router(twitch_service, authorize_operator, *, vault
     @router.post("/api/production/accounts/kick/begin-metadata")
     async def kick_begin_metadata(request: Request):
         return await command(request, "begin_metadata", "kick")
+
+    @router.post("/api/production/accounts/kick/replies/begin")
+    async def kick_begin_replies(request: Request):
+        return await command(request, "begin_replies", "kick")
 
     @router.post("/api/production/accounts/kick/check")
     async def kick_check(request: Request):

@@ -5,7 +5,7 @@
   "scope": "Internal finite capability inventory for gameplay, podcast and general-production demo planning. Not a claim to enumerate every third-party extension or all product features.",
   "obsBaseline": "Official OBS Studio 33.0.1, released October 29; official release and download pages checked 2026-11-19.",
   "streamlabsBaseline": "Current official Desktop/product/support pages checked 2026-11-19; Desktop/free, Ultra, Ultra+ and separate services/apps distinguished. No Producer prices or entitlements inferred.",
-  "producerBaseline": "Current layer/browser evidence and frozen source gates are recorded separately from the prior accepted recording/screen checkpoint. Main 8765 and Standalone Preview 8767 are separate. No physical-device or platform-delivery acceptance is inferred.",
+  "producerBaseline": "Final consent candidate and prior accepted playback/groups checkpoint are distinguished. Main 8765 and Standalone Preview 8767 remain separate; main-profile promotion and physical/platform acceptance are not inferred.",
   "statusLegend": {
     "locally_verified": "Existing implementation with recorded local acceptance; only the explicitly recorded layer is established.",
     "implemented_partial": "Working code covers a narrower workflow; the row limitation is part of its status.",
@@ -34,13 +34,13 @@
     },
     {
       "workflow": "Podcast/interview",
-      "demo": "Invited guests, waiting-room/backstage chat, generated-media mix-minus and one-mix recording retain their recorded acceptance. Viewer message cards/platform icons and reply composer are separate from backstage conversation.",
+      "demo": "Invited guests, waiting-room/backstage chat, generated-media mix-minus and one-mix recording retain their recorded acceptance. Viewer message cards/platform icons and reply composer are separate from backstage conversation. Optional Enable replies account controls have separate packaged acceptance with mocked account HTTP.",
       "remaining": "Current provider grants and actual replies, physical listening/echo, isolated stems and StackThis producer identity remain separate."
     },
     {
       "workflow": "General production",
       "demo": "Images/video/text/browser sources, custom layer crop/opacity/rotation, flat group transforms, smart layouts and manual replay playout have the explicitly recorded local evidence.",
-      "remaining": "Anchors, flip, group/scene nesting, Program filter racks, dual native canvas, provider permissions, final combined build and current-phase Preview activation remain separate. Main-profile promotion is not claimed."
+      "remaining": "Anchors, flip, group/scene nesting, Program filter racks, dual native canvas, provider permissions remain separate. Main-profile promotion is not claimed."
     }
   ],
   "sources": {
@@ -1551,13 +1551,26 @@
         "tests/browser/platform_accounts.test.cjs",
         "docs/PRODUCT_DIRECTION.md",
         "desktop/broadcast.cjs",
-        "desktop/tests/broadcast.test.cjs"
+        "desktop/tests/broadcast.test.cjs",
+        "desktop/settings-accounts.js",
+        "desktop/settings.html",
+        "desktop/twitch-connection.cjs",
+        "desktop/provider-connection.cjs",
+        "desktop/account-authorization.cjs",
+        "rareiq/web/platform_accounts.py",
+        "tests/test_chat_reply_account_permissions.py",
+        "desktop/tests/reply-consent-ui.cjs",
+        "desktop/tests/bundled-reply-consent.cjs"
       ],
-      "limit": "Existing saved-account validation/private reads passed. This does not prove any media reached Twitch or Kick.",
+      "limit": "Prior saved-account validation/private reads retain their recorded acceptance. Dedicated Twitch/Kick Enable replies controls now passed actual packaged Main/IPC/Settings with account HTTP intercepted, preserving previous login/streaming access on Cancel or missing send grant. Normal sign-in does not silently upgrade permissions. No real new provider grant, reply or media delivery is established.",
       "priority": "P1",
       "officialURLs": [
         "https://obsproject.com/osx_update/notes_stable.html",
         "https://streamlabs.com/multistream"
+      ],
+      "acceptanceEvidence": [
+        "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/bundled02/results.json",
+        "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/ui01/results.json"
       ]
     },
     {
@@ -1572,13 +1585,26 @@
         "tests/browser/platform_accounts.test.cjs",
         "docs/PRODUCT_DIRECTION.md",
         "desktop/broadcast.cjs",
-        "desktop/tests/broadcast.test.cjs"
+        "desktop/tests/broadcast.test.cjs",
+        "desktop/settings-accounts.js",
+        "desktop/settings.html",
+        "desktop/twitch-connection.cjs",
+        "desktop/provider-connection.cjs",
+        "desktop/account-authorization.cjs",
+        "rareiq/web/platform_accounts.py",
+        "tests/test_chat_reply_account_permissions.py",
+        "desktop/tests/reply-consent-ui.cjs",
+        "desktop/tests/bundled-reply-consent.cjs"
       ],
-      "limit": "Owned/bound picker and persistence tested with simulated Google; real Desktop client/consent/setup remains pending.",
+      "limit": "Owned/bound picker and persistence retain simulated-Google acceptance. The explicit Enable replies path passed actual packaged Main/IPC/Settings with account HTTP intercepted and preserves prior saved access on refusal/cancel. Google uses the reviewed YouTube activity permission; real Desktop client/consent/setup and actual replies remain pending.",
       "priority": "P1",
       "officialURLs": [
         "https://obsproject.com/osx_update/notes_stable.html",
         "https://streamlabs.com/multistream"
+      ],
+      "acceptanceEvidence": [
+        "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/bundled02/results.json",
+        "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/ui01/results.json"
       ]
     },
     {
@@ -1678,9 +1704,18 @@
         "rareiq/web/viewer_chat_reply.py",
         "tests/test_viewer_chat_reply.py",
         "tests/browser/viewer_chat.test.cjs",
-        "tests/browser/viewer_chat.composer.ui.cjs"
+        "tests/browser/viewer_chat.composer.ui.cjs",
+        "desktop/settings-accounts.js",
+        "desktop/settings.html",
+        "desktop/twitch-connection.cjs",
+        "desktop/provider-connection.cjs",
+        "desktop/account-authorization.cjs",
+        "rareiq/web/platform_accounts.py",
+        "tests/test_chat_reply_account_permissions.py",
+        "desktop/tests/reply-consent-ui.cjs",
+        "desktop/tests/bundled-reply-consent.cjs"
       ],
-      "limit": "Combined incoming Twitch/YouTube/Kick transcript has platform icons, readable message cards and an explicit All ready chats or single-platform composer. Local UI/transport-mock contracts are distinct from actual provider ingestion and sending. Each reply target requires a connected verified channel/chat, its saved account and an approved send scope. Current read-only grants remain blocked; Kick event callback registration and provider setup still require their own acceptance.",
+      "limit": "Combined Twitch/YouTube/Kick transcript has platform icons, message cards and separate All ready chats or single-platform reply choices. Viewer chat now hands off to explicit Enable replies controls for each account. Those controls passed actual packaged Main/IPC/Settings with intercepted account HTTP only; they do not approve grants automatically. Each reply still needs an approved send scope, connected verified channel/live-chat and explicit Send. Real grants/ingestion/posts, Google setup and Kick event delivery registration remain separate.",
       "priority": "P1",
       "officialURLs": [
         "https://obsproject.com/kb/browser-source",
@@ -1688,7 +1723,9 @@
       ],
       "acceptanceEvidence": [
         "F:/Temp/jonat/ProducerPlease-viewer-chat-20261119/browser10/results.json",
-        "F:/Temp/jonat/ProducerPlease-viewer-chat-20261119/dock05/results.json"
+        "F:/Temp/jonat/ProducerPlease-viewer-chat-20261119/dock05/results.json",
+        "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/bundled02/results.json",
+        "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/ui01/results.json"
       ]
     },
     {
@@ -1710,9 +1747,19 @@
         "rareiq/web/viewer_chat_reply.py",
         "tests/test_viewer_chat_reply.py",
         "tests/browser/viewer_chat.test.cjs",
-        "tests/browser/viewer_chat.composer.ui.cjs"
+        "tests/browser/viewer_chat.composer.ui.cjs",
+        "desktop/settings-accounts.js",
+        "desktop/settings-provider-accounts.js",
+        "desktop/settings.html",
+        "desktop/twitch-connection.cjs",
+        "desktop/provider-connection.cjs",
+        "desktop/account-authorization.cjs",
+        "rareiq/web/platform_accounts.py",
+        "tests/test_chat_reply_account_permissions.py",
+        "desktop/tests/reply-consent-ui.cjs",
+        "desktop/tests/bundled-reply-consent.cjs"
       ],
-      "limit": "Explicit literal replies up to 200 characters can target one platform or the exact displayed ready-platform set (one to three), with per-target results. Private official send adapters are gated by exact send scopes and verified channel/live-chat binding. A durable content-free ledger claims before a write; exact retries do not resend, and Retry failed only reattempts known unsent failures. Timeouts/restarts remain uncertain and cannot auto-resend. Account/connector/router and transport-mock tests pass; real provider posts and new grants are unverified. General bot commands, bans/timeouts and moderation tools remain absent.",
+      "limit": "Literal replies up to 200 characters target one platform or the exact displayed ready set, with per-target receipts and guarded retries. Dedicated Enable replies prepares optional reviewed permission through existing protected sign-in; ordinary sign-in remains unchanged, and refusal/cancel keeps prior access. Actual packaged Main/IPC/Settings consent controls passed with mocked account HTTP; no real provider grant or message was exercised. Durable retries do not resend sent/uncertain outcomes; general bot commands, bans/timeouts and moderation remain absent.",
       "priority": "P2",
       "officialURLs": [
         "https://obsproject.com/kb/browser-source",
@@ -1720,7 +1767,9 @@
       ],
       "acceptanceEvidence": [
         "F:/Temp/jonat/ProducerPlease-viewer-chat-20261119/browser10/results.json",
-        "F:/Temp/jonat/ProducerPlease-viewer-chat-20261119/dock05/results.json"
+        "F:/Temp/jonat/ProducerPlease-viewer-chat-20261119/dock05/results.json",
+        "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/bundled02/results.json",
+        "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/ui01/results.json"
       ]
     },
     {
@@ -1956,53 +2005,36 @@
       ]
     }
   ],
-  "acceptancePolicy": "Replay import/playback and flat groups/rotation have the recorded local generated-media acceptance. Chat reply tests use synthetic accounts and mocked transport only. Current provider permissions, real messages, hardware, platform receipt, final combined build and Preview activation need separate evidence.",
+  "acceptancePolicy": "Dedicated Enable replies controls have actual packaged Main/IPC/Settings acceptance with intercepted account HTTP only. Earlier generated-media replay/layer acceptance remains at its recorded prior checkpoint. Real provider grants, current connected chats, actual sends and platform receipt require separate acceptance. Current candidate Preview activation and guest-only isolation passed; source/recovery checkpoint remains pending. Main-profile promotion is unclaimed.",
   "candidate": {
-    "build": "0.1.0-20261120013232287",
-    "sourceTree": "076b3f78cf41d0ad9c4978678ecef2dbd0cc8549",
-    "scope": "Final chat-inclusive generated-media checkpoint",
-    "packagedReplayAcceptance": "passed_generated_media_import_preview_explicit_take",
+    "build": "0.1.0-20261120021343068",
+    "sourceTree": "1d6605e71064b0a72e940a6f02436b514eb57175",
+    "executable": "F:/Apps/ProducerPlease/builds/0.1.0-20261120021343068/ProducerPlease-win32-x64/ProducerPlease.exe",
+    "scope": "Dedicated reply permission controls; account HTTP intercepted during packaged acceptance",
+    "packagedReplyConsentAcceptance": "passed_actual_main_ipc_settings_with_mocked_account_http",
     "mainProfilePromotion": "not claimed",
-    "previewActivation": "passed: separate Standalone Preview, main settings unchanged",
-    "finalCombinedBuild": "passed"
+    "previewActivation": "passed: separate Standalone Preview; primary native settings unchanged",
+    "finalCombinedBuild": "passed",
+    "sourceRecoveryCheckpoint": "pending final commit and verified backups"
   },
   "canonicalGate": {
     "status": "passed",
-    "coreOwnSource": {
-      "status": "passed",
-      "pythonTests": 4534,
-      "javascriptTests": 1156,
-      "evidenceLog": "F:/Temp/jonat/ProducerPlease-playback-groups-20261119/release-own-core01.log"
-    },
-    "coreComposedSource": {
-      "status": "passed",
-      "pythonTests": 4533,
-      "pythonSkipped": 1,
-      "javascriptTests": 1167,
-      "sourceTree": "678b2ad52f83dde5f7078ae87d716b299e9a73d1",
-      "evidenceLog": "F:/Temp/jonat/ProducerPlease-playback-groups-20261119/release-composed-core01.log"
-    },
-    "focusedChat": {
-      "replyTests": 29,
-      "accountConnectorRouterRegression": 345,
-      "integratedRootTests": 45,
-      "scope": "Separate focused runs overlap and must not be added to claim a unique test total."
-    },
-    "scope": "Final immutable source gates; local generated-media acceptance only",
     "finalOwnSource": {
-      "pythonTests": 4564,
-      "javascriptTests": 1167,
+      "status": "passed",
+      "pythonTests": 4604,
       "pythonSkipped": 0,
-      "evidenceLog": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\release-own-final04.log"
+      "javascriptTests": 1180,
+      "evidenceLog": "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/release-own03.log"
     },
     "finalComposedSource": {
-      "pythonTests": 4563,
-      "pythonSkipped": 1,
-      "javascriptTests": 1178,
-      "sourceTree": "076b3f78cf41d0ad9c4978678ecef2dbd0cc8549",
-      "evidenceLog": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\release-composed-final04.log"
+      "status": "passed",
+      "pythonTests": 4604,
+      "pythonSkipped": 0,
+      "javascriptTests": 1191,
+      "evidenceLog": "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/release-composed03.log",
+      "sourceTree": "1d6605e71064b0a72e940a6f02436b514eb57175"
     },
-    "isolatedSkippedCheck": "Windows hotkey registration passed alone without key injection"
+    "scope": "Final consent slice, no skips; overlapping own/composed suites are not additive. No real grant or delivery acceptance."
   },
   "acceptanceEvidence": {
     "producerScreen": "F:/Temp/jonat/ProducerPlease-parity-20261119/producer-screen-ui06/results.json",
@@ -2019,8 +2051,7 @@
     "programReplayNative": "F:/Temp/jonat/ProducerPlease-recording-20261119/replay-native01/results.json",
     "programReplaySettings": "F:/Temp/jonat/ProducerPlease-recording-20261119/replay-settings-ui01/results.json",
     "programReplayPackaged": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\bundled-final02\\results.json",
-    "previewActivation": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\preview-activation.json",
-    "privateGuestIsolation": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\private-ingress-proof.json",
+    "privateGuestIsolation": "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/private-ingress-proof.json",
     "layerGroups": "F:/Temp/jonat/ProducerPlease-groups-rotation-20261119/browser07/results.json",
     "layerRotation": "F:/Temp/jonat/ProducerPlease-groups-rotation-20261119/pixels01/results.json",
     "replayPlaybackCore": "F:/Temp/jonat/ProducerPlease-playback-groups-20261119/bundled-core01/results.json",
@@ -2029,7 +2060,14 @@
     "finalRehearsal": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\rehearsal-final03\\results.json",
     "rehearsalStressFailure": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\rehearsal-final01\\results.json",
     "viewerChatLayout": "F:/Temp/jonat/ProducerPlease-viewer-chat-20261119/browser10/results.json",
-    "viewerChatDock": "F:/Temp/jonat/ProducerPlease-viewer-chat-20261119/dock05/results.json"
+    "viewerChatDock": "F:/Temp/jonat/ProducerPlease-viewer-chat-20261119/dock05/results.json",
+    "priorPreviewActivation": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\preview-activation.json",
+    "replyConsentPackaged": "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/bundled02/results.json",
+    "replyConsentSettings": "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/ui01/results.json",
+    "replyConsentOwnGate": "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/release-own03.log",
+    "replyConsentComposedGate": "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/release-composed03.log",
+    "previewActivation": "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/preview-activation.json",
+    "finalConsentGuardian": "F:/Temp/jonat/ProducerPlease-chat-consent-20261119/guardian-final.json"
   },
   "previousAcceptedCheckpoint": {
     "candidate": {
@@ -2086,5 +2124,54 @@
       "scope": "Final composed frozen-source gate; prior own-source gate is labeled separately. Not hardware or platform receipt."
     }
   },
-  "knownStressLimitation": "One concurrent rehearsal monitoring-Off acknowledgement was unconfirmed; unchanged isolated reruns passed. Guard preserved; stress endurance remains unaccepted."
+  "knownStressLimitation": "One concurrent rehearsal monitoring-Off acknowledgement was unconfirmed; unchanged isolated reruns passed. Guard preserved; stress endurance remains unaccepted.",
+  "previousAcceptedPlaybackGroupsCheckpoint": {
+    "candidate": {
+      "build": "0.1.0-20261120013232287",
+      "sourceTree": "076b3f78cf41d0ad9c4978678ecef2dbd0cc8549",
+      "scope": "Final chat-inclusive generated-media checkpoint",
+      "packagedReplayAcceptance": "passed_generated_media_import_preview_explicit_take",
+      "mainProfilePromotion": "not claimed",
+      "previewActivation": "passed: separate Standalone Preview, main settings unchanged",
+      "finalCombinedBuild": "passed"
+    },
+    "canonicalGate": {
+      "status": "passed",
+      "coreOwnSource": {
+        "status": "passed",
+        "pythonTests": 4534,
+        "javascriptTests": 1156,
+        "evidenceLog": "F:/Temp/jonat/ProducerPlease-playback-groups-20261119/release-own-core01.log"
+      },
+      "coreComposedSource": {
+        "status": "passed",
+        "pythonTests": 4533,
+        "pythonSkipped": 1,
+        "javascriptTests": 1167,
+        "sourceTree": "678b2ad52f83dde5f7078ae87d716b299e9a73d1",
+        "evidenceLog": "F:/Temp/jonat/ProducerPlease-playback-groups-20261119/release-composed-core01.log"
+      },
+      "focusedChat": {
+        "replyTests": 29,
+        "accountConnectorRouterRegression": 345,
+        "integratedRootTests": 45,
+        "scope": "Separate focused runs overlap and must not be added to claim a unique test total."
+      },
+      "scope": "Final immutable source gates; local generated-media acceptance only",
+      "finalOwnSource": {
+        "pythonTests": 4564,
+        "javascriptTests": 1167,
+        "pythonSkipped": 0,
+        "evidenceLog": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\release-own-final04.log"
+      },
+      "finalComposedSource": {
+        "pythonTests": 4563,
+        "pythonSkipped": 1,
+        "javascriptTests": 1178,
+        "sourceTree": "076b3f78cf41d0ad9c4978678ecef2dbd0cc8549",
+        "evidenceLog": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\release-composed-final04.log"
+      },
+      "isolatedSkippedCheck": "Windows hotkey registration passed alone without key injection"
+    }
+  }
 }

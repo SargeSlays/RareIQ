@@ -445,3 +445,21 @@ and a verified connected chat. Existing read-only grants are not upgraded by thi
 update. Permission/setup blockers remain visible; first-time account permissions
 and real platform replies require separate owner acceptance. No automatic posts
 follow startup, sign-in, listening or rehearsals.
+
+
+## Enable permission for viewer replies
+
+In Viewer chat choose **Enable replies…**, or open Broadcast setup. Each Twitch,
+YouTube and Kick account card has its own **Enable replies** button. The button
+prepares a separately reviewed permission request; ordinary sign-in keeps its
+existing default permissions. Finish any active stream/recording/replay action
+before changing account permissions. Twitch shows its temporary code and fixed
+activation page; Google and Kick use their existing protected sign-in handoff.
+
+Review the provider consent yourself. Cancel or decline keeps the prior saved
+connection. Google uses its YouTube activity permission for replies; Twitch asks
+for user:write:chat and Kick for chat:write. Already approved known permissions
+are retained. Completing sign-in sends no message and does not start listening
+or broadcasting. After permission is approved, connect the intended chat, Check
+reply permissions and choose the exact destination(s) before Send. Provider app
+setup, Kick delivery registration and actual replies still need their own checks.

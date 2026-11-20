@@ -86,3 +86,10 @@ test('helper errors, extra secret fields and wrong channel cannot cross the reso
     const f=childFixture(JSON.stringify(value));await assert.rejects(f.resolve(ref),error=>['provider_unavailable','account_authorization_required'].includes(error.message));
   }
 });
+
+
+test('reply consent uses its explicit guarded route and exposes only safe purpose and capability',async()=>{
+ const f=fixture({account:{...account,state:'pending',authorization_kind:'replies',chat_reply_authorized:true,user_code:'REPLY-CODE',flow_id:'b'.repeat(32),access_token:'private-secret'}});const result=await f.run(f.event,{action:'begin_replies'});assert.equal(result.ok,true);assert.equal(f.calls[0].url,origin+'/api/production/accounts/twitch/replies/begin');assert.equal(result.account.authorization_kind,'replies');assert.equal(result.account.chat_reply_authorized,true);assert.equal(f.saved.length,0);assert.doesNotMatch(JSON.stringify(result),/private-secret|access_token/);
+ const blocked=fixture({mutate:async()=>{throw Error('destination_broadcast_busy');}});assert.equal((await blocked.run(blocked.event,{action:'begin_replies'})).reason,'destination_broadcast_busy');assert.equal(blocked.calls.length,0);
+});
+test('reply consent rechecks a pinned settings frame after the mutation wait',async()=>{let event;const f=fixture({mutate:async(_e,run)=>{event.senderFrame.url='file:///other.html';return run();}});event=f.event;const result=await f.run(event,{action:'begin_replies'});assert.equal(result.reason,'local_operator_required');assert.equal(f.calls.length,0);});

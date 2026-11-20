@@ -47,7 +47,7 @@ class YouTubeAccountService:
         "authorization_denied", "account_identity_mismatch", "account_state_changed",
         "chat_scope_required", "offline_access_required", "youtube_channel_required",
         "channel_selection_required", "callback_listener_unavailable",
-        "account_disconnected", "metadata_scope_required",
+        "account_disconnected", "metadata_scope_required", "chat_send_permission_required",
     })
     _STREAM_INFO_FAILURES = frozenset({
         "app_setup_required", "provider_unavailable", "invalid_provider_response",
@@ -173,6 +173,7 @@ class YouTubeAccountService:
                   "reason": reason or ("account_authorized" if authorized else "authorization_required"),
                   "authorized": authorized, "app_configured": config is not None}
         result["metadata_authorized"] = bool(authorized and self.METADATA_SCOPE in stored["scopes"])
+        result["chat_reply_authorized"] = bool(authorized and self.CHAT_REPLY_SCOPE in stored["scopes"])
         result["streaming_authorized"] = bool(authorized)
         if authorized:
             result.update(public_label=stored["public_label"], expires_at=stored["expires_at"], account_ref=self.account_ref(stored))
@@ -244,6 +245,9 @@ class YouTubeAccountService:
                        or any(not 33 <= ord(c) <= 126 for c in scope) for scope in scopes)):
             raise _AccountError("chat_scope_required")
         if required_scopes and not set(required_scopes).issubset(scopes):
+            if (self._pending and self._pending.get("authorization_kind") == "replies"
+                    and self.CHAT_REPLY_SCOPE in required_scopes and self.CHAT_REPLY_SCOPE not in scopes):
+                raise _AccountError("chat_send_permission_required")
             raise _AccountError("metadata_scope_required")
         code, channels = await self._request("GET", self.CHANNELS_URL,
             headers={"Authorization": "Bearer " + access}, params={
@@ -322,7 +326,10 @@ class YouTubeAccountService:
     async def begin_metadata(self):
         return await self._begin(metadata=True)
 
-    async def _begin(self, *, metadata):
+    async def begin_replies(self):
+        return await self._begin(metadata=False, replies=True)
+
+    async def _begin(self, *, metadata, replies=False):
         if self._closed:
             return self.status()
         generation, previous = self._invalidate(None)
@@ -336,14 +343,14 @@ class YouTubeAccountService:
             if config is None:
                 raise _AccountError("app_setup_required")
             scopes = [self.SCOPE]
-            if metadata or (self._valid_record(stored, allow_expired=True)
+            if metadata or replies or (self._valid_record(stored, allow_expired=True)
                             and self.METADATA_SCOPE in stored["scopes"]):
                 scopes.append(self.METADATA_SCOPE)
             verifier = secrets.token_urlsafe(64)
             challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
             pending = {"generation": generation, "flow_id": uuid.uuid4().hex,
                        "config": config, "stored_before": stored, "state": secrets.token_urlsafe(32),
-                       "scopes": scopes, "authorization_kind": "metadata" if metadata else "chat",
+                       "scopes": scopes, "authorization_kind": "replies" if replies else "metadata" if metadata else "chat",
                        "verifier": verifier, "expires_at": self._clock() + self.FLOW_LIFETIME_SECONDS,
                        "claimed": False, "server": None, "writers": {}, "tasks": set(), "expiry_task": None}
             try:

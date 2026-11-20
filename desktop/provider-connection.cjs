@@ -1,20 +1,20 @@
 'use strict';
 const {studioOrigin}=require('./policy.cjs');
 const plain=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
-const ACTIONS=new Set(['status','begin','begin_metadata','cancel','check','disconnect','authorize','link']);
+const ACTIONS=new Set(['status','begin','begin_metadata','begin_replies','cancel','check','disconnect','authorize','link']);
 const SAFE=new Set(['destination_change_pending','destination_broadcast_busy','local_operator_required','authorization_flow_unavailable','authorization_unavailable','authorization_open_failed','authorization_open_pending','account_authorization_required','streaming_scope_required','account_state_changed','secure_ingest_unavailable','secure_storage_unavailable','destination_library_full','destination_request_conflict','destination_request_retired','account_destination_managed','account_storage_unavailable']);
 function createProviderConnection({origin,store,append=()=>{},trustedSender,mutate,authorize,fetchImpl=globalThis.fetch}={}){
   const base=studioOrigin(origin),pending=new Map();
   const trusted=e=>{try{return trustedSender(e)===true;}catch(_){return false;}};
   async function request(platform,action){
-    const url=base+'/api/production/accounts'+(action==='status'?'':'/'+platform+'/'+(action==='begin_metadata'?'begin-metadata':action));
+    const url=base+'/api/production/accounts'+(action==='status'?'':'/'+platform+'/'+({begin_metadata:'begin-metadata',begin_replies:'replies/begin'}[action]||action));
     const r=await fetchImpl(url,{method:action==='status'?'GET':'POST',redirect:'error',cache:'no-store',credentials:'omit',headers:{Accept:'application/json',Origin:base,...(action==='status'?{}:{'Content-Type':'application/json'})},...(action==='status'?{}:{body:'{}'}),signal:AbortSignal.timeout(20000)});
     if(!r||r.status!==200||r.redirected||r.url!==url||!r.body||r.headers?.get('content-type')?.split(';')[0].trim().toLowerCase()!=='application/json')throw Error('account_unavailable');
     const chunks=[];let size=0;
     for await(const part of r.body){const b=Buffer.from(part);size+=b.length;if(size>16384)throw Error('account_unavailable');chunks.push(b);}
     const v=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(Buffer.concat(chunks))),raw=action==='status'?v.accounts?.find(a=>a.platform===platform):v.account;
     if(!plain(raw)||raw.platform!==platform||!['authorized','not_authorized','pending','unavailable'].includes(raw.state))throw Error('account_unavailable');
-    const account={platform,state:raw.state,authorized:raw.authorized===true,metadata_authorized:raw.authorized===true&&raw.metadata_authorized===true,app_configured:raw.app_configured===true};
+    const account={platform,state:raw.state,authorized:raw.authorized===true,metadata_authorized:raw.authorized===true&&raw.metadata_authorized===true,chat_reply_authorized:raw.authorized===true&&raw.chat_reply_authorized===true,app_configured:raw.app_configured===true};
     if(['kick','youtube'].includes(platform)){
       account.streaming_authorized=account.authorized&&raw.streaming_authorized===true;
       if(account.authorized&&typeof raw.account_ref==='string'&&/^[a-f0-9]{64}$/.test(raw.account_ref))account.account_ref=raw.account_ref;
@@ -25,7 +25,7 @@ function createProviderConnection({origin,store,append=()=>{},trustedSender,muta
     if(raw.state==='pending'){
       if(typeof raw.flow_id!=='string'||!/^[a-f0-9]{32}$/.test(raw.flow_id))throw Error('account_unavailable');
       account.flow_id=raw.flow_id;
-      account.authorization_kind=raw.authorization_kind==='metadata'?'metadata':'chat';
+      account.authorization_kind=['metadata','replies'].includes(raw.authorization_kind)?raw.authorization_kind:'chat';
     }
     return {ok:true,account,...(v.activity_history_warning===true?{activity_history_warning:true}:{}),...(v.connection_stop_warning===true?{connection_stop_warning:true}:{})};
   }
@@ -35,7 +35,9 @@ function createProviderConnection({origin,store,append=()=>{},trustedSender,muta
     if(v.action==='link'&&(v.platform!=='kick'||typeof v.requestId!=='string'||!/^[A-Za-z0-9_-]{1,80}$/.test(v.requestId)))return {ok:false,reason:'invalid_account_request'};
     if(pending.has(v.platform)&&!['status','cancel'].includes(v.action))return {ok:false,reason:'destination_change_pending'};
     const token=Symbol(),frame=e.senderFrame,frameUrl=frame?.url;
+    const current=()=>trusted(e)&&e.senderFrame===frame&&frame?.url===frameUrl&&(v.action==='status'||pending.get(v.platform)===token);
     const run=async()=>{
+      if(!current())throw Error('local_operator_required');
       if(v.action==='authorize'){
         const opened=await authorize(e,{platform:v.platform,flowId:v.flowId});
         if(opened?.ok!==true)return {ok:false,reason:SAFE.has(opened?.reason)?opened.reason:'authorization_unavailable'};
@@ -52,7 +54,7 @@ function createProviderConnection({origin,store,append=()=>{},trustedSender,muta
         try{await append({at:new Date().toISOString(),action:'account_destination.link',actor:'Desktop operator',identityVerified:false,destinationId:saved.destination.id,platform:'kick',replayed:saved.replayed});}catch(_){warning=true;}
         return {ok:true,account,destination:saved.destination,...(warning?{activity_history_warning:true}:{})};
       }
-      return request(v.platform,v.action);
+      const result=await request(v.platform,v.action);if(!current())throw Error('local_operator_required');return result;
     };
     try{
       if(v.action==='status')return await run();

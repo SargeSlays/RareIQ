@@ -70,6 +70,10 @@ test('web-only Begin remains chat consent and rejects a truthy nonboolean stream
   const ui=uiFixture({accountValue:pending()});ui.api.open();await settle();assert.match(ui.all.find(node=>node.attributes.class==='platform-accounts-scope').textContent,/Read-only chat permission/);assert.match(ui.get('data-account-note','twitch').textContent,/approve read-only chat/);assert.equal(account(authorized({streaming_authorized:'true'}),NOW).streaming_authorized,false);
 });
 
+test('shared reply metadata is explicit and cannot survive expired or invalid authorization',()=>{
+  const {twitchScope,explanation}=require('../../rareiq/web/static/platform_accounts.js');const value=account(pending({authorized:true,authorization_kind:'replies',chat_reply_authorized:false}),NOW);assert.equal(value.authorization_kind,'replies');assert.match(twitchScope(value),/post chat replies.*previous saved access/);assert.match(explanation(value),/awaiting your approval/);assert.equal(account(authorized({chat_reply_authorized:true}),NOW).chat_reply_authorized,true);assert.equal(account(authorized({chat_reply_authorized:'true'}),NOW).chat_reply_authorized,false);assert.equal(account(authorized({chat_reply_authorized:true,expires_at:NOW-1}),NOW).chat_reply_authorized,false);
+});
+
 test('missing developer app setup blocks Begin and gives a plain explanation',async()=>{
   const f=fixture();f.setHandler(async()=>response(accounts(twitch({app_configured:false,reason:'app_setup_required'}))));await f.controller.open();assert.equal(await f.controller.run('begin'),false);assert.equal(f.requests.length,1);
   const ui=uiFixture({accountValue:twitch({app_configured:false,reason:'app_setup_required'})});ui.api.open();await settle();assert.equal(ui.get('data-accounts-begin').disabled,true);assert.match(ui.get('data-account-note','twitch').textContent,/one-time app setup/);assert.doesNotMatch(ui.get('data-account-note','twitch').textContent,/client.?id|environment|secret/i);

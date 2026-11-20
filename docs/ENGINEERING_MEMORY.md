@@ -1615,3 +1615,31 @@ must not promise that nothing was sent merely because the response/receipt write
 failed. Preserve uncertainty and tell the operator to check each destination
 before starting a new request; durable pending receipts still prevent automatic
 reposts. Keep a frontend regression for that message.
+
+
+## November 19, 2026 — Optional permission upgrades and native frames
+
+A guarded reply composer is incomplete if read-only accounts have no path to
+request posting rights. Add a separate reviewed action, not extra scopes on normal
+sign-in. Keep requested scopes in the pending flow, require those grants on the
+callback and preserve old access until the replacement is verified and stored.
+Preserve already approved known permissions when enabling another capability.
+
+Native account actions must recheck the initiating Settings frame after the
+mutation guard waits and before an account request. Retire late responses after
+Cancel/navigation without clearing a newer pending operation. Extend only the
+fixed action/URL/scope allowlists; never accept renderer URLs, scopes or secrets.
+Status remains read-only and no consent, message or media starts automatically.
+
+Guarded encoder tests cannot monkeypatch global file/network functions inside a
+full-suite process that also hosts catalog watchdogs. Those unrelated threads may
+start or perform ordinary reads during the guard and look like encoder leaks.
+Run the guarded EOF/malformed/missing-audio/success/mux-failure contracts in fresh
+subprocesses with the original strict prohibitions and thread assertions intact.
+A synthetic parent reader must continue unaffected; do not filter leaked threads
+or weaken the guard to pass. This test isolation change does not fix the earlier
+native monitoring-Off uncertainty.
+
+Adding a public capability boolean also requires updating strict response-key
+whitelists. Retain all token/identity/ingest redaction checks and assert that an
+old read-only record reports the new permission as false.

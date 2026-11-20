@@ -20,8 +20,10 @@
     const value={platform,state:['not_authorized','pending','authorized','unavailable'].includes(raw.state)?raw.state:'unavailable',reason:text(raw.reason,100),authorized:raw.authorized===true,app_configured:raw.app_configured===true};
     if(platform==='kick'&&raw.reason==='kick_public_callback_required')return {...value,state:'unavailable',authorized:false,reason:'kick_public_callback_required'};
     if(platform==='kick'&&value.state==='unavailable')value.authorized=false;
-    if(platform==='twitch'){value.streaming_authorized=value.authorized&&raw.streaming_authorized===true;value.authorization_kind=raw.authorization_kind==='streaming'?'streaming':'chat';}
-    const invalid=(reason,state='unavailable')=>({...value,state,authorized:false,reason,...(platform==='twitch'?{streaming_authorized:false}:{})});
+    value.chat_reply_authorized=value.authorized&&raw.chat_reply_authorized===true;
+    if(['streaming','metadata','replies'].includes(raw.authorization_kind))value.authorization_kind=raw.authorization_kind;else if(platform==='twitch')value.authorization_kind='chat';
+    if(platform==='twitch')value.streaming_authorized=value.authorized&&raw.streaming_authorized===true;
+    const invalid=(reason,state='unavailable')=>({...value,state,authorized:false,chat_reply_authorized:false,reason,...(platform==='twitch'?{streaming_authorized:false}:{})});
     if(typeof raw.public_label==='string')value.public_label=raw.public_label.slice(0,80);
     if(typeof raw.expires_at==='number'&&Number.isFinite(raw.expires_at))value.expires_at=raw.expires_at;
     if(value.state==='pending'){
@@ -32,16 +34,19 @@
       return {...value,flow_id:raw.flow_id,user_code:raw.user_code,verification_url:VERIFY_URL};
     }
     if(value.state==='authorized'&&(!value.authorized||!value.expires_at||value.expires_at<=now))return invalid('authorization_refresh_required','not_authorized');
-    value.authorized=value.state==='authorized'&&value.authorized;if(platform==='twitch')value.streaming_authorized=value.authorized&&value.streaming_authorized;return value;
+    value.authorized=value.state==='authorized'&&value.authorized;value.chat_reply_authorized=value.authorized&&value.chat_reply_authorized;if(platform==='twitch')value.streaming_authorized=value.authorized&&value.streaming_authorized;return value;
   }
   function normalize(payload,now){
     if(!Array.isArray(payload?.accounts))throw Error('invalid_response');
     return Object.keys(NAMES).map(platform=>account(payload.accounts.find(item=>item?.platform===platform)||{platform,state:'unavailable',reason:'account_unavailable'},now));
   }
   function twitchScope(value){
+    if(value?.state==='pending'&&value.authorization_kind==='replies')return 'Optional permission to post chat replies as your Twitch account. Review consent on Twitch. Sign-in sends no message; previous saved access stays available if cancelled or declined.';
+    if(value?.chat_reply_authorized)return 'Reply permission is saved. Every public reply still requires Send in Viewer chat. Streaming permissions remain separate.';
     return value?.state==='pending'&&value.authorization_kind==='streaming'?'Chat-reading and stream-key access. Review both permissions on Twitch. Saving the connection never starts a broadcast.':value?.streaming_authorized?'Chat-reading and stream-key access are saved. Broadcast setup checks this account before starting.':'Read-only chat permission. Complete sign-in and review consent on Twitch. This account permission does not grant streaming or message-sending access.';
   }
   function explanation(value){
+    if(value?.state==='pending'&&value.authorization_kind==='replies')return 'Reply permission is awaiting your approval on '+NAMES[value.platform]+'. Review the requested permission. Sign-in sends no message and does not start a broadcast.';
     if(value?.platform==='kick')return value.reason==='kick_public_callback_required'?REASONS.kick_public_callback_required:(value.state==='authorized'&&value.authorized?'Kick account access is saved. ':!value.app_configured?'Kick sign-in needs its one-time app setup. ':value.state==='pending'?'Finish sign-in in the provider browser. ':'Check the saved account connection. ')+'Manage Kick sign-in in desktop Broadcast setup; chat delivery is separate.';
     if(!value)return 'Account status is unavailable. Retry to check again.';if(value.platform==='twitch'&&value.state==='pending'&&value.authorization_kind==='streaming')return 'Enter this code on Twitch and approve chat-reading and stream-key access. Nothing starts broadcasting.';
     if(value.state==='authorized'&&value.authorized)return value.platform==='twitch'&&value.streaming_authorized?'Streaming and chat access are saved. Choose Use account to connect viewer chat; broadcast setup is separate.':'Account ready. Choose Use account to connect viewer chat.';
@@ -104,6 +109,9 @@
     const header=node('header',''),title=node('h2','Connect accounts',header,{id:prefix+'-title'}),close=node('button','Close',header,{type:'button','data-accounts-close':''});
     node('p','Authorize your account here, then choose Use account to connect viewer chat. Signing in never starts a broadcast or sends chat messages.',dialog,{class:'platform-accounts-intro'});
     const status=node('p','',dialog,{role:'status','aria-live':'polite','aria-atomic':'true','data-accounts-status':''}),rows=new Map();
+    const replyHelp=node('p','Reply permissions are optional. In desktop Broadcast setup, choose Enable replies for the intended platform and review its consent. Normal sign-in does not add reply permission.',dialog,{class:'platform-accounts-reply-help'}),replySetup=node('button','Open reply permissions in Broadcast setup',dialog,{type:'button','data-accounts-replies-setup':''});
+    const desktop=options.desktop||host.producerDesktop||host.ProducerDesktop;replySetup.disabled=typeof desktop?.openBroadcastSettings!=='function';replySetup.title=replySetup.disabled?'Open the desktop app’s Broadcast setup to enable reply permissions.':'Open Broadcast setup. No permission request starts until you choose Enable replies.';
+    replySetup.addEventListener('click',async()=>{if(replySetup.disabled)return;replySetup.disabled=true;try{const result=await desktop.openBroadcastSettings();if(result===false||result?.ok===false)throw Error('open_failed');replyHelp.textContent='Broadcast setup opened. Choose Enable replies on the intended platform. Review provider consent; no message is sent by sign-in.';}catch(_){replyHelp.textContent='Broadcast setup could not open. Use Output setup in the desktop studio and choose Enable replies.';}finally{replySetup.disabled=false;}});
     for(const [platform,name]of Object.entries(NAMES)){
       const section=node('section','',dialog,{'data-account-platform':platform});node('h3',name,section);const label=node('p','',section,{class:'platform-account-label'}),note=node('p','',section,{'data-account-note':platform});
       if(platform==='kick'){rows.set(platform,{section,label,note});continue;}

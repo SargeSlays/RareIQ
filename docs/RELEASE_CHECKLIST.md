@@ -2115,3 +2115,50 @@ by the final sidebar-layout build recorded in the external checkpoint manifest.
 
 Accepted compiled source: 076b3f78cf41d0ad9c4978678ecef2dbd0cc8549.
 Final build: 0.1.0-20261120013232287. Checkpoint and recovery manifests remain outside Git on F:.
+
+
+## November 19, 2026 — Dedicated reply-permission controls
+
+- [x] Focused Python account/route checks cover exact send scopes, known prior
+  grants, state/identity/PKCE, refusal/cancel and safe capability flags. Provider
+  transport is mocked; normal sign-in never silently adds reply permission.
+- [x] Native fixed begin_replies routes, pinned Settings frames, safe public flags
+  and Kick scope handoff pass; no renderer URL, scope or secret is accepted.
+- [x] Frontend account/failure-state checks and twelve Settings card captures
+  pass. Viewer chat explicitly opens Broadcast setup; every platform has Enable
+  replies. A missing requested grant keeps the previous login/streaming access
+  and explains how to review reply permission again.
+- [x] Final own-source canonical gate: 4604 Python / 1180 JavaScript passed,
+  with no skips. Final composed-source gate: 4604 Python / 1191 JavaScript
+  passed, with no skips. The suites overlap and are not additive totals.
+- [x] Actual final packaged Main, native IPC and Settings: all three consent
+  paths pass with account HTTP intercepted. Pending purpose, Cancel preserving
+  prior streaming and the approved public capability flag are covered.
+- [x] Packaged proof opened no authorization page, used no real credentials,
+  posted no provider message and started no media; cleanup/owned backend Stop
+  passed. A simulated approved flag is not a real provider grant.
+- [x] Final Standalone Preview activation passed with its separate profile,
+  matching owned backend/resources and unchanged primary native settings. No
+  public media started; main-profile promotion remains unclaimed.
+- [x] Existing guest forwarding remains configured and isolated: guest entry
+  returns 200; producer/setup/reply/reply-consent routes return 404.
+- [x] Final guardian matches 455 runtime files, 393 packaged backend files,
+  two standalone workers and 57 native files to the reviewed compiled source.
+- [x] Source/recovery checkpoint is recorded in the phase checkpoint.json and
+  the verified F:/Backups/RareIQ/ProducerPlease-chat-consent-20261119-* manifest.
+  Owner working changes remain outside the feature commit.
+- [ ] Real provider consent/grants, provider messages and platform receipt need
+  separate owner acceptance. Google setup, Kick delivery registration and the
+  prior concurrent Rehearsal monitoring-Off uncertainty remain separate.
+
+Final candidate: 0.1.0-20261120021343068.
+Compiled source: 1d6605e71064b0a72e940a6f02436b514eb57175.
+Executable: F:/Apps/ProducerPlease/builds/0.1.0-20261120021343068/ProducerPlease-win32-x64/ProducerPlease.exe.
+
+Evidence: F:/Temp/jonat/ProducerPlease-chat-consent-20261119/bundled02/results.json,
+ui01/results.json, release-own03.log and release-composed03.log in that phase
+directory. Earlier failed probes remain preserved; no monitoring race is claimed
+fixed by this consent or test-isolation work.
+
+Activation/isolation/guardian evidence: preview-activation.json,
+private-ingress-proof.json and guardian-final.json in the same phase directory.

@@ -1221,3 +1221,14 @@ packaged Main, backend and generated-media checks. The final isolated Rehearsal
 check passed; the earlier concurrent Off uncertainty remains a stress limitation.
 No primary profile migration, real provider reply, grant or stream receipt is
 established by this checkpoint.
+
+
+## November 19, 2026 — Reply-permission handoff checkpoint
+
+Dedicated reply permission commands and desktop account controls are implemented
+for all three providers; mock-backed consent/state/PKCE/native tests establish the
+recorded local layer only. Remaining owner acceptance is to review real grants,
+verify the intended connected chat and approve a platform reply test. Kick public
+event delivery, Google setup and StackThis producer identity remain their own
+setup dependencies. The prior concurrent Rehearsal monitoring-Off uncertainty
+remains documented; this consent slice does not claim a monitoring fix.

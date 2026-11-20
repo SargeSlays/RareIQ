@@ -7,7 +7,9 @@ import json
 from pathlib import Path
 import builtins
 import io
+import os
 import socket
+import subprocess
 import sys
 import threading
 
@@ -334,8 +336,69 @@ def forbid_rehearsal_outputs(monkeypatch, av):
     return opened
 
 
+_ISOLATED_REHEARSAL = "PRODUCER_TEST_ISOLATED_REHEARSAL"
+
+
+def isolated_rehearsal_contract(monkeypatch, name, parameter=None):
+    """Keep global deny guards and strict thread checks in a fresh test process.
+
+    The application suite can own catalog watchers. Patching their global file
+    functions would test unrelated work and corrupt that work's health.
+    """
+    node = name + (f"[{parameter}]" if parameter is not None else "")
+    if os.environ.get(_ISOLATED_REHEARSAL) == node:
+        return False
+    libraries(monkeypatch)  # Preserve the original dependency skip contract.
+    environment = dict(os.environ, **{_ISOLATED_REHEARSAL: node})
+    completed = subprocess.run(
+        [sys.executable, "-X", "utf8", "-B", "-m", "pytest", "-q", "-p", "no:cacheprovider",
+         "-W", "error::pytest.PytestUnhandledThreadExceptionWarning",
+         str(Path(__file__).resolve()) + "::" + node],
+        cwd=Path(__file__).resolve().parents[2], env=environment,
+        capture_output=True, text=True, encoding="utf-8", timeout=45, check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "1 passed" in completed.stdout, completed.stdout + completed.stderr
+    assert "warnings summary" not in completed.stdout, completed.stdout + completed.stderr
+    return True
+
+
+def test_rehearsal_deny_guard_does_not_patch_parent_bystander_file_reads(monkeypatch, tmp_path):
+    source = tmp_path / "synthetic-parent-catalog.txt"
+    source.write_text("synthetic parent work", encoding="utf-8")
+    stop, ready = threading.Event(), threading.Event()
+    reads, errors = [], []
+
+    def bystander():
+        try:
+            while not stop.is_set():
+                assert source.read_text(encoding="utf-8") == "synthetic parent work"
+                reads.append(True)
+                ready.set()
+                stop.wait(.002)
+        except BaseException as exc:
+            errors.append(type(exc).__name__)
+            ready.set()
+
+    thread = threading.Thread(target=bystander, name="synthetic-parent-catalog-reader", daemon=True)
+    thread.start()
+    try:
+        assert ready.wait(2) and not errors
+        before = len(reads)
+        assert isolated_rehearsal_contract(monkeypatch,
+            "test_rehearsal_input_failure_closes_owned_discard_mux_without_success_receipt", "malformed")
+        assert len(reads) > before and not errors
+    finally:
+        stop.set()
+        thread.join(2)
+    assert not thread.is_alive() and not errors
+
+
 @pytest.mark.parametrize("vod", [False, True])
 def test_actual_rehearsal_encodes_and_muxes_live_vod_without_files_network_or_stored_media(monkeypatch, capsys, vod):
+    if isolated_rehearsal_contract(monkeypatch,
+            "test_actual_rehearsal_encodes_and_muxes_live_vod_without_files_network_or_stored_media", str(vod)):
+        return
     av, np = libraries(monkeypatch)
     import certifi  # Warm dependency imports before guarding all file opens.
     source = generated(np, frames=30, vod=vod)
@@ -366,6 +429,9 @@ def test_actual_rehearsal_encodes_and_muxes_live_vod_without_files_network_or_st
 
 @pytest.mark.parametrize("ending", ["eof", "malformed", "missing_vod"])
 def test_rehearsal_input_failure_closes_owned_discard_mux_without_success_receipt(monkeypatch, capsys, ending):
+    if isolated_rehearsal_contract(monkeypatch,
+            "test_rehearsal_input_failure_closes_owned_discard_mux_without_success_receipt", ending):
+        return
     av, np = libraries(monkeypatch)
     import certifi
     source = generated(np, frames=3, vod=ending != "missing_vod").getvalue()
@@ -385,6 +451,9 @@ def test_rehearsal_input_failure_closes_owned_discard_mux_without_success_receip
 
 
 def test_rehearsal_mux_failure_is_truthful_redacted_and_does_not_fall_back_to_transport(monkeypatch, capsys):
+    if isolated_rehearsal_contract(monkeypatch,
+            "test_rehearsal_mux_failure_is_truthful_redacted_and_does_not_fall_back_to_transport"):
+        return
     av, np = libraries(monkeypatch)
     import certifi
     original = worker.TargetMux.mux_packet

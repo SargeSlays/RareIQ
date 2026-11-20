@@ -37,8 +37,9 @@ def test_actual_kick_owner_public_status_contains_only_safe_linking_metadata():
     assert response.status_code == 200
     kick = response.json()['accounts'][2]
     assert kick['streaming_authorized'] and len(kick['account_ref']) == 64
+    assert kick['chat_reply_authorized'] is False
     assert set(kick) == {'platform', 'state', 'reason', 'authorized', 'app_configured',
-                         'metadata_authorized', 'streaming_authorized', 'account_ref', 'public_label', 'expires_at'}
+                         'metadata_authorized', 'chat_reply_authorized', 'streaming_authorized', 'account_ref', 'public_label', 'expires_at'}
     assert all(word not in json.dumps(kick) for word in ('synthetic', 'streamKey', 'access_token', 'client_secret', 'channel_id'))
     assert f.calls == [] and not f.vault.saves
     asyncio.run(f.service.close())

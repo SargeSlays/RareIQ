@@ -3,7 +3,7 @@ const {studioOrigin}=require('./policy.cjs');
 
 const SCOPE='https://www.googleapis.com/auth/youtube.readonly';
 const METADATA_SCOPE='https://www.googleapis.com/auth/youtube.force-ssl';
-const exactScopes=(raw,base,extra)=>{const scopes=raw.split(' ');return scopes.length===new Set(scopes).size&&(scopes.length===base.length||scopes.length===base.length+1&&scopes.includes(extra))&&base.every(s=>scopes.includes(s));};
+const exactScopes=(raw,base,extra)=>{if(typeof raw!=='string')return false;const scopes=raw.split(' '),allowed=[...base,...(Array.isArray(extra)?extra:[extra])];return scopes.length===new Set(scopes).size&&scopes.length>=base.length&&scopes.length<=allowed.length&&scopes.every(scope=>allowed.includes(scope))&&base.every(scope=>scopes.includes(scope));};
 const MAX_RESPONSE_BYTES=16384;
 const FIELDS=new Set(['client_id','redirect_uri','response_type','scope','access_type','prompt','state','code_challenge','code_challenge_method']);
 const failure=reason=>({ok:false,reason});
@@ -19,7 +19,7 @@ function kickAuthorizationUrl(value){
     if(typeof value!=='string'||value.length>8192||/[^\x21-\x7e]/.test(value)||!value.startsWith('https://id.kick.com/oauth/authorize?'))return null;
     const u=new URL(value),pairs=[...u.searchParams],q=Object.fromEntries(pairs),fields=['client_id','redirect_uri','response_type','scope','state','code_challenge','code_challenge_method'];
     if(u.origin!=='https://id.kick.com'||u.port||u.username||u.password||u.hash||u.pathname!=='/oauth/authorize'||pairs.length!==fields.length||new Set(pairs.map(([k])=>k)).size!==fields.length||pairs.some(([k])=>!fields.includes(k)))return null;
-    if(!/^[A-Za-z0-9_-]{1,220}$/.test(q.client_id)||q.redirect_uri!=='http://localhost:8770/callback'||q.response_type!=='code'||q.code_challenge_method!=='S256'||!/^[A-Za-z0-9_-]{43}$/.test(q.code_challenge)||!/^[A-Za-z0-9_-]{32,128}$/.test(q.state)||!exactScopes(q.scope,['user:read','channel:read','streamkey:read'],'channel:write'))return null;
+    if(!/^[A-Za-z0-9_-]{1,220}$/.test(q.client_id)||q.redirect_uri!=='http://localhost:8770/callback'||q.response_type!=='code'||q.code_challenge_method!=='S256'||!/^[A-Za-z0-9_-]{43}$/.test(q.code_challenge)||!/^[A-Za-z0-9_-]{32,128}$/.test(q.state)||!exactScopes(q.scope,['user:read','channel:read','streamkey:read'],['channel:write','chat:write']))return null;
     return value;
   }catch(_){return null;}
 }

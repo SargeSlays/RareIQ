@@ -97,7 +97,11 @@ class Fixture:
             assert form["client_id"] == CLIENT and form["scopes"] in (
                 "user:read:chat", "user:read:chat channel:read:stream_key",
                 "user:read:chat channel:manage:broadcast",
-                "user:read:chat channel:read:stream_key channel:manage:broadcast") and set(form) == {"client_id", "scopes"}
+                "user:read:chat channel:read:stream_key channel:manage:broadcast",
+                "user:read:chat user:write:chat",
+                "user:read:chat channel:read:stream_key user:write:chat",
+                "user:read:chat channel:manage:broadcast user:write:chat",
+                "user:read:chat channel:read:stream_key channel:manage:broadcast user:write:chat") and set(form) == {"client_id", "scopes"}
             value = self.device
         elif request.url.path == "/oauth2/token":
             assert "client_secret" not in form

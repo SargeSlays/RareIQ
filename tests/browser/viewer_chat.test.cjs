@@ -5,7 +5,7 @@ const settle=async()=>{for(let i=0;i<40;i++)await Promise.resolve();};
 const message=(id,text='Message '+id,platform='twitch')=>({id,text,platform,display_name:'Viewer '+id,occurred_at:1700000000,received_at:1700000001});
 const sources=()=>['twitch','youtube','kick'].map(platform=>({platform,implemented:true,state:'not_connected',connected:false,authorized:false,verified:false,reason:'explicit_connection_required',...(platform==='kick'?{dashboard_registration_approved:false}:{})}));
 const payload=(messages=[],extra={})=>({active:true,session_id:'a'.repeat(32),cursor:messages.at(-1)?.id||0,reset:false,messages,sources:sources(),...extra});
-function fixture(hostname='127.0.0.1'){
+function fixture(hostname='127.0.0.1',options={}){
   let doc,serial=0,handler=async()=>response(payload([],{active:false}));const all=[],timers=new Map(),requests=[],listeners={};
   class Element{
     constructor(tag){this.tagName=tag;this.children=[];this.dataset={};this.attributes={};this.listeners={};this.textContent='';this.hidden=false;this.disabled=false;this.scrollTop=0;this.scrollHeight=100;this.clientHeight=100;this.ownerDocument=doc;all.push(this);}
@@ -20,7 +20,7 @@ function fixture(hostname='127.0.0.1'){
   doc={createElement:tag=>new Element(tag),activeElement:null};doc.body=new Element('body');doc.activeElement=doc.body;
   const response=(body,status=200)=>({ok:status<400,status,json:async()=>body});
   const host={document:doc,location:{hostname},URLSearchParams,AbortController,setTimeout(fn,delay){const id=++serial;timers.set(id,{fn,delay});return id;},clearTimeout(id){timers.delete(id);},fetch(url,init){requests.push({url,init});return handler(url,init);},addEventListener(name,fn){listeners[name]=fn;},removeEventListener(name,fn){if(listeners[name]===fn)delete listeners[name];}};host.window=host;vm.runInNewContext(source,host);
-  const container=new Element('div'),chat=host.ProducerViewerChat.mount(container,{now:()=>1700000010}),get=(attribute,value)=>all.find(n=>Object.hasOwn(n.attributes,attribute)&&(value===undefined||n.attributes[attribute]===value));
+  const container=new Element('div'),chat=host.ProducerViewerChat.mount(container,{now:()=>1700000010,...options}),get=(attribute,value)=>all.find(n=>Object.hasOwn(n.attributes,attribute)&&(value===undefined||n.attributes[attribute]===value));
   const fire=async(delay=2000)=>{const entry=[...timers].find(([,t])=>t.delay===delay);if(entry){timers.delete(entry[0]);entry[1].fn();}await settle();};
   return {chat,container,all,get,doc,timers,requests,listeners,response,fire,setHandler(fn){handler=fn;}};
 }
@@ -138,6 +138,10 @@ test('reply composer shows exactly ready All recipients and separates destinatio
 
 test('All ready chats posts exactly the two displayed ready recipients and names the excluded platform',async()=>{
   const f=fixture();await settle();f.setHandler(async(url,init)=>{if(url.endsWith('/reply-status'))return f.response({ok:true,max_length:200,targets:['twitch','youtube','kick'].map(platform=>({platform,ready:platform!=='kick',reason:platform==='kick'?'chat_send_permission_required':'ready'}))});if(init.method==='POST'){const body=JSON.parse(init.body);return f.response({ok:true,request_id:body.request_id,results:body.targets.map(platform=>({platform,state:'sent',reason:'chat_sent',retryable:false}))});}return f.response(payload([]));});await f.chat.replies.refresh();const draft=f.get('data-viewer-reply-text');draft.value='Two ready chats';draft.dispatch('input');assert.equal(f.get('data-viewer-reply-send').disabled,false);assert.equal(f.get('data-viewer-reply-recipients').children.length,2);assert.match(f.get('data-viewer-reply-help').textContent,/Public reply to Twitch, YouTube.*Excluded.*Kick/);await f.get('data-viewer-composer').dispatch('submit');assert.deepEqual(JSON.parse(f.requests.find(r=>r.url.endsWith('/reply')).init.body).targets,['twitch','youtube']);
+});
+
+test('Enable replies opens native account setup only after its click and never starts consent or sends a message',async()=>{
+  let opened=0;const f=fixture('127.0.0.1',{desktop:{openBroadcastSettings:async()=>{opened++;return {ok:true};}}});await settle();f.setHandler(async url=>f.response(url.endsWith('/reply-status')?{ok:true,max_length:200,targets:['twitch','youtube','kick'].map(platform=>({platform,ready:false,reason:'chat_send_permission_required'}))}:payload([])));await f.chat.replies.refresh();const enable=f.get('data-viewer-enable-replies');assert.equal(enable.hidden,false);assert.equal(opened,0);await enable.dispatch('click');assert.equal(opened,1);assert.equal(f.requests.some(r=>r.init.method==='POST'),false);assert.ok(f.get('data-viewer-reply-receipt').children.some(n=>/Choose Enable replies.*review consent/.test(n.textContent)));
 });
 
 function replyFixture(){
