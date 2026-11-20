@@ -78,6 +78,10 @@ class KickAudienceConnector:
         self._received = self._rejected = 0
         self._cleanup_incomplete = False
 
+    def cached_chat_reply_target(self):
+        status = self.cached_status()
+        return {"channel_id": self._channel_id} if status["connected"] and status["verified"] else None
+
     def cached_status(self):
         now = self._clock()
         ready = self._ready and now < self._expires and now - self._validated < 60

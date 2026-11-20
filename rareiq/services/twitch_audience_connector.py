@@ -84,6 +84,10 @@ class TwitchAudienceConnector:
         self._cleanup_incomplete = False
         self._last_receive_failure = None
 
+    def cached_chat_reply_target(self):
+        status = self.cached_status()
+        return {"channel_id": self._user_id} if status["connected"] and status["verified"] else None
+
     def cached_status(self):
         connected = self._state == "connected" and self._clock() < self._expires_at
         status = {"platform": "twitch", "implemented": True, "state": self._state,

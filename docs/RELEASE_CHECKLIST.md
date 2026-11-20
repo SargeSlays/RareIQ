@@ -2069,3 +2069,49 @@ Accepted compiled source: f6da989f47f8fc45cde327db6c07d0f8dbd531e7.
 Activation and private-ingress proofs are in the phase evidence directory.
 Checkpoint hash and verified recovery locations are recorded in its checkpoint.json
 and the external backup manifest. Main-profile promotion is not part of this slice.
+
+
+## November 19, 2026 — Replay playback, groups/rotation and viewer chat
+
+- [x] Focused replay import tests cover bounded conversion, source preservation,
+  exact retry, stale frames, malformed responses and Preview CAS without Take.
+- [x] Generated H.264/AAC MKV converts to MP4 and both streams decode.
+- [x] Group pointer/keyboard transforms, lock/bounds guards, saved scene recall,
+  centered rotation and actual emitted crop/opacity pixels pass focused proof.
+- [x] Replay Settings covers eight theme/viewports with the new Preview action.
+- [x] Final own-source gate: 4564 Python / 1167 JavaScript passed.
+- [x] Final composed-source gate: 4563 Python passed, 1 Windows hotkey check
+  skipped / 1178 JavaScript passed. The skipped OS registration check passed
+  separately when run alone; no key injection or focus change.
+- [x] Actual final packaged Main: seven decoded files, replay import/copy and
+  retry preservation, silent Preview at zero, explicit fade Take and advancing
+  playback; three output consumers retain independent Stops. No external send.
+- [x] Actual native 1600px sidebar regression: chat and Camera Switcher remain
+  visible together after opening Viewer chat. Six mocked-API full-Studio layout
+  checks cover 1920/1600/390 in both themes; 27 viewer/10 dock tests passed.
+- [x] Final bundled backend imports/resources and isolated discard Rehearsal
+  passed. Rehearsal monitor-Off, encoder and ownership shutdown passed alone.
+- [x] Final Standalone Preview is open with separate profile, matching owned
+  backend/resources and unchanged main settings. Existing guest proxy remains
+  configured; guest entry is 200 and producer/setup/reply routes are 404 there.
+- [x] Viewer chat: 27 frontend tests, 29 backend tests and 45 integrated checks
+  pass (overlapping suites). Four full-Studio theme/layout checks show cards,
+  local icons, full dock width and explicit ready recipients; provider transport
+  is mocked and no real replies or permission upgrades occur.
+- [ ] Actual platform reply, platform receipt, physical devices and endurance
+  require separate acceptance; local tests do not establish those layers.
+
+Evidence: F:/Temp/jonat/ProducerPlease-playback-groups-20261119,
+F:/Temp/jonat/ProducerPlease-groups-rotation-20261119 and
+F:/Temp/jonat/ProducerPlease-replay-playback-20261119.
+
+Chat evidence: F:/Temp/jonat/ProducerPlease-viewer-chat-20261119/browser10/results.json.
+
+Extra Rehearsal evidence: rehearsal-final01 retained a monitoring-Off uncertainty
+under concurrent QA despite successful worker/ownership cleanup; unchanged
+rehearsal-final02 passed alone. The acknowledgement guard is unchanged; stress
+endurance is not accepted. The initial composed candidate ce4bc953 is superseded
+by the final sidebar-layout build recorded in the external checkpoint manifest.
+
+Accepted compiled source: 076b3f78cf41d0ad9c4978678ecef2dbd0cc8549.
+Final build: 0.1.0-20261120013232287. Checkpoint and recovery manifests remain outside Git on F:.

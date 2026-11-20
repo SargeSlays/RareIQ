@@ -133,7 +133,7 @@
     _applyLayers(node,tiles,state){
       for(const tile of tiles){const layer=state.layout==='custom'?state.layers[tile.id]:null;
         tile.node.dataset.layerHidden=String(layer?.hidden===true);tile.node.dataset.layerCropped=String(Boolean(layer&&Object.values(layer.crop).some(value=>value>0)));
-        for(const key of ['x','y','width','height','opacity','z'])if(layer)tile.node.style.setProperty('--layer-'+key,String(layer[key]));else tile.node.style.removeProperty?.('--layer-'+key);
+        for(const key of ['x','y','width','height','opacity','z','rotation'])if(layer)tile.node.style.setProperty('--layer-'+key,String(layer[key]??0));else tile.node.style.removeProperty?.('--layer-'+key);
         for(const edge of ['top','right','bottom','left'])if(layer)tile.node.style.setProperty('--layer-crop-'+edge,String(layer.crop[edge]));else tile.node.style.removeProperty?.('--layer-crop-'+edge);
       }
     }

@@ -70,6 +70,10 @@ class YouTubeAudienceConnector:
         self._authorized, self._cleanup_incomplete = False, False
         self._received = self._rejected = 0
 
+    def cached_chat_reply_target(self):
+        status = self.cached_status()
+        return {"channel_id": self._channel_id, "live_chat_id": self._chat_id} if status["connected"] and status["verified"] else None
+
     def cached_status(self):
         connected = (self._state == "connected" and self._authorized and self._clock() < self._expires_at
                      and self._clock() - self._last_observed <= max(30, self._poll_seconds + 15))

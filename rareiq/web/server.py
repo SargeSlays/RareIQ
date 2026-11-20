@@ -53,6 +53,8 @@ from rareiq.web.voice_rules_api import voice_rules_router
 from rareiq.services.audience_service import AudienceService
 from rareiq.services.viewer_chat_service import ViewerChatService
 from rareiq.web.viewer_chat import create_viewer_chat_router
+from rareiq.services.viewer_chat_reply_service import ViewerChatReplyService
+from rareiq.web.viewer_chat_reply import create_viewer_chat_reply_router
 from rareiq.web.platform_accounts import create_platform_accounts_router
 from rareiq.web.audience import create_audience_router
 from rareiq.services.twitch_audience_connector import TwitchAudienceConnector
@@ -1239,6 +1241,15 @@ app.include_router(create_stream_metadata_router(stream_metadata_service, _green
 app.include_router(create_viewer_chat_router(viewer_chat_service, _greenroom_operator, audit=_viewer_chat_audit,
     sources_provider=lambda: [connector.cached_status() for connector in
         (twitch_audience_connector, youtube_audience_connector, kick_audience_connector)]))
+viewer_chat_reply_service = ViewerChatReplyService(
+    accounts={"twitch": twitch_account_service, "youtube": youtube_account_service, "kick": kick_account_service},
+    connectors={"twitch": twitch_audience_connector, "youtube": youtube_audience_connector, "kick": kick_audience_connector},
+    receipt_path=storage.get_path("config_path") / "viewer_chat_reply.sqlite3",
+    audit=lambda platform, outcome, request_id: greenroom_service.record_production_event(
+        "platform.chat.reply", platform, outcome, actor_kind="local_operator", details={"request_id": request_id}))
+app.include_router(create_viewer_chat_reply_router(viewer_chat_reply_service, _greenroom_operator,
+    can_send=lambda: rehearsal_service.publishing_allowed(),
+    publication_guard=lambda: rehearsal_service.publishing_lease()))
 app.include_router(create_audience_router(audience_service, STATIC_DIR,
     sources_provider=lambda: [connector.cached_status() for connector in
         (twitch_audience_connector, youtube_audience_connector, kick_audience_connector)]))

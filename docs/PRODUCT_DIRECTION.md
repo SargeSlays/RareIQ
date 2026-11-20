@@ -1240,3 +1240,22 @@ ownership and Stop alongside broadcasting and recording. It is distinct from the
 older silent camera replay, and does not imply automatic replay playout, isolated
 tracks, platform receipt, new hardware acceptance or exhaustive OBS parity.
 Acceptance for this slice is recorded in RELEASE_CHECKLIST.md.
+
+
+## November 19, 2026 — Replay playback and layer grouping
+
+Saved full Program replay can be explicitly imported as a browser-compatible
+video source and staged in Preview. Take remains separate, with the existing
+transition and readiness guards. This is deliberate one-shot playback, not
+automatic replay playout or an automatic return to a previous shot.
+
+Flat named layer groups use atomic draft transforms and preserve lock/bounds
+guards. Centered per-layer rotation composes with crop/opacity. Both survive
+scene storage/recall; default maps retain their earlier composition identity.
+
+Viewer chat now has platform-marked message cards and a composer for explicit
+single or displayed ready-platform targets. Sending requires each platform's
+specific write permission, verified owned channel/live chat and private credential
+owner. Persistent hashed receipts track per-platform results without retaining
+message text/tokens and prevent ambiguous reposts after restart. Local UI and
+mocked-provider acceptance do not establish new grants or actual platform delivery.

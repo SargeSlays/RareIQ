@@ -29,18 +29,18 @@
   "todayFocus": [
     {
       "workflow": "Gameplay",
-      "demo": "Scene Preview/Take, six-source layer arrangements, emitted crop/opacity pixels, saved-scene recall and native MKV recording are locally exercised at their recorded layers.",
-      "remaining": "Physical game/window selection and audio, native game hooks, global hotkeys, rotation/flip and platform receipt remain separate. Native replay saves MKV explicitly and does not play clips to Program."
+      "demo": "Scene Preview/Take, six-source layer editing, flat groups, center rotation, saved-scene recall, native MKV recording and reviewed replay import followed by an explicit fade Take are locally exercised.",
+      "remaining": "Physical game/window/audio acceptance, dedicated game hooks, application audio, global hotkeys, flip, nested scenes and real platform receipt remain separate."
     },
     {
       "workflow": "Podcast/interview",
-      "demo": "Invited guest/waiting-room/backstage-chat and generated-media mix-minus workflows; native one-mix MKV recording has actual bundled acceptance.",
-      "remaining": "Physical headphone listening/echo, isolated guest stems, six-track recording and StackThis producer identity remain separate."
+      "demo": "Invited guests, waiting-room/backstage chat, generated-media mix-minus and one-mix recording retain their recorded acceptance. Viewer message cards/platform icons and reply composer are separate from backstage conversation.",
+      "remaining": "Current provider grants and actual replies, physical listening/echo, isolated stems and StackThis producer identity remain separate."
     },
     {
       "workflow": "General production",
-      "demo": "Images/video, bounded titles, custom layer positions/crop/stacking, smart layouts, reviewed HTTPS visual sources and local recording/settings are exercised at the recorded layers.",
-      "remaining": "Anchors, rotation/flip, groups/nested scenes, Program filter racks, dual native canvas, provider permissions and platform receipt remain separate. Main-profile promotion is not claimed."
+      "demo": "Images/video/text/browser sources, custom layer crop/opacity/rotation, flat group transforms, smart layouts and manual replay playout have the explicitly recorded local evidence.",
+      "remaining": "Anchors, flip, group/scene nesting, Program filter racks, dual native canvas, provider permissions, final combined build and current-phase Preview activation remain separate. Main-profile promotion is not claimed."
     }
   ],
   "sources": {
@@ -389,7 +389,7 @@
         "tests/browser/production_layer_editor.test.cjs",
         "tools/qa_production_layers.cjs"
       ],
-      "limit": "Six-source custom maps provide normalized Left/Top/Width/Height, pointer drag/resize and numeric/keyboard alternatives. Drafts require Apply to Preview, then separate Take with revision/composition guards; fractional geometry is canonical to six decimals. Anchor editing, groups, nested scenes and rotation are absent.",
+      "limit": "Six-source custom maps support numeric/pointer/keyboard position and size, flat named group move/resize and per-layer center rotation. Group transforms update all member boxes atomically and reject locked members or invalid bounds. Drafts require Apply to Preview and separate exact-ID Take. Anchor editing and nested scene graphs remain absent.",
       "priority": "P1",
       "officialURLs": [
         "https://obsproject.com/kb/sources-guide",
@@ -398,7 +398,9 @@
       "acceptanceEvidence": [
         "F:/Temp/jonat/ProducerPlease-layers-20261119/browser07/results.json",
         "F:/Temp/jonat/ProducerPlease-layers-20261119/text-crop01/results.json",
-        "F:/Temp/jonat/ProducerPlease-layers-20261119/visual02/results.json"
+        "F:/Temp/jonat/ProducerPlease-layers-20261119/visual02/results.json",
+        "F:/Temp/jonat/ProducerPlease-groups-rotation-20261119/browser07/results.json",
+        "F:/Temp/jonat/ProducerPlease-groups-rotation-20261119/pixels01/results.json"
       ]
     },
     {
@@ -418,9 +420,10 @@
         "tools/qa_production_layers.cjs",
         "rareiq/web/static/program_composition.css",
         "tools/qa_layer_text_crop.cjs",
-        "tests/browser/program_output.test.cjs"
+        "tests/browser/program_output.test.cjs",
+        "tools/qa_layer_rotation.cjs"
       ],
-      "limit": "Per-source edge crop, including literal text clipping, and opacity passed emitted-pixel tests and saved-scene recall. Rotation, flip and a general bounds/anchor editor remain absent. Text crop clips its intrinsic text layout; picture crop scales the remaining picture into its layer box.",
+      "limit": "Per-source crop, opacity and center rotation from -180 to 180 degrees are locally exercised, including actual clockwise/counterclockwise pixels and crop plus opacity. Both bus maps and saved scenes preserve rotation/group membership. Flip and a general bounds/anchor editor remain absent. Group selection transforms the axis-aligned member boxes; rotation remains per layer.",
       "priority": "P1",
       "officialURLs": [
         "https://obsproject.com/kb/sources-guide",
@@ -429,7 +432,9 @@
       "acceptanceEvidence": [
         "F:/Temp/jonat/ProducerPlease-layers-20261119/browser07/results.json",
         "F:/Temp/jonat/ProducerPlease-layers-20261119/text-crop01/results.json",
-        "F:/Temp/jonat/ProducerPlease-layers-20261119/visual02/results.json"
+        "F:/Temp/jonat/ProducerPlease-layers-20261119/visual02/results.json",
+        "F:/Temp/jonat/ProducerPlease-groups-rotation-20261119/browser07/results.json",
+        "F:/Temp/jonat/ProducerPlease-groups-rotation-20261119/pixels01/results.json"
       ]
     },
     {
@@ -448,7 +453,7 @@
         "tests/browser/production_layer_editor.test.cjs",
         "tools/qa_production_layers.cjs"
       ],
-      "limit": "Custom stack order, visual-only Hide, edit Lock and Reset are locally exercised with scene preservation/recall. Hidden sources retain availability/decode requirements; Hide does not mute audio, and Lock does not freeze video. Eight responsive measurements plus actual viewport review at 1920 / 390 in both skins are recorded.",
+      "limit": "Custom stack order, visual-only Hide, edit Lock and Reset are locally exercised with scene preservation/recall. Hidden sources retain availability/decode requirements; Hide does not mute audio and Lock does not freeze video. New flat group changes also respect member locks. Actual dark/light 1920/390 controls and bounds were checked.",
       "priority": "P1",
       "officialURLs": [
         "https://obsproject.com/kb/sources-guide",
@@ -457,7 +462,8 @@
       "acceptanceEvidence": [
         "F:/Temp/jonat/ProducerPlease-layers-20261119/browser07/results.json",
         "F:/Temp/jonat/ProducerPlease-layers-20261119/text-crop01/results.json",
-        "F:/Temp/jonat/ProducerPlease-layers-20261119/visual02/results.json"
+        "F:/Temp/jonat/ProducerPlease-layers-20261119/visual02/results.json",
+        "F:/Temp/jonat/ProducerPlease-groups-rotation-20261119/browser07/results.json"
       ]
     },
     {
@@ -466,20 +472,27 @@
       "feature": "Source groups and nested scenes",
       "obs": "Native grouping and scene-as-source composition.",
       "streamlabs": "Desktop: scene/source composition; exact grouping behavior depends on build.",
-      "producerStatus": "missing",
+      "producerStatus": "implemented_partial",
       "evidencepaths": [
         "rareiq/services/production_scene_store.py",
         "rareiq/web/static/production_layouts.js",
         "tests/test_production_scene_store.py",
         "rareiq/services/production_composition.py",
         "rareiq/web/static/program_composition.js",
-        "tests/browser/production_layouts.test.cjs"
+        "tests/browser/production_layouts.test.cjs",
+        "rareiq/web/static/production_layer_editor.js",
+        "rareiq/web/static/production_layer_editor.css",
+        "tests/test_production_layers.py",
+        "tests/browser/production_layer_editor.test.cjs"
       ],
-      "limit": "No general groups or nested scene graph; presets remain bounded flat compositions.",
+      "limit": "Flat named groups within the existing six-source composition support Group/Ungroup and atomic move/resize while preserving member crop, opacity, order, visibility and rotation. Any locked member or invalid result blocks the whole operation. Membership survives scene save/recall. Nested scenes, group nesting and parent/group rotation are not implemented.",
       "priority": "P2",
       "officialURLs": [
         "https://obsproject.com/kb/sources-guide",
         "https://support.streamlabs.com/hc/en-us/articles/52815306339867-Getting-Started-with-Streamlabs-Desktop"
+      ],
+      "acceptanceEvidence": [
+        "F:/Temp/jonat/ProducerPlease-groups-rotation-20261119/browser07/results.json"
       ]
     },
     {
@@ -999,9 +1012,12 @@
         "desktop/tests/test_program_replay_worker.py",
         "desktop/tests/native-replay.cjs",
         "desktop/tests/bundled-replay.cjs",
-        "desktop/tests/replay-settings-ui.cjs"
+        "desktop/tests/replay-settings-ui.cjs",
+        "desktop/replay-playback.cjs",
+        "desktop/main.cjs",
+        "desktop/tests/replay-playback.test.cjs"
       ],
-      "limit": "Native replay uses a 120 MiB encoded ring plus at most one save snapshot; 15/30/60-second history targets and explicit Save produce MKV with one Live AAC mix. Memory capacity can shorten retained history. No automatic playout or Take, isolated stems or VOD mix. Generated native tests decoded five non-silent files and eight mocked Settings layouts passed. Final packaged generated-media acceptance decoded seven files, including three saved clips and composed black-margin/colour-centre pixels. Preview-only edits left Program/Replay unchanged; explicit Take changed the captured composition ID without restarting capture. Retry, cancellation, no-clobber and two three-output stop-order runs passed. Four native-header dark/light layouts used actual CSS. Physical devices, platform receipt and endurance remain unverified.",
+      "limit": "Native replay retains H.264 and one Live AAC mix in a 120 MiB encoded ring plus one save snapshot, targeting 15/30/60 seconds; capacity can shorten history. Explicit MKV Save is followed by a separately reviewed Load replay into Preview, which creates a browser-compatible MP4 library copy without changing the original MKV or Program. Actual packaged core acceptance verifies silent decoded Preview at zero, duplicate import protection, visible Video & text entry and explicit fade Take starting playback from the beginning with advancing time. Seven generated files decode and streaming/recording/replay Stop independently. No automatic Take/loop, isolated stems or VOD mix; hardware, platform receipt and endurance remain unverified.",
       "priority": "P1",
       "officialURLs": [
         "https://obsproject.com/kb/standard-recording-output-guide",
@@ -1010,7 +1026,8 @@
       "acceptanceEvidence": [
         "F:/Temp/jonat/ProducerPlease-recording-20261119/replay-native01/results.json",
         "F:/Temp/jonat/ProducerPlease-recording-20261119/replay-settings-ui01/results.json",
-        "F:/Temp/jonat/ProducerPlease-recording-20261119/bundled-replay04/results.json"
+        "F:/Temp/jonat/ProducerPlease-recording-20261119/bundled-replay04/results.json",
+        "F:/Temp/jonat/ProducerPlease-playback-groups-20261119/bundled-core01/results.json"
       ]
     },
     {
@@ -1655,13 +1672,23 @@
         "tests/test_viewer_chat_service.py",
         "desktop/settings-provider-accounts.js",
         "tests/browser/platform_accounts.test.cjs",
-        "docs/PRODUCT_DIRECTION.md"
+        "docs/PRODUCT_DIRECTION.md",
+        "rareiq/web/static/viewer_chat.css",
+        "rareiq/services/viewer_chat_reply_service.py",
+        "rareiq/web/viewer_chat_reply.py",
+        "tests/test_viewer_chat_reply.py",
+        "tests/browser/viewer_chat.test.cjs",
+        "tests/browser/viewer_chat.composer.ui.cjs"
       ],
-      "limit": "Read-only Twitch / YouTube / Kick transcript and adapters exist; grants, callbacks/provider event setup and actual ingestion vary.",
+      "limit": "Combined incoming Twitch/YouTube/Kick transcript has platform icons, readable message cards and an explicit All ready chats or single-platform composer. Local UI/transport-mock contracts are distinct from actual provider ingestion and sending. Each reply target requires a connected verified channel/chat, its saved account and an approved send scope. Current read-only grants remain blocked; Kick event callback registration and provider setup still require their own acceptance.",
       "priority": "P1",
       "officialURLs": [
         "https://obsproject.com/kb/browser-source",
         "https://streamlabs.com/multistream"
+      ],
+      "acceptanceEvidence": [
+        "F:/Temp/jonat/ProducerPlease-viewer-chat-20261119/browser10/results.json",
+        "F:/Temp/jonat/ProducerPlease-viewer-chat-20261119/dock05/results.json"
       ]
     },
     {
@@ -1670,20 +1697,30 @@
       "feature": "Chat sending, bot commands and moderation",
       "obs": "External bots/services/plugins.",
       "streamlabs": "Cloudbot cloud service:standard commands/moderation free; custom name with Ultra.",
-      "producerStatus": "missing",
+      "producerStatus": "implemented_partial",
       "evidencepaths": [
         "rareiq/services/viewer_chat_service.py",
         "rareiq/web/static/viewer_chat.js",
         "tests/test_viewer_chat_service.py",
         "rareiq/services/audience_service.py",
         "rareiq/web/static/audience_controls.js",
-        "tests/browser/audience_tools.test.cjs"
+        "tests/browser/audience_tools.test.cjs",
+        "rareiq/web/static/viewer_chat.css",
+        "rareiq/services/viewer_chat_reply_service.py",
+        "rareiq/web/viewer_chat_reply.py",
+        "tests/test_viewer_chat_reply.py",
+        "tests/browser/viewer_chat.test.cjs",
+        "tests/browser/viewer_chat.composer.ui.cjs"
       ],
-      "limit": "Current observers do not send chat, timeout, ban or run a general bot.",
+      "limit": "Explicit literal replies up to 200 characters can target one platform or the exact displayed ready-platform set (one to three), with per-target results. Private official send adapters are gated by exact send scopes and verified channel/live-chat binding. A durable content-free ledger claims before a write; exact retries do not resend, and Retry failed only reattempts known unsent failures. Timeouts/restarts remain uncertain and cannot auto-resend. Account/connector/router and transport-mock tests pass; real provider posts and new grants are unverified. General bot commands, bans/timeouts and moderation tools remain absent.",
       "priority": "P2",
       "officialURLs": [
         "https://obsproject.com/kb/browser-source",
         "https://streamlabs.com/cloudbot"
+      ],
+      "acceptanceEvidence": [
+        "F:/Temp/jonat/ProducerPlease-viewer-chat-20261119/browser10/results.json",
+        "F:/Temp/jonat/ProducerPlease-viewer-chat-20261119/dock05/results.json"
       ]
     },
     {
@@ -1884,7 +1921,7 @@
         "tests/test_desktop_package.py",
         "docs/RELEASE_CHECKLIST.md"
       ],
-      "limit": "Final Windows self-contained candidate passed actual packaged generated-media layer/replay acceptance. Prior basic-recording/screen checkpoint passed bundled import/backend/recording/Rehearsal acceptance with unchanged resources. Main 8765 and Preview 8767 remain separate; Standalone Preview activation is separately verified; main promotion is not claimed. No cross-platform Producer release accepted.",
+      "limit": "Final Windows bundled candidate passed generated-media replay import/playback, native sidebar layout and backend/Rehearsal acceptance; Standalone Preview activation is verified separately. Main profile promotion, public distribution, cross-platform support and real platform receipt are not accepted.",
       "priority": "P1",
       "officialURLs": [
         "https://obsproject.com/download",
@@ -1919,39 +1956,53 @@
       ]
     }
   ],
-  "acceptancePolicy": "Layer controls and native full-Program replay have the explicitly recorded local generated-media acceptance. Source gates and actual packaged acceptance do not establish production readiness, physical capture or platform receipt.",
+  "acceptancePolicy": "Replay import/playback and flat groups/rotation have the recorded local generated-media acceptance. Chat reply tests use synthetic accounts and mocked transport only. Current provider permissions, real messages, hardware, platform receipt, final combined build and Preview activation need separate evidence.",
   "candidate": {
-    "build": "0.1.0-20261119192451732",
-    "sourceTree": "f6da989f47f8fc45cde327db6c07d0f8dbd531e7",
-    "packagedReplayAcceptance": "passed_generated_media",
-    "mainProfilePromotion": "not claimed by this report",
-    "previewActivation": "passed: separate Preview profile, owned backend, unchanged primary settings; existing private guest-only ingress preserved"
+    "build": "0.1.0-20261120013232287",
+    "sourceTree": "076b3f78cf41d0ad9c4978678ecef2dbd0cc8549",
+    "scope": "Final chat-inclusive generated-media checkpoint",
+    "packagedReplayAcceptance": "passed_generated_media_import_preview_explicit_take",
+    "mainProfilePromotion": "not claimed",
+    "previewActivation": "passed: separate Standalone Preview, main settings unchanged",
+    "finalCombinedBuild": "passed"
   },
   "canonicalGate": {
     "status": "passed",
-    "priorOwnSource": {
+    "coreOwnSource": {
       "status": "passed",
-      "evidenceLog": "F:/Temp/jonat/ProducerPlease-layers-replay-20261119/release-own01.log",
-      "pythonTests": 4521,
+      "pythonTests": 4534,
+      "javascriptTests": 1156,
+      "evidenceLog": "F:/Temp/jonat/ProducerPlease-playback-groups-20261119/release-own-core01.log"
+    },
+    "coreComposedSource": {
+      "status": "passed",
+      "pythonTests": 4533,
       "pythonSkipped": 1,
-      "javascriptTests": 1133,
-      "checkpoint": "Prior f4aed26 source gate; not a rerun of the final candidate."
+      "javascriptTests": 1167,
+      "sourceTree": "678b2ad52f83dde5f7078ae87d716b299e9a73d1",
+      "evidenceLog": "F:/Temp/jonat/ProducerPlease-playback-groups-20261119/release-composed-core01.log"
     },
-    "composedSource": {
-      "status": "passed",
-      "evidenceLog": "F:/Temp/jonat/ProducerPlease-layers-replay-20261119/release-composed02.log",
-      "pythonTests": 4522,
+    "focusedChat": {
+      "replyTests": 29,
+      "accountConnectorRouterRegression": 345,
+      "integratedRootTests": 45,
+      "scope": "Separate focused runs overlap and must not be added to claim a unique test total."
+    },
+    "scope": "Final immutable source gates; local generated-media acceptance only",
+    "finalOwnSource": {
+      "pythonTests": 4564,
+      "javascriptTests": 1167,
       "pythonSkipped": 0,
-      "javascriptTests": 1145,
-      "sourceTree": "f6da989f47f8fc45cde327db6c07d0f8dbd531e7"
+      "evidenceLog": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\release-own-final04.log"
     },
-    "latestFocusedChecks": {
-      "stylesheetTests": 36,
-      "mainTests": 22,
-      "status": "passed",
-      "reportedBy": "Root acceptance"
+    "finalComposedSource": {
+      "pythonTests": 4563,
+      "pythonSkipped": 1,
+      "javascriptTests": 1178,
+      "sourceTree": "076b3f78cf41d0ad9c4978678ecef2dbd0cc8549",
+      "evidenceLog": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\release-composed-final04.log"
     },
-    "scope": "Final composed frozen-source gate; prior own-source gate is labeled separately. Not hardware or platform receipt."
+    "isolatedSkippedCheck": "Windows hotkey registration passed alone without key injection"
   },
   "acceptanceEvidence": {
     "producerScreen": "F:/Temp/jonat/ProducerPlease-parity-20261119/producer-screen-ui06/results.json",
@@ -1967,9 +2018,18 @@
     "layerVisual": "F:/Temp/jonat/ProducerPlease-layers-20261119/visual02/results.json",
     "programReplayNative": "F:/Temp/jonat/ProducerPlease-recording-20261119/replay-native01/results.json",
     "programReplaySettings": "F:/Temp/jonat/ProducerPlease-recording-20261119/replay-settings-ui01/results.json",
-    "programReplayPackaged": "F:/Temp/jonat/ProducerPlease-recording-20261119/bundled-replay04/results.json",
-    "previewActivation": "F:/Temp/jonat/ProducerPlease-layers-replay-20261119/preview-activation.json",
-    "privateGuestIsolation": "F:/Temp/jonat/ProducerPlease-layers-replay-20261119/private-ingress-proof.json"
+    "programReplayPackaged": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\bundled-final02\\results.json",
+    "previewActivation": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\preview-activation.json",
+    "privateGuestIsolation": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\private-ingress-proof.json",
+    "layerGroups": "F:/Temp/jonat/ProducerPlease-groups-rotation-20261119/browser07/results.json",
+    "layerRotation": "F:/Temp/jonat/ProducerPlease-groups-rotation-20261119/pixels01/results.json",
+    "replayPlaybackCore": "F:/Temp/jonat/ProducerPlease-playback-groups-20261119/bundled-core01/results.json",
+    "chatIntegrated": "F:/Temp/jonat/ProducerPlease-playback-groups-20261119/chat-integrated01.log",
+    "finalBackend": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\backend-final02\\results.json",
+    "finalRehearsal": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\rehearsal-final03\\results.json",
+    "rehearsalStressFailure": "F:\\Temp\\jonat\\ProducerPlease-playback-groups-20261119\\rehearsal-final01\\results.json",
+    "viewerChatLayout": "F:/Temp/jonat/ProducerPlease-viewer-chat-20261119/browser10/results.json",
+    "viewerChatDock": "F:/Temp/jonat/ProducerPlease-viewer-chat-20261119/dock05/results.json"
   },
   "previousAcceptedCheckpoint": {
     "candidate": {
@@ -1990,5 +2050,41 @@
       },
       "scope": "Local composed-source canonical gate; no physical capture or external platform receipt."
     }
-  }
+  },
+  "previousAcceptedLayersReplayCheckpoint": {
+    "candidate": {
+      "build": "0.1.0-20261119192451732",
+      "sourceTree": "f6da989f47f8fc45cde327db6c07d0f8dbd531e7",
+      "packagedReplayAcceptance": "passed_generated_media",
+      "mainProfilePromotion": "not claimed by this report",
+      "previewActivation": "passed: separate Preview profile, owned backend, unchanged primary settings; existing private guest-only ingress preserved"
+    },
+    "canonicalGate": {
+      "status": "passed",
+      "priorOwnSource": {
+        "status": "passed",
+        "evidenceLog": "F:/Temp/jonat/ProducerPlease-layers-replay-20261119/release-own01.log",
+        "pythonTests": 4521,
+        "pythonSkipped": 1,
+        "javascriptTests": 1133,
+        "checkpoint": "Prior f4aed26 source gate; not a rerun of the final candidate."
+      },
+      "composedSource": {
+        "status": "passed",
+        "evidenceLog": "F:/Temp/jonat/ProducerPlease-layers-replay-20261119/release-composed02.log",
+        "pythonTests": 4522,
+        "pythonSkipped": 0,
+        "javascriptTests": 1145,
+        "sourceTree": "f6da989f47f8fc45cde327db6c07d0f8dbd531e7"
+      },
+      "latestFocusedChecks": {
+        "stylesheetTests": 36,
+        "mainTests": 22,
+        "status": "passed",
+        "reportedBy": "Root acceptance"
+      },
+      "scope": "Final composed frozen-source gate; prior own-source gate is labeled separately. Not hardware or platform receipt."
+    }
+  },
+  "knownStressLimitation": "One concurrent rehearsal monitoring-Off acknowledgement was unconfirmed; unchanged isolated reruns passed. Guard preserved; stress endurance remains unaccepted."
 }

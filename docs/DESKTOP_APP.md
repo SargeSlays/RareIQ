@@ -414,3 +414,34 @@ while saving. Actual history can be shorter at high bitrates and clips begin on
 decodable keyframes. This is one Live mix; isolated tracks and automatic replay
 playback/Take are not provided by saving an MKV clip. Use Show last clip to review
 the saved file in a compatible player.
+
+
+## Replay playback, layer groups and rotation
+
+After saving a Program replay, choose **Load last clip into Preview** in Replay
+buffer. Review the confirmation. A compatible MP4 copy is imported into Video &
+text; the original MKV remains intact. Preview is silent and paused at its first
+frame. In the studio, wait for readiness, choose a transition and **Take** to play
+once with the clip's Live audio mix. Take another prepared shot when it ends;
+there is no automatic return or automatic broadcast. The library copy is limited
+to 64 MB. Buffer, recording and stream Stop controls remain independent.
+
+In **Arrange layers**, make a named flat group from selected members, choose its
+group outline and move/resize those members together. Locked members and invalid
+bounds reject the whole operation. Ungroup preserves each picture's geometry.
+Rotation is per layer, centered, from -180 to 180 degrees; crop and opacity still
+apply. Apply to Preview and Save scene retain membership and rotation. Groups do
+not nest and there is no shared group rotation control.
+
+Viewer chat uses platform icons, separate username/message cards and a composer.
+Transcript filters only change what you read. Choose one destination or **All
+ready chats** to reply; the exact recipients and excluded connection/permission
+reasons are shown before Send. Messages are limited to 200 Unicode characters.
+Each platform reports its own result. Retry unsent failures retains the same
+request; sent or uncertain destinations are never reposted automatically.
+
+Replies require Twitch user:write:chat, YouTube youtube.force-ssl or Kick chat:write
+and a verified connected chat. Existing read-only grants are not upgraded by this
+update. Permission/setup blockers remain visible; first-time account permissions
+and real platform replies require separate owner acceptance. No automatic posts
+follow startup, sign-in, listening or rehearsals.

@@ -167,8 +167,8 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
         "/static/studio_shell.css?v=20261118-4&amp;refinish=20260907-2&amp;session-tools=20260908-2&amp;sarge=20260908-2&amp;studio-refinish=20260908-2&amp;noise-gate=20260908-1",
         "/static/producer-please.motion.css?v=20260908-1",
         "/static/studio_voice_rules.css?v=20261115-1",
-        "/static/program_composition.css?v=20261119-layer1",
-        "/static/production_layer_editor.css?v=20261119-layer1",
+        "/static/program_composition.css?v=20261119-groups2",
+        "/static/production_layer_editor.css?v=20261119-groups2",
         "/static/greenroom_controls.css?v=20261118-compact1",
         "/static/greenroom_chat.css?v=20261115-chat1",
         "/static/production_image_library.css?v=20261115-1",
@@ -178,7 +178,7 @@ def test_ui4_stylesheets_are_cache_busted_and_last_in_cascade() -> None:
         "/static/desktop_bridge.css?v=20261119-replay1",
         "/static/audience_controls.css?v=20261115-1",
         "/static/platform_accounts.css?v=20261118-2",
-        "/static/viewer_chat.css?v=20261118-1",
+        "/static/viewer_chat.css?v=20261119-replies2",
         "/static/production_vision.css?v=20261115-1",
     ]
     assert len(styles) == 30

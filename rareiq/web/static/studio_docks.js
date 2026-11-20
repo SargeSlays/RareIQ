@@ -5,6 +5,8 @@
   const SETS_KEY="rareiq.studio.toolsets.v1";
   const WORKSPACES={soundboard:"Soundboard","voice-mod":"Voice studio","camera-fx":"Camera effects",spotify:"Spotify DJ",creator:"Creator studio",live:"RareIQ Card Studio",collection:"Collection",ai:"AI Lab",library:"Reference library",settings:"Studio settings"};
   const PORTABLE={soundboard:".soundboard-app-shell","voice-mod":".voice-mod-shell"};
+  const sideChat=(id,position)=>id==="production-viewer-chat"&&["left","right"].includes(position);
+  const toolScrollTarget=(id,position,width)=>sideChat(id,position)&&width>1100?"studio":"tool";
   function normalizeSets(raw,ids){
     if(raw?.version!==1)raw=null;
     const profiles=[],seen=new Set(),allowed=values=>Array.isArray(values)?Object.keys(WORKSPACES).filter(id=>values.includes(id)&&!ids.includes(`workspace-${id}`)):[];
@@ -230,6 +232,8 @@
         item.wrapper.style.height=view==="live"?`${saved.height}px`:"";
         if(saved.position==="float"&&!item.wrapper.hidden)clampFloat(item,saved);
       }
+      const chat=registry.get("production-viewer-chat"),chatPosition=state.tools["production-viewer-chat"]?.position;
+      if(view==="live"&&chat&&sideChat("production-viewer-chat",chatPosition)&&regions[chatPosition].firstElementChild!==chat.wrapper)regions[chatPosition].prepend(chat.wrapper);
       for(const region of Object.values(regions)){const count=[...region.children].filter(node=>node.classList.contains("studio-dock-tool")&&!node.hidden).length;region.dataset.empty=String(!count);region.dataset.count=String(count);}
       addTool.hidden=view!=="live"||regions.left.dataset.empty==="true";
       const selectedCount=Object.values(state.tools).filter(item=>item.visible).length+sets.workspaces.length;
@@ -247,10 +251,10 @@
     if(typeof ResizeObserver!=="undefined")new ResizeObserver(()=>{for(const [id,item] of registry)if(state.tools[id].position==="float")clampFloat(item,state.tools[id]);}).observe(grid);
     workspace.dataset.studioDocks="ready";
     if(typeof ResizeObserver!=="undefined")new ResizeObserver(fitFrame).observe(workspace);
-    workspace._studioDocks={syncWorkspace(name){activeWorkspace=name;render();},setView(next){view=next;render();},showTool(id){if(!registry.has(id))return false;state.tools[id].visible=true;view=registry.get(id).view;root.setBroadcastWorkspaceView?.(view);render();save();registry.get(id).options.focus({preventScroll:true});registry.get(id).panel.scrollIntoView({block:"start",behavior:root.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});return true;},snapshot(){return normalize(state,[...registry.keys()]);}};
+    workspace._studioDocks={syncWorkspace(name){activeWorkspace=name;render();},setView(next){view=next;render();},showTool(id){if(!registry.has(id))return false;state.tools[id].visible=true;view=registry.get(id).view;root.setBroadcastWorkspaceView?.(view);render();save();registry.get(id).options.focus({preventScroll:true});const target=toolScrollTarget(id,state.tools[id].position,root.innerWidth)==="studio"?grid:sideChat(id,state.tools[id].position)?registry.get(id).wrapper:registry.get(id).panel;target.scrollIntoView({block:"start",behavior:root.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});return true;},snapshot(){return normalize(state,[...registry.keys()]);}};
     render();return workspace._studioDocks;
   }
-  const api=Object.freeze({init,normalize,normalizeSets,KEY,SETS_KEY,POSITIONS,WORKSPACES,PORTABLE});
+  const api=Object.freeze({init,normalize,normalizeSets,toolScrollTarget,KEY,SETS_KEY,POSITIONS,WORKSPACES,PORTABLE});
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
   else root.ProducerStudioDocks=api;
 })(typeof window!=="undefined"?window:globalThis);

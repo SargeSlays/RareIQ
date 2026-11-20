@@ -17,9 +17,9 @@ async function main(){
     await page.goto(origin+'/__qa__/viewer-chat');
     await page.waitForFunction(()=>document.querySelector('[data-viewer-status]')?.textContent.includes('stopped'));
     assert.equal((await post({platform:'twitch'})).ok,false,'disabled transcript drops incoming messages');
+    await page.locator('.viewer-chat-connections summary').click();
     await page.locator('[data-viewer-start]').click();
     await page.waitForFunction(()=>document.querySelector('[data-viewer-start]').hidden);
-    await page.locator('.viewer-chat-connections summary').click();
     assert.equal(await page.locator('[data-viewer-connect="kick"]').isDisabled(),true);
     await page.locator('[data-viewer-connect="twitch"]').click();
     await page.waitForFunction(()=>document.querySelector('[data-viewer-connect="twitch"]').textContent==='Disconnect Twitch');

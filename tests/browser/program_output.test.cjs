@@ -41,6 +41,19 @@ test('a new staged composition ID cannot inherit old readiness before paint and 
   assert.equal(f.statuses.at(-1).previewCompositionId,'c'.repeat(64));f.close();
 });
 
+test('rotation is emitted around the layer center and group metadata never changes source ownership',async()=>{
+  const f=fixture(),layers=layerModel.normalizeLayers([CAM],{[CAM]:{...layerModel.defaults(),rotation:90,group:'Interview'}});
+  const tracks=guestTracks(f);
+  f.view.render(state({program_sources:[CAM],preview_sources:[],program_layout:'custom',program_layers:layers,program_composition_id:'d'.repeat(64)}),room());
+  await f.run(16);paint(f);await settle();f.view.refresh();
+  assert.equal(f.view.current.tiles[0].node.style['--layer-rotation'],'90');
+  assert.equal(f.statuses.at(-1).rendered,true);assert.equal(f.statuses.at(-1).compositionId,'d'.repeat(64));
+  assert.equal(f.view.audio.size,1);assert.equal(tracks.camera.stops,0);assert.equal(tracks.microphone.stops,0);
+  f.view.render(state({generation:1,program_sources:[CAM],preview_sources:[],program_layout:'grid'}),room());
+  await f.run(16);paint(f);assert.equal(f.view.current.tiles[0].node.style['--layer-rotation'],undefined);
+  assert.equal(tracks.camera.stops,0);f.close();
+});
+
 test('late same-generation Preview polls cannot restore an earlier custom arrangement or receipt',()=>{
   const f=fixture(),layers=layerModel.normalizeLayers(['camera:1']);
   f.view.render(state({preview_revision:8,preview_sources:['camera:1'],preview_layout:'custom',preview_layers:layers,preview_composition_id:'a'.repeat(64)}));

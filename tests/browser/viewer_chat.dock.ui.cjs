@@ -1,0 +1,24 @@
+/* Full-Studio layout only: no devices, listening, reply POSTs or provider access. */
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{chromium}=require('playwright');
+const [directory,base='http://127.0.0.1:8786']=process.argv.slice(2);if(!path.isAbsolute(directory||'')||fs.existsSync(directory))throw Error('New absolute evidence directory required');fs.mkdirSync(directory,{recursive:true});
+const result={passed:false,providerNetwork:false,hardware:false,mutations:false,backend:'synthetic browser routes; current unmodified source HTML/JS/CSS',layouts:[]};
+async function main(){const browser=await chromium.launch({headless:true,channel:'msedge',args:['--mute-audio']});try{
+  const context=await browser.newContext({viewport:{width:1920,height:1080},reducedMotion:'reduce'}),page=await context.newPage(),errors=[],posts=[];
+  page.on('pageerror',error=>{if(!error.message.includes('read_blocked_in_guest_fixture'))errors.push(error.message);});
+  const staticRoot=path.resolve('rareiq/web/static');
+  await context.route('**/*',route=>{const request=route.request(),url=new URL(request.url());if(request.method()==='POST'){posts.push(request.url());return route.abort();}if(url.origin!==base)return route.abort();let file=url.pathname==='/control'?path.join(staticRoot,'control.html'):url.pathname.startsWith('/static/')?path.resolve(staticRoot,url.pathname.slice(8)):null;if(file&&(file===staticRoot||file.startsWith(staticRoot+path.sep))&&fs.existsSync(file)&&fs.statSync(file).isFile()){const type={'.html':'text/html','.js':'application/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.woff2':'font/woff2'}[path.extname(file)]||'application/octet-stream';return route.fulfill({contentType:type,body:fs.readFileSync(file)});}return route.fulfill({status:503,json:{ok:false,reason:'read_blocked_in_guest_fixture'}});});
+  await page.goto(base+'/control?workspace=studio&viewerDockQA=1',{waitUntil:'domcontentloaded'});await page.locator('#instantSplash').waitFor({state:'hidden'});await page.waitForFunction(()=>document.querySelector('[data-studio-docks="ready"]')?._studioDocks);
+  const toolbar=page.locator('.studio-dock-toolbar').getByRole('button',{name:'Viewer chat',exact:true});
+  for(const theme of ['dark','light'])for(const width of [1920,1600,390]){
+    await page.setViewportSize({width,height:1080});await page.evaluate(theme=>{document.documentElement.dataset.theme=theme;document.documentElement.dataset.operatorSkin=theme==='light'?'daylight':'ignite';},theme);
+    // Start far below the studio so the shortcut must recover the production view.
+    await page.locator('.production-layer-editor').evaluate(node=>node.scrollIntoView({block:'start'}));await toolbar.click();
+    const geometry=await page.evaluate(()=>{const rect=selector=>{const b=document.querySelector(selector).getBoundingClientRect();return {top:b.top,bottom:b.bottom,left:b.left,right:b.right,width:b.width,height:b.height};},tool=document.querySelector('[data-studio-tool="production-viewer-chat"]'),heading=tool.querySelector('.studio-dock-handle'),region=tool.parentElement;return {camera:rect('.production-switcher-shell .production-header'),heading:(()=>{const b=heading.getBoundingClientRect();return {top:b.top,bottom:b.bottom,left:b.left,right:b.right};})(),tool:rect('[data-studio-tool="production-viewer-chat"]'),firstSideTool:[...region.children].find(n=>n.classList.contains('studio-dock-tool'))===tool,focused:document.activeElement?.getAttribute('aria-label'),pageOverflow:document.documentElement.scrollWidth>innerWidth};});
+    assert.equal(geometry.firstSideTool,true);assert.equal(geometry.pageOverflow,false);assert.ok(geometry.heading.bottom>72&&geometry.heading.top<1080,'chat heading visible '+JSON.stringify({theme,width,...geometry}));assert.equal(geometry.focused,'Options for Viewer chat');if(width>1100){assert.ok(geometry.camera.bottom>72&&geometry.camera.top<1080,'Camera Switcher intersects viewport '+JSON.stringify({theme,width,...geometry}));assert.ok(geometry.camera.top>=72,'Camera Switcher clears app header');}
+    await page.screenshot({path:path.join(directory,`shortcut-${theme}-${width}.png`)});result.layouts.push({theme,width,...geometry});
+  }
+  const preserved=await page.evaluate(()=>{const api=document.querySelector('[data-studio-docks="ready"]')._studioDocks;return api.snapshot().tools['production-viewer-chat'];});assert.equal(preserved.position,'right');assert.equal(preserved.customHeight,false);
+  assert.deepEqual(posts,[]);assert.deepEqual(errors,[]);result.noProductionWrites=true;result.passed=true;
+}finally{fs.writeFileSync(path.join(directory,'results.json'),JSON.stringify(result,null,2));await browser.close();}console.log(JSON.stringify({passed:result.passed,layouts:result.layouts.length}));}
+main().catch(error=>{console.error(error);process.exitCode=1;});

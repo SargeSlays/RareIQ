@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {normalize,normalizeSets,KEY}=require('../../rareiq/web/static/studio_docks.js');
+const {normalize,normalizeSets,toolScrollTarget,KEY}=require('../../rareiq/web/static/studio_docks.js');
 test('dock defaults keep production essentials visible without changing older workspace preferences',()=>{
   const state=normalize(null,['production-scenes','show-preflight','production-session','operator-health','obs-control']);
   assert.equal(state.tools['production-scenes'].position,'left');
@@ -58,4 +58,15 @@ test('new guest tool starts below the switcher and preserves a saved user positi
  const saved={version:1,tools:{'production-greenroom':{position:'top',visible:false}}};
  assert.equal(normalize(saved,ids).tools['production-greenroom'].position,'top');
  assert.equal(normalize(saved,ids).tools['production-greenroom'].visible,false);
+});
+
+test('side Viewer chat targets the studio row while narrow, floated and other tools retain their own target',()=>{
+  for(const width of [1600,1920,3840])for(const side of ['left','right'])assert.equal(toolScrollTarget('production-viewer-chat',side,width),'studio');
+  for(const width of [390,860,1100])assert.equal(toolScrollTarget('production-viewer-chat','right',width),'tool');
+  for(const position of ['top','bottom','float'])assert.equal(toolScrollTarget('production-viewer-chat',position,1920),'tool');
+  for(const id of ['production-greenroom','show-preflight','production-scenes'])assert.equal(toolScrollTarget(id,'right',1920),'tool');
+});
+
+test('chat shortcut policy never rewrites saved side placement or custom heights',()=>{
+  const raw={version:1,tools:{'production-viewer-chat':{position:'left',height:740,customHeight:true,visible:false}}};const before=normalize(raw,['production-viewer-chat']);assert.equal(toolScrollTarget('production-viewer-chat',before.tools['production-viewer-chat'].position,1920),'studio');assert.deepEqual(normalize(raw,['production-viewer-chat']),before);assert.equal(before.tools['production-viewer-chat'].height,740);assert.equal(before.tools['production-viewer-chat'].position,'left');
 });

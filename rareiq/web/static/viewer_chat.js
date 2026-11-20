@@ -4,6 +4,32 @@
   const PLATFORMS=Object.freeze({twitch:'Twitch',youtube:'YouTube',kick:'Kick'}),LIMIT=300;
   const ACCOUNT_REQUIRED=new Set(['credentials_required','authorization_rejected','chat_scope_required']);
   const isId=value=>Number.isSafeInteger(value)&&value>=0;
+  const REPLY_REASONS={ready:'Ready to reply',chat_send_permission_required:'Permission to send chat is missing. Update this account’s permissions.',chat_not_connected:'Connect chat before replying.',chat_account_required:'Connect an account on this computer.',chat_target_unavailable:'The destination is unavailable. Check it before retrying.',chat_target_changed:'The destination changed. Check the intended broadcast.',chat_provider_rejected:'The platform rejected this reply.',chat_provider_rate_limited:'The platform is limiting replies. Wait before retrying.',chat_send_uncertain:'Delivery is unknown. Check the platform; this reply will not be resent.',chat_sent:'Sent',chat_storage_unavailable:'Reply status could not be saved. Check each platform before starting a new reply.',chat_receipt_capacity:'Reply receipt capacity reached. Nothing new was sent.',chat_request_conflict:'This reply request changed. Review your draft.',invalid_chat_reply:'Use 1–200 characters and choose a destination.',unavailable:'Reply permission could not be checked.'};
+  const replyReason=reason=>reason==='rehearsal_active'?'Public replies are unavailable during Rehearsal.':REPLY_REASONS[reason]||REPLY_REASONS.unavailable;
+  const validReplyText=text=>typeof text==='string'&&Boolean(text.trim())&&[...text].length<=200&&[...text].every(char=>{const code=char.codePointAt(0);return code>=32&&!(code>=127&&code<=159)&&!(code>=0xD800&&code<=0xDFFF);});
+  function createReplyController(options={}){
+    const fetcher=options.fetch||((...args)=>host.fetch(...args)),notify=options.onChange||(()=>{}),setTimer=options.setTimeout||host.setTimeout.bind(host),clearTimer=options.clearTimeout||host.clearTimeout.bind(host);
+    let targets=[],checking=false,sending=false,receipt=null,pending=null,error='',destroyed=false,reader=null,writer=null,serial=0;const timers=new Set();
+    const snapshot=()=>({targets:targets.map(t=>({...t})),checking,sending,receipt:receipt?JSON.parse(JSON.stringify(receipt)):null,pendingSignature:pending?.signature||'',error});
+    const emit=()=>{if(!destroyed)notify(snapshot());};
+    async function request(url,body,controller){const timeout=setTimer(()=>controller.abort(),15000);timers.add(timeout);try{const response=await fetcher(url,{credentials:'same-origin',cache:'no-store',...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{}),signal:controller.signal});const value=await response.json();if(!response.ok||value?.ok!==true)throw Error(replyReason(value?.reason));return value;}finally{clearTimer(timeout);timers.delete(timeout);}}
+    return {snapshot,
+      async refresh(){if(destroyed||checking||sending)return;checking=true;error='';reader=new host.AbortController();emit();try{const value=await request('/api/production/viewer-chat/reply-status',null,reader);if(destroyed)return;if(value.max_length!==200||!Array.isArray(value.targets)||value.targets.length!==3||new Set(value.targets.map(t=>t.platform)).size!==3||value.targets.some(t=>!Object.hasOwn(PLATFORMS,t.platform)||typeof t.ready!=='boolean'))throw Error('invalid_reply_status');targets=value.targets.map(t=>({platform:t.platform,ready:t.ready,reason:typeof t.reason==='string'?t.reason:'unavailable'}));}catch(_){if(!destroyed){targets=[];error=REPLY_REASONS.unavailable;}}finally{reader=null;checking=false;emit();}},
+      async send(text,chosen,{retryFailed=false}={}){
+        if(destroyed||sending||!validReplyText(text)||!Array.isArray(chosen)||!chosen.length||new Set(chosen).size!==chosen.length||chosen.some(p=>!Object.hasOwn(PLATFORMS,p)))return false;
+        const selection=Object.keys(PLATFORMS).filter(p=>chosen.includes(p)),signature=JSON.stringify([text,selection]);
+        if(!retryFailed&&pending&&pending.signature===signature&&receipt)return false;
+        if(!retryFailed&&selection.some(p=>!targets.some(t=>t.platform===p&&t.ready)))return false;
+        if(retryFailed&&(!pending||pending.signature!==signature||!receipt?.results.some(r=>r.state==='failed'&&r.retryable)))return false;
+        if(!pending||pending.signature!==signature)pending={signature,request_id:host.crypto?.randomUUID?.()||'viewer-'+Date.now()+'-'+(++serial),text,targets:selection};
+        const body={request_id:pending.request_id,text,targets:selection,...(retryFailed?{retry_failed:true}:{})};sending=true;error='';writer=new host.AbortController();emit();
+        try{const value=await request('/api/production/viewer-chat/reply',body,writer);if(destroyed)return false;if(value.request_id!==body.request_id||!Array.isArray(value.results)||value.results.length!==selection.length||new Set(value.results.map(r=>r.platform)).size!==selection.length||value.results.some(r=>!selection.includes(r.platform)||!['sent','failed','uncertain'].includes(r.state)||typeof r.retryable!=='boolean'))throw Error('invalid_reply_receipt');receipt={request_id:value.request_id,results:value.results.map(r=>({platform:r.platform,state:r.state,reason:typeof r.reason==='string'?r.reason:'unavailable',retryable:r.state==='failed'&&r.retryable}))};if(receipt.results.every(r=>r.state==='sent'))pending=null;return true;}
+        catch(_){if(!destroyed){receipt={request_id:body.request_id,results:selection.map(platform=>({platform,state:'uncertain',reason:'chat_send_uncertain',retryable:false}))};error=REPLY_REASONS.chat_send_uncertain;}return false;}
+        finally{writer=null;sending=false;emit();}
+      },
+      destroy(){destroyed=true;reader?.abort();writer?.abort();for(const timer of timers)clearTimer(timer);timers.clear();},
+    };
+  }
   function connected(source){return source?.connected===true&&source.authorized===true&&source.verified===true&&source.state==='connected';}
   function connection(source={}){
     const name=PLATFORMS[source.platform]||'Platform',blocked=source.platform==='kick'&&!source.dashboard_registration_approved;
@@ -90,21 +116,40 @@
     if(!container)return null;if(container._viewerChat)return container._viewerChat;
     const doc=container.ownerDocument||host.document,prefix='viewer-chat-'+(++serial),root=doc.createElement('section');root.className='production-viewer-chat';root.dataset.broadcastPanel='live';root.setAttribute('aria-label','Viewer chat');
     function node(tag,text,parent=root,attrs={}){const el=doc.createElement(tag);if(text)el.textContent=text;for(const [key,value]of Object.entries(attrs))el.setAttribute(key,value);parent.append(el);return el;}
+    function icon(parent,platform){return node('span','',parent,{class:'viewer-chat-icon','data-chat-icon':platform,'aria-hidden':'true'});}
     const heading=node('header',''),title=node('h3','Viewer chat',heading),summary=node('span','Stopped',heading,{class:'viewer-chat-summary'});title.id=prefix+'-title';
     node('p','Twitch, YouTube and Kick viewers. Backstage guest conversations stay in Guests.',root,{class:'viewer-chat-note'});
     const actions=node('div','',root,{class:'viewer-chat-actions'}),start=node('button','Start listening',actions,{type:'button','data-viewer-start':''}),stop=node('button','Stop listening · Clear',actions,{type:'button','data-viewer-stop':''});
     const details=node('details','',root,{class:'viewer-chat-connections'});node('summary','Platform connections',details);const connections=node('div','',details,{'data-viewer-sources':''});
     const manageAccounts=node('button','Manage accounts',details,{type:'button','data-viewer-accounts':''});
+    details.append(actions);
     const filters=node('div','',root,{class:'viewer-chat-filters',role:'group','aria-label':'Filter viewer messages'}),filterButtons=new Map();
-    for(const [value,label]of Object.entries({all:'All',...PLATFORMS})){const b=node('button',label,filters,{type:'button','aria-pressed':String(value==='all'),'data-viewer-filter':value});filterButtons.set(value,b);}
+    for(const [value,label]of Object.entries({all:'All',...PLATFORMS})){const b=node('button',label,filters,{type:'button','aria-pressed':String(value==='all'),'data-viewer-filter':value});if(value!=='all')icon(b,value);filterButtons.set(value,b);}
     const feedback=node('p','Loading viewer chat…',root,{role:'status','aria-live':'polite','aria-atomic':'true',class:'viewer-chat-status','data-viewer-status':''});
     const transcript=node('ol','',root,{class:'viewer-chat-messages','data-viewer-messages':'',tabindex:'0','aria-label':'Viewer messages','aria-live':'off'}),empty=node('p','Loading viewer chat…',root,{class:'viewer-chat-empty','data-viewer-empty':''});
     const latest=node('button','Return to latest',root,{type:'button',class:'viewer-chat-latest','data-viewer-latest':''});latest.hidden=true;
     const retry=node('button','Retry updates',root,{type:'button','data-viewer-retry':''});retry.hidden=true;
-    node('p','Read-only viewer chat · latest 300 messages, kept for up to 20 minutes. Stop listening clears this feed. Display names do not verify identity.',root,{class:'viewer-chat-note'});
+    const composer=node('form','',root,{class:'viewer-chat-composer','data-viewer-composer':''}),destinationLabel=node('label','Reply to',composer),destination=node('select','',destinationLabel,{'data-viewer-reply-target':'','aria-label':'Reply destination'});
+    for(const [value,label]of Object.entries({all:'All ready chats',...PLATFORMS}))node('option',label,destination,{value});
+    const recipientList=node('div','',composer,{class:'viewer-chat-recipients','data-viewer-reply-recipients':'','aria-label':'Reply recipients'});
+    destination.value='all';const draftLabel=node('label','Message',composer),draft=node('textarea','',draftLabel,{'data-viewer-reply-text':'',rows:'3',maxlength:'400',placeholder:'Write a reply to viewers…','aria-describedby':prefix+'-reply-help'});
+    draft.value='';const composerActions=node('div','',composer,{class:'viewer-chat-compose-actions'}),counter=node('span','0 / 200',composerActions,{'data-viewer-reply-count':''}),send=node('button','Send to All',composerActions,{type:'submit','data-viewer-reply-send':''}),retryReply=node('button','Retry failed destinations',composerActions,{type:'button','data-viewer-reply-retry':''});retryReply.hidden=true;
+    const replyHelp=node('p','Checking reply permissions…',composer,{id:prefix+'-reply-help',class:'viewer-chat-note','data-viewer-reply-help':''}),checkReply=node('button','Check reply permissions',composer,{type:'button','data-viewer-reply-check':''}),replyReceipt=node('div','',composer,{class:'viewer-chat-receipt',role:'status','aria-live':'polite','data-viewer-reply-receipt':''});
+    node('p','Latest 300 messages, kept for up to 20 minutes. Stop listening clears this feed. Display names do not verify identity.',root,{class:'viewer-chat-note'});
     container.append(root);
     let previous=[],sourceStamp='',rendering=false,state=null,accountsDialog=null;
     const sourceRows=new Map(),local=['localhost','127.0.0.1','[::1]','::1'].includes(host.location?.hostname);
+    const selectedTargets=(next=replies.snapshot())=>destination.value==='all'?Object.keys(PLATFORMS).filter(p=>next.targets.some(t=>t.platform===p&&t.ready)):[destination.value];
+    function paintReply(next){
+      const chosen=selectedTargets(next),excluded=destination.value==='all'?Object.keys(PLATFORMS).filter(p=>!chosen.includes(p)):chosen.filter(p=>!next.targets.some(t=>t.platform===p&&t.ready)),length=[...draft.value].length,sameDraft=next.pendingSignature===JSON.stringify([draft.value,chosen]);counter.textContent=length+' / 200';send.textContent=next.sending?'Sending…':destination.value==='all'?'Send to All ready chats':'Send to '+PLATFORMS[destination.value];send.disabled=!local||next.sending||next.checking||!chosen.length||destination.value!=='all'&&excluded.length>0||!validReplyText(draft.value)||Boolean(sameDraft&&next.receipt);draft.disabled=next.sending;destination.disabled=next.sending;checkReply.disabled=next.checking||next.sending;
+      recipientList.replaceChildren();for(const platform of chosen){const chip=node('span',PLATFORMS[platform],recipientList,{class:'viewer-chat-platform'});icon(chip,platform);}
+      const warning=!local?'Reply from the production host computer.':next.checking?'Checking reply permissions…':length>200?'Use no more than 200 characters.':draft.value&&!validReplyText(draft.value)?'Use one line of plain text without control characters.':(chosen.length?'Public reply to '+chosen.map(p=>PLATFORMS[p]).join(', ')+'. ':'No chat is ready to receive a reply. ')+(excluded.length?'Excluded — '+excluded.map(p=>PLATFORMS[p]+': '+replyReason(next.targets.find(t=>t.platform===p)?.reason)).join(' '):'Sending requires an explicit click.');replyHelp.textContent=next.error||warning;send.title=send.disabled?replyHelp.textContent:'Post this reply to the shown destinations.';
+      retryReply.hidden=!next.receipt?.results.some(r=>r.state==='failed'&&r.retryable);retryReply.disabled=next.sending||!sameDraft;replyReceipt.replaceChildren();for(const item of next.receipt?.results||[]){const line=node('p',PLATFORMS[item.platform]+': '+(item.state==='sent'?'Sent':replyReason(item.reason)),replyReceipt);line.dataset.state=item.state;}
+    }
+    const replies=createReplyController({...options,onChange:paintReply});
+    draft.addEventListener('input',()=>paintReply(replies.snapshot()));destination.addEventListener('change',()=>paintReply(replies.snapshot()));checkReply.addEventListener('click',()=>replies.refresh());
+    async function sendReply(retryFailed=false){const text=draft.value,chosen=selectedTargets();await replies.send(text,chosen,{retryFailed});if(replies.snapshot().receipt?.results.every(r=>r.state==='sent'))draft.value='';paintReply(replies.snapshot());}
+    composer.addEventListener('submit',event=>{event.preventDefault();if(!send.disabled)return sendReply();});retryReply.addEventListener('click',()=>sendReply(true));
     manageAccounts.disabled=!local;manageAccounts.title=local?'Manage account permission for viewer chat.':'Use the production host computer to manage accounts.';
     function openAccounts(trigger=manageAccounts){
       const accounts=options.platformAccounts||host.ProducerPlatformAccounts;
@@ -116,7 +161,7 @@
     manageAccounts.addEventListener('click',()=>openAccounts());
     if(!local)node('p','Use the production host computer to connect or disconnect platforms.',details,{class:'viewer-chat-note'});
     for(const [platform,name]of Object.entries(PLATFORMS)){
-      const row=node('article','',connections,{'data-viewer-platform':platform}),copy=node('div','',row);node('strong',name,copy);const note=node('p','Checking connection…',copy),button=node('button','Connect '+name,row,{type:'button','data-viewer-connect':platform});
+      const row=node('article','',connections,{'data-viewer-platform':platform}),copy=node('div','',row),platformName=node('strong',name,copy);icon(platformName,platform);const note=node('p','Checking connection…',copy),button=node('button','Connect '+name,row,{type:'button','data-viewer-connect':platform});
       button.addEventListener('click',()=>controller.run(connection(state?.sources.find(s=>s.platform===platform)||{platform}).active?'disconnect':'connect',platform));sourceRows.set(platform,{row,note,button});
     }
     const controller=createController({...options,onAccountRequired(platform){openAccounts();options.onAccountRequired?.(platform);},onChange(next){
@@ -127,7 +172,7 @@
         const oldRows=new Map(Array.from(transcript.children).map(row=>[row.dataset.viewerKey,row]));
         const rows=visible.map(message=>{
           const key=message.platform+':'+message.id;if(oldRows.has(key))return oldRows.get(key);
-          const row=doc.createElement('li');row.dataset.viewerKey=key;const meta=node('div','',row,{class:'viewer-chat-meta'});node('span',PLATFORMS[message.platform],meta,{class:'viewer-chat-platform'});node('strong',message.display_name||'Viewer',meta);
+          const row=doc.createElement('li');row.dataset.viewerKey=key;row.dataset.platform=message.platform;const meta=node('div','',row,{class:'viewer-chat-meta'}),badge=node('span',PLATFORMS[message.platform],meta,{class:'viewer-chat-platform'});icon(badge,message.platform);node('strong',message.display_name||'Viewer',meta);
           const time=node('time','',meta),raw=message.occurred_at??message.received_at,date=new Date(typeof raw==='number'?raw*1000:raw);if(Number.isFinite(date.getTime())){time.dateTime=date.toISOString();time.textContent=date.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}else time.textContent='Time unavailable';
           node('p',message.text,row);return row;
         });
@@ -150,9 +195,9 @@
     for(const [value,button]of filterButtons)button.addEventListener('click',()=>{controller.setFilter(value);controller.setPaused(false);transcript.scrollTop=transcript.scrollHeight;});
     transcript.addEventListener('scroll',()=>{if(rendering)return;const paused=transcript.scrollHeight-transcript.scrollTop-transcript.clientHeight>=64;if(paused!==state?.paused)controller.setPaused(paused);});
     latest.addEventListener('click',()=>{controller.setPaused(false);transcript.scrollTop=transcript.scrollHeight;transcript.focus();});
-    const teardown=()=>api.destroy(),api={element:root,controller,destroy(){controller.destroy();accountsDialog?.destroy();host.removeEventListener?.('pagehide',teardown);root.remove();delete container._viewerChat;}};
-    container._viewerChat=api;host.addEventListener?.('pagehide',teardown,{once:true});controller.start();return api;
+    const teardown=()=>api.destroy(),api={element:root,controller,replies,destroy(){controller.destroy();replies.destroy();accountsDialog?.destroy();host.removeEventListener?.('pagehide',teardown);root.remove();delete container._viewerChat;}};
+    container._viewerChat=api;host.addEventListener?.('pagehide',teardown,{once:true});replies.refresh();controller.start();return api;
   }
-  const exported={mount,createFeed,createController,connection,connected,LIMIT};
+  const exported={mount,createFeed,createController,createReplyController,connection,connected,replyReason,LIMIT};
   if(typeof module==='object'&&module.exports)module.exports=exported;else host.ProducerViewerChat=exported;
 })(typeof window==='undefined'?globalThis:window);

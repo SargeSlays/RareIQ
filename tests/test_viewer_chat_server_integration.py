@@ -63,6 +63,32 @@ def test_private_guest_listener_cannot_read_or_enable_viewer_chat():
     assert client.get("/api/production/accounts").status_code == 404
     assert client.post("/api/production/accounts/twitch/begin", json={}).status_code == 404
     assert client.get("/api/production/accounts/youtube/authorization?flow_id=" + "a" * 32).status_code == 404
+    assert client.get("/api/production/viewer-chat/reply-status").status_code == 404
+    assert client.post("/api/production/viewer-chat/reply", json={
+        "request_id": "guest-must-not-send", "text": "not sent", "targets": ["twitch"]}).status_code == 404
+
+
+def test_reply_router_is_mounted_and_requires_explicit_same_origin_operator(monkeypatch):
+    calls = []
+
+    async def local_result(value):
+        calls.append(value)
+        return {"ok": True, "request_id": value["request_id"], "duplicate": False, "results": [
+            {"platform": "twitch", "state": "failed", "reason": "chat_send_permission_required", "retryable": False}]}
+
+    monkeypatch.setattr(server.viewer_chat_reply_service, "reply", local_result)
+    client = TestClient(server.app, base_url="http://127.0.0.1:8765", client=("127.0.0.1", 12000))
+    status = client.get("/api/production/viewer-chat/reply-status")
+    assert status.status_code == 200
+    assert status.json()["max_length"] == 200
+    body = {"request_id": "explicit-reply-test", "text": "literal <text>", "targets": ["twitch"]}
+    assert client.post("/api/production/viewer-chat/reply", json=body).status_code == 403
+    assert calls == []
+    result = client.post("/api/production/viewer-chat/reply", json=body,
+                         headers={"Origin": "http://127.0.0.1:8765"})
+    assert result.status_code == 200
+    assert calls == [body]
+    assert result.json()["results"][0]["reason"] == "chat_send_permission_required"
 
 
 def test_viewer_records_omit_raw_ids_and_have_no_guest_feed_alias():

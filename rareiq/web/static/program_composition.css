@@ -38,7 +38,7 @@
 
 /* Custom geometry is scoped to the saved custom layout; legacy presets keep their owner. */
 .composition-layer[data-layout=custom]{display:block;gap:0}
-.composition-layer[data-layout=custom]>.composition-tile{position:absolute;inset:auto;left:calc(var(--layer-x,0)*100%);top:calc(var(--layer-y,0)*100%);width:calc(var(--layer-width,1)*100%);height:calc(var(--layer-height,1)*100%);max-width:none;max-height:none;z-index:var(--layer-z,0);opacity:var(--layer-opacity,1);border:0;border-radius:0;box-shadow:none}
+.composition-layer[data-layout=custom]>.composition-tile{position:absolute;inset:auto;left:calc(var(--layer-x,0)*100%);top:calc(var(--layer-y,0)*100%);width:calc(var(--layer-width,1)*100%);height:calc(var(--layer-height,1)*100%);max-width:none;max-height:none;z-index:var(--layer-z,0);opacity:var(--layer-opacity,1);transform:rotate(calc(var(--layer-rotation,0)*1deg));transform-origin:50% 50%;border:0;border-radius:0;box-shadow:none}
 .composition-layer[data-layout=custom]>.composition-tile[data-layer-hidden=true]{visibility:hidden}
 .composition-layer[data-layout=custom]>.composition-tile>:is(video,iframe,img,.composition-text-content){position:absolute;max-width:none;max-height:none;width:calc(100%/(1 - var(--layer-crop-left,0) - var(--layer-crop-right,0)));height:calc(100%/(1 - var(--layer-crop-top,0) - var(--layer-crop-bottom,0)));left:calc(-100%*var(--layer-crop-left,0)/(1 - var(--layer-crop-left,0) - var(--layer-crop-right,0)));top:calc(-100%*var(--layer-crop-top,0)/(1 - var(--layer-crop-top,0) - var(--layer-crop-bottom,0)))}
 .composition-layer[data-layout=custom]>.composition-tile[data-layer-cropped=true]>:is(video,img){object-fit:fill}

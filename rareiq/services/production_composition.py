@@ -12,7 +12,7 @@ LOCAL_SOURCE = re.compile(r"^(image|video|text|browser):([a-f0-9]{8}-[a-f0-9]{4}
 PRODUCER_SCREEN = re.compile(r"^producer:screen:[a-f0-9]{32}$")
 SOURCE = re.compile(r"^(?:camera:[1-4]|producer:screen:[a-f0-9]{32}|guest:[a-f0-9]{32}:(?:camera|screen|audio)|(?:image|video|text|browser):[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$")
 LAYOUTS = frozenset({"auto", "grid", "spotlight", "pip", "custom"})
-LAYER_FIELDS = frozenset({"x", "y", "width", "height", "crop", "opacity", "z", "locked", "hidden"})
+LAYER_FIELDS = frozenset({"x", "y", "width", "height", "crop", "opacity", "z", "locked", "hidden", "rotation", "group"})
 MAX_REVISION = 2**53 - 1
 
 
@@ -65,18 +65,31 @@ def normalize_layers(sources, layers=None, *, layout="custom"):
         locked, hidden = value.get("locked", False), value.get("hidden", False)
         if type(z) is not int or not 0 <= z <= 100 or type(locked) is not bool or type(hidden) is not bool:
             raise ValueError("invalid_production_layers")
+        group = value.get("group", "")
+        if (not isinstance(group, str) or len(group) > 40
+                or re.search(r"[\x00-\x1f\x7f-\x9f]", group)
+                or (group and not group.strip())):
+            raise ValueError("invalid_production_layers")
         result[source] = {
             "x": number(value.get("x", 0), 0, 1), "y": number(value.get("y", 0), 0, 1),
             "width": number(value.get("width", 1), .01, 1), "height": number(value.get("height", 1), .01, 1),
             "crop": crop, "opacity": number(value.get("opacity", 1), 0, 1),
             "z": z, "locked": locked, "hidden": hidden,
+            "rotation": number(value.get("rotation", 0), -180, 180), "group": group,
         }
     return result
 
 
 def composition_id(sources, layout, layers=None):
+    normalized = normalize_layers(sources, layers, layout=layout)
+    # A pre-rotation scene keeps its receipt identity when loaded by a newer app.
+    # Non-default transforms and membership still participate in exact-ID guards.
+    identity_layers = {source: {key: value for key, value in layer.items()
+                               if not (key == "rotation" and value == 0)
+                               and not (key == "group" and value == "")}
+                       for source, layer in normalized.items()}
     value = {"sources": validate_sources(sources), "layout": layout,
-             "layers": normalize_layers(sources, layers, layout=layout)}
+             "layers": identity_layers}
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
 
 

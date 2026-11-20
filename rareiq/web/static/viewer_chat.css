@@ -40,3 +40,46 @@ body.pp-shell .production-viewer-chat .viewer-chat-empty { margin:12px 0; paddin
 body.pp-shell .production-viewer-chat :is(.viewer-chat-latest,[data-viewer-retry]) { width:100%; margin-top:9px; }
 @container viewer-chat (max-width:260px) { body.pp-shell .production-viewer-chat .viewer-chat-filters button { flex-basis:40%; } body.pp-shell .production-viewer-chat .viewer-chat-actions > * { flex-basis:100%; } }
 @media (max-width:600px) { html[data-theme] body.pp-shell .production-viewer-chat { padding:12px; } body.pp-shell .production-viewer-chat .viewer-chat-messages { max-height:320px; } }
+/* One full-width chat surface; only the message history scrolls during reading. */
+html[data-theme] body.pp-shell .viewer-chat-panel,html[data-theme] body.pp-shell .production-viewer-chat{width:100%;max-width:none;min-width:0;align-self:stretch;justify-self:stretch}
+html[data-theme] body.pp-shell .production-viewer-chat{display:flex;flex-direction:column;gap:10px;min-height:560px;border:1px solid var(--pp-border);border-radius:var(--pp-radius-sm)}
+body.pp-shell .production-viewer-chat :is(button,summary,select,textarea){min-height:44px}
+body.pp-shell .production-viewer-chat .viewer-chat-note,body.pp-shell .production-viewer-chat .viewer-chat-actions,body.pp-shell .production-viewer-chat .viewer-chat-connections,body.pp-shell .production-viewer-chat .viewer-chat-status{margin:0}
+body.pp-shell .production-viewer-chat .viewer-chat-filters{position:sticky;top:0;z-index:1;padding-block:5px;background:var(--pp-surface);gap:6px}
+body.pp-shell .production-viewer-chat .viewer-chat-filters button{display:flex;gap:7px;align-items:center;justify-content:center;flex:1 1 90px;min-width:90px;white-space:nowrap}
+body.pp-shell .production-viewer-chat .viewer-chat-messages{flex:1 1 280px;min-height:200px;max-height:clamp(260px,45vh,620px);padding:10px;background:var(--pp-bg)}
+body.pp-shell .production-viewer-chat .viewer-chat-messages li{padding:12px;margin-bottom:10px;border:1px solid var(--pp-border);border-radius:var(--pp-radius-sm);background:var(--pp-surface-raised)}
+body.pp-shell .production-viewer-chat .viewer-chat-messages li:last-child{border-bottom:1px solid var(--pp-border);margin-bottom:0}
+body.pp-shell .production-viewer-chat .viewer-chat-meta{gap:8px;align-items:center}
+body.pp-shell .production-viewer-chat .viewer-chat-platform,body.pp-shell .production-viewer-chat [data-viewer-platform] strong{display:inline-flex;align-items:center;gap:6px;flex-shrink:0;white-space:nowrap}
+body.pp-shell .production-viewer-chat .viewer-chat-icon{display:inline-block;flex:0 0 16px;width:16px;height:16px;vertical-align:middle;background:currentColor;mask-position:center;mask-repeat:no-repeat;mask-size:contain;order:-1}
+body.pp-shell .production-viewer-chat [data-chat-icon=twitch]{mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 2 1 6v15h6v3l4-3h4l7-7V2H3zm17 11-4 4h-4l-3 3v-3H5V4h15v9zm-5-6h2v6h-2V7zm-5 0h2v6h-2V7z'/%3E%3C/svg%3E")}
+body.pp-shell .production-viewer-chat [data-chat-icon=youtube]{mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M21.6 5.2C20.8 4 18 4 12 4S3.2 4 2.4 5.2C1 7.2 1 16.8 2.4 18.8 3.2 20 6 20 12 20s8.8 0 9.6-1.2c1.4-2 1.4-11.6 0-13.6ZM10 16V8l7 4-7 4Z' fill-rule='evenodd'/%3E%3C/svg%3E")}
+body.pp-shell .production-viewer-chat [data-chat-icon=kick]{mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M3 3h6v7h2V7h3V3h7v7h-4v4h4v7h-7v-4h-3v-3H9v7H3V3Z'/%3E%3C/svg%3E")}
+body.pp-shell .production-viewer-chat .viewer-chat-composer{position:relative;flex:0 0 auto;display:grid;gap:8px;padding:12px;border:1px solid var(--pp-border);border-radius:var(--pp-radius-sm);background:var(--pp-surface);box-shadow:0 -5px 12px var(--pp-bg)}
+body.pp-shell .production-viewer-chat .viewer-chat-composer label{display:grid;gap:5px;min-width:0;color:var(--pp-text-muted);font-size:12px}
+body.pp-shell .production-viewer-chat .viewer-chat-composer :is(select,textarea){width:100%;max-width:100%;min-width:0;padding:9px 10px;border:1px solid var(--pp-control-border);border-radius:var(--pp-radius-sm);background:var(--pp-bg);color:var(--pp-text);font:inherit;line-height:1.5}
+body.pp-shell .production-viewer-chat .viewer-chat-composer textarea{resize:vertical;min-height:88px;max-height:180px}
+body.pp-shell .production-viewer-chat .viewer-chat-compose-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+body.pp-shell .production-viewer-chat [data-viewer-reply-count]{font-size:11px;color:var(--pp-text-muted);margin-right:auto}
+body.pp-shell .production-viewer-chat [data-viewer-reply-send]{background:var(--pp-primary);color:var(--pp-on-primary);font-weight:650}
+body.pp-shell .production-viewer-chat .viewer-chat-receipt{font-size:12px;line-height:1.5;color:var(--pp-text-muted);overflow-wrap:anywhere}
+body.pp-shell .production-viewer-chat .viewer-chat-receipt [data-state=sent]{color:var(--pp-success)}
+body.pp-shell .production-viewer-chat .viewer-chat-receipt [data-state=uncertain]{color:var(--pp-warning)}
+body.pp-shell .production-viewer-chat :is(select,textarea):focus-visible{outline:2px solid var(--pp-focus);outline-offset:2px}
+@container viewer-chat (max-width:340px){body.pp-shell .production-viewer-chat .viewer-chat-filters button{flex-basis:40%}body.pp-shell .production-viewer-chat .viewer-chat-meta time{flex-basis:100%;margin-left:0}}
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .production-viewer-chat :is(button,select,textarea,summary){min-height:44px!important;height:auto!important;max-height:none!important}
+/* Chat fills its dock. Its composer stays outside the independently scrolling history. */
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .studio-dock-tool[data-studio-tool="production-viewer-chat"]{display:flex!important;flex-direction:column!important;width:100%!important;min-width:0!important;min-height:560px!important;max-height:1000px!important;overflow:hidden!important}
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-studiox-visual-system="unified"] .studio-dock-tool[data-studio-tool="production-viewer-chat"][data-custom-height="false"]{height:900px!important}
+html[data-theme] body.pp-shell .studio-dock-tool[data-studio-tool="production-viewer-chat"]>.studio-dock-handle{flex:0 0 auto}
+html[data-theme] body.pp-shell .studio-dock-tool[data-studio-tool="production-viewer-chat"]>.production-viewer-chat{flex:1 1 auto;min-height:0;overflow:auto;width:100%;padding:12px;gap:8px}
+body.pp-shell .production-viewer-chat .viewer-chat-messages{flex-shrink:1;min-height:120px}
+body.pp-shell .production-viewer-chat .viewer-chat-connections{flex:0 0 auto;max-height:280px;overflow:auto}
+body.pp-shell .production-viewer-chat .viewer-chat-connections[open]{flex:0 1 280px}
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .production-viewer-chat .viewer-chat-composer [data-viewer-reply-target]{min-height:44px!important;height:auto!important;max-height:none!important;padding-block:10px!important}
+html[data-theme] body.pp-shell.studiox-ui4.studiox-premium.studiox-command-deck[data-operator-layout="v2"][data-studiox-visual-system="unified"] .studio-dock-tool .production-viewer-chat .viewer-chat-composer label>select[data-viewer-reply-target]{width:100%!important;min-width:0!important;min-height:44px!important;height:auto!important;padding-block:10px!important}
+body.pp-shell .production-viewer-chat .viewer-chat-recipients{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+/* Opening a side chat targets the studio row, below the fixed application header. */
+body.pp-shell .studio-dock-grid:has(>.studio-dock-left>[data-studio-tool="production-viewer-chat"],>.studio-dock-right>[data-studio-tool="production-viewer-chat"]){scroll-margin-block-start:88px}
+body.pp-shell .studio-dock-tool[data-studio-tool="production-viewer-chat"]:is([data-position="left"],[data-position="right"]){scroll-margin-block-start:88px}

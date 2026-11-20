@@ -1197,3 +1197,27 @@ filter facilities. Remaining replay work: direct clip import/playout, fast repla
 hotkeys, isolated audio tracks and longer endurance/hardware tests. Dedicated
 game capture, computer audio, virtual camera, provider grants and real delivery
 remain separate from this checkpoint. No auto-start follows app restart.
+
+
+## November 19, 2026 — Playback, group/rotation and viewer chat pass
+
+Current slice adds reviewed saved-replay import to Preview with explicit Take,
+flat layer grouping and centered per-layer rotation. A requested viewer-chat
+redesign adds platform icons, message cards and a single/all-platform composer;
+reply readiness depends on each provider's existing account permissions.
+Acceptance, packaging and activation are recorded in the release checklist and
+external phase manifest. No unattended grant, platform post or real stream is
+authorized by local acceptance. Nesting, shared group rotation, replay transport
+controls/automatic return and isolated audio remain separate work.
+
+Follow-up acceptance: diagnose the intermittent Rehearsal monitoring-Off
+acknowledgement observed under concurrent native QA (unchanged isolated rerun
+passed), then stress/endurance. Reply consent/account setup and actual platform
+posts remain external acceptance, never inferred from mocked provider responses.
+
+Final accepted build 0.1.0-20261120013232287 is open in the separate Standalone
+Preview profile. Replay import/playback and sidebar placement passed actual
+packaged Main, backend and generated-media checks. The final isolated Rehearsal
+check passed; the earlier concurrent Off uncertainty remains a stress limitation.
+No primary profile migration, real provider reply, grant or stream receipt is
+established by this checkpoint.

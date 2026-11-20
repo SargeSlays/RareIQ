@@ -1572,3 +1572,46 @@ themes; do not inject a test-only stylesheet or change ordinary mobile behavior.
 Always specify UTF-8 for source reads and writes on Windows. A default-codepage
 helper corrupted menu bullets and dialog ellipses. Restore the intended Unicode
 and retain the native menu/confirmation label regression test.
+
+
+## November 19, 2026 — Replay import and group interaction guards
+
+Keep replay paths private to Main and pin the trusted Settings frame through the
+confirmation, conversion, upload and Preview response. Open/read a bounded reviewed
+file, retain the original MKV, write only to a unique private conversion directory
+and upload a compatible copy with stable idempotency. A saved receipt identity
+must distinguish two different clips with the same path/size. Preview CAS failure
+keeps the imported library item but must never report a successful Take.
+
+Groups are flat membership metadata with atomic member transforms. Preserve
+keyboard focus when repainting a polled draft; replacing the focused outline
+without restoring focus sends the next arrow key to the page instead. A locked
+member or out-of-bounds result rejects the entire group edit. Default rotation
+and empty membership must not churn legacy composition hashes.
+
+Chat send destinations must be independent from transcript filters. All ready
+chats resolves the exact displayed ready set rather than requiring an unconfigured
+third platform or silently targeting blocked accounts. Persist each target's
+pending claim before any provider write; merge results with transactional CAS.
+Treat timeout, malformed success and restart-pending as uncertain, never eligible
+for automatic retry. Retry only known unsent/retryable failures of the same payload
+and binding. Recheck the private account and connected chat under the credential
+owner lock. Status reads must not connect, refresh grants or post.
+
+An additional packaged Rehearsal check under concurrent QA stopped its capture,
+worker and ownership but retained rehearsal_monitor_unconfirmed after an Off
+acknowledgement was cancelled or not accepted. The unchanged isolated rerun passed
+on the same build; that does not prove a fixture-only cause or a fixed race. Keep
+the strict acknowledgement guard, the failed evidence and the passing rerun.
+Follow up with original rejection/nonce timing before claiming stress endurance.
+
+Component-only chat measurements missed its placement below a tall preflight.
+Opening the chat scrolled away the camera switcher and left a blank center.
+Full-Studio QA must keep the production picture and chat header visible together
+when opening sidebar chat; retain saved side/height preferences and narrow flow.
+
+A receipt-storage error can occur after a provider accepted a message. UI wording
+must not promise that nothing was sent merely because the response/receipt write
+failed. Preserve uncertainty and tell the operator to check each destination
+before starting a new request; durable pending receipts still prevent automatic
+reposts. Keep a frontend regression for that message.

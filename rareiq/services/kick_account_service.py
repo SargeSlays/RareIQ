@@ -31,6 +31,7 @@ class KickAccountService(YouTubeAccountService):
     SCOPE = "user:read channel:read streamkey:read"
     SCOPES = frozenset(SCOPE.split())
     METADATA_SCOPE = "channel:write"
+    CHAT_REPLY_SCOPE = "chat:write"
     REDIRECT_URI = "http://localhost:8770/callback"
     _CLIENT = re.compile(r"[A-Za-z0-9_-]{1,160}\Z")
     _CHANNEL = re.compile(r"[0-9]{1,24}\Z")

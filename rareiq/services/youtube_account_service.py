@@ -30,6 +30,7 @@ class YouTubeAccountService:
     CHANNELS_URL = "https://www.googleapis.com/youtube/v3/channels"
     SCOPE = "https://www.googleapis.com/auth/youtube.readonly"
     METADATA_SCOPE = "https://www.googleapis.com/auth/youtube.force-ssl"
+    CHAT_REPLY_SCOPE = "https://www.googleapis.com/auth/youtube.force-ssl"
     FLOW_LIFETIME_SECONDS = 600
     MAX_BYTES = 16384
     MAX_CALLBACK_HEADERS = 8192
@@ -647,6 +648,26 @@ class YouTubeAccountService:
                 return await operation(private, guard)
             finally:
                 active = False
+
+    def cached_chat_reply_context(self):
+        """Internal, token-free capability projection; never refresh or request consent."""
+        try:
+            status = self.status()
+            if status.get("authorized") is not True:
+                return {"authorized": False}
+            record = self._stored()
+            return {"authorized": True, "channel_id": record["channel_id"],
+                    "account_ref": status.get("account_ref"), "scopes": tuple(record["scopes"])}
+        except Exception:
+            return {"authorized": False}
+
+    async def with_chat_reply_access(self, operation):
+        async def owned(record, guard):
+            guard()
+            if self.CHAT_REPLY_SCOPE not in record["scopes"]:
+                raise _AccountError("chat_send_permission_required")
+            return await operation(record, guard)
+        return await self.with_stream_info_access(owned, require_edit=False)
 
     async def disconnect(self):
         generation, pending = self._invalidate("account_disconnected")

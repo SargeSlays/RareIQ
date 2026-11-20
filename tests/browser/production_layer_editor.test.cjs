@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const {defaults,normalizeLayers,createModel,moveLayer}=require('../../rareiq/web/static/production_layer_editor.js');
+const {defaults,normalizeLayers,createModel,moveLayer,groupBounds,transformGroup}=require('../../rareiq/web/static/production_layer_editor.js');
 const camera='camera:1',image='image:12345678-1234-1234-1234-123456789abc';
 const state=(overrides={})=>({generation:4,preview_revision:7,preview_sources:[camera,image],preview_layout:'grid',...overrides});
 
@@ -60,4 +60,47 @@ test('fractional pointer drafts serialize to backend six-decimal precision and a
   assert.doesNotThrow(()=>model.accepted(state({preview_revision:8,preview_layout:'custom',preview_layers:request.layers})));
   assert.equal(model.state().dirty,false);
   assert.throws(()=>normalizeLayers([camera],{[camera]:{...defaults(),crop:{top:.4999996,right:0,bottom:.4999996,left:0}}}),/invalid_layer_geometry/);
+});
+
+test('old layer maps gain optional defaults; rotation and group match backend validation',()=>{
+  const old=defaults();delete old.rotation;delete old.group;
+  assert.equal(normalizeLayers([camera],{[camera]:old})[camera].rotation,0);
+  assert.equal(normalizeLayers([camera],{[camera]:old})[camera].group,'');
+  for(const patch of [{rotation:null},{rotation:181},{rotation:-181},{rotation:Infinity},{group:null},{group:'a'.repeat(41)},{group:'\u0001bad'},{group:'bad\u0085'},{group:'  '}])assert.throws(()=>normalizeLayers([camera],{[camera]:{...defaults(),...patch}}),/invalid_layer_geometry/);
+  const layer=normalizeLayers([camera],{[camera]:{...defaults(),rotation:17.12345678,group:'🎥'.repeat(40)}})[camera];assert.equal(layer.rotation,17.123457);assert.equal([...layer.group].length,40);
+});
+
+function grouped(){return normalizeLayers([camera,image],{[camera]:{...defaults(),x:.1,y:.2,width:.2,height:.2,group:'Host <&> title',rotation:30,opacity:.6,crop:{top:.1,right:0,bottom:0,left:0}},[image]:{...defaults(1),x:.4,y:.3,width:.2,height:.3,group:'Host <&> title',hidden:true}});}
+
+test('flat group move and resize preserve proportions and unrelated layer properties',()=>{
+  const layers=grouped(),name=layers[camera].group,bounds=groupBounds(layers,name);assert.equal(bounds.width,.5000000000000001);
+  const moved=transformGroup([camera,image],layers,name,{x:.2,y:.1});assert.equal(moved[camera].x,.2);assert.equal(moved[image].x,.5);assert.equal(moved[camera].y,.1);assert.equal(moved[image].y,.2);
+  const sized=transformGroup([camera,image],moved,name,{width:.4,height:.3});assert.equal(sized[camera].width,.16);assert.equal(sized[image].height,.225);assert.equal(sized[image].x,.44);
+  assert.equal(sized[camera].rotation,30);assert.equal(sized[camera].opacity,.6);assert.equal(sized[camera].crop.top,.1);assert.equal(sized[image].hidden,true);assert.equal(sized[image].z,1);assert.deepEqual(layers,grouped());
+});
+
+test('all group changes reject atomically for locked members or invalid member bounds',()=>{
+  const layers=grouped(),name=layers[camera].group,sources=[camera,image];
+  for(const patch of [{x:.6},{height:.01},{width:.01},{x:NaN},{rotation:10}]){const before=structuredClone(layers);assert.throws(()=>transformGroup(sources,layers,name,patch),/layer_group_bounds|invalid_layer_geometry/);assert.deepEqual(layers,before);}
+  layers[image].locked=true;assert.throws(()=>transformGroup(sources,layers,name,{x:.2}),/layer_group_locked/);
+});
+
+test('group creation, selection and ungroup remain local, literal and CAS-bound',()=>{
+  const model=createModel();model.observe(state());model.edit(camera,{x:.1,y:.1,width:.2,height:.2,rotation:-45});model.edit(image,{x:.4,y:.1,width:.2,height:.2});
+  model.group([camera,image],'<Host & title>');assert.equal(model.state().selectedGroup,'<Host & title>');model.editGroup({x:.2,width:.4});
+  const request=model.prepare();assert.equal(request.layers[camera].group,'<Host & title>');assert.equal(request.layers[camera].rotation,-45);assert.equal(request.expected_preview_revision,7);assert.equal(Object.hasOwn(request,'audioRouting'),false);
+  model.accepted(state({preview_layout:'custom',preview_layers:request.layers,preview_revision:8}));assert.equal(model.state().dirty,false);
+  const before=model.state().layers;model.ungroup();assert.equal(model.state().selectedGroup,'');assert.equal(model.state().layers[camera].group,'');assert.equal(model.state().layers[image].x,before[image].x);assert.equal(model.state().layers[camera].rotation,-45);
+});
+
+test('a locked member blocks grouping, ungrouping and all transforms without dirty partial state',()=>{
+  const model=createModel(),layers=grouped(),name=layers[camera].group;layers[image].locked=true;model.observe(state({preview_layout:'custom',preview_layers:layers}));model.selectGroup(name);const before=model.state();
+  for(const action of [()=>model.editGroup({x:.2}),()=>model.ungroup(),()=>model.group([camera,image],'New name')]){assert.throws(action,/layer_group_locked/);assert.deepEqual(model.state(),before);}
+  assert.throws(()=>model.group([camera],'Solo'),/invalid_layer_group/);
+});
+
+test('pointer group transforms always use their captured origin and retain six-decimal Apply precision',()=>{
+  const model=createModel(),layers=grouped(),name=layers[camera].group;model.observe(state({preview_layout:'custom',preview_layers:layers}));model.selectGroup(name);
+  model.editGroup({x:.150073124},layers);model.editGroup({x:.160073124},layers);const request=model.prepare();assert.equal(request.layers[camera].x,.160073);assert.equal(request.layers[image].x,.460073);
+  model.accepted(state({preview_layout:'custom',preview_layers:request.layers,preview_revision:8}));assert.equal(model.state().dirty,false);
 });

@@ -1,6 +1,7 @@
 """Layer geometry, Preview CAS and exact staged/rendered receipts; no media or user state."""
 import asyncio
 from copy import deepcopy
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -23,6 +24,10 @@ IMAGE = "image:12345678-1234-1234-1234-123456789abc"
     {"opacity": float("inf")}, {"x": True}, {"hidden": 1}, {"locked": "false"},
     {"z": 1.5}, {"z": 101}, {"crop": {"left": .6, "right": .4}},
     {"crop": {"bottom": .96}}, {"crop": {"top": False}}, {"rotate": 45},
+    {"rotation": 180.01}, {"rotation": -180.01}, {"rotation": True},
+    {"rotation": float("nan")}, {"rotation": "45"}, {"group": 12},
+    {"group": None}, {"group": "x" * 41}, {"group": "\tGuest"},
+    {"group": "Guest\x85"}, {"group": " "},
 ])
 def test_invalid_geometry_cannot_enter_state(change):
     with pytest.raises(ValueError, match="invalid_production_layers"):
@@ -33,15 +38,32 @@ def test_canonical_geometry_defaults_pruning_and_opaque_receipt():
     layers = normalize_layers(["camera:1"], {"camera:1": {"width": .5}, "camera:2": {"x": .2}})
     assert set(layers) == {"camera:1"}
     assert layers["camera:1"] == dict(x=0, y=0, width=.5, height=1,
-        crop=dict(top=0, right=0, bottom=0, left=0), opacity=1, z=0, locked=False, hidden=False)
+        crop=dict(top=0, right=0, bottom=0, left=0), opacity=1, z=0, locked=False, hidden=False,
+        rotation=0, group="")
     original = composition_id(["camera:1"], "custom", layers)
     assert len(original) == 64
-    for field, value in [("x", .1), ("opacity", .4), ("z", 2), ("locked", True), ("hidden", True)]:
+    for field, value in [("x", .1), ("opacity", .4), ("z", 2), ("locked", True), ("hidden", True),
+                         ("rotation", 90), ("group", "Guests")]:
         changed = deepcopy(layers)
         changed["camera:1"][field] = value
         assert composition_id(["camera:1"], "custom", changed) != original
     with pytest.raises(ValueError, match="layers_require_custom_layout"):
         normalize_layers(["camera:1"], layers, layout="grid")
+
+
+def test_rotation_group_defaults_preserve_old_composition_identity_and_literal_names():
+    sources = ["camera:1"]
+    layers = normalize_layers(sources, {"camera:1": {"width": .5}})
+    legacy = {source: {key: value for key, value in layer.items()
+                       if key not in {"rotation", "group"}} for source, layer in layers.items()}
+    legacy_id = hashlib.sha256(json.dumps(dict(sources=sources, layout="custom", layers=legacy),
+        sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
+    assert composition_id(sources, "custom", layers) == legacy_id
+    assert normalize_layers(sources, legacy) == layers
+    rotated = normalize_layers(sources, {"camera:1": {"rotation": -12.3456789, "group": "Guests <3 🎥"}})
+    assert rotated["camera:1"]["rotation"] == -12.345679
+    assert rotated["camera:1"]["group"] == "Guests <3 🎥"
+    assert normalize_layers(sources, rotated) == rotated
 
 
 @pytest.fixture
@@ -182,8 +204,9 @@ def test_removing_preview_source_prunes_metadata_without_interrupting_program(ri
 def test_scene_persistence_roundtrips_both_buses_and_redacts_geometry_history(tmp_path):
     store = ProductionSceneStore(tmp_path / "scenes.sqlite3", tmp_path / "missing.json", [])
     scene = dict(name="Custom scene", program_sources=["camera:1", IMAGE], preview_sources=["camera:2"],
-        layout="custom", layers=normalize_layers(["camera:1", IMAGE], {IMAGE: {"x": .6, "width": .4, "locked": True}}),
-        preview_layout="custom", preview_layers=normalize_layers(["camera:2"], {"camera:2": {"opacity": .5}}))
+        layout="custom", layers=normalize_layers(["camera:1", IMAGE], {
+            "camera:1": {"group": "Interview"}, IMAGE: {"x": .6, "width": .4, "locked": True, "rotation": 45, "group": "Interview"}}),
+        preview_layout="custom", preview_layers=normalize_layers(["camera:2"], {"camera:2": {"opacity": .5, "rotation": -90, "group": "Guest"}}))
     result = store.edit(action="save", target="custom", scene=scene, expected_revision=0, request_id="save", actor_kind="local_operator")
     assert result["ok"]
     restored = ProductionSceneStore(store.path, store.legacy_path, []).snapshot()["scenes"][0]
@@ -198,7 +221,7 @@ def test_scene_persistence_roundtrips_both_buses_and_redacts_geometry_history(tm
 def test_custom_scene_take_requires_staged_exact_scene_and_preserves_swap(rig, monkeypatch, tmp_path):
     state = rig[0]
     store = ProductionSceneStore(tmp_path / "scenes.sqlite3", tmp_path / "missing.json", [])
-    layers = normalize_layers(["camera:2"], {"camera:2": {"x": .2, "width": .7, "opacity": .8}})
+    layers = normalize_layers(["camera:2"], {"camera:2": {"x": .2, "width": .7, "opacity": .8, "rotation": 30, "group": "Guest"}})
     store.edit(action="save", target="custom", scene=dict(name="Scene", program_sources=["camera:2"],
         layout="custom", layers=layers), expected_revision=0, request_id="scene", actor_kind="local_operator")
     monkeypatch.setattr(server, "production_scene_store", store)

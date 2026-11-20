@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync(require.resolve('../../rareiq/web/static/viewer_chat.js'),'utf8');
-const {createFeed,connection,connected}=require('../../rareiq/web/static/viewer_chat.js');
+const {createFeed,connection,connected,createReplyController}=require('../../rareiq/web/static/viewer_chat.js');
 const settle=async()=>{for(let i=0;i<40;i++)await Promise.resolve();};
 const message=(id,text='Message '+id,platform='twitch')=>({id,text,platform,display_name:'Viewer '+id,occurred_at:1700000000,received_at:1700000001});
 const sources=()=>['twitch','youtube','kick'].map(platform=>({platform,implemented:true,state:'not_connected',connected:false,authorized:false,verified:false,reason:'explicit_connection_required',...(platform==='kick'?{dashboard_registration_approved:false}:{})}));
@@ -52,7 +52,7 @@ test('connection health requires all provenance flags and safely maps unavailabl
 });
 
 test('mount reads status without enabling listening or connecting accounts; Kick remains disabled with an explanation',async()=>{
-  const f=fixture();await settle();assert.equal(f.requests.length,1);assert.ok(f.requests[0].url.startsWith('/api/production/viewer-chat?'));assert.equal(new URL(f.requests[0].url,'http://fixture').searchParams.has('session_id'),false);assert.equal(f.requests.some(r=>r.init.method==='POST'),false);
+  const f=fixture();await settle();assert.equal(f.requests.length,2);assert.equal(f.requests[0].url,'/api/production/viewer-chat/reply-status');assert.ok(f.requests[1].url.startsWith('/api/production/viewer-chat?'));assert.equal(new URL(f.requests[1].url,'http://fixture').searchParams.has('session_id'),false);assert.equal(f.requests.some(r=>r.init.method==='POST'),false);
   assert.equal(f.get('data-viewer-connect','kick').disabled,true);assert.match(f.get('data-viewer-connect','kick').title,/approved/);assert.equal(f.get('data-viewer-start').disabled,false);
   assert.equal(f.container._viewerChat,f.chat);assert.equal(f.chat.element.dataset.broadcastPanel,'live');
 });
@@ -129,3 +129,50 @@ test('history-warning Stop receipt stays confirmed even if the following status 
   const f=fixture();await settle();f.setHandler(async(url,init)=>{if(init.method==='POST')return f.response(payload([],{active:false,activity_history_warning:true}));throw Error('status unavailable');});assert.equal(await f.chat.controller.run('stop'),true);assert.equal(f.chat.controller.snapshot().activityHistoryWarning,true);assert.equal(f.chat.controller.snapshot().stale,true);assert.match(f.get('data-viewer-status').textContent,/Action completed/);assert.doesNotMatch(f.get('data-viewer-status').textContent,/Stopping could not be confirmed/);
   f.setHandler(async()=>f.response(payload([],{active:false})));await f.chat.controller.run('start');assert.equal(f.chat.controller.snapshot().activityHistoryWarning,false);
 });
+
+test('reply composer shows exactly ready All recipients and separates destination from reading filter',async()=>{
+  const f=fixture();await settle();f.setHandler(async(url,init)=>{if(url.endsWith('/reply-status'))return f.response({ok:true,max_length:200,targets:['twitch','youtube','kick'].map(platform=>({platform,ready:platform==='twitch',reason:platform==='twitch'?'ready':'chat_send_permission_required'}))});if(init.method==='POST'){const body=JSON.parse(init.body);return f.response({ok:true,request_id:body.request_id,results:body.targets.map(platform=>({platform,state:'sent',reason:'chat_sent',retryable:false}))});}return f.response(payload([]));});
+  await f.chat.replies.refresh();const draft=f.get('data-viewer-reply-text'),target=f.get('data-viewer-reply-target'),send=f.get('data-viewer-reply-send');draft.value='<literal & reply>';draft.dispatch('input');assert.equal(send.disabled,false);assert.match(f.get('data-viewer-reply-help').textContent,/Public reply to Twitch.*Excluded.*YouTube.*Permission.*Kick/);assert.equal(f.get('data-viewer-reply-recipients').children.length,1);
+  target.value='twitch';target.dispatch('change');assert.equal(send.disabled,false);assert.equal(send.textContent,'Send to Twitch');f.get('data-viewer-filter','youtube').dispatch('click');assert.equal(target.value,'twitch');await f.get('data-viewer-composer').dispatch('submit');const body=JSON.parse(f.requests.find(r=>r.url.endsWith('/reply')).init.body);assert.deepEqual(body.targets,['twitch']);assert.equal(body.text,'<literal & reply>');assert.equal(draft.value,'');assert.equal(f.get('data-viewer-reply-receipt').children[0].textContent,'Twitch: Sent');
+});
+
+test('All ready chats posts exactly the two displayed ready recipients and names the excluded platform',async()=>{
+  const f=fixture();await settle();f.setHandler(async(url,init)=>{if(url.endsWith('/reply-status'))return f.response({ok:true,max_length:200,targets:['twitch','youtube','kick'].map(platform=>({platform,ready:platform!=='kick',reason:platform==='kick'?'chat_send_permission_required':'ready'}))});if(init.method==='POST'){const body=JSON.parse(init.body);return f.response({ok:true,request_id:body.request_id,results:body.targets.map(platform=>({platform,state:'sent',reason:'chat_sent',retryable:false}))});}return f.response(payload([]));});await f.chat.replies.refresh();const draft=f.get('data-viewer-reply-text');draft.value='Two ready chats';draft.dispatch('input');assert.equal(f.get('data-viewer-reply-send').disabled,false);assert.equal(f.get('data-viewer-reply-recipients').children.length,2);assert.match(f.get('data-viewer-reply-help').textContent,/Public reply to Twitch, YouTube.*Excluded.*Kick/);await f.get('data-viewer-composer').dispatch('submit');assert.deepEqual(JSON.parse(f.requests.find(r=>r.url.endsWith('/reply')).init.body).targets,['twitch','youtube']);
+});
+
+function replyFixture(){
+  const {createReplyController}=require('../../rareiq/web/static/viewer_chat.js'),requests=[],timers=new Set();let handle=(url,init)=>({ok:true,json:async()=>url.endsWith('/reply-status')?{ok:true,max_length:200,targets:['twitch','youtube','kick'].map(platform=>({platform,ready:true,reason:'ready'}))}:{ok:true,request_id:JSON.parse(init.body).request_id,results:JSON.parse(init.body).targets.map(platform=>({platform,state:'sent',reason:'chat_sent',retryable:false}))}});
+  const controller=createReplyController({fetch:async(url,init)=>{requests.push({url,init});return handle(url,init);},setTimeout(){const token={};timers.add(token);return token;},clearTimeout(token){timers.delete(token);}});return {controller,requests,timers,setHandler(fn){handle=fn;}};
+}
+
+test('reply validation counts Unicode codepoints, requires explicit unique destinations and posts only on Send',async()=>{
+  const f=replyFixture();await f.controller.refresh();assert.equal(f.requests.some(r=>r.init.method==='POST'),false);
+  for(const [text,targets]of [['',['twitch']],['x'.repeat(201),['twitch']],['hi',[]],['hi',['twitch','twitch']],['hi',['unknown']]])assert.equal(await f.controller.send(text,targets),false);
+  assert.equal(await f.controller.send('🎥'.repeat(200),['youtube']),true);const request=f.requests.at(-1);assert.equal(request.init.credentials,'same-origin');assert.deepEqual(JSON.parse(request.init.body).targets,['youtube']);assert.equal(f.timers.size,0);
+});
+
+test('partial replies keep one ID and explicit retry covers only backend-known failed recipients',async()=>{
+  const f=replyFixture();await f.controller.refresh();f.setHandler((url,init)=>{const body=JSON.parse(init.body);return {ok:true,json:async()=>({ok:true,request_id:body.request_id,results:[{platform:'twitch',state:'sent',reason:'chat_sent',retryable:false},{platform:'youtube',state:body.retry_failed?'sent':'failed',reason:body.retry_failed?'chat_sent':'chat_provider_rate_limited',retryable:!body.retry_failed}]})};});
+  assert.equal(await f.controller.send('Hello',['twitch','youtube']),true);const first=JSON.parse(f.requests.at(-1).init.body);assert.equal(await f.controller.send('Hello',['twitch','youtube']),false);assert.equal(await f.controller.send('Hello',['twitch','youtube'],{retryFailed:true}),true);const retry=JSON.parse(f.requests.at(-1).init.body);assert.equal(retry.request_id,first.request_id);assert.equal(retry.retry_failed,true);assert.equal(f.controller.snapshot().receipt.results[0].state,'sent');
+});
+
+test('lost reply response becomes uncertain, blocks identical resends and never exposes provider error text',async()=>{
+  const f=replyFixture();await f.controller.refresh();f.setHandler(()=>{throw Error('secret-token-private-provider-detail');});assert.equal(await f.controller.send('Check',['kick']),false);assert.equal(f.controller.snapshot().receipt.results[0].state,'uncertain');assert.equal(await f.controller.send('Check',['kick']),false);assert.equal(await f.controller.send('Check',['kick'],{retryFailed:true}),false);assert.doesNotMatch(f.controller.snapshot().error,/secret|token|private/);assert.equal(f.requests.length,2);
+});
+
+test('sent and uncertain recipients stay protected while explicit known-failed retry remains available',async()=>{
+  const f=replyFixture();await f.controller.refresh();f.setHandler((url,init)=>({ok:true,json:async()=>({ok:true,request_id:JSON.parse(init.body).request_id,results:[{platform:'twitch',state:'uncertain',reason:'chat_send_uncertain',retryable:true},{platform:'youtube',state:'failed',reason:'chat_provider_rate_limited',retryable:true}]})}));await f.controller.send('Mixed',['twitch','youtube']);assert.equal(f.controller.snapshot().receipt.results[0].retryable,false);assert.equal(await f.controller.send('Mixed',['twitch','youtube'],{retryFailed:true}),true);assert.equal(JSON.parse(f.requests.at(-1).init.body).retry_failed,true);
+});
+
+test('reply commands serialize clicks and destruction aborts timers without restoring UI',async()=>{
+  const f=replyFixture();await f.controller.refresh();let finish;f.setHandler(()=>new Promise(resolve=>finish=resolve));const first=f.controller.send('Pending',['twitch']);assert.equal(await f.controller.send('Pending',['twitch']),false);const request=f.requests.at(-1);f.controller.destroy();assert.equal(request.init.signal.aborted,true);assert.equal(f.timers.size,0);finish({ok:true,json:async()=>({ok:true,request_id:JSON.parse(request.init.body).request_id,results:[{platform:'twitch',state:'sent',retryable:false}]})});await first;assert.equal(f.controller.snapshot().receipt,null);
+});
+
+
+test('reply controller rejects controls and unpaired surrogates before native transport',async()=>{
+ const calls=[],controller=createReplyController({fetch:async(url,options)=>{calls.push(url);return {ok:true,json:async()=>({ok:true,max_length:200,targets:['twitch','youtube','kick'].map(platform=>({platform,ready:true,reason:'ready'}))})};}});
+ await controller.refresh();const before=calls.length;for(const text of ['line\nline','tab\ttext','text\u007f','\ud800'])assert.equal(await controller.send(text,['twitch']),false);assert.equal(calls.length,before);controller.destroy();
+});
+
+
+test('reply errors preserve uncertainty after receipt storage failure and explain rehearsal',()=>{const {replyReason}=require('../../rareiq/web/static/viewer_chat.js');assert.doesNotMatch(replyReason('chat_storage_unavailable'),/nothing.*sent/i);assert.match(replyReason('chat_storage_unavailable'),/Check each platform/);assert.match(replyReason('rehearsal_active'),/Rehearsal/);});
